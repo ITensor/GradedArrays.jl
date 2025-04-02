@@ -1,7 +1,7 @@
 module LabelledNumbersBlockArraysExt
 
 using BlockArrays: BlockArrays, Block, BlockBoundsError
-using LabelledNumbers: LabelledUnitRange, unlabel
+using ..LabelledNumbers: LabelledUnitRange, unlabel
 
 # Fixes ambiguity error with:
 # ```julia
