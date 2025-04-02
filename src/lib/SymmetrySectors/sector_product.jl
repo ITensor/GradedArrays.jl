@@ -2,8 +2,8 @@
 # e.g. U(1)×U(1), U(1)×SU2(2)×SU(3)
 
 using BlockArrays: blocklengths
-using LabelledNumbers: LabelledInteger, label, labelled, unlabel
-using GradedUnitRanges: GradedUnitRanges, dual, map_blocklabels
+using ..LabelledNumbers: LabelledInteger, label, labelled, unlabel
+using ..GradedUnitRanges: GradedUnitRanges, dual, map_blocklabels
 
 # =====================================  Definition  =======================================
 struct SectorProduct{Sectors} <: AbstractSector

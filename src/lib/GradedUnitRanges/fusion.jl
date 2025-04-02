@@ -1,5 +1,5 @@
 using BlockArrays: AbstractBlockedUnitRange, blocklengths
-using LabelledNumbers: LabelledInteger, label, labelled
+using ..LabelledNumbers: LabelledInteger, label, labelled
 using SplitApplyCombine: groupcount
 using TensorProducts: TensorProducts, OneToOne, tensor_product
 

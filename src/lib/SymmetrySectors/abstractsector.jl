@@ -2,8 +2,8 @@
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of AbstractSector
 
 using BlockArrays: blocklengths
-using LabelledNumbers: LabelledInteger, label, label_type, labelled, unlabel, unlabel_type
-using GradedUnitRanges: GradedUnitRanges, blocklabels, fuse_blocklengths, gradedrange
+using ..LabelledNumbers: LabelledInteger, label, label_type, labelled, unlabel, unlabel_type
+using ..GradedUnitRanges: GradedUnitRanges, blocklabels, fuse_blocklengths, gradedrange
 using TensorProducts: TensorProducts, ⊗, tensor_product
 
 abstract type AbstractSector end

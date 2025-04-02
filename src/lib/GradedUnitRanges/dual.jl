@@ -1,4 +1,4 @@
-using LabelledNumbers: LabelledInteger, label, labelled, unlabel
+using ..LabelledNumbers: LabelledInteger, label, labelled, unlabel
 
 """
     dual(x)

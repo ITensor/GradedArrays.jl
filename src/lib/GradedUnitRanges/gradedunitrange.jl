@@ -18,7 +18,7 @@ using BlockArrays:
   sortedunion
 using Compat: allequal
 using FillArrays: Fill
-using LabelledNumbers:
+using ..LabelledNumbers:
   LabelledNumbers,
   LabelledInteger,
   LabelledUnitRange,
