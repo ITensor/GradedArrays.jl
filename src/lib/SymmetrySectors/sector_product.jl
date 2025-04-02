@@ -15,6 +15,8 @@ SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 
 arguments(s::SectorProduct) = s.arguments
 
+GradedUnitRanges.to_sector(nt::NamedTuple) = SectorProduct(nt)
+
 # =================================  Sectors interface  ====================================
 function SymmetryStyle(T::Type{<:SectorProduct})
   return arguments_symmetrystyle(arguments_type(T))

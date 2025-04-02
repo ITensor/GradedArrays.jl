@@ -12,7 +12,6 @@ include("sector_definitions/su.jl")
 include("sector_definitions/su2k.jl")
 include("sector_definitions/u1.jl")
 include("sector_definitions/zn.jl")
-
 include("namedtuple_operations.jl")
 include("sector_product.jl")
 
