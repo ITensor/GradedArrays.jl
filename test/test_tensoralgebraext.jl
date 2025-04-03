@@ -1,6 +1,6 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray
-using GradedArrays: dual, gradedrange
+using GradedArrays: GradedOneTo, blocklabels, dual, gradedrange
 using GradedArrays.SymmetrySectors: U1
 using Random: randn!
 using TensorAlgebra: contract, fusedims, splitdims
