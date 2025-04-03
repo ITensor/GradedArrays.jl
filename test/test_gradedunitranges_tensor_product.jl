@@ -1,5 +1,5 @@
 using BlockArrays: blocklength, blocklengths
-using GradedArrays.GradedUnitRanges:
+using GradedArrays:
   GradedUnitRanges,
   GradedOneTo,
   blocklabels,

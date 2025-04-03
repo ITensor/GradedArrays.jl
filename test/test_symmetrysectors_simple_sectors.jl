@@ -1,4 +1,4 @@
-using GradedArrays.GradedUnitRanges: dual, sector_type
+using GradedArrays: dual, sector_type
 using GradedArrays.SymmetrySectors:
   Fib,
   Ising,

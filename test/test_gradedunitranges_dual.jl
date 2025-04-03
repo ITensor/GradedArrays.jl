@@ -12,7 +12,7 @@ using BlockArrays:
   findblock,
   mortar,
   combine_blockaxes
-using GradedArrays.GradedUnitRanges:
+using GradedArrays:
   AbstractGradedUnitRange,
   GradedUnitRanges,
   GradedUnitRangeDual,

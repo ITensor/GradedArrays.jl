@@ -11,7 +11,7 @@ using BlockArrays:
   blocks,
   combine_blockaxes,
   mortar
-using GradedArrays.GradedUnitRanges:
+using GradedArrays:
   GradedOneTo, GradedUnitRange, blocklabels, gradedrange, sector_type, space_isequal
 using GradedArrays.LabelledNumbers:
   LabelledUnitRange, islabelled, label, labelled, labelled_isequal, unlabel

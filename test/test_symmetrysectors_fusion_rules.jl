@@ -1,5 +1,4 @@
-using GradedArrays.GradedUnitRanges:
-  dual, space_isequal, gradedrange, flip, unmerged_tensor_product
+using GradedArrays: dual, space_isequal, gradedrange, flip, unmerged_tensor_product
 using GradedArrays.SymmetrySectors:
   Fib,
   Ising,

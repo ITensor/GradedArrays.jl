@@ -12,7 +12,7 @@ using GradedArrays.SymmetrySectors:
   quantum_dimension,
   arguments,
   trivial
-using GradedArrays.GradedUnitRanges: dual, space_isequal, gradedrange, sector_type
+using GradedArrays: dual, space_isequal, gradedrange, sector_type
 using TensorProducts: ⊗
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred

@@ -6,6 +6,7 @@ using BlockSparseArrays:
   BlockSparseArray,
   blocktype
 using ..GradedUnitRanges: AbstractGradedUnitRange, dual
+using LinearAlgebra: Adjoint
 using TypeParameterAccessors: similartype, unwrap_array_type
 
 # TODO: Handle this through some kind of trait dispatch, maybe

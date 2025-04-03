@@ -2,7 +2,7 @@ using BlockArrays:
   AbstractBlockArray, Block, BlockedOneTo, blockedrange, blocklengths, blocksize
 using BlockSparseArrays:
   BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
-using GradedArrays.GradedUnitRanges:
+using GradedArrays:
   GradedUnitRanges,
   GradedOneTo,
   GradedUnitRange,
@@ -17,7 +17,6 @@ using GradedArrays.SymmetrySectors: U1
 using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!
-using TensorAlgebra: fusedims, splitdims
 using Test: @test, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
@@ -104,33 +103,6 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     @test label(axes(b, 1)[Block(2)]) == U1(1)
     @test Array(a) isa Array{elt}
     @test Array(a) == a
-  end
-  # TODO: Add tests for various slicing operations.
-  @testset "fusedims" begin
-    d1 = gradedrange([U1(0) => 1, U1(1) => 1])
-    d2 = gradedrange([U1(0) => 1, U1(1) => 1])
-    a = randn_blockdiagonal(elt, (d1, d2, d1, d2))
-    m = fusedims(a, (1, 2), (3, 4))
-    for ax in axes(m)
-      @test ax isa GradedOneTo
-      @test blocklabels(ax) == [U1(0), U1(1), U1(2)]
-    end
-    for I in CartesianIndices(m)
-      if I ∈ CartesianIndex.([(1, 1), (4, 4)])
-        @test !iszero(m[I])
-      else
-        @test iszero(m[I])
-      end
-    end
-    @test a[1, 1, 1, 1] == m[1, 1]
-    @test a[2, 2, 2, 2] == m[4, 4]
-    @test blocksize(m) == (3, 3)
-    @test a == splitdims(m, (d1, d2), (d1, d2))
-
-    # check block fusing and splitting
-    d = gradedrange([U1(0) => 2, U1(1) => 1])
-    a = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
-    @test splitdims(fusedims(a, (1, 2), (3, 4)), axes(a)...) == a
   end
 
   @testset "dual axes" begin
