@@ -57,9 +57,24 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
       @test 2 * Array(a) == b
     end
 
-    d1 = gradedrange([U1(0) => 2, U1(1) => 2])
-    d2 = gradedrange([U1(0) => 2, U1(1) => 2])
-    a = randn_blockdiagonal(elt, (d1, d2, d1, d2))
+    r = gradedrange([U1(0) => 2, U1(1) => 2])
+    a = zeros(r, r, r, r)
+    @test a isa BlockSparseArray{Float64}
+    @test eltype(a) === Float64
+    @test size(a) == (4, 4, 4, 4)
+    @test iszero(a)
+    @test iszero(blockstoredlength(a))
+
+    r = gradedrange([U1(0) => 2, U1(1) => 2])
+    a = zeros(elt, r, r, r, r)
+    @test a isa BlockSparseArray{elt}
+    @test eltype(a) === elt
+    @test size(a) == (4, 4, 4, 4)
+    @test iszero(a)
+    @test iszero(blockstoredlength(a))
+
+    r = gradedrange([U1(0) => 2, U1(1) => 2])
+    a = randn_blockdiagonal(elt, (r, r, r, r))
     b = similar(a, ComplexF64)
     @test b isa BlockSparseArray{ComplexF64}
     @test eltype(b) === ComplexF64

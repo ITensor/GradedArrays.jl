@@ -87,6 +87,12 @@ function Base.similar(
   return similar_blocksparse(a, elt, axes)
 end
 
+function Base.zeros(
+  elt::Type, ax::Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}
+)
+  return BlockSparseArray{elt}(undef, ax)
+end
+
 function getindex_blocksparse(a::AbstractArray, I::AbstractUnitRange...)
   a′ = similar(a, only.(axes.(I))...)
   a′ .= a
