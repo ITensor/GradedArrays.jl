@@ -1,5 +1,7 @@
 module SymmetrySectors
 
+using TensorKitSectors
+
 export U1, Z, dual
 
 include("symmetry_style.jl")
