@@ -6,7 +6,9 @@ using BlockArrays:
   BlockVector,
   blockaxes,
   blockfirsts,
-  combine_blockaxes
+  combine_blockaxes,
+  findblock
+using BlockSparseArrays: BlockSparseArrays, blockedunitrange_getindices
 using ..LabelledNumbers: LabelledNumbers, LabelledUnitRange, label_type, unlabel
 
 struct GradedUnitRangeDual{
@@ -44,30 +46,38 @@ Base.step(a::GradedUnitRangeDual) = dual(step(nondual(a)))
 
 Base.view(a::GradedUnitRangeDual, index::Block{1}) = a[index]
 
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::GradedUnitRangeDual, indices::AbstractUnitRange{<:Integer}
 )
   return dual(getindex(nondual(a), indices))
 end
 
-function blockedunitrange_getindices(a::GradedUnitRangeDual, indices::Integer)
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::GradedUnitRangeDual, indices::Integer
+)
   return dual(getindex(nondual(a), indices))
 end
 
-function blockedunitrange_getindices(a::GradedUnitRangeDual, indices::Block{1})
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::GradedUnitRangeDual, indices::Block{1}
+)
   return dual(getindex(nondual(a), indices))
 end
 
-function blockedunitrange_getindices(a::GradedUnitRangeDual, indices::BlockRange)
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::GradedUnitRangeDual, indices::BlockRange
+)
   return dual(getindex(nondual(a), indices))
 end
 
-function blockedunitrange_getindices(a::GradedUnitRangeDual, indices::BlockIndexRange{1})
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::GradedUnitRangeDual, indices::BlockIndexRange{1}
+)
   return dual(nondual(a)[indices])
 end
 
 # fix ambiguity
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::GradedUnitRangeDual, indices::BlockRange{1,<:Tuple{AbstractUnitRange{Int}}}
 )
   return dual(getindex(nondual(a), indices))
@@ -78,14 +88,14 @@ function BlockArrays.blocklengths(a::GradedUnitRangeDual)
 end
 
 # TODO: Move this to a `BlockArraysExtensions` library.
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::GradedUnitRangeDual, indices::Vector{<:BlockIndexRange{1}}
 )
   # dual v axes to stay consistent with other cases where axes(v) are used
   return dual_axes(blockedunitrange_getindices(nondual(a), indices))
 end
 
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::GradedUnitRangeDual,
   indices::BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}},
 )
@@ -94,7 +104,7 @@ function blockedunitrange_getindices(
   return dual_axes(blockedunitrange_getindices(nondual(a), indices))
 end
 
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::GradedUnitRangeDual, indices::AbstractVector{<:Union{Block{1},BlockIndexRange{1}}}
 )
   # dual v axis to preserve dual information
@@ -103,7 +113,7 @@ function blockedunitrange_getindices(
 end
 
 # Fixes ambiguity error.
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::GradedUnitRangeDual, indices::AbstractBlockVector{<:Block{1}}
 )
   v = blockedunitrange_getindices(nondual(a), indices)

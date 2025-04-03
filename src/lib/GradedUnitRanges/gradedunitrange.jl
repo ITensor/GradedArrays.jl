@@ -1,10 +1,13 @@
 using BlockArrays:
   BlockArrays,
+  AbstractBlockVector,
   AbstractBlockedUnitRange,
   Block,
+  BlockIndex,
   BlockIndexRange,
   BlockRange,
   BlockSlice,
+  BlockVector,
   BlockedOneTo,
   BlockedUnitRange,
   block,
@@ -15,7 +18,14 @@ using BlockArrays:
   blocks,
   blockindex,
   combine_blockaxes,
+  mortar,
   sortedunion
+using BlockSparseArrays:
+  BlockSparseArrays,
+  _blocks,
+  blockedunitrange_findblock,
+  blockedunitrange_findblockindex,
+  blockedunitrange_getindices
 using Compat: allequal
 using FillArrays: Fill
 using ..LabelledNumbers:
@@ -127,11 +137,15 @@ function BlockArrays.findblock(a::AbstractGradedUnitRange, index::Integer)
   return blockedunitrange_findblock(unlabel_blocks(a), index)
 end
 
-function blockedunitrange_findblock(a::AbstractGradedUnitRange, index::Integer)
+function BlockSparseArrays.blockedunitrange_findblock(
+  a::AbstractGradedUnitRange, index::Integer
+)
   return blockedunitrange_findblock(unlabel_blocks(a), index)
 end
 
-function blockedunitrange_findblockindex(a::AbstractGradedUnitRange, index::Integer)
+function BlockSparseArrays.blockedunitrange_findblockindex(
+  a::AbstractGradedUnitRange, index::Integer
+)
   return blockedunitrange_findblockindex(unlabel_blocks(a), index)
 end
 
@@ -221,32 +235,36 @@ function firstblockindices(a::AbstractGradedUnitRange)
   return labelled.(firstblockindices(unlabel_blocks(a)), blocklabels(a))
 end
 
-function blockedunitrange_getindices(a::AbstractGradedUnitRange, index::Block{1})
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::AbstractGradedUnitRange, index::Block{1}
+)
   return labelled(unlabel_blocks(a)[index], get_label(a, index))
 end
 
-function blockedunitrange_getindices(a::AbstractGradedUnitRange, indices::Vector{<:Integer})
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::AbstractGradedUnitRange, indices::Vector{<:Integer}
+)
   return map(index -> a[index], indices)
 end
 
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange,
   indices::BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}},
 )
   return mortar(map(b -> a[b], blocks(indices)))
 end
 
-function blockedunitrange_getindices(a::AbstractGradedUnitRange, index)
+function BlockSparseArrays.blockedunitrange_getindices(a::AbstractGradedUnitRange, index)
   return labelled(unlabel_blocks(a)[index], get_label(a, index))
 end
 
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange, indices::BlockIndexRange{1}
 )
   return a[block(indices)][only(indices.indices)]
 end
 
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange, indices::AbstractVector{<:Union{Block{1},BlockIndexRange{1}}}
 )
   # Without converting `indices` to `Vector`,
@@ -268,22 +286,28 @@ function blocklabels(a::AbstractUnitRange, indices)
   end
 end
 
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   ga::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer}
 )
   a_indices = blockedunitrange_getindices(unlabel_blocks(ga), indices)
   return labelled_blocks(a_indices, blocklabels(ga, indices))
 end
 
-function blockedunitrange_getindices(a::AbstractGradedUnitRange, indices::BlockSlice)
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::AbstractGradedUnitRange, indices::BlockSlice
+)
   return a[indices.block]
 end
 
-function blockedunitrange_getindices(ga::AbstractGradedUnitRange, indices::BlockRange)
+function BlockSparseArrays.blockedunitrange_getindices(
+  ga::AbstractGradedUnitRange, indices::BlockRange
+)
   return labelled_blocks(unlabel_blocks(ga)[indices], blocklabels(ga, indices))
 end
 
-function blockedunitrange_getindices(a::AbstractGradedUnitRange, indices::BlockIndex{1})
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::AbstractGradedUnitRange, indices::BlockIndex{1}
+)
   return a[block(indices)][blockindex(indices)]
 end
 
@@ -398,7 +422,7 @@ end
 # blocklengths = map(bs -> sum(b -> length(a[b]), bs), blocks(indices))
 # return blockedrange(blocklengths)
 # ```
-function blockedunitrange_getindices(
+function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange, indices::AbstractBlockVector{<:Block{1}}
 )
   blks = map(bs -> mortar(map(b -> a[b], bs)), blocks(indices))
