@@ -74,7 +74,8 @@ using TestExtras: @constinferred
     @test space_isequal((@constinferred s12 ⊗ s0o), gradedrange([s12 => 1]))
     @test space_isequal((@constinferred s12 ⊗ s1), gradedrange([s12 => 1, O2(3//2) => 1]))
     @test space_isequal(
-      (@constinferred s12 ⊗ s12), gradedrange([s0o => 1, s0e => 1, s1 => 1])
+      (@constinferred s12 ⊗ s12),
+      gradedrange([s0e => 1, s0o => 1, s1 => 1]),
     )
 
     @test (@constinferred quantum_dimension(s0o ⊗ s1)) == 2
