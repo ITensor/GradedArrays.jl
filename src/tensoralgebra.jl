@@ -1,15 +1,8 @@
-using BlockArrays:
-  AbstractBlockVector,
-  AbstractBlockedUnitRange,
-  Block,
-  BlockIndexRange,
-  blockedrange,
-  blocks
+using BlockArrays: Block, BlockIndexRange, blockedrange, blocks
 using BlockSparseArrays:
   BlockSparseArrays,
   AbstractBlockSparseArray,
   AbstractBlockSparseArrayInterface,
-  AbstractBlockSparseMatrix,
   BlockSparseArray,
   BlockSparseArrayInterface,
   BlockSparseMatrix,
@@ -34,14 +27,6 @@ using TensorProducts: OneToOne
 include("reducewhile.jl")
 
 TensorAlgebra.FusionStyle(::AbstractGradedUnitRange) = SectorFusion()
-
-# TODO: Need to implement this! Will require implementing
-# `block_merge(a::AbstractUnitRange, blockmerger::BlockedUnitRange)`.
-function BlockSparseArrays.block_merge(
-  a::AbstractGradedUnitRange, blockmerger::AbstractBlockedUnitRange
-)
-  return a
-end
 
 # Sort the blocks by sector and then merge the common sectors.
 function block_mergesort(a::AbstractArray)
@@ -85,11 +70,4 @@ function TensorAlgebra.splitdims(
   a_unblocked = a[sorted_axes...]
   a_blockpermed = a_unblocked[invblockperm.(blockperms)...]
   return splitdims(BlockReshapeFusion(), a_blockpermed, split_axes...)
-end
-
-# TODO: Handle this through some kind of trait dispatch, maybe
-# a `SymmetryStyle`-like trait to check if the block sparse
-# matrix has graded axes.
-function Base.axes(a::Adjoint{<:Any,<:AbstractBlockSparseMatrix})
-  return dual.(reverse(axes(a')))
 end

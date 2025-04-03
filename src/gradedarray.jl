@@ -1,6 +1,27 @@
-using BlockSparseArrays: AnyAbstractBlockSparseArray, BlockSparseArray, blocktype
-using ..GradedUnitRanges: AbstractGradedUnitRange
+using BlockArrays: AbstractBlockedUnitRange
+using BlockSparseArrays:
+  BlockSparseArrays,
+  AbstractBlockSparseMatrix,
+  AnyAbstractBlockSparseArray,
+  BlockSparseArray,
+  blocktype
+using ..GradedUnitRanges: AbstractGradedUnitRange, dual
 using TypeParameterAccessors: similartype, unwrap_array_type
+
+# TODO: Handle this through some kind of trait dispatch, maybe
+# a `SymmetryStyle`-like trait to check if the block sparse
+# matrix has graded axes.
+function Base.axes(a::Adjoint{<:Any,<:AbstractBlockSparseMatrix})
+  return dual.(reverse(axes(a')))
+end
+
+# TODO: Need to implement this! Will require implementing
+# `block_merge(a::AbstractUnitRange, blockmerger::BlockedUnitRange)`.
+function BlockSparseArrays.block_merge(
+  a::AbstractGradedUnitRange, blockmerger::AbstractBlockedUnitRange
+)
+  return a
+end
 
 # A block spare array similar to the input (dense) array.
 # TODO: Make `BlockSparseArrays.blocksparse_similar` more general and use that,
