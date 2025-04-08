@@ -1,9 +1,9 @@
 using BlockArrays: Block, blocksize
-using BlockSparseArrays: BlockSparseArray
-using GradedArrays: GradedOneTo, blocklabels, dual, gradedrange
+using BlockSparseArrays: BlockSparseArray, BlockSparseMatrix
+using GradedArrays: GradedOneTo, blocklabels, dual, flip, gradedrange, space_isequal
 using GradedArrays.SymmetrySectors: U1
 using Random: randn!
-using TensorAlgebra: contract, fusedims, splitdims
+using TensorAlgebra: contract, matricize, unmatricize
 using Test: @test, @test_broken, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
@@ -18,6 +18,49 @@ end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
+  @testset "matricize" begin
+    d1 = gradedrange([U1(0) => 1, U1(1) => 1])
+    d2 = gradedrange([U1(0) => 1, U1(1) => 1])
+    a = randn_blockdiagonal(elt, (d1, d2, dual(d1), dual(d2)))
+    m = matricize(a, (1, 2), (3, 4))
+    @test m isa BlockSparseMatrix
+    @test space_isequal(axes(m, 1), gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 1]))
+    @test space_isequal(
+      axes(m, 2), flip(gradedrange([U1(0) => 1, U1(-1) => 2, U1(-2) => 1]))
+    )
+
+    for I in CartesianIndices(m)
+      if I ∈ CartesianIndex.([(1, 1), (4, 4)])
+        @test !iszero(m[I])
+      else
+        @test iszero(m[I])
+      end
+    end
+    @test a[1, 1, 1, 1] == m[1, 1]
+    @test a[2, 2, 2, 2] == m[4, 4]
+    @test blocksize(m) == (3, 3)
+    @test a == unmatricize(m, (d1, d2), (dual(d1), dual(d2)))
+
+    # check block fusing and splitting
+    d = gradedrange([U1(0) => 2, U1(1) => 1])
+    b = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
+    @test unmatricize(
+      matricize(b, (1, 2), (3, 4)), (axes(b, 1), axes(b, 2)), (axes(b, 3), axes(b, 4))
+    ) == b
+
+    m = matricize(a, (1, 2, 3, 4), ())
+    @test m isa BlockSparseMatrix
+    @test space_isequal(axes(m, 1), gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 1]))
+    @test space_isequal(axes(m, 2), flip(gradedrange([U1(0) => 1])))
+    @test a == unmatricize(m, (d1, d2, dual(d1), dual(d2)), ())
+
+    m = matricize(a, (), (1, 2, 3, 4))
+    @test m isa BlockSparseMatrix
+    @test space_isequal(axes(m, 1), gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 1]))
+    @test space_isequal(axes(m, 2), flip(gradedrange([U1(0) => 1])))
+    @test a == unmatricize(m, (), (d1, d2, dual(d1), dual(d2)))
+  end
+
   @testset "GradedOneTo with U(1)" begin
     d = gradedrange([U1(0) => 2, U1(1) => 3])
     a1 = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
@@ -70,31 +113,5 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     @test size(a_dest) == size(a_dest_dense)
     @test a_dest isa BlockSparseArray
     @test a_dest ≈ a_dest_dense
-  end
-  @testset "fusedims" begin
-    d1 = gradedrange([U1(0) => 1, U1(1) => 1])
-    d2 = gradedrange([U1(0) => 1, U1(1) => 1])
-    a = randn_blockdiagonal(elt, (d1, d2, d1, d2))
-    m = fusedims(a, (1, 2), (3, 4))
-    for ax in axes(m)
-      @test ax isa GradedOneTo
-      @test blocklabels(ax) == [U1(0), U1(1), U1(2)]
-    end
-    for I in CartesianIndices(m)
-      if I ∈ CartesianIndex.([(1, 1), (4, 4)])
-        @test !iszero(m[I])
-      else
-        @test iszero(m[I])
-      end
-    end
-    @test a[1, 1, 1, 1] == m[1, 1]
-    @test a[2, 2, 2, 2] == m[4, 4]
-    @test blocksize(m) == (3, 3)
-    @test a == splitdims(m, (d1, d2), (d1, d2))
-
-    # check block fusing and splitting
-    d = gradedrange([U1(0) => 2, U1(1) => 1])
-    a = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
-    @test splitdims(fusedims(a, (1, 2), (3, 4)), axes(a)...) == a
   end
 end

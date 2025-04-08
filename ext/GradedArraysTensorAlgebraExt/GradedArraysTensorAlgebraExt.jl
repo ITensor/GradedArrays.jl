@@ -9,7 +9,8 @@ using BlockSparseArrays:
   BlockSparseArrayInterface,
   BlockSparseMatrix,
   BlockSparseVector,
-  block_merge
+  block_merge,
+  blockreshape
 using DerivableInterfaces: @interface
 using GradedArrays.GradedUnitRanges:
   GradedUnitRanges,
@@ -17,93 +18,79 @@ using GradedArrays.GradedUnitRanges:
   blockmergesortperm,
   blocksortperm,
   dual,
+  flip,
   invblockperm,
   nondual,
   unmerged_tensor_product
+using GradedArrays.SymmetrySectors: trivial
 using LinearAlgebra: Adjoint, Transpose
 using TensorAlgebra:
-  TensorAlgebra, FusionStyle, BlockReshapeFusion, SectorFusion, fusedims, splitdims
-using TensorProducts: OneToOne
+  TensorAlgebra,
+  AbstractBlockPermutation,
+  BlockedTuple,
+  FusionStyle,
+  matricize,
+  trivial_axis,
+  unmatricize
 
-#=
-    reducewhile(f, op, collection, state)
-
-reducewhile(x -> length(x) < 3, vcat, ["a", "b", "c", "d"], 2; init=String[]) ==
-  (["b", "c"], 4)
-=#
-function reducewhile(f, op, collection, state; init)
-  prev_result = init
-  prev_state = state
-  result = prev_result
-  while f(result)
-    prev_result = result
-    prev_state = state
-    value_and_state = iterate(collection, state)
-    isnothing(value_and_state) && break
-    value, state = value_and_state
-    result = op(result, value)
-  end
-  return prev_result, prev_state
-end
-
-#=
-    groupreducewhile(f, op, collection, ngroups)
-
-groupreducewhile((i, x) -> length(x) ≤ i, vcat, ["a", "b", "c", "d", "e", "f"], 3; init=String[]) ==
-  (["a"], ["b", "c"], ["d", "e", "f"])
-=#
-function groupreducewhile(f, op, collection, ngroups; init)
-  state = firstindex(collection)
-  return ntuple(ngroups) do group_number
-    result, state = reducewhile(x -> f(group_number, x), op, collection, state; init)
-    return result
-  end
-end
+struct SectorFusion <: FusionStyle end
 
 TensorAlgebra.FusionStyle(::AbstractGradedUnitRange) = SectorFusion()
+
+function TensorAlgebra.FusionStyle(::AbstractBlockSparseArray, ::SectorFusion)
+  return SectorFusion()
+end
+
+# TODO consider heterogeneous sectors?
+TensorAlgebra.trivial_axis(t::Tuple{Vararg{AbstractGradedUnitRange}}) = trivial(first(t))
+
+maybe_trivial_axis(axes::Tuple, ::Tuple) = unmerged_tensor_product(axes...)
+maybe_trivial_axis(::Tuple{}, axes::Tuple) = trivial_axis(axes)
+
+function row_and_column_axes(
+  blocked_axes::BlockedTuple{2,<:Any,<:Tuple{Vararg{AbstractUnitRange}}}
+)
+  codomain_axes, domain_axes = blocks(blocked_axes)
+  @assert !(isempty(codomain_axes) && isempty(domain_axes))
+  row_axis = maybe_trivial_axis(codomain_axes, domain_axes)
+  unflipped_col_axis = maybe_trivial_axis(domain_axes, codomain_axes)
+  return row_axis, flip(unflipped_col_axis)
+end
+
+function TensorAlgebra.matricize(
+  ::SectorFusion, a::AbstractArray, biperm::AbstractBlockPermutation{2}
+)
+  a_perm = permutedims(a, Tuple(biperm))
+  row_axis, col_axis = row_and_column_axes(axes(a)[biperm])
+  a_reshaped = blockreshape(a_perm, (row_axis, col_axis))
+  # Sort the blocks by sector and merge the equivalent sectors.
+  return block_mergesort(a_reshaped)
+end
+
+function TensorAlgebra.unmatricize(
+  ::SectorFusion,
+  m::AbstractMatrix,
+  blocked_axes::BlockedTuple{2,<:Any,<:Tuple{Vararg{AbstractUnitRange}}},
+)
+  # First, fuse axes to get `blockmergesortperm`.
+  # Then unpermute the blocks.
+  row_col_axes = row_and_column_axes(blocked_axes)
+
+  blockperms = blocksortperm.(row_col_axes)
+  sorted_axes = map((r, I) -> only(axes(r[I])), row_col_axes, blockperms)
+
+  # TODO: This is doing extra copies of the blocks,
+  # use `@view a[axes_prod...]` instead.
+  # That will require implementing some reindexing logic
+  # for this combination of slicing.
+  m_unblocked = m[sorted_axes...]
+  m_blockpermed = m_unblocked[invblockperm.(blockperms)...]
+  return unmatricize(FusionStyle(m, ()), m_blockpermed, blocked_axes)
+end
 
 # Sort the blocks by sector and then merge the common sectors.
 function block_mergesort(a::AbstractArray)
   I = blockmergesortperm.(axes(a))
   return a[I...]
 end
-
-function TensorAlgebra.fusedims(
-  ::SectorFusion, a::AbstractArray, merged_axes::AbstractUnitRange...
-)
-  # First perform a fusion using a block reshape.
-  # TODO avoid groupreducewhile. Require refactor of fusedims.
-  unmerged_axes = groupreducewhile(
-    unmerged_tensor_product, axes(a), length(merged_axes); init=OneToOne()
-  ) do i, axis
-    return length(axis) ≤ length(merged_axes[i])
-  end
-
-  a_reshaped = fusedims(BlockReshapeFusion(), a, unmerged_axes...)
-  # Sort the blocks by sector and merge the equivalent sectors.
-  return block_mergesort(a_reshaped)
-end
-
-function TensorAlgebra.splitdims(
-  ::SectorFusion, a::AbstractArray, split_axes::AbstractUnitRange...
-)
-  # First, fuse axes to get `blockmergesortperm`.
-  # Then unpermute the blocks.
-  axes_prod = groupreducewhile(
-    unmerged_tensor_product, split_axes, ndims(a); init=OneToOne()
-  ) do i, axis
-    return length(axis) ≤ length(axes(a, i))
-  end
-  blockperms = blocksortperm.(axes_prod)
-  sorted_axes = map((r, I) -> only(axes(r[I])), axes_prod, blockperms)
-
-  # TODO: This is doing extra copies of the blocks,
-  # use `@view a[axes_prod...]` instead.
-  # That will require implementing some reindexing logic
-  # for this combination of slicing.
-  a_unblocked = a[sorted_axes...]
-  a_blockpermed = a_unblocked[invblockperm.(blockperms)...]
-  return splitdims(BlockReshapeFusion(), a_blockpermed, split_axes...)
-end
-
 end
