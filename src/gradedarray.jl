@@ -4,10 +4,20 @@ using BlockSparseArrays:
   AbstractBlockSparseMatrix,
   AnyAbstractBlockSparseArray,
   BlockSparseArray,
+  BlockSparseMatrix,
+  BlockSparseVector,
   blocktype
 using ..GradedUnitRanges: AbstractGradedUnitRange, dual
 using LinearAlgebra: Adjoint
 using TypeParameterAccessors: similartype, unwrap_array_type
+
+const GradedArray{T,M,A,Blocks,Axes} = BlockSparseArray{
+  T,M,A,Blocks,Axes
+} where {Axes<:Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}}
+const GradedMatrix{T,A,Blocks,Axes} =
+  BlockSparseMatrix{T,A,Blocks,Axes} where {Axes<:Tuple{Vararg{AbstractGradedUnitRange}}}
+const GradedVector{T,A,Blocks,Axes} =
+  BlockSparseVector{T,A,Blocks,Axes} where {Axes<:Tuple{Vararg{AbstractGradedUnitRange}}}
 
 # TODO: Handle this through some kind of trait dispatch, maybe
 # a `SymmetryStyle`-like trait to check if the block sparse
