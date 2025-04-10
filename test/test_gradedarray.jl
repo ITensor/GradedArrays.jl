@@ -2,12 +2,12 @@ using BlockArrays:
   AbstractBlockArray, Block, BlockedOneTo, blockedrange, blocklengths, blocksize
 using BlockSparseArrays:
   BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
-using GradedArrays:
+using GradedArrays: GradedArray, GradedMatrix, GradedVector
+using GradedArrays.GradedUnitRanges:
   GradedUnitRanges,
   GradedOneTo,
   GradedUnitRange,
   GradedUnitRangeDual,
-  blocklabels,
   dag,
   dual,
   gradedrange,
@@ -31,6 +31,19 @@ end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 @testset "GradedArray (eltype=$elt)" for elt in elts
+  @testset "definitions" begin
+    r = gradedrange([U1(0) => 2, U1(1) => 2])
+    a = BlockSparseArray{elt}(undef)
+    @test !(a isa GradedArray)  # no type piracy
+    v = BlockSparseArray{elt}(undef, r)
+    @test v isa GradedArray
+    @test v isa GradedVector
+    m = BlockSparseArray{elt}(undef, r, r)
+    @test m isa GradedArray
+    @test m isa GradedMatrix
+    a = BlockSparseArray{elt}(undef, r, r, r)
+    @test a isa GradedArray
+  end
   @testset "map" begin
     d1 = gradedrange([U1(0) => 2, U1(1) => 2])
     d2 = gradedrange([U1(0) => 2, U1(1) => 2])
@@ -60,6 +73,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     r = gradedrange([U1(0) => 2, U1(1) => 2])
     a = zeros(r, r, r, r)
     @test a isa BlockSparseArray{Float64}
+    @test a isa GradedArray
     @test eltype(a) === Float64
     @test size(a) == (4, 4, 4, 4)
     @test iszero(a)
