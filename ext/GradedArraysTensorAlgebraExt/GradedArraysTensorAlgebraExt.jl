@@ -32,17 +32,17 @@ function matricize_axes(
   @assert !isempty(blocked_axes)
   default_axis = trivial_axis(Tuple(blocked_axes))
   codomain_axes, domain_axes = blocks(blocked_axes)
-  row_axis = unmerged_tensor_product(default_axis, codomain_axes...)
-  unflipped_col_axis = unmerged_tensor_product(default_axis, domain_axes...)
-  return row_axis, flip(unflipped_col_axis)
+  codomain_axis = unmerged_tensor_product(default_axis, codomain_axes...)
+  unflipped_domain_axis = unmerged_tensor_product(default_axis, domain_axes...)
+  return codomain_axis, flip(unflipped_domain_axis)
 end
 
 function TensorAlgebra.matricize(
   ::SectorFusion, a::AbstractArray, biperm::AbstractBlockPermutation{2}
 )
   a_perm = permutedims(a, Tuple(biperm))
-  row_axis, col_axis = matricize_axes(axes(a)[biperm])
-  a_reshaped = blockreshape(a_perm, (row_axis, col_axis))
+  codomain_axis, domain_axis = matricize_axes(axes(a)[biperm])
+  a_reshaped = blockreshape(a_perm, (codomain_axis, domain_axis))
   # Sort the blocks by sector and merge the equivalent sectors.
   return sectormergesort(a_reshaped)
 end
@@ -54,10 +54,10 @@ function TensorAlgebra.unmatricize(
 )
   # First, fuse axes to get `blockmergesortperm`.
   # Then unpermute the blocks.
-  row_col_axes = matricize_axes(blocked_axes)
+  fused_axes = matricize_axes(blocked_axes)
 
-  blockperms = blocksortperm.(row_col_axes)
-  sorted_axes = map((r, I) -> only(axes(r[I])), row_col_axes, blockperms)
+  blockperms = blocksortperm.(fused_axes)
+  sorted_axes = map((r, I) -> only(axes(r[I])), fused_axes, blockperms)
 
   # TODO: This is doing extra copies of the blocks,
   # use `@view a[axes_prod...]` instead.
