@@ -12,9 +12,6 @@ using .GradedUnitRanges:
   GradedUnitRangeDual,
   LabelledUnitRangeDual,
   blocklabels,
-  blockmergesort,
-  blockmergesortperm,
-  blocksortperm,
   dag,
   dual,
   dual_type,
@@ -25,6 +22,9 @@ using .GradedUnitRanges:
   nondual,
   nondual_type,
   sector_type,
+  sectormergesort,
+  sectormergesortperm,
+  sectorsortperm,
   space_isequal,
   unmerged_tensor_product
 include("SymmetrySectors/SymmetrySectors.jl")

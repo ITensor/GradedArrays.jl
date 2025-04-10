@@ -5,10 +5,10 @@ using BlockSparseArrays: BlockSparseArray, blockreshape
 using GradedArrays: GradedArray
 using GradedArrays.GradedUnitRanges:
   AbstractGradedUnitRange,
-  blockmergesortperm,
-  blocksortperm,
   flip,
   invblockperm,
+  sectormergesortperm,
+  sectorsortperm,
   unmerged_tensor_product
 using GradedArrays.SymmetrySectors: trivial
 using TensorAlgebra:
@@ -52,11 +52,11 @@ function TensorAlgebra.unmatricize(
   m::AbstractMatrix,
   blocked_axes::BlockedTuple{2,<:Any,<:Tuple{Vararg{AbstractUnitRange}}},
 )
-  # First, fuse axes to get `blockmergesortperm`.
+  # First, fuse axes to get `sectormergesortperm`.
   # Then unpermute the blocks.
   fused_axes = matricize_axes(blocked_axes)
 
-  blockperms = blocksortperm.(fused_axes)
+  blockperms = sectorsortperm.(fused_axes)
   sorted_axes = map((r, I) -> only(axes(r[I])), fused_axes, blockperms)
 
   # TODO: This is doing extra copies of the blocks,
@@ -70,7 +70,7 @@ end
 
 # Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)
-  I = blockmergesortperm.(axes(a))
+  I = sectormergesortperm.(axes(a))
   return a[I...]
 end
 end

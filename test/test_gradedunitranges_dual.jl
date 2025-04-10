@@ -18,8 +18,6 @@ using GradedArrays:
   GradedUnitRangeDual,
   LabelledUnitRangeDual,
   blocklabels,
-  blockmergesortperm,
-  blocksortperm,
   dag,
   dual,
   dual_type,
@@ -28,8 +26,10 @@ using GradedArrays:
   isdual,
   nondual,
   nondual_type,
-  space_isequal,
-  sector_type
+  sector_type,
+  sectormergesortperm,
+  sectorsortperm,
+  space_isequal
 using GradedArrays.LabelledNumbers:
   LabelledInteger, LabelledUnitRange, label, label_type, labelled, labelled_isequal, unlabel
 using Test: @test, @test_broken, @testset
@@ -233,12 +233,12 @@ end
     @test label(ad[[Block(2), Block(1)]][Block(1)]) == U1(-1)
     @test ad[[Block(2)[1:2], Block(1)[1:2]]][Block(1)] == 3:4
     @test label(ad[[Block(2)[1:2], Block(1)[1:2]]][Block(1)]) == U1(-1)
-    @test blocksortperm(a) == [Block(1), Block(2)]
-    @test blocksortperm(ad) == [Block(1), Block(2)]
-    @test blocklength(blockmergesortperm(a)) == 2
-    @test blocklength(blockmergesortperm(ad)) == 2
-    @test blockmergesortperm(a) == [Block(1), Block(2)]
-    @test blockmergesortperm(ad) == [Block(1), Block(2)]
+    @test sectorsortperm(a) == [Block(1), Block(2)]
+    @test sectorsortperm(ad) == [Block(1), Block(2)]
+    @test blocklength(sectormergesortperm(a)) == 2
+    @test blocklength(sectormergesortperm(ad)) == 2
+    @test sectormergesortperm(a) == [Block(1), Block(2)]
+    @test sectormergesortperm(ad) == [Block(1), Block(2)]
 
     @test isdual(ad[Block(1)])
     @test isdual(ad[Block(1)[1:1]])

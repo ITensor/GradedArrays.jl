@@ -36,7 +36,7 @@ function unmerged_tensor_product(a1::AbstractGradedUnitRange, a2::AbstractGraded
 end
 
 # convention: sort GradedUnitRangeDual according to nondual blocks
-function blocksortperm(a::AbstractUnitRange)
+function sectorsortperm(a::AbstractUnitRange)
   return Block.(sortperm(blocklabels(nondual(a))))
 end
 
@@ -52,14 +52,14 @@ end
 # Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedUnitRangesExt`.
 # Get the permutation for sorting, then group by common elements.
 # groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
-function blockmergesortperm(a::AbstractUnitRange)
+function sectormergesortperm(a::AbstractUnitRange)
   return Block.(groupsortperm(blocklabels(nondual(a))))
 end
 
 # Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedUnitRangesExt`.
 invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
-function blockmergesort(g::AbstractGradedUnitRange)
+function sectormergesort(g::AbstractGradedUnitRange)
   glabels = blocklabels(g)
   gblocklengths = blocklengths(g)
   new_blocklengths = map(sort(unique(glabels))) do la
@@ -68,14 +68,14 @@ function blockmergesort(g::AbstractGradedUnitRange)
   return gradedrange(new_blocklengths)
 end
 
-blockmergesort(g::GradedUnitRangeDual) = flip(blockmergesort(flip(g)))
-blockmergesort(g::AbstractUnitRange) = g
+sectormergesort(g::GradedUnitRangeDual) = flip(sectormergesort(flip(g)))
+sectormergesort(g::AbstractUnitRange) = g
 
 # tensor_product produces a sorted, non-dual GradedUnitRange
-TensorProducts.tensor_product(g::AbstractGradedUnitRange) = blockmergesort(flip_dual(g))
+TensorProducts.tensor_product(g::AbstractGradedUnitRange) = sectormergesort(flip_dual(g))
 
 function TensorProducts.tensor_product(
   g1::AbstractGradedUnitRange, g2::AbstractGradedUnitRange
 )
-  return blockmergesort(unmerged_tensor_product(g1, g2))
+  return sectormergesort(unmerged_tensor_product(g1, g2))
 end
