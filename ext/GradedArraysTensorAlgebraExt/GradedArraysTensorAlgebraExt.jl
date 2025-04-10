@@ -23,16 +23,17 @@ struct SectorFusion <: FusionStyle end
 
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 
-# TODO consider heterogeneous sectors?
+# TBD consider heterogeneous sectors?
 TensorAlgebra.trivial_axis(t::Tuple{Vararg{AbstractGradedUnitRange}}) = trivial(first(t))
 
 function matricize_axes(
   blocked_axes::BlockedTuple{2,<:Any,<:Tuple{Vararg{AbstractUnitRange}}}
 )
+  @assert !isempty(blocked_axes)
+  default_axis = trivial_axis(Tuple(blocked_axes))
   codomain_axes, domain_axes = blocks(blocked_axes)
-  @assert !(isempty(codomain_axes) && isempty(domain_axes))
-  row_axis = unmerged_tensor_product(trivial_axes(domain_axes), codomain_axes...)
-  unflipped_col_axis = unmerged_tensor_product(trivial_axes(codomain_axes), domain_axes...)
+  row_axis = unmerged_tensor_product(default_axis, codomain_axes...)
+  unflipped_col_axis = unmerged_tensor_product(default_axis, domain_axes...)
   return row_axis, flip(unflipped_col_axis)
 end
 
@@ -53,7 +54,7 @@ function TensorAlgebra.unmatricize(
 )
   # First, fuse axes to get `blockmergesortperm`.
   # Then unpermute the blocks.
-  row_col_axes = row_and_column_axes(blocked_axes)
+  row_col_axes = matricize_axes(blocked_axes)
 
   blockperms = blocksortperm.(row_col_axes)
   sorted_axes = map((r, I) -> only(axes(r[I])), row_col_axes, blockperms)
