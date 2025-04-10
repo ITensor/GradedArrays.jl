@@ -98,7 +98,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     @test a_dest ≈ a_dest_dense
 
     # vector vector
-    @test a_dest, dimnames_dest = contract(a3, (1, 2), a3, (2, 1))
+    a_dest, dimnames_dest = contract(a3, (1, 2), a3, (2, 1))
     a_dest_dense, dimnames_dest_dense = contract(a3_dense, (1, 2), a3_dense, (2, 1))
     @test dimnames_dest == dimnames_dest_dense
     @test size(a_dest) == size(a_dest_dense)
