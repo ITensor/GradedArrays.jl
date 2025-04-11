@@ -13,6 +13,8 @@ function Base.isless(c1::C, c2::C) where {C<:AbstractSector}
   return isless(sector_label(c1), sector_label(c2))
 end
 
+Base.length(s::AbstractSector) = quantum_dimension(s)
+
 # =================================  Sectors interface  ====================================
 trivial(x) = trivial(typeof(x))
 function trivial(axis_type::Type{<:AbstractUnitRange})
