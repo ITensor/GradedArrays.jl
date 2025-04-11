@@ -36,8 +36,9 @@ function LabelledNumbers.label_type(type::Type{<:LabelledUnitRangeDual})
 end
 
 for f in [:first, :getindex, :last, :length, :step]
-  @eval Base.$f(a::LabelledUnitRangeDual, args...) =
-    labelled($f(unlabel(a), args...), label(a))
+  @eval Base.$f(a::LabelledUnitRangeDual, args...) = labelled(
+    $f(unlabel(a), args...), label(a)
+  )
 end
 
 # fix ambiguities
