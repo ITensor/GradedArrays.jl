@@ -22,8 +22,12 @@ const SectorOneTo{T,Sector,Range} = SectorUnitRange{T,Sector,Base.OneTo{T}}
 # Constructors
 #
 
+to_sector(x) = x
+
 # sectorunitrange(SU2(1), 2:5)
-sectorunitrange(s, r::AbstractUnitRange, b::Bool=false) = SectorUnitRange(s, r, b)
+function sectorunitrange(s, r::AbstractUnitRange, b::Bool=false)
+  SectorUnitRange(to_sector(s), r, b)
+end
 
 # sectorunitrange(SU2(1), 1)
 function sectorunitrange(s, m::Integer, b::Bool=false)
@@ -106,9 +110,3 @@ function map_blocklabels(f, sr::SectorUnitRange)
 end
 
 sector_type(::Type{<:SectorUnitRange{T,Sector}}) where {T,Sector} = Sector
-
-function space_isequal(sr1::SectorUnitRange, sr2::SectorUnitRange)
-  return nondual_sector(sr1) == nondual_sector(sr2) &&
-         isdual(sr1) == isdual(sr2) &&
-         full_range(sr1) == full_range(sr2)
-end

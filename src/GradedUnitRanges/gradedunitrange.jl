@@ -12,6 +12,7 @@ using BlockArrays:
   BlockedUnitRange,
   block,
   blockedrange,
+  blockfirsts,
   blockisequal,
   blocklasts,
   blocklength,
@@ -28,99 +29,93 @@ using BlockSparseArrays:
   blockedunitrange_getindices
 using Compat: allequal
 using FillArrays: Fill
-using ..LabelledNumbers:
-  LabelledNumbers,
-  LabelledInteger,
-  LabelledUnitRange,
-  label,
-  label_type,
-  labelled,
-  labelled_isequal,
-  unlabel
 
 abstract type AbstractGradedUnitRange{T,BlockLasts} <:
               AbstractBlockedUnitRange{T,BlockLasts} end
 
-struct GradedUnitRange{T,BlockLasts<:Vector{T}} <: AbstractGradedUnitRange{T,BlockLasts}
-  first::T
-  lasts::BlockLasts
-end
+struct GradedUnitRange{
+  T,BlockLasts,BR<:AbstractBlockedUnitRange{T,BlockLasts},SUR<:SectorOneTo{T}
+} <: AbstractGradedUnitRange{T,BlockLasts}
+  sectors::Vector{SUR}
+  range::BR
 
-struct GradedOneTo{T,BlockLasts<:Vector{T}} <: AbstractGradedUnitRange{T,BlockLasts}
-  lasts::BlockLasts
-
-  # assume that lasts is sorted, no checks carried out here
-  function GradedOneTo(lasts::BlockLasts) where {T<:Integer,BlockLasts<:AbstractVector{T}}
-    Base.require_one_based_indexing(lasts)
-    isempty(lasts) || first(lasts) >= 0 || throw(ArgumentError("blocklasts must be >= 0"))
-    return new{T,BlockLasts}(lasts)
-  end
-  function GradedOneTo(lasts::BlockLasts) where {T<:Integer,BlockLasts<:Tuple{T,Vararg{T}}}
-    first(lasts) >= 0 || throw(ArgumentError("blocklasts must be >= 0"))
-    return new{T,BlockLasts}(lasts)
+  function GradedUnitRange(
+    sectors::AbstractVector, range::AbstractBlockedUnitRange{T,BlockLasts}
+  ) where {T,BlockLasts}
+    @assert length.(sectors) == blocklengths(range)
+    return new{T,BlockLasts,typeof(range),eltype(sectors)}(sectors, range)
   end
 end
+
+const GradedOneTo{T,BlockLasts,BR,SUR} =
+  GradedUnitRange{T,BlockLasts,BR,SUR} where {BR<:BlockedOneTo}
+
+# Accessors
+sectors(g::GradedUnitRange) = g.sectors
+unlabel_blocks(g::GradedUnitRange) = g.range
+
+#
+# Constructors
+#
+
+#= TBD remove?
+# assume that lasts is sorted, no checks carried out here
+function GradedOneTo(lasts::BlockLasts) where {T<:Integer,BlockLasts<:AbstractVector{T}}
+Base.require_one_based_indexing(lasts)
+isempty(lasts) || first(lasts) >= 0 || throw(ArgumentError("blocklasts must be >= 0"))
+return new{T,BlockLasts}(lasts)
+end
+function GradedOneTo(lasts::BlockLasts) where {T<:Integer,BlockLasts<:Tuple{T,Vararg{T}}}
+first(lasts) >= 0 || throw(ArgumentError("blocklasts must be >= 0"))
+return new{T,BlockLasts}(lasts)
+end
+=#
+
+sector_type(x) = sector_type(typeof(x))
+sector_type(::Type) = error("Not implemented")
+sector_type(::Type{<:GradedUnitRange{<:Any,<:Any,<:Any,SUR}}) where {SUR} = sector_type(SUR)
+
+function gradedrange(
+  lblocklengths::AbstractVector{<:Pair{<:Any,<:Integer}}; dual::Bool=false
+)
+  brange = blockedrange(last.(lblocklengths) .* length.(first.(lblocklengths)))
+  sectors = sectorunitrange.(lblocklengths, dual)
+  return GradedUnitRange(sectors, brange)
+end
+
+dual(g::GradedUnitRange) = GradedUnitRange(dual.(sectors(g)), unlabel_blocks(g))
+
+sector_mulitplicities(g::GradedUnitRange) = sector_mulitplicities.(sectors(g))
 
 function Base.show(io::IO, ::MIME"text/plain", g::AbstractGradedUnitRange)
-  v = map(b -> label(b) => unlabel(b), blocks(g))
   println(io, typeof(g))
-  return print(io, join(repr.(v), '\n'))
+  return print(io, join(repr.(blocks(g)), '\n'))
 end
 
 function Base.show(io::IO, g::AbstractGradedUnitRange)
-  v = map(b -> label(b) => unlabel(b), blocks(g))
+  v = blocklabels(g) .=> blocklengths(g)
   return print(io, nameof(typeof(g)), '[', join(repr.(v), ", "), ']')
 end
 
 # == is just a range comparison that ignores labels. Need dedicated function to check equality.
 struct NoLabel end
 blocklabels(r::AbstractUnitRange) = Fill(NoLabel(), blocklength(r))
-blocklabels(la::LabelledUnitRange) = [label(la)]
-
-function LabelledNumbers.labelled_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
-  # TODO: fix type piracy
-  return blockisequal(a1, a2) && (blocklabels(a1) == blocklabels(a2))
-end
 
 function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
-  return (isdual(a1) == isdual(a2)) && labelled_isequal(a1, a2)
+  return (isdual(a1) == isdual(a2)) &&
+         blocklabels(a1) == blocklabels(a2) &&
+         blockisequal(a1, a2)
 end
 
 # needed in BlockSparseArrays
-function Base.AbstractUnitRange{T}(
-  a::AbstractGradedUnitRange{<:LabelledInteger{T}}
-) where {T}
+function Base.AbstractUnitRange{T}(a::AbstractGradedUnitRange{T}) where {T}
   return unlabel_blocks(a)
 end
 
-function Base.last(a::AbstractGradedUnitRange)
-  return isempty(a.lasts) ? labelled(first(a) - 1, label(first(a))) : last(a.lasts)
-end
+Base.last(a::AbstractGradedUnitRange) = last(unlabel_blocks(a))
 
 # TODO: Use `TypeParameterAccessors`.
 Base.eltype(::Type{<:GradedUnitRange{T}}) where {T} = T
-LabelledNumbers.label_type(g::AbstractGradedUnitRange) = label_type(typeof(g))
-LabelledNumbers.label_type(T::Type{<:AbstractGradedUnitRange}) = label_type(eltype(T))
-
-to_sector(x) = x
-
-sector_type(x) = sector_type(typeof(x))
-sector_type(T::Type) = error("Not implemented")
-sector_type(T::Type{<:AbstractUnitRange}) = label_type(T)
-
-# To help with generic code.
-function BlockArrays.blockedrange(lblocklengths::AbstractVector{<:LabelledInteger})
-  return gradedrange(lblocklengths)
-end
-
-function gradedrange(lblocklengths::AbstractVector{<:Pair{<:Any,<:Integer}})
-  return gradedrange(labelled.(last.(lblocklengths), first.(lblocklengths)))
-end
-function gradedrange(lblocklengths::AbstractVector{<:LabelledInteger})
-  brange = blockedrange(unlabel.(lblocklengths))
-  lblocklasts = labelled.(blocklasts(brange), to_sector.(label.(lblocklengths)))
-  return GradedOneTo(lblocklasts)
-end
 
 function labelled_blocks(a::BlockedOneTo, labels)
   # TODO: Use `blocklasts(a)`? That might
@@ -172,64 +167,36 @@ function blocklabels(a::AbstractBlockVector)
 end
 
 function blocklabels(a::AbstractBlockedUnitRange)
-  # Using `a.lasts` here since that is what is stored
-  # inside of `BlockedUnitRange`, maybe change that.
-  # For example, it could be something like:
-  #
-  # map(BlockRange(a)) do block
-  #   return label(@view(a[block]))
-  # end
-  #
-  return label.(a.lasts)
-end
-
-# TODO: This relies on internals of `BlockArrays`, maybe redesign
-# to try to avoid that.
-# TODO: Define `set_grades`, `set_sector_labels`, `set_labels`.
-function unlabel_blocks(a::GradedOneTo)
-  # TODO: Use `blocklasts(a)`.
-  return BlockedOneTo(unlabel.(a.lasts))
-end
-function unlabel_blocks(a::GradedUnitRange)
-  return BlockArrays._BlockedUnitRange(a.first, unlabel.(a.lasts))
+  return map(sr -> only(blocklabels(sr)), sectors(a))
 end
 
 ## BlockedUnitRange interface
 
 function Base.axes(ga::AbstractGradedUnitRange)
-  return map(axes(unlabel_blocks(ga))) do a
-    return labelled_blocks(a, blocklabels(ga))
-  end
+  return (GradedUnitRange(sectors(ga), blockedrange(blocklengths(ga))),)
 end
 
 function gradedunitrange_blockfirsts(a::AbstractGradedUnitRange)
-  return labelled.(blockfirsts(unlabel_blocks(a)), blocklabels(a))
+  return blockfirsts(unlabel_blocks(a))
 end
 function BlockArrays.blockfirsts(a::AbstractGradedUnitRange)
   return gradedunitrange_blockfirsts(a)
 end
 
 function BlockArrays.blocklasts(a::AbstractGradedUnitRange)
-  return labelled.(blocklasts(unlabel_blocks(a)), blocklabels(a))
+  return blocklasts(unlabel_blocks(a))
 end
 
 function BlockArrays.blocklengths(a::AbstractGradedUnitRange)
-  return labelled.(blocklengths(unlabel_blocks(a)), blocklabels(a))
+  return blocklengths(unlabel_blocks(a))
 end
 
-function gradedunitrange_first(a::AbstractUnitRange)
-  return labelled(first(unlabel_blocks(a)), label(a[Block(1)]))
-end
 function Base.first(a::AbstractGradedUnitRange)
-  return gradedunitrange_first(a)
+  return first(unlabel_blocks(a))
 end
 
-Base.iterate(a::AbstractGradedUnitRange) = isempty(a) ? nothing : (first(a), first(a))
-function Base.iterate(a::AbstractGradedUnitRange, i)
-  i == last(a) && return nothing
-  next = a[i + step(a)]
-  return (next, next)
-end
+Base.iterate(a::AbstractGradedUnitRange) = iterate(unlabel_blocks(a))
+Base.iterate(a::AbstractGradedUnitRange, i) = iterate(unlabel_blocks(a), i)
 
 function firstblockindices(a::AbstractGradedUnitRange)
   return labelled.(firstblockindices(unlabel_blocks(a)), blocklabels(a))
@@ -238,7 +205,8 @@ end
 function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange, index::Block{1}
 )
-  return labelled(unlabel_blocks(a)[index], get_label(a, index))
+  sr = sectors(a)[Int(index)]
+  return sectorunitrange(nondual_sector(sr), unlabel_blocks(a)[index], isdual(sr))
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
@@ -289,8 +257,7 @@ end
 function BlockSparseArrays.blockedunitrange_getindices(
   ga::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer}
 )
-  a_indices = blockedunitrange_getindices(unlabel_blocks(ga), indices)
-  return labelled_blocks(a_indices, blocklabels(ga, indices))
+  return blockedunitrange_getindices(unlabel_blocks(ga), indices)
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
@@ -312,7 +279,7 @@ function BlockSparseArrays.blockedunitrange_getindices(
 end
 
 function Base.getindex(a::AbstractGradedUnitRange, index::Integer)
-  return labelled(unlabel_blocks(a)[index], get_label(a, index))
+  return unlabel_blocks(a)[index]
 end
 
 function Base.getindex(a::AbstractGradedUnitRange, index::Block{1})
@@ -383,13 +350,13 @@ end
 # that mixed dense and graded axes.
 # TODO: Maybe come up with a more general solution.
 function BlockArrays.combine_blockaxes(
-  a1::AbstractGradedUnitRange{<:LabelledInteger{T}}, a2::AbstractUnitRange{T}
+  a1::AbstractGradedUnitRange{T}, a2::AbstractUnitRange{T}
 ) where {T<:Integer}
   combined_blocklasts = sort!(union(unlabel.(blocklasts(a1)), blocklasts(a2)))
   return BlockedOneTo(combined_blocklasts)
 end
 function BlockArrays.combine_blockaxes(
-  a1::AbstractUnitRange{T}, a2::AbstractGradedUnitRange{<:LabelledInteger{T}}
+  a1::AbstractUnitRange{T}, a2::AbstractGradedUnitRange{T}
 ) where {T<:Integer}
   return BlockArrays.combine_blockaxes(a2, a1)
 end

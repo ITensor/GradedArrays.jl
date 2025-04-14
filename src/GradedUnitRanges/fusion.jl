@@ -1,10 +1,9 @@
-using BlockArrays: AbstractBlockedUnitRange, blocklengths
+using BlockArrays: blocklengths
 using ..LabelledNumbers: LabelledInteger, label, labelled
 using SplitApplyCombine: groupcount
 using TensorProducts: TensorProducts, OneToOne, tensor_product
 
-flip_dual(r::AbstractUnitRange) = r
-flip_dual(r::GradedUnitRangeDual) = flip(r)
+flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
 
 function fuse_labels(x, y)
   return error(
@@ -68,7 +67,6 @@ function sectormergesort(g::AbstractGradedUnitRange)
   return gradedrange(new_blocklengths)
 end
 
-sectormergesort(g::GradedUnitRangeDual) = flip(sectormergesort(flip(g)))
 sectormergesort(g::AbstractUnitRange) = g
 
 # tensor_product produces a sorted, non-dual GradedUnitRange
