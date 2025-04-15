@@ -8,7 +8,6 @@ using GradedArrays.SymmetrySectors:
   TrivialSector,
   U1,
   Z,
-  block_dimensions,
   quantum_dimension,
   arguments,
   trivial
@@ -90,15 +89,15 @@ using TestExtras: @constinferred
       (SU2(1) × SU2(1)) => 1,
     ])
     @test (@constinferred quantum_dimension(g)) == 16
-    @test (@constinferred block_dimensions(g)) == [1, 3, 3, 9]
+    @test (@constinferred blocklengths(g)) == [1, 3, 3, 9]
 
     # mixed group
     g = gradedrange([(U1(2) × SU2(0) × Z{2}(0)) => 1, (U1(2) × SU2(1) × Z{2}(0)) => 1])
     @test (@constinferred quantum_dimension(g)) == 4
-    @test (@constinferred block_dimensions(g)) == [1, 3]
+    @test (@constinferred blocklengths(g)) == [1, 3]
     g = gradedrange([(SU2(0) × U1(0) × SU2(1//2)) => 1, (SU2(0) × U1(1) × SU2(1//2)) => 1])
     @test (@constinferred quantum_dimension(g)) == 4
-    @test (@constinferred block_dimensions(g)) == [2, 2]
+    @test (@constinferred blocklengths(g)) == [2, 2]
 
     # NonGroupCategory
     g_fib = gradedrange([(Fib("1") × Fib("1")) => 1])
@@ -107,8 +106,8 @@ using TestExtras: @constinferred
     @test (@constinferred quantum_dimension(g_fib)) == 1.0
     @test (@constinferred quantum_dimension(g_ising)) == 1.0
     @test (@constinferred quantum_dimension((Ising("1") × Ising("1")))) == 1.0
-    @test (@constinferred block_dimensions(g_fib)) == [1.0]
-    @test (@constinferred block_dimensions(g_ising)) == [1.0]
+    @test (@constinferred blocklengths(g_fib)) == [1.0]
+    @test (@constinferred blocklengths(g_ising)) == [1.0]
 
     @test (@constinferred quantum_dimension(U1(1) × Fib("1"))) == 1.0
     @test (@constinferred quantum_dimension(gradedrange([U1(1) × Fib("1") => 1]))) == 1.0
@@ -121,7 +120,7 @@ using TestExtras: @constinferred
       (U1(2) × SU2(1) × Ising("ψ")) => 1,
     ])
     @test (@constinferred quantum_dimension(g)) == 8.0
-    @test (@constinferred block_dimensions(g)) == [1.0, 3.0, 1.0, 3.0]
+    @test (@constinferred blocklengths(g)) == [1.0, 3.0, 1.0, 3.0]
 
     ϕ = (1 + √5) / 2
     g = gradedrange([
@@ -131,7 +130,7 @@ using TestExtras: @constinferred
       (Fib("τ") × SU2(1) × U1(2)) => 1,
     ])
     @test (@constinferred quantum_dimension(g)) == 4.0 + 4.0ϕ
-    @test (@constinferred block_dimensions(g)) == [1.0, 3.0, 1.0ϕ, 3.0ϕ]
+    @test (@constinferred blocklengths(g)) == [1.0, 3.0, 1.0ϕ, 3.0ϕ]
   end
 
   @testset "Fusion of Abelian products" begin

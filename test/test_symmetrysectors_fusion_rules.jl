@@ -1,17 +1,6 @@
 using GradedArrays: dual, space_isequal, gradedrange, flip, unmerged_tensor_product
 using GradedArrays.SymmetrySectors:
-  Fib,
-  Ising,
-  O2,
-  SU,
-  SU2,
-  TrivialSector,
-  U1,
-  Z,
-  block_dimensions,
-  nsymbol,
-  quantum_dimension,
-  trivial
+  Fib, Ising, O2, SU, SU2, TrivialSector, U1, Z, nsymbol, quantum_dimension, trivial
 using TensorProducts: ⊗, tensor_product
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
@@ -37,7 +26,7 @@ using TestExtras: @constinferred
     @test tensor_product(z0, z0, z0) == z0
     @test tensor_product(z0, z0, z0, z0) == z0
 
-    @test (@constinferred block_dimensions(gradedrange([z1 => 1]))) == [1]
+    @test (@constinferred quantum_dimension(gradedrange([z1 => 1]))) == 1
   end
   @testset "U(1) fusion rules" begin
     q1 = U1(1)
@@ -77,7 +66,6 @@ using TestExtras: @constinferred
     )
 
     @test (@constinferred quantum_dimension(s0o ⊗ s1)) == 2
-    @test (@constinferred block_dimensions(s0o ⊗ s1)) == [2]
   end
 
   @testset "SU2 fusion rules" begin
@@ -93,7 +81,6 @@ using TestExtras: @constinferred
     @test space_isequal(j3 ⊗ j3, gradedrange([j1 => 1, j3 => 1, j5 => 1]))
     @test space_isequal((@constinferred j1 ⊗ j2), gradedrange([j2 => 1]))
     @test (@constinferred quantum_dimension(j1 ⊗ j2)) == 2
-    @test (@constinferred block_dimensions(j1 ⊗ j2)) == [2]
 
     @test tensor_product(j2) == j2
     @test space_isequal(tensor_product(j2, j1), gradedrange([j2 => 1]))
@@ -142,7 +129,7 @@ end
     g2 = gradedrange([U1(-2) => 2, U1(0) => 1, U1(1) => 2])
 
     @test space_isequal(flip(dual(g1)), gradedrange([U1(1) => 1, U1(0) => 1, U1(-1) => 2]))
-    @test (@constinferred block_dimensions(g1)) == [1, 1, 2]
+    @test (@constinferred blocklengths(g1)) == [1, 1, 2]
 
     gt = gradedrange([
       U1(-3) => 2,
@@ -241,7 +228,7 @@ end
       (@constinferred tensor_product(g3, g4)),
       gradedrange([SU2(0) => 4, SU2(1//2) => 6, SU2(1) => 6, SU2(3//2) => 5, SU2(2) => 2]),
     )
-    @test (@constinferred block_dimensions(g3)) == [1, 4, 3]
+    @test (@constinferred blocklengths(g3)) == [1, 4, 3]
 
     # test dual on non self-conjugate non-abelian representations
     s1 = SU{3}((0, 0))

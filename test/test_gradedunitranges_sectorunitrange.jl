@@ -10,7 +10,7 @@ using GradedArrays.GradedUnitRanges:
   full_range,
   isdual,
   nondual_sector,
-  sector_mulitplicities,
+  sector_multiplicities,
   sector_type,
   sectorunitrange,
   space_isequal
@@ -90,7 +90,7 @@ using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
   @test sector_type(sr) === SU{3,2}
   @test sector_type(typeof(sr)) === SU{3,2}
   @test blocklabels(sr) == [SU((1, 0))]
-  @test sector_mulitplicities(sr) == [2]
+  @test sector_multiplicities(sr) == [2]
 
   srd = dual(sr)
   @test nondual_sector(srd) == SU((1, 0))

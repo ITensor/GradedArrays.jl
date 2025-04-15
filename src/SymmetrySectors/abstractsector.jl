@@ -2,8 +2,7 @@
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of AbstractSector
 
 using BlockArrays: blocklengths
-using ..LabelledNumbers: LabelledInteger, label, label_type, labelled, unlabel, unlabel_type
-using ..GradedUnitRanges: GradedUnitRanges, blocklabels, fuse_blocklengths, gradedrange
+using ..GradedUnitRanges: GradedUnitRanges, blocklabels, gradedrange, sector_multiplicity
 using TensorProducts: TensorProducts, ⊗, tensor_product
 
 abstract type AbstractSector end
@@ -18,10 +17,7 @@ Base.length(s::AbstractSector) = quantum_dimension(s)
 # =================================  Sectors interface  ====================================
 trivial(x) = trivial(typeof(x))
 function trivial(axis_type::Type{<:AbstractUnitRange})
-  return gradedrange([trivial(eltype(axis_type))])  # always returns nondual
-end
-function trivial(la_type::Type{<:LabelledInteger})
-  return labelled(one(unlabel_type(la_type)), trivial(label_type(la_type)))
+  return gradedrange([trivial(sector_type(axis_type)) => 1])  # always returns nondual
 end
 function trivial(type::Type)
   return error("`trivial` not defined for type $(type).")
@@ -33,32 +29,24 @@ function sector_label(c::AbstractSector)
   return error("method `sector_label` not defined for type $(typeof(c))")
 end
 
-block_dimensions(g::AbstractUnitRange) = block_dimensions(SymmetryStyle(g), g)
-block_dimensions(::AbelianStyle, g) = unlabel.(blocklengths(g))
-function block_dimensions(::NotAbelianStyle, g)
-  return quantum_dimension.(blocklabels(g)) .* blocklengths(g)
-end
-
-quantum_dimension(x) = quantum_dimension(SymmetryStyle(x), x)
+quantum_dimension(g::AbstractUnitRange) = length(g)
+quantum_dimension(s::AbstractSector) = quantum_dimension(SymmetryStyle(s), s)
 
 function quantum_dimension(::NotAbelianStyle, c::AbstractSector)
   return error("method `quantum_dimension` not defined for type $(typeof(c))")
 end
 
 quantum_dimension(::AbelianStyle, ::AbstractSector) = 1
-quantum_dimension(::AbelianStyle, g::AbstractUnitRange) = length(g)
-quantum_dimension(::NotAbelianStyle, g::AbstractUnitRange) = sum(block_dimensions(g))
 
 # convert to range
-to_gradedrange(c::AbstractSector) = to_gradedrange(labelled(1, c))
-to_gradedrange(l::LabelledInteger) = gradedrange([l])
+to_gradedrange(c::AbstractSector) = gradedrange([c => 1])
 to_gradedrange(g::AbstractUnitRange) = g
 
 function nsymbol(s1::AbstractSector, s2::AbstractSector, s3::AbstractSector)
   full_space = to_gradedrange(s1 ⊗ s2)
   i = findfirst(==(s3), blocklabels(full_space))
   isnothing(i) && return 0
-  return unlabel(blocklengths(full_space)[i])
+  return sector_multiplicity(full_space)[i]
 end
 
 # ===============================  Fusion rule interface  ==================================
@@ -73,7 +61,7 @@ end
 
 # abelian case: return Sector
 function fusion_rule(::AbelianStyle, c1::C, c2::C) where {C<:AbstractSector}
-  return label(only(fusion_rule(NotAbelianStyle(), c1, c2)))
+  return only(blocklabels(fusion_rule(NotAbelianStyle(), c1, c2)))
 end
 
 function label_fusion_rule(sector_type::Type{<:AbstractSector}, l1, l2)
@@ -98,26 +86,3 @@ end
 
 # ================================  GradedUnitRanges interface  ==================================
 GradedUnitRanges.sector_type(S::Type{<:AbstractSector}) = S
-
-# tensor_product interface
-function GradedUnitRanges.fuse_blocklengths(
-  l1::LabelledInteger{<:Integer,<:AbstractSector},
-  l2::LabelledInteger{<:Integer,<:AbstractSector},
-)
-  return fuse_blocklengths(combine_styles(SymmetryStyle(l1), SymmetryStyle(l2)), l1, l2)
-end
-
-function GradedUnitRanges.fuse_blocklengths(
-  ::NotAbelianStyle, l1::LabelledInteger, l2::LabelledInteger
-)
-  fused = label(l1) ⊗ label(l2)
-  v = labelled.(l1 * l2 .* blocklengths(fused), blocklabels(fused))
-  return gradedrange(v)
-end
-
-function GradedUnitRanges.fuse_blocklengths(
-  ::AbelianStyle, l1::LabelledInteger, l2::LabelledInteger
-)
-  fused = label(l1) ⊗ label(l2)
-  return gradedrange([labelled(l1 * l2, fused)])
-end

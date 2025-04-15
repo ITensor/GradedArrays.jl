@@ -16,6 +16,7 @@ using BlockArrays:
   blockisequal,
   blocklasts,
   blocklength,
+  blocklengths,
   blocks,
   blockindex,
   combine_blockaxes,
@@ -71,21 +72,25 @@ return new{T,BlockLasts}(lasts)
 end
 =#
 
+sector_multiplicity(g::GradedUnitRange) = sector_multiplicity.(sectors(g))
+
 sector_type(x) = sector_type(typeof(x))
 sector_type(::Type) = error("Not implemented")
 sector_type(::Type{<:GradedUnitRange{<:Any,<:Any,<:Any,SUR}}) where {SUR} = sector_type(SUR)
 
-function gradedrange(
-  lblocklengths::AbstractVector{<:Pair{<:Any,<:Integer}}; dual::Bool=false
-)
-  brange = blockedrange(last.(lblocklengths) .* length.(first.(lblocklengths)))
-  sectors = sectorunitrange.(lblocklengths, dual)
+function rangemortar(sectors::Vector{<:SectorOneTo})
+  brange = blockedrange(length.(sectors))
   return GradedUnitRange(sectors, brange)
 end
 
-dual(g::GradedUnitRange) = GradedUnitRange(dual.(sectors(g)), unlabel_blocks(g))
+function gradedrange(
+  lblocklengths::AbstractVector{<:Pair{<:Any,<:Integer}}; dual::Bool=false
+)
+  sectors = sectorunitrange.(lblocklengths, dual)
+  return rangemortar(sectors)
+end
 
-sector_mulitplicities(g::GradedUnitRange) = sector_mulitplicities.(sectors(g))
+dual(g::GradedUnitRange) = GradedUnitRange(dual.(sectors(g)), unlabel_blocks(g))
 
 function Base.show(io::IO, ::MIME"text/plain", g::AbstractGradedUnitRange)
   println(io, typeof(g))
@@ -404,5 +409,5 @@ end
 map_blocklabels(::Any, a::AbstractUnitRange) = a
 function map_blocklabels(f, g::AbstractGradedUnitRange)
   # use labelled_blocks to preserve GradedUnitRange
-  return labelled_blocks(unlabel_blocks(g), f.(blocklabels(g)))
+  return GradedUnitRange(map_blocklabels.(f, sectors(g)), unlabel_blocks(g))
 end

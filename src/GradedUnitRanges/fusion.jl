@@ -1,19 +1,26 @@
-using BlockArrays: blocklengths
-using ..LabelledNumbers: LabelledInteger, label, labelled
+using BlockArrays: Block, blocklengths, blocks
 using SplitApplyCombine: groupcount
-using TensorProducts: TensorProducts, OneToOne, tensor_product
+using TensorProducts: TensorProducts, ⊗, OneToOne
+
+using ..GradedUnitRanges:
+  SectorUnitRange,
+  AbstractGradedUnitRange,
+  nondual_sector,
+  rangemortar,
+  sector_multiplicity,
+  sectors
+using ..SymmetrySectors: to_gradedrange
 
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
 
-function fuse_labels(x, y)
-  return error(
-    "`fuse_labels` not implemented for object of type `$(typeof(x))` and `$(typeof(y))`."
+# TensorProducts interface
+function TensorProducts.tensor_product(sr1::SectorUnitRange, sr2::SectorUnitRange)
+  # TBD dispatch on SymmetryStyle and return either SectorUnitRange or GradedUnitRange?
+  s = to_gradedrange(nondual_sector(flip_dual(sr1)) ⊗ nondual_sector(flip_dual(sr2)))
+  return gradedrange(
+    blocklabels(s) .=>
+      sector_multiplicity(sr1) * sector_multiplicity(sr2) .* sector_multiplicity(s),
   )
-end
-
-function fuse_blocklengths(x::LabelledInteger, y::LabelledInteger)
-  # return blocked unit range to keep non-abelian interface
-  return blockedrange([labelled(x * y, fuse_labels(label(x), label(y)))])
 end
 
 unmerged_tensor_product() = OneToOne()
@@ -21,20 +28,17 @@ unmerged_tensor_product(a) = a
 unmerged_tensor_product(a, ::OneToOne) = a
 unmerged_tensor_product(::OneToOne, a) = a
 unmerged_tensor_product(::OneToOne, ::OneToOne) = OneToOne()
-unmerged_tensor_product(a1, a2) = tensor_product(a1, a2)
+unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 function unmerged_tensor_product(a1, a2, as...)
   return unmerged_tensor_product(unmerged_tensor_product(a1, a2), as...)
 end
 
 function unmerged_tensor_product(a1::AbstractGradedUnitRange, a2::AbstractGradedUnitRange)
-  nested = map(Iterators.flatten((Iterators.product(blocks(a1), blocks(a2)),))) do it
-    return mapreduce(length, fuse_blocklengths, it)
-  end
-  new_blocklengths = mapreduce(blocklengths, vcat, nested)
-  return blockedrange(new_blocklengths)
+  new_axes = map(splat(⊗), Iterators.flatten((Iterators.product(blocks(a1), blocks(a2)),)))
+  return rangemortar(reduce(vcat, sectors.(new_axes)))
 end
 
-# convention: sort GradedUnitRangeDual according to nondual blocks
+# convention: sort dual GradedUnitRange according to nondual blocks
 function sectorsortperm(a::AbstractUnitRange)
   return Block.(sortperm(blocklabels(nondual(a))))
 end
@@ -55,14 +59,14 @@ function sectormergesortperm(a::AbstractUnitRange)
   return Block.(groupsortperm(blocklabels(nondual(a))))
 end
 
-# Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedUnitRangesExt`.
+# Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
 invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
 function sectormergesort(g::AbstractGradedUnitRange)
   glabels = blocklabels(g)
-  gblocklengths = blocklengths(g)
+  multiplicities = sector_multiplicity(g)
   new_blocklengths = map(sort(unique(glabels))) do la
-    return labelled(sum(gblocklengths[findall(==(la), glabels)]; init=0), la)
+    return la => sum(multiplicities[findall(==(la), glabels)]; init=0)
   end
   return gradedrange(new_blocklengths)
 end

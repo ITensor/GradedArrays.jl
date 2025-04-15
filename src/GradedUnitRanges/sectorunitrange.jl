@@ -1,6 +1,8 @@
 
 using BlockArrays: BlockArrays
 
+using TensorProducts: tensor_product
+
 # This implementation contains the "full range"
 # it does not check that such a range is consistent with the sector quantum_dimension
 # when sliced directly, the label is dropped
@@ -26,7 +28,7 @@ to_sector(x) = x
 
 # sectorunitrange(SU2(1), 2:5)
 function sectorunitrange(s, r::AbstractUnitRange, b::Bool=false)
-  SectorUnitRange(to_sector(s), r, b)
+  return SectorUnitRange(to_sector(s), r, b)
 end
 
 # sectorunitrange(SU2(1), 1)
@@ -95,7 +97,7 @@ function blocklabels(sr::SectorUnitRange)
 end
 
 # TBD error for non-integer?
-sector_mulitplicities(sr::SectorUnitRange) = length(sr) ÷ length(nondual_sector(sr))
+sector_multiplicity(sr::SectorUnitRange) = length(sr) ÷ length(nondual_sector(sr))
 
 function dual(sr::SectorUnitRange)
   return sectorunitrange(nondual_sector(sr), full_range(sr), !isdual(sr))
