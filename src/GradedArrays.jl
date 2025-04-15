@@ -21,6 +21,7 @@ using .GradedUnitRanges:
   map_blocklabels,
   nondual,
   sector_type,
+  sectorunitrange,
   space_isequal
 using .SymmetrySectors: SymmetrySectors
 include("gradedarray.jl")

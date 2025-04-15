@@ -368,7 +368,7 @@ end
 
 # preserve labels inside combine_blockaxes
 function BlockArrays.combine_blockaxes(a::GradedOneTo, b::GradedOneTo)
-  return GradedOneTo(sortedunion(blocklasts(a), blocklasts(b)))
+  return GradedUnitRange(sortedunion(blocklasts(a), blocklasts(b)))
 end
 function BlockArrays.combine_blockaxes(a::GradedUnitRange, b::GradedUnitRange)
   new_blocklasts = sortedunion(blocklasts(a), blocklasts(b))
