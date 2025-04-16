@@ -26,19 +26,19 @@ const SectorOneTo{T,Sector,Range} = SectorUnitRange{T,Sector,Base.OneTo{T}}
 
 to_sector(x) = x
 
-# sectorunitrange(SU2(1), 2:5)
-function sectorunitrange(s, r::AbstractUnitRange, b::Bool=false)
+# sectorrange(SU2(1), 2:5)
+function sectorrange(s, r::AbstractUnitRange, b::Bool=false)
   return SectorUnitRange(to_sector(s), r, b)
 end
 
-# sectorunitrange(SU2(1), 1)
-function sectorunitrange(s, m::Integer, b::Bool=false)
-  return sectorunitrange(s, Base.oneto(m * length(s)), b)
+# sectorrange(SU2(1), 1)
+function sectorrange(s, m::Integer, b::Bool=false)
+  return sectorrange(s, Base.oneto(m * length(s)), b)
 end
 
-# sectorunitrange(SU2(1) => 1)
-function sectorunitrange(p::Pair, b::Bool=false)
-  return sectorunitrange(first(p), last(p), b)
+# sectorrange(SU2(1) => 1)
+function sectorrange(p::Pair, b::Bool=false)
+  return sectorrange(first(p), last(p), b)
 end
 
 #
@@ -72,7 +72,7 @@ function Base.getindex(sr::SectorUnitRange, t::Tuple{Colon,<:AbstractUnitRange})
   r = last(t)
   new_range =
     ((first(r) - 1) * length(nondual_sector(sr)) + 1):(last(r) * length(nondual_sector(sr)))
-  return sectorunitrange(nondual_sector(sr), full_range(sr)[new_range], isdual(sr))
+  return sectorrange(nondual_sector(sr), full_range(sr)[new_range], isdual(sr))
 end
 
 function Base.show(io::IO, sr::SectorUnitRange)
@@ -98,17 +98,18 @@ end
 
 # TBD error for non-integer?
 sector_multiplicity(sr::SectorUnitRange) = length(sr) ÷ length(nondual_sector(sr))
+sector_multiplicities(sr::SectorUnitRange) = [sector_multiplicity(sr)]  # TBD remove?
 
 function dual(sr::SectorUnitRange)
-  return sectorunitrange(nondual_sector(sr), full_range(sr), !isdual(sr))
+  return sectorrange(nondual_sector(sr), full_range(sr), !isdual(sr))
 end
 
 function flip(sr::SectorUnitRange)
-  return sectorunitrange(dual(nondual_sector(sr)), full_range(sr), !isdual(sr))
+  return sectorrange(dual(nondual_sector(sr)), full_range(sr), !isdual(sr))
 end
 
 function map_blocklabels(f, sr::SectorUnitRange)
-  return sectorunitrange(f(nondual_sector(sr)), full_range(sr), isdual(sr))
+  return sectorrange(f(nondual_sector(sr)), full_range(sr), isdual(sr))
 end
 
 sector_type(::Type{<:SectorUnitRange{T,Sector}}) where {T,Sector} = Sector

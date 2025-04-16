@@ -9,7 +9,6 @@ using GradedArrays:
   gradedrange,
   space_isequal,
   isdual
-using GradedArrays.LabelledNumbers: labelled_isequal
 using TensorProducts: OneToOne, tensor_product
 using Test: @test, @testset
 

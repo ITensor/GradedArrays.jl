@@ -11,13 +11,14 @@ using GradedArrays.GradedUnitRanges:
   isdual,
   nondual_sector,
   sector_multiplicities,
+  sector_multiplicity,
   sector_type,
-  sectorunitrange,
+  sectorrange,
   space_isequal
 using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
 
 @testset "SectorUnitRange" begin
-  sr = sectorunitrange(SU((1, 0)), 2)
+  sr = sectorrange(SU((1, 0)), 2)
   @test sr isa SectorUnitRange
 
   # accessors
@@ -42,31 +43,31 @@ using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
   @test sr == sr
   @test space_isequal(sr, sr)
 
-  sr = sectorunitrange(SU((1, 0)) => 2)
+  sr = sectorrange(SU((1, 0)) => 2)
   @test sr isa SectorUnitRange
   @test nondual_sector(sr) == SU((1, 0))
   @test full_range(sr) isa Base.OneTo
   @test full_range(sr) == 1:6
   @test !isdual(sr)
 
-  sr = sectorunitrange(SU((1, 0)) => 2, true)
+  sr = sectorrange(SU((1, 0)) => 2, true)
   @test sr isa SectorUnitRange
   @test nondual_sector(sr) == SU((1, 0))
   @test full_range(sr) isa Base.OneTo
   @test full_range(sr) == 1:6
   @test isdual(sr)
 
-  sr = sectorunitrange(SU((1, 0)), 4:10, true)
+  sr = sectorrange(SU((1, 0)), 4:10, true)
   @test sr isa SectorUnitRange
   @test nondual_sector(sr) == SU((1, 0))
   @test full_range(sr) isa UnitRange
   @test full_range(sr) == 4:10
   @test isdual(sr)
 
-  sr = sectorunitrange(SU((1, 0)), 2)
-  @test !space_isequal(sr, sectorunitrange(SU((1, 1)), 2))
-  @test !space_isequal(sr, sectorunitrange(SU((1, 0)), 2:7))
-  @test !space_isequal(sr, sectorunitrange(SU((1, 1)), 2, true))
+  sr = sectorrange(SU((1, 0)), 2)
+  @test !space_isequal(sr, sectorrange(SU((1, 1)), 2))
+  @test !space_isequal(sr, sectorrange(SU((1, 0)), 2:7))
+  @test !space_isequal(sr, sectorrange(SU((1, 1)), 2, true))
 
   sr2 = copy(sr)
   @test sr2 isa SectorUnitRange
@@ -90,15 +91,16 @@ using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
   @test sector_type(sr) === SU{3,2}
   @test sector_type(typeof(sr)) === SU{3,2}
   @test blocklabels(sr) == [SU((1, 0))]
+  @test sector_multipliciy(sr) == 2
   @test sector_multiplicities(sr) == [2]
 
   srd = dual(sr)
   @test nondual_sector(srd) == SU((1, 0))
-  @test space_isequal(srd, sectorunitrange(SU((1, 0)), 2, true))
+  @test space_isequal(srd, sectorrange(SU((1, 0)), 2, true))
 
   srf = flip(sr)
   @test nondual_sector(srf) == SU((1, 1))
-  @test space_isequal(srf, sectorunitrange(SU((1, 1)), 2, true))
+  @test space_isequal(srf, sectorrange(SU((1, 1)), 2, true))
 
   # getindex
   @test_throws BoundsError sr[0]
@@ -112,8 +114,8 @@ using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
 
   sr2 = sr[(:, 2)]
   @test sr2 isa SectorUnitRange
-  @test space_isequal(sr2, sectorunitrange(SU((1, 0)), 4:6))
+  @test space_isequal(sr2, sectorrange(SU((1, 0)), 4:6))
   sr3 = sr[(:, 1:2)]
   @test sr3 isa SectorUnitRange
-  @test space_isequal(sr3, sectorunitrange(SU((1, 0)), 1:6))
+  @test space_isequal(sr3, sectorrange(SU((1, 0)), 1:6))
 end

@@ -2,8 +2,8 @@
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of AbstractSector
 
 using BlockArrays: blocklengths
-using ..GradedUnitRanges: GradedUnitRanges, blocklabels, gradedrange, sector_multiplicity
-using TensorProducts: TensorProducts, ⊗, tensor_product
+using ..GradedUnitRanges: GradedUnitRanges, blocklabels, gradedrange, sector_multiplicities
+using TensorProducts: TensorProducts, ⊗
 
 abstract type AbstractSector end
 
@@ -46,7 +46,7 @@ function nsymbol(s1::AbstractSector, s2::AbstractSector, s3::AbstractSector)
   full_space = to_gradedrange(s1 ⊗ s2)
   i = findfirst(==(s3), blocklabels(full_space))
   isnothing(i) && return 0
-  return sector_multiplicity(full_space)[i]
+  return sector_multiplicities(full_space)[i]
 end
 
 # ===============================  Fusion rule interface  ==================================
@@ -77,11 +77,11 @@ end
 
 # allow to fuse a Sector with a GradedUnitRange
 function TensorProducts.tensor_product(c::AbstractSector, g::AbstractUnitRange)
-  return tensor_product(to_gradedrange(c), g)
+  return to_gradedrange(c) ⊗ g
 end
 
 function TensorProducts.tensor_product(g::AbstractUnitRange, c::AbstractSector)
-  return tensor_product(g, to_gradedrange(c))
+  return g ⊗ to_gradedrange(c)
 end
 
 # ================================  GradedUnitRanges interface  ==================================

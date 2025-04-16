@@ -6,9 +6,10 @@ using ..GradedUnitRanges:
   SectorUnitRange,
   AbstractGradedUnitRange,
   nondual_sector,
-  rangemortar,
-  sector_multiplicity,
-  sectors
+  axis_cat,
+  sector_axes,
+  sector_multiplicities,
+  sector_multiplicity
 using ..SymmetrySectors: to_gradedrange
 
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
@@ -19,7 +20,7 @@ function TensorProducts.tensor_product(sr1::SectorUnitRange, sr2::SectorUnitRang
   s = to_gradedrange(nondual_sector(flip_dual(sr1)) ⊗ nondual_sector(flip_dual(sr2)))
   return gradedrange(
     blocklabels(s) .=>
-      sector_multiplicity(sr1) * sector_multiplicity(sr2) .* sector_multiplicity(s),
+      sector_multiplicity(sr1) * sector_multiplicity(sr2) .* sector_multiplicities(s),
   )
 end
 
@@ -34,8 +35,10 @@ function unmerged_tensor_product(a1, a2, as...)
 end
 
 function unmerged_tensor_product(a1::AbstractGradedUnitRange, a2::AbstractGradedUnitRange)
-  new_axes = map(splat(⊗), Iterators.flatten((Iterators.product(blocks(a1), blocks(a2)),)))
-  return rangemortar(reduce(vcat, sectors.(new_axes)))
+  new_axes = map(
+    splat(⊗), Iterators.flatten((Iterators.product(sector_axes(a1), sector_axes(a2)),))
+  )
+  return axis_cat(reduce(vcat, sector_axes.(new_axes)))
 end
 
 # convention: sort dual GradedUnitRange according to nondual blocks
@@ -64,7 +67,7 @@ invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
 function sectormergesort(g::AbstractGradedUnitRange)
   glabels = blocklabels(g)
-  multiplicities = sector_multiplicity(g)
+  multiplicities = sector_multiplicities(g)
   new_blocklengths = map(sort(unique(glabels))) do la
     return la => sum(multiplicities[findall(==(la), glabels)]; init=0)
   end

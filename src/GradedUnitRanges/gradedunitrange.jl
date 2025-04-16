@@ -34,51 +34,48 @@ using FillArrays: Fill
 abstract type AbstractGradedUnitRange{T,BlockLasts} <:
               AbstractBlockedUnitRange{T,BlockLasts} end
 
-struct GradedUnitRange{
-  T,BlockLasts,BR<:AbstractBlockedUnitRange{T,BlockLasts},SUR<:SectorOneTo{T}
-} <: AbstractGradedUnitRange{T,BlockLasts}
-  sectors::Vector{SUR}
-  range::BR
+struct GradedUnitRange{T,SUR<:SectorOneTo{T},BR<:AbstractUnitRange{T},BlockLasts} <:
+       AbstractGradedUnitRange{T,BlockLasts}
+  sector_axes::Vector{SUR}
+  full_range::BR
 
-  function GradedUnitRange(
-    sectors::AbstractVector, range::AbstractBlockedUnitRange{T,BlockLasts}
-  ) where {T,BlockLasts}
-    @assert length.(sectors) == blocklengths(range)
-    return new{T,BlockLasts,typeof(range),eltype(sectors)}(sectors, range)
+  function GradedUnitRange{T,SUR,BR,BlockLasts}(
+    sector_axes::AbstractVector{SUR}, full_range::AbstractUnitRange{T}
+  ) where {T,SUR,BR,BlockLasts}
+    length.(sector_axes) == blocklengths(full_range) ||
+      throw(ArgumentError("sectors and range are not compatible"))
+    typeof(blocklasts(full_range)) == BlockLasts ||
+      throw(TypeError(:BlockLasts, "", blocklasts(full_range)))
+    return new{T,SUR,BR,BlockLasts}(sector_axes, full_range)
   end
 end
 
-const GradedOneTo{T,BlockLasts,BR,SUR} =
-  GradedUnitRange{T,BlockLasts,BR,SUR} where {BR<:BlockedOneTo}
+const GradedOneTo{T,SUR,BR,BlockLasts} =
+  GradedUnitRange{T,SUR,BR,BlockLasts} where {BR<:BlockedOneTo}
+
+function GradedUnitRange(sector_axes::AbstractVector, full_range::AbstractUnitRange)
+  return GradedUnitRange{
+    eltype(full_range),eltype(sector_axes),typeof(full_range),typeof(blocklasts(full_range))
+  }(
+    sector_axes, full_range
+  )
+end
 
 # Accessors
-sectors(g::GradedUnitRange) = g.sectors
-unlabel_blocks(g::GradedUnitRange) = g.range
+sector_axes(g::GradedUnitRange) = g.sector_axes
+unlabel_blocks(g::GradedUnitRange) = g.full_range  # TBD use full_range?
+
+sector_multiplicities(g::GradedUnitRange) = sector_multiplicity.(sector_axes(g))
+
+sector_type(x) = sector_type(typeof(x))
+sector_type(::Type) = error("Not implemented")
+sector_type(::Type{<:GradedUnitRange{<:Any,SUR}}) where {SUR} = sector_type(SUR)
 
 #
 # Constructors
 #
 
-#= TBD remove?
-# assume that lasts is sorted, no checks carried out here
-function GradedOneTo(lasts::BlockLasts) where {T<:Integer,BlockLasts<:AbstractVector{T}}
-Base.require_one_based_indexing(lasts)
-isempty(lasts) || first(lasts) >= 0 || throw(ArgumentError("blocklasts must be >= 0"))
-return new{T,BlockLasts}(lasts)
-end
-function GradedOneTo(lasts::BlockLasts) where {T<:Integer,BlockLasts<:Tuple{T,Vararg{T}}}
-first(lasts) >= 0 || throw(ArgumentError("blocklasts must be >= 0"))
-return new{T,BlockLasts}(lasts)
-end
-=#
-
-sector_multiplicity(g::GradedUnitRange) = sector_multiplicity.(sectors(g))
-
-sector_type(x) = sector_type(typeof(x))
-sector_type(::Type) = error("Not implemented")
-sector_type(::Type{<:GradedUnitRange{<:Any,<:Any,<:Any,SUR}}) where {SUR} = sector_type(SUR)
-
-function rangemortar(sectors::Vector{<:SectorOneTo})
+function axis_cat(sectors::AbstractVector{<:SectorOneTo})
   brange = blockedrange(length.(sectors))
   return GradedUnitRange(sectors, brange)
 end
@@ -86,11 +83,57 @@ end
 function gradedrange(
   lblocklengths::AbstractVector{<:Pair{<:Any,<:Integer}}; dual::Bool=false
 )
-  sectors = sectorunitrange.(lblocklengths, dual)
-  return rangemortar(sectors)
+  sectors = sectorrange.(lblocklengths, dual)
+  return axis_cat(sectors)
 end
 
-dual(g::GradedUnitRange) = GradedUnitRange(dual.(sectors(g)), unlabel_blocks(g))
+# GradedUnitRange interface
+dual(g::GradedUnitRange) = GradedUnitRange(dual.(sector_axes(g)), unlabel_blocks(g))
+
+struct NoLabel end
+blocklabels(r::AbstractUnitRange) = Fill(NoLabel(), blocklength(r))
+
+function blocklabels(a::AbstractBlockVector)
+  return map(BlockRange(a)) do block
+    return label(@view(a[block]))
+  end
+end
+
+function blocklabels(g::AbstractBlockedUnitRange)
+  nondual_blocklabels = nondual_sector.(sector_axes(g))
+  return isdual(g) ? dual.(nondual_blocklabels) : nondual_blocklabels
+end
+
+# The block labels of the corresponding slice.
+function blocklabels(a::AbstractUnitRange, indices)
+  return map(_blocks(a, indices)) do block
+    return label(a[block])
+  end
+end
+
+# == is just a range comparison that ignores labels. Need dedicated function to check equality.
+function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
+  return (isdual(a1) == isdual(a2)) &&
+         blocklabels(a1) == blocklabels(a2) &&
+         blockisequal(a1, a2)
+end
+
+map_blocklabels(::Any, a::AbstractUnitRange) = a
+function map_blocklabels(f, g::AbstractGradedUnitRange)
+  # use labelled_blocks to preserve GradedUnitRange
+  return GradedUnitRange(map_blocklabels.(f, sector_axes(g)), unlabel_blocks(g))
+end
+
+# Base interface
+
+# needed in BlockSparseArrays
+function Base.AbstractUnitRange{T}(a::AbstractGradedUnitRange{T}) where {T}
+  return unlabel_blocks(a)
+end
+
+function Base.axes(ga::AbstractGradedUnitRange)
+  return (GradedUnitRange(sectors(ga), blockedrange(blocklengths(ga))),)
+end
 
 function Base.show(io::IO, ::MIME"text/plain", g::AbstractGradedUnitRange)
   println(io, typeof(g))
@@ -102,26 +145,12 @@ function Base.show(io::IO, g::AbstractGradedUnitRange)
   return print(io, nameof(typeof(g)), '[', join(repr.(v), ", "), ']')
 end
 
-# == is just a range comparison that ignores labels. Need dedicated function to check equality.
-struct NoLabel end
-blocklabels(r::AbstractUnitRange) = Fill(NoLabel(), blocklength(r))
-
-function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
-  return (isdual(a1) == isdual(a2)) &&
-         blocklabels(a1) == blocklabels(a2) &&
-         blockisequal(a1, a2)
-end
-
-# needed in BlockSparseArrays
-function Base.AbstractUnitRange{T}(a::AbstractGradedUnitRange{T}) where {T}
-  return unlabel_blocks(a)
-end
-
 Base.last(a::AbstractGradedUnitRange) = last(unlabel_blocks(a))
 
 # TODO: Use `TypeParameterAccessors`.
 Base.eltype(::Type{<:GradedUnitRange{T}}) where {T} = T
 
+#=
 function labelled_blocks(a::BlockedOneTo, labels)
   # TODO: Use `blocklasts(a)`? That might
   # cause a recursive loop.
@@ -132,53 +161,19 @@ function labelled_blocks(a::BlockedUnitRange, labels)
   # cause a recursive loop.
   return GradedUnitRange(labelled(a.first, labels[1]), labelled.(a.lasts, labels))
 end
+=#
+
+function Base.first(a::AbstractGradedUnitRange)
+  return first(unlabel_blocks(a))
+end
+
+Base.iterate(a::AbstractGradedUnitRange) = iterate(unlabel_blocks(a))
+Base.iterate(a::AbstractGradedUnitRange, i) = iterate(unlabel_blocks(a), i)
+
+# BlockArrays interface
 
 function BlockArrays.findblock(a::AbstractGradedUnitRange, index::Integer)
   return blockedunitrange_findblock(unlabel_blocks(a), index)
-end
-
-function BlockSparseArrays.blockedunitrange_findblock(
-  a::AbstractGradedUnitRange, index::Integer
-)
-  return blockedunitrange_findblock(unlabel_blocks(a), index)
-end
-
-function BlockSparseArrays.blockedunitrange_findblockindex(
-  a::AbstractGradedUnitRange, index::Integer
-)
-  return blockedunitrange_findblockindex(unlabel_blocks(a), index)
-end
-
-function BlockArrays.findblockindex(a::AbstractGradedUnitRange, index::Integer)
-  return blockedunitrange_findblockindex(unlabel_blocks(a), index)
-end
-
-## Block label interface
-
-# Internal function
-function get_label(a::AbstractUnitRange, index::Block{1})
-  return label(blocklasts(a)[Int(index)])
-end
-
-# Internal function
-function get_label(a::AbstractUnitRange, index::Integer)
-  return get_label(a, blockedunitrange_findblock(a, index))
-end
-
-function blocklabels(a::AbstractBlockVector)
-  return map(BlockRange(a)) do block
-    return label(@view(a[block]))
-  end
-end
-
-function blocklabels(a::AbstractBlockedUnitRange)
-  return map(sr -> only(blocklabels(sr)), sectors(a))
-end
-
-## BlockedUnitRange interface
-
-function Base.axes(ga::AbstractGradedUnitRange)
-  return (GradedUnitRange(sectors(ga), blockedrange(blocklengths(ga))),)
 end
 
 function gradedunitrange_blockfirsts(a::AbstractGradedUnitRange)
@@ -196,22 +191,36 @@ function BlockArrays.blocklengths(a::AbstractGradedUnitRange)
   return blocklengths(unlabel_blocks(a))
 end
 
-function Base.first(a::AbstractGradedUnitRange)
-  return first(unlabel_blocks(a))
+# BlockSparseArrays interface
+
+function BlockSparseArrays.blockedunitrange_findblock(
+  a::AbstractGradedUnitRange, index::Integer
+)
+  return blockedunitrange_findblock(unlabel_blocks(a), index)
 end
 
-Base.iterate(a::AbstractGradedUnitRange) = iterate(unlabel_blocks(a))
-Base.iterate(a::AbstractGradedUnitRange, i) = iterate(unlabel_blocks(a), i)
-
-function firstblockindices(a::AbstractGradedUnitRange)
-  return labelled.(firstblockindices(unlabel_blocks(a)), blocklabels(a))
+function BlockSparseArrays.blockedunitrange_findblockindex(
+  a::AbstractGradedUnitRange, index::Integer
+)
+  return blockedunitrange_findblockindex(unlabel_blocks(a), index)
 end
+
+function BlockArrays.findblockindex(a::AbstractGradedUnitRange, index::Integer)
+  return blockedunitrange_findblockindex(unlabel_blocks(a), index)
+end
+
+## BlockedUnitRange interface
+
+# TBD remove
+#function firstblockindices(a::AbstractGradedUnitRange)
+#  return labelled.(firstblockindices(unlabel_blocks(a)), blocklabels(a))
+#end
 
 function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange, index::Block{1}
 )
-  sr = sectors(a)[Int(index)]
-  return sectorunitrange(nondual_sector(sr), unlabel_blocks(a)[index], isdual(sr))
+  sr = sector_axes(a)[Int(index)]
+  return sectorrange(nondual_sector(sr), unlabel_blocks(a)[index], isdual(sr))
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
@@ -250,13 +259,6 @@ function BlockSparseArrays.blockedunitrange_getindices(
   # `only(axes(a[indices])) isa `GradedUnitRange`
   # if `a isa `GradedUnitRange`, for example.
   return mortar(blocks, length.(blocks))
-end
-
-# The block labels of the corresponding slice.
-function blocklabels(a::AbstractUnitRange, indices)
-  return map(_blocks(a, indices)) do block
-    return label(a[block])
-  end
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
@@ -404,10 +406,4 @@ function BlockSparseArrays.blockedunitrange_getindices(
   # `only(axes(a[indices])) isa `GradedUnitRange`
   # if `a isa `GradedUnitRange`, for example.
   return mortar(blks, labelled_length.(blks))
-end
-
-map_blocklabels(::Any, a::AbstractUnitRange) = a
-function map_blocklabels(f, g::AbstractGradedUnitRange)
-  # use labelled_blocks to preserve GradedUnitRange
-  return GradedUnitRange(map_blocklabels.(f, sectors(g)), unlabel_blocks(g))
 end

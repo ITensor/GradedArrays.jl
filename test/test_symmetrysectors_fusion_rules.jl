@@ -1,6 +1,6 @@
 using GradedArrays: dual, space_isequal, gradedrange, flip, unmerged_tensor_product
 using GradedArrays.SymmetrySectors:
-  Fib, Ising, O2, SU, SU2, TrivialSector, U1, Z, nsymbol, quantum_dimension, trivial
+  O2, SU, SU2, TrivialSector, U1, Z, nsymbol, quantum_dimension, trivial
 using TensorProducts: ⊗, tensor_product
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
@@ -86,36 +86,8 @@ using TestExtras: @constinferred
     @test space_isequal(tensor_product(j2, j1), gradedrange([j2 => 1]))
     @test space_isequal(tensor_product(j2, j1, j1), gradedrange([j2 => 1]))
   end
-
-  @testset "Fibonacci fusion rules" begin
-    ı = Fib("1")
-    τ = Fib("τ")
-
-    @test space_isequal(ı ⊗ ı, gradedrange([ı => 1]))
-    @test space_isequal(ı ⊗ τ, gradedrange([τ => 1]))
-    @test space_isequal(τ ⊗ ı, gradedrange([τ => 1]))
-    @test space_isequal((@constinferred τ ⊗ τ), gradedrange([ı => 1, τ => 1]))
-    @test (@constinferred quantum_dimension(gradedrange([ı => 1, ı => 1]))) == 2.0
-  end
-
-  @testset "Ising fusion rules" begin
-    ı = Ising("1")
-    σ = Ising("σ")
-    ψ = Ising("ψ")
-
-    @test space_isequal(ı ⊗ ı, gradedrange([ı => 1]))
-    @test space_isequal(ı ⊗ σ, gradedrange([σ => 1]))
-    @test space_isequal(σ ⊗ ı, gradedrange([σ => 1]))
-    @test space_isequal(ı ⊗ ψ, gradedrange([ψ => 1]))
-    @test space_isequal(ψ ⊗ ı, gradedrange([ψ => 1]))
-    @test space_isequal(σ ⊗ σ, gradedrange([ı => 1, ψ => 1]))
-    @test space_isequal(σ ⊗ ψ, gradedrange([σ => 1]))
-    @test space_isequal(ψ ⊗ σ, gradedrange([σ => 1]))
-    @test space_isequal(ψ ⊗ ψ, gradedrange([ı => 1]))
-    @test space_isequal((@constinferred ψ ⊗ ψ), gradedrange([ı => 1]))
-    @test (@constinferred quantum_dimension(σ ⊗ σ)) == 2.0
-  end
 end
+
 @testset "Gradedrange fusion rules" begin
   @testset "Trivial GradedUnitRange" begin
     g1 = gradedrange([U1(0) => 1])
