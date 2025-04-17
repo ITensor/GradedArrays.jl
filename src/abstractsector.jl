@@ -2,7 +2,6 @@
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of AbstractSector
 
 using BlockArrays: blocklengths
-using ..GradedUnitRanges: GradedUnitRanges, blocklabels, gradedrange, sector_multiplicities
 using TensorProducts: TensorProducts, ⊗
 
 abstract type AbstractSector end
@@ -85,4 +84,4 @@ function TensorProducts.tensor_product(g::AbstractUnitRange, c::AbstractSector)
 end
 
 # ================================  GradedUnitRanges interface  ==================================
-GradedUnitRanges.sector_type(S::Type{<:AbstractSector}) = S
+sector_type(S::Type{<:AbstractSector}) = S

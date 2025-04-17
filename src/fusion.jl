@@ -2,16 +2,6 @@ using BlockArrays: Block, blocklengths, blocks
 using SplitApplyCombine: groupcount
 using TensorProducts: TensorProducts, ⊗, OneToOne
 
-using ..GradedUnitRanges:
-  SectorUnitRange,
-  AbstractGradedUnitRange,
-  nondual_sector,
-  axis_cat,
-  sector_axes,
-  sector_multiplicities,
-  sector_multiplicity
-using ..SymmetrySectors: to_gradedrange
-
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
 
 # TensorProducts interface

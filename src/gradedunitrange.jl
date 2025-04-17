@@ -132,7 +132,7 @@ function Base.AbstractUnitRange{T}(a::AbstractGradedUnitRange{T}) where {T}
 end
 
 function Base.axes(ga::AbstractGradedUnitRange)
-  return (GradedUnitRange(sectors(ga), blockedrange(blocklengths(ga))),)
+  return (GradedUnitRange(sector_axes(ga), blockedrange(blocklengths(ga))),)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", g::AbstractGradedUnitRange)

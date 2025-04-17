@@ -2,7 +2,6 @@
 # e.g. U(1)×U(1), U(1)×SU2(2)×SU(3)
 
 using BlockArrays: blocklengths
-using ..GradedUnitRanges: GradedUnitRanges, dual, map_blocklabels
 
 # =====================================  Definition  =======================================
 struct SectorProduct{Sectors} <: AbstractSector
@@ -14,7 +13,7 @@ SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 
 arguments(s::SectorProduct) = s.arguments
 
-GradedUnitRanges.to_sector(nt::NamedTuple) = SectorProduct(nt)
+to_sector(nt::NamedTuple) = SectorProduct(nt)
 
 # =================================  Sectors interface  ====================================
 function SymmetryStyle(T::Type{<:SectorProduct})
@@ -26,7 +25,7 @@ function quantum_dimension(::NotAbelianStyle, s::SectorProduct)
 end
 
 # use map instead of broadcast to support both Tuple and NamedTuple
-GradedUnitRanges.dual(s::SectorProduct) = SectorProduct(map(dual, arguments(s)))
+dual(s::SectorProduct) = SectorProduct(map(dual, arguments(s)))
 
 function trivial(type::Type{<:SectorProduct})
   return SectorProduct(arguments_trivial(arguments_type(type)))

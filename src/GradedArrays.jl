@@ -1,29 +1,36 @@
 module GradedArrays
 
-include("LabelledNumbers/LabelledNumbers.jl")
-using .LabelledNumbers: LabelledNumbers
-include("GradedUnitRanges/GradedUnitRanges.jl")
-include("SymmetrySectors/SymmetrySectors.jl")
-include("GradedUnitRanges/fusion.jl")
+include("gradedunitrange_interface.jl")
+include("symmetry_style.jl")
 
-# This makes the following names accessible
-# as `GradedArrays.x`.
-using .GradedUnitRanges:
-  GradedUnitRanges,
-  GradedOneTo,
-  GradedUnitRange,
+include("sectorunitrange.jl")
+include("gradedunitrange.jl")
+
+include("abstractsector.jl")
+include("sector_definitions/fib.jl")
+include("sector_definitions/ising.jl")
+include("sector_definitions/o2.jl")
+include("sector_definitions/trivial.jl")
+include("sector_definitions/su.jl")
+include("sector_definitions/su2k.jl")
+include("sector_definitions/u1.jl")
+include("sector_definitions/zn.jl")
+include("namedtuple_operations.jl")
+include("sector_product.jl")
+
+include("fusion.jl")
+include("gradedarray.jl")
+
+export U1,
+  Z,
   blocklabels,
   dag,
   dual,
   flip,
   gradedrange,
   isdual,
-  map_blocklabels,
-  nondual,
+  sectorrange,
   sector_type,
-  sectorunitrange,
   space_isequal
-using .SymmetrySectors: SymmetrySectors
-include("gradedarray.jl")
 
 end

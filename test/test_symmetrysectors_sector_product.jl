@@ -1,6 +1,18 @@
-using GradedArrays.SymmetrySectors:
-  ×, SectorProduct, SU, SU2, TrivialSector, U1, Z, quantum_dimension, arguments, trivial
-using GradedArrays: dual, space_isequal, gradedrange, sector_type
+using GradedArrays:
+  ×,
+  SectorProduct,
+  SU,
+  SU2,
+  TrivialSector,
+  U1,
+  Z,
+  arguments,
+  dual,
+  gradedrange,
+  quantum_dimension,
+  sector_type,
+  space_isequal,
+  trivial
 using TensorProducts: ⊗
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred

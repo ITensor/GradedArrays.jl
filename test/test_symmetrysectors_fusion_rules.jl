@@ -1,6 +1,18 @@
-using GradedArrays: dual, space_isequal, gradedrange, flip, unmerged_tensor_product
-using GradedArrays.SymmetrySectors:
-  O2, SU, SU2, TrivialSector, U1, Z, nsymbol, quantum_dimension, trivial
+using GradedArrays:
+  O2,
+  SU,
+  SU2,
+  TrivialSector,
+  U1,
+  Z,
+  dual,
+  space_isequal,
+  gradedrange,
+  flip,
+  nsymbol,
+  quantum_dimension,
+  trivial,
+  unmerged_tensor_product
 using TensorProducts: ⊗, tensor_product
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred

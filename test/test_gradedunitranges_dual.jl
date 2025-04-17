@@ -14,24 +14,16 @@ using BlockArrays:
   combine_blockaxes
 using GradedArrays:
   AbstractGradedUnitRange,
-  GradedUnitRanges,
-  GradedUnitRangeDual,
-  LabelledUnitRangeDual,
   blocklabels,
   dag,
   dual,
-  dual_type,
   flip,
   gradedrange,
   isdual,
-  nondual,
-  nondual_type,
   sector_type,
   sectormergesortperm,
   sectorsortperm,
   space_isequal
-using GradedArrays.LabelledNumbers:
-  LabelledInteger, LabelledUnitRange, label, label_type, labelled, labelled_isequal, unlabel
 using Test: @test, @test_broken, @testset
 using TensorProducts: OneToOne, tensor_product
 

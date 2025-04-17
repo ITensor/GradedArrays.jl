@@ -1,5 +1,4 @@
-using GradedArrays: dual, sector_type
-using GradedArrays.SymmetrySectors:
+using GradedArrays:
   Fib,
   Ising,
   O2,
@@ -8,9 +7,11 @@ using GradedArrays.SymmetrySectors:
   TrivialSector,
   U1,
   Z,
+  dual,
   quantum_dimension,
   fundamental,
   istrivial,
+  sector_type,
   trivial
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred

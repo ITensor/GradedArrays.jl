@@ -19,7 +19,7 @@ using GradedArrays:
   gradedrange,
   nondual_sector,
   sector_type,
-  sectorunitrange,
+  sectorrange,
   space_isequal
 using Test: @test, @test_broken, @testset
 
@@ -58,7 +58,7 @@ using Test: @test, @test_broken, @testset
   @test nondual_sector(blocks(a)[2]) == "y"
 
   @test a[Block(2)] isa SectorUnitRange
-  @test space_isequal(a[Block(2)], sectorunitrange("y", 3:5))
+  @test space_isequal(a[Block(2)], sectorrange("y", 3:5))
 
   @test a[4] == 4
   @test blocklengths(a) == [2, 3]
@@ -91,7 +91,7 @@ using Test: @test, @test_broken, @testset
   @test a == 1:2
   @test blocklength(a) == 1
   @test a isa SectorUnitRange
-  @test space_isequal(a, sectorunitrange("x" => 2))
+  @test space_isequal(a, sectorrange("x" => 2))
 
   g = gradedrange(["x" => 2, "y" => 3])
   a = g[3:4]
