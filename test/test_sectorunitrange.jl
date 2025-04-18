@@ -2,7 +2,9 @@ using Test: @test, @test_throws, @testset
 
 using BlockArrays: Block, blocklength, blocklengths, blockisequal, blocks
 
-using GradedArrays.GradedUnitRanges:
+using GradedArrays:
+  AbstractSector,
+  SU,
   SectorUnitRange,
   blocklabels,
   dual,
@@ -10,12 +12,12 @@ using GradedArrays.GradedUnitRanges:
   full_range,
   isdual,
   nondual_sector,
+  quantum_dimension,
   sector_multiplicities,
   sector_multiplicity,
   sector_type,
   sectorrange,
   space_isequal
-using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
 
 @testset "SectorUnitRange" begin
   sr = sectorrange(SU((1, 0)), 2)
@@ -68,6 +70,7 @@ using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
   @test !space_isequal(sr, sectorrange(SU((1, 1)), 2))
   @test !space_isequal(sr, sectorrange(SU((1, 0)), 2:7))
   @test !space_isequal(sr, sectorrange(SU((1, 1)), 2, true))
+  @test !space_isequal(sr, sectorrange(SU((1, 0)), 2, true))
 
   sr2 = copy(sr)
   @test sr2 isa SectorUnitRange
@@ -91,7 +94,7 @@ using GradedArrays.SymmetrySectors: AbstractSector, SU, quantum_dimension
   @test sector_type(sr) === SU{3,2}
   @test sector_type(typeof(sr)) === SU{3,2}
   @test blocklabels(sr) == [SU((1, 0))]
-  @test sector_multipliciy(sr) == 2
+  @test sector_multiplicity(sr) == 2
   @test sector_multiplicities(sr) == [2]
 
   srd = dual(sr)

@@ -39,7 +39,8 @@ quantum_dimension(::AbelianStyle, ::AbstractSector) = 1
 
 # convert to range
 to_gradedrange(c::AbstractSector) = gradedrange([c => 1])
-to_gradedrange(g::AbstractUnitRange) = g
+to_gradedrange(sr::SectorUnitRange) = axis_cat([sr])
+to_gradedrange(g::AbstractGradedUnitRange) = g
 
 function nsymbol(s1::AbstractSector, s2::AbstractSector, s3::AbstractSector)
   full_space = to_gradedrange(s1 ⊗ s2)
@@ -72,15 +73,6 @@ TensorProducts.tensor_product(s::AbstractSector) = s
 
 function TensorProducts.tensor_product(c1::AbstractSector, c2::AbstractSector)
   return fusion_rule(c1, c2)
-end
-
-# allow to fuse a Sector with a GradedUnitRange
-function TensorProducts.tensor_product(c::AbstractSector, g::AbstractUnitRange)
-  return to_gradedrange(c) ⊗ g
-end
-
-function TensorProducts.tensor_product(g::AbstractUnitRange, c::AbstractSector)
-  return g ⊗ to_gradedrange(c)
 end
 
 # ================================  GradedUnitRanges interface  ==================================

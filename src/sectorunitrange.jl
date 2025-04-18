@@ -24,8 +24,6 @@ const SectorOneTo{T,Sector,Range} = SectorUnitRange{T,Sector,Base.OneTo{T}}
 # Constructors
 #
 
-to_sector(x) = x
-
 # sectorrange(SU2(1), 2:5)
 function sectorrange(s, r::AbstractUnitRange, b::Bool=false)
   return SectorUnitRange(to_sector(s), r, b)

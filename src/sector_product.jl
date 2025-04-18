@@ -100,13 +100,18 @@ end
 ×(c1::NamedTuple, c2::AbstractSector) = ×(SectorProduct(c1), SectorProduct(c2))
 ×(c1::AbstractSector, c2::NamedTuple) = ×(SectorProduct(c1), SectorProduct(c2))
 
-function ×(g1::AbstractUnitRange, g2::AbstractUnitRange)
-  # TBD SectorUnitRange?
-  v = map(
-    ((l1, l2),) -> l1 × l2,
-    Iterators.flatten((Iterators.product(blocklabels(g1), blocklabels(g2)),),),
+function ×(sr1::SectorUnitRange, sr2::SectorUnitRange)
+  @assert isdual(sr1) == isdual(sr2)
+  return sectorrange(
+    nondual_sector(sr1) × nondual_sector(sr2),
+    sector_multiplicity(sr1) * sector_multiplicity(sr1),
+    isdual(sr1),
   )
-  return gradedrange(v)
+end
+
+function ×(g1::AbstractGradedUnitRange, g2::AbstractGradedUnitRange)
+  v = map(splat(×), Iterators.flatten((Iterators.product(blocks(g1), blocks(g2)),),))
+  return axis_cat(v)
 end
 
 # ====================================  Fusion rules  ======================================

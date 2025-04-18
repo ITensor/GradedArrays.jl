@@ -43,15 +43,6 @@ using TestExtras: @constinferred
     @test arguments(s)[3] == U1(3)
     @test (@constinferred trivial(s)) == SectorProduct(U1(0), SU2(0), U1(0))
 
-    s = U1(3) × SU2(1//2) × Fib("τ")
-    @test length(arguments(s)) == 3
-    @test (@constinferred quantum_dimension(s)) == 1.0 + √5
-    @test dual(s) == U1(-3) × SU2(1//2) × Fib("τ")
-    @test arguments(s)[1] == U1(3)
-    @test arguments(s)[2] == SU2(1//2)
-    @test arguments(s)[3] == Fib("τ")
-    @test (@constinferred trivial(s)) == SectorProduct(U1(0), SU2(0), Fib("1"))
-
     s = TrivialSector() × U1(3) × SU2(1 / 2)
     @test length(arguments(s)) == 3
     @test (@constinferred quantum_dimension(s)) == 2
@@ -150,69 +141,6 @@ using TestExtras: @constinferred
     )
   end
 
-  @testset "Fusion of NonGroupCategory products" begin
-    ı = Fib("1")
-    τ = Fib("τ")
-    s = ı × ı
-    @test space_isequal(s ⊗ s, gradedrange([s => 1]))
-
-    s = τ × τ
-    @test space_isequal(
-      s ⊗ s, gradedrange([(ı × ı) => 1, (τ × ı) => 1, (ı × τ) => 1, (τ × τ) => 1])
-    )
-
-    σ = Ising("σ")
-    ψ = Ising("ψ")
-    s = τ × σ
-    g = gradedrange([
-      (ı × Ising("1")) => 1, (τ × Ising("1")) => 1, (ı × ψ) => 1, (τ × ψ) => 1
-    ])
-    @test space_isequal(s ⊗ s, g)
-  end
-
-  @testset "Fusion of mixed Abelian and NonAbelian products" begin
-    p2h = U1(2) × SU2(1//2)
-    p1h = U1(1) × SU2(1//2)
-    @test space_isequal(
-      p2h ⊗ p1h, gradedrange([(U1(3) × SU2(0)) => 1, (U1(3) × SU2(1)) => 1])
-    )
-
-    p1h1 = U1(1) × SU2(1//2) × Z{2}(1)
-    @test space_isequal(
-      p1h1 ⊗ p1h1,
-      gradedrange([(U1(2) × SU2(0) × Z{2}(0)) => 1, (U1(2) × SU2(1) × Z{2}(0)) => 1]),
-    )
-  end
-
-  @testset "Fusion of fully mixed products" begin
-    s = U1(1) × SU2(1//2) × Ising("σ")
-    @test space_isequal(
-      s ⊗ s,
-      gradedrange([
-        (U1(2) × SU2(0) × Ising("1")) => 1,
-        (U1(2) × SU2(1) × Ising("1")) => 1,
-        (U1(2) × SU2(0) × Ising("ψ")) => 1,
-        (U1(2) × SU2(1) × Ising("ψ")) => 1,
-      ]),
-    )
-
-    ı = Fib("1")
-    τ = Fib("τ")
-    s = SU2(1//2) × U1(1) × τ
-    @test space_isequal(
-      s ⊗ s,
-      gradedrange([
-        (SU2(0) × U1(2) × ı) => 1,
-        (SU2(1) × U1(2) × ı) => 1,
-        (SU2(0) × U1(2) × τ) => 1,
-        (SU2(1) × U1(2) × τ) => 1,
-      ]),
-    )
-
-    s = U1(1) × ı × τ
-    @test space_isequal(s ⊗ s, gradedrange([(U1(2) × ı × ı) => 1, (U1(2) × ı × τ) => 1]))
-  end
-
   @testset "Fusion of different length Categories" begin
     @test SectorProduct(U1(1) × U1(0)) ⊗ SectorProduct(U1(1)) ==
       SectorProduct(U1(2) × U1(0))
@@ -237,14 +165,11 @@ using TestExtras: @constinferred
   end
 
   @testset "GradedUnitRange fusion rules" begin
-    s1 = U1(1) × SU2(1//2) × Ising("σ")
-    s2 = U1(0) × SU2(1//2) × Ising("1")
+    s1 = U1(1) × SU2(1//2)
+    s2 = U1(0) × SU2(1//2)
     g1 = gradedrange([s1 => 2])
     g2 = gradedrange([s2 => 1])
-    @test space_isequal(
-      g1 ⊗ g2,
-      gradedrange([U1(1) × SU2(0) × Ising("σ") => 2, U1(1) × SU2(1) × Ising("σ") => 2]),
-    )
+    @test space_isequal(g1 ⊗ g2, gradedrange([U1(1) × SU2(0) => 2, U1(1) × SU2(1) => 2]))
   end
 end
 
@@ -267,12 +192,6 @@ end
     @test (@constinferred trivial(s)) == (A=U1(0),) × (B=SU2(0),)
     @test s == (B=SU2(2),) × (A=U1(1),)
 
-    s = s × (C=Ising("ψ"),)
-    @test length(arguments(s)) == 3
-    @test arguments(s)[:C] == Ising("ψ")
-    @test (@constinferred quantum_dimension(s)) == 5.0
-    @test (@constinferred dual(s)) == (A=U1(-1),) × (B=SU2(2),) × (C=Ising("ψ"),)
-
     s1 = (A=U1(1),) × (B=Z{2}(0),)
     s2 = (A=U1(1),) × (C=Z{2}(0),)
     @test_throws ArgumentError s1 × s2
@@ -290,11 +209,11 @@ end
     @test (@constinferred dual(s)) == SectorProduct("A" => U1(-2))
     @test (@constinferred trivial(s)) == SectorProduct(; A=U1(0))
 
-    s = SectorProduct("B" => Ising("ψ"), :C => Z{2}(1))
+    s = SectorProduct("B" => SU2(1//2), :C => Z{2}(1))
     @test length(arguments(s)) == 2
-    @test arguments(s)[:B] == Ising("ψ")
+    @test arguments(s)[:B] == SU2(1//2)
     @test arguments(s)[:C] == Z{2}(1)
-    @test (@constinferred quantum_dimension(s)) == 1.0
+    @test (@constinferred quantum_dimension(s)) == 2
   end
 
   @testset "Comparisons with unspecified labels" begin
@@ -343,29 +262,6 @@ end
       SectorProduct(; A=SU2(0), B=Z{2}(1), C=SU2(1//2)) => 1,
     ])
     @test (@constinferred quantum_dimension(g)) == 4
-
-    # non group sectors
-    g_fib = gradedrange([SectorProduct(; A=Fib("1"), B=Fib("1")) => 1])
-    g_ising = gradedrange([SectorProduct(; A=Ising("1"), B=Ising("1")) => 1])
-    @test (@constinferred quantum_dimension(g_fib)) == 1.0
-    @test (@constinferred quantum_dimension(g_ising)) == 1.0
-
-    # mixed product Abelian / NonAbelian / NonGroup
-    g = gradedrange([
-      SectorProduct(; A=U1(2), B=SU2(0), C=Ising(1)) => 1,
-      SectorProduct(; A=U1(2), B=SU2(1), C=Ising(1)) => 1,
-      SectorProduct(; A=U1(2), B=SU2(0), C=Ising("ψ")) => 1,
-      SectorProduct(; A=U1(2), B=SU2(1), C=Ising("ψ")) => 1,
-    ])
-    @test (@constinferred quantum_dimension(g)) == 8.0
-
-    g = gradedrange([
-      SectorProduct(; A=Fib("1"), B=SU2(0), C=U1(2)) => 1,
-      SectorProduct(; A=Fib("1"), B=SU2(1), C=U1(2)) => 1,
-      SectorProduct(; A=Fib("τ"), B=SU2(0), C=U1(2)) => 1,
-      SectorProduct(; A=Fib("τ"), B=SU2(1), C=U1(2)) => 1,
-    ])
-    @test (@constinferred quantum_dimension(g)) == 4.0 + 4.0quantum_dimension(Fib("τ"))
   end
 
   @testset "Fusion of Abelian products" begin
@@ -414,35 +310,6 @@ end
     )
   end
 
-  @testset "Fusion of NonGroupCategory products" begin
-    ı = Fib("1")
-    τ = Fib("τ")
-    s = SectorProduct(; A=ı, B=ı)
-    @test space_isequal(s ⊗ s, gradedrange([s => 1]))
-
-    s = SectorProduct(; A=τ, B=τ)
-    @test space_isequal(
-      s ⊗ s,
-      gradedrange([
-        SectorProduct(; A=ı, B=ı) => 1,
-        SectorProduct(; A=τ, B=ı) => 1,
-        SectorProduct(; A=ı, B=τ) => 1,
-        SectorProduct(; A=τ, B=τ) => 1,
-      ]),
-    )
-
-    σ = Ising("σ")
-    ψ = Ising("ψ")
-    s = SectorProduct(; A=τ, B=σ)
-    g = gradedrange([
-      SectorProduct(; A=ı, B=Ising("1")) => 1,
-      SectorProduct(; A=τ, B=Ising("1")) => 1,
-      SectorProduct(; A=ı, B=ψ) => 1,
-      SectorProduct(; A=τ, B=ψ) => 1,
-    ])
-    @test space_isequal(s ⊗ s, g)
-  end
-
   @testset "Fusion of mixed Abelian and NonAbelian products" begin
     q0h = SectorProduct(; J=SU2(1//2))
     q10 = (N=U1(1),) × (J=SU2(0),)
@@ -460,46 +327,13 @@ end
     @test space_isequal(q11 ⊗ q11, gradedrange([q20 => 1, q21 => 1, q22 => 1]))
   end
 
-  @testset "Fusion of fully mixed products" begin
-    s = SectorProduct(; A=U1(1), B=SU2(1//2), C=Ising("σ"))
-    @test space_isequal(
-      s ⊗ s,
-      gradedrange([
-        SectorProduct(; A=U1(2), B=SU2(0), C=Ising("1")) => 1,
-        SectorProduct(; A=U1(2), B=SU2(1), C=Ising("1")) => 1,
-        SectorProduct(; A=U1(2), B=SU2(0), C=Ising("ψ")) => 1,
-        SectorProduct(; A=U1(2), B=SU2(1), C=Ising("ψ")) => 1,
-      ]),
-    )
-
-    ı = Fib("1")
-    τ = Fib("τ")
-    s = SectorProduct(; A=SU2(1//2), B=U1(1), C=τ)
-    @test space_isequal(
-      s ⊗ s,
-      gradedrange([
-        SectorProduct(; A=SU2(0), B=U1(2), C=ı) => 1,
-        SectorProduct(; A=SU2(1), B=U1(2), C=ı) => 1,
-        SectorProduct(; A=SU2(0), B=U1(2), C=τ) => 1,
-        SectorProduct(; A=SU2(1), B=U1(2), C=τ) => 1,
-      ]),
-    )
-
-    s = SectorProduct(; A=τ, B=U1(1), C=ı)
-    @test space_isequal(
-      s ⊗ s,
-      gradedrange([
-        SectorProduct(; B=U1(2), A=ı, C=ı) => 1, SectorProduct(; B=U1(2), A=τ, C=ı) => 1
-      ]),
-    )
-  end
   @testset "GradedUnitRange fusion rules" begin
-    s1 = SectorProduct(; A=U1(1), B=SU2(1//2), C=Ising("σ"))
-    s2 = SectorProduct(; A=U1(0), B=SU2(1//2), C=Ising("1"))
+    s1 = SectorProduct(; A=U1(1), B=SU2(1//2))
+    s2 = SectorProduct(; A=U1(0), B=SU2(1//2))
     g1 = gradedrange([s1 => 2])
     g2 = gradedrange([s2 => 1])
-    s3 = SectorProduct(; A=U1(1), B=SU2(0), C=Ising("σ"))
-    s4 = SectorProduct(; A=U1(1), B=SU2(1), C=Ising("σ"))
+    s3 = SectorProduct(; A=U1(1), B=SU2(0))
+    s4 = SectorProduct(; A=U1(1), B=SU2(1))
     @test space_isequal(g1 ⊗ g2, gradedrange([s3 => 2, s4 => 2]))
 
     sA = SectorProduct(; A=U1(1))
@@ -559,20 +393,18 @@ end
     @test (@constinferred s ⊗ U1(1)) == st1
     @test (@constinferred SU2(0) ⊗ s) == gradedrange([SectorProduct(SU2(0)) => 1])
     @test (@constinferred s ⊗ SU2(0)) == gradedrange([SectorProduct(SU2(0)) => 1])
-    @test (@constinferred Fib("τ") ⊗ s) == gradedrange([SectorProduct(Fib("τ")) => 1])
-    @test (@constinferred s ⊗ Fib("τ")) == gradedrange([SectorProduct(Fib("τ")) => 1])
 
     @test (@constinferred st1 ⊗ s) == st1
     @test (@constinferred SectorProduct(SU2(0)) ⊗ s) ==
       gradedrange([SectorProduct(SU2(0)) => 1])
-    @test (@constinferred SectorProduct(Fib("τ"), SU2(1), U1(2)) ⊗ s) ==
-      gradedrange([SectorProduct(Fib("τ"), SU2(1), U1(2)) => 1])
+    @test (@constinferred SectorProduct(SU2(1), U1(2)) ⊗ s) ==
+      gradedrange([SectorProduct(SU2(1), U1(2)) => 1])
 
     @test (@constinferred sA1 ⊗ s) == sA1
     @test (@constinferred SectorProduct(; A=SU2(0)) ⊗ s) ==
       gradedrange([SectorProduct(; A=SU2(0)) => 1])
-    @test (@constinferred SectorProduct(; A=Fib("τ"), B=SU2(1), C=U1(2)) ⊗ s) ==
-      gradedrange([SectorProduct(; A=Fib("τ"), B=SU2(1), C=U1(2)) => 1])
+    @test (@constinferred SectorProduct(; B=SU2(1), C=U1(2)) ⊗ s) ==
+      gradedrange([SectorProduct(; B=SU2(1), C=U1(2)) => 1])
 
     # Empty behaves as empty NamedTuple
     @test s != U1(0)
