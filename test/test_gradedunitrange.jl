@@ -1,9 +1,12 @@
 using BlockArrays:
   Block,
   BlockSlice,
+  BlockedOneTo,
   BlockVector,
+  BlockedUnitRange,
   blockedrange,
   blockfirsts,
+  blockisequal,
   blocklasts,
   blocklength,
   blocklengths,

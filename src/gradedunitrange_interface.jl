@@ -1,4 +1,4 @@
-using BlockArrays: AbstractBlockVector, BlockRange, blocklength
+using BlockArrays: AbstractBlockVector, BlockRange, blockisequal, blocklength
 using FillArrays: Fill
 
 """
