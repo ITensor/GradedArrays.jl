@@ -342,30 +342,15 @@ function Base.getindex(a::AbstractGradedUnitRange, indices::AbstractUnitRange{<:
   return blockedunitrange_getindices(a, indices)
 end
 
-# This fixes an issue that `combine_blockaxes` was promoting
-# the element type of the axes to `Integer` in broadcasting operations
-# that mixed dense and graded axes.
-# TODO: Maybe come up with a more general solution.
-function BlockArrays.combine_blockaxes(
-  a1::AbstractGradedUnitRange{T}, a2::AbstractUnitRange{T}
-) where {T<:Integer}
-  combined_blocklasts = sort!(union(unlabel.(blocklasts(a1)), blocklasts(a2)))
-  return BlockedOneTo(combined_blocklasts)
+function BlockArrays.combine_blockaxes(a1::AbstractGradedUnitRange, a2::AbstractUnitRange)
+  return BlockArrays.combine_blockaxes(a1, unlabel_blocks(a2))
 end
-function BlockArrays.combine_blockaxes(
-  a1::AbstractUnitRange{T}, a2::AbstractGradedUnitRange{T}
-) where {T<:Integer}
-  return BlockArrays.combine_blockaxes(a2, a1)
+function BlockArrays.combine_blockaxes(a1::AbstractUnitRange, a2::AbstractGradedUnitRange)
+  return BlockArrays.combine_blockaxes(a1, unlabel_blocks(a2))
 end
 
-# preserve labels inside combine_blockaxes
-function BlockArrays.combine_blockaxes(a::GradedOneTo, b::GradedOneTo)
-  return GradedUnitRange(sortedunion(blocklasts(a), blocklasts(b)))
-end
 function BlockArrays.combine_blockaxes(a::GradedUnitRange, b::GradedUnitRange)
-  new_blocklasts = sortedunion(blocklasts(a), blocklasts(b))
-  new_first = labelled(oneunit(eltype(new_blocklasts)), label(first(new_blocklasts)))
-  return GradedUnitRange(new_first, new_blocklasts)
+  return combine_blockaxes(unlabel_blocks(a), unlabel_blocks(b))
 end
 
 # Version of length that checks that all blocks have the same label

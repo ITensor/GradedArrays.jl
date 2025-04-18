@@ -76,12 +76,9 @@ using Test: @test, @test_broken, @testset
 
   @test axes(Base.Slice(g)) isa Tuple{typeof(g)}
   @test AbstractUnitRange{Int}(g) == 1:5
-  @test_broken b = combine_blockaxes(g, g)  # TODO
-  #=
-  @test b isa GradedOneTo
-  @test b == 1:5
-  @test space_isequal(b, g)
-  =#
+  b = combine_blockaxes(g, g)
+  @test b isa BlockedOneTo
+  @test blockisequal(b, blockedrange([2, 3]))
 
   # Slicing operations
   g = gradedrange(["x" => 2, "y" => 3])
