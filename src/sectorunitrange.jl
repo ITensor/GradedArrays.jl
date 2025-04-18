@@ -60,8 +60,15 @@ Base.last(sr::SectorUnitRange) = last(full_range(sr))
 
 # slicing
 Base.getindex(sr::SectorUnitRange, i::Integer) = full_range(sr)[i]
+
 function Base.getindex(sr::SectorUnitRange, r::AbstractUnitRange{T}) where {T<:Integer}
+  return sr[SymmetryStyle(sr), r]
+end
+function Base.getindex(sr::SectorUnitRange, ::NotAbelianStyle, r::AbstractUnitRange)
   return full_range(sr)[r]
+end
+function Base.getindex(sr::SectorUnitRange, ::AbelianStyle, r::AbstractUnitRange)
+  return sectorrange(nondual_sector(sr), full_range(sr)[r], isdual(sr))
 end
 
 # TODO replace (:,x) indexing with kronecker(:, x)
