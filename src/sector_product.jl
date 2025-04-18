@@ -2,8 +2,6 @@
 # e.g. U(1)×U(1), U(1)×SU2(2)×SU(3)
 
 using BlockArrays: blocklengths
-using ..LabelledNumbers: LabelledInteger, label, labelled, unlabel
-using ..GradedUnitRanges: GradedUnitRanges, dual, map_blocklabels
 
 # =====================================  Definition  =======================================
 struct SectorProduct{Sectors} <: AbstractSector
@@ -15,7 +13,7 @@ SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 
 arguments(s::SectorProduct) = s.arguments
 
-GradedUnitRanges.to_sector(nt::NamedTuple) = SectorProduct(nt)
+to_sector(nt::NamedTuple) = SectorProduct(nt)
 
 # =================================  Sectors interface  ====================================
 function SymmetryStyle(T::Type{<:SectorProduct})
@@ -27,7 +25,7 @@ function quantum_dimension(::NotAbelianStyle, s::SectorProduct)
 end
 
 # use map instead of broadcast to support both Tuple and NamedTuple
-GradedUnitRanges.dual(s::SectorProduct) = SectorProduct(map(dual, arguments(s)))
+dual(s::SectorProduct) = SectorProduct(map(dual, arguments(s)))
 
 function trivial(type::Type{<:SectorProduct})
   return SectorProduct(arguments_trivial(arguments_type(type)))
@@ -102,18 +100,18 @@ end
 ×(c1::NamedTuple, c2::AbstractSector) = ×(SectorProduct(c1), SectorProduct(c2))
 ×(c1::AbstractSector, c2::NamedTuple) = ×(SectorProduct(c1), SectorProduct(c2))
 
-function ×(l1::LabelledInteger, l2::LabelledInteger)
-  c3 = label(l1) × label(l2)
-  m3 = unlabel(l1) * unlabel(l2)
-  return labelled(m3, c3)
+function ×(sr1::SectorUnitRange, sr2::SectorUnitRange)
+  @assert isdual(sr1) == isdual(sr2)
+  return sectorrange(
+    nondual_sector(sr1) × nondual_sector(sr2),
+    sector_multiplicity(sr1) * sector_multiplicity(sr1),
+    isdual(sr1),
+  )
 end
 
-function ×(g1::AbstractUnitRange, g2::AbstractUnitRange)
-  v = map(
-    ((l1, l2),) -> l1 × l2,
-    Iterators.flatten((Iterators.product(blocklengths(g1), blocklengths(g2)),),),
-  )
-  return gradedrange(v)
+function ×(g1::AbstractGradedUnitRange, g2::AbstractGradedUnitRange)
+  v = map(splat(×), Iterators.flatten((Iterators.product(blocks(g1), blocks(g2)),),))
+  return axis_cat(v)
 end
 
 # ====================================  Fusion rules  ======================================
@@ -136,7 +134,7 @@ end
 
 # Abelian case: fusion returns SectorProduct
 function fusion_rule(::AbelianStyle, s1::SectorProduct, s2::SectorProduct)
-  return label(only(fusion_rule(NotAbelianStyle(), s1, s2)))
+  return only(blocklabels((fusion_rule(NotAbelianStyle(), s1, s2))))
 end
 
 # lift ambiguities for TrivialSector

@@ -2,18 +2,17 @@ using BlockArrays:
   AbstractBlockArray, Block, BlockedOneTo, blockedrange, blocklengths, blocksize
 using BlockSparseArrays:
   BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
-using GradedArrays: GradedArray, GradedMatrix, GradedVector
-using GradedArrays.GradedUnitRanges:
-  GradedUnitRanges,
+using GradedArrays:
+  GradedArray,
+  GradedMatrix,
+  GradedVector,
   GradedOneTo,
   GradedUnitRange,
-  GradedUnitRangeDual,
+  U1,
   dag,
   dual,
   gradedrange,
   isdual
-using GradedArrays.LabelledNumbers: label
-using GradedArrays.SymmetrySectors: U1
 using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!

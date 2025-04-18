@@ -2,15 +2,15 @@ module GradedArraysTensorAlgebraExt
 
 using BlockArrays: blocks
 using BlockSparseArrays: BlockSparseArray, blockreshape
-using GradedArrays: GradedArray
-using GradedArrays.GradedUnitRanges:
+using GradedArrays:
   AbstractGradedUnitRange,
+  GradedArray,
   flip,
   invblockperm,
   sectormergesortperm,
   sectorsortperm,
+  trivial,
   unmerged_tensor_product
-using GradedArrays.SymmetrySectors: trivial
 using TensorAlgebra:
   TensorAlgebra,
   AbstractBlockPermutation,

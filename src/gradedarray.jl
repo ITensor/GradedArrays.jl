@@ -7,7 +7,6 @@ using BlockSparseArrays:
   BlockSparseMatrix,
   BlockSparseVector,
   blocktype
-using ..GradedUnitRanges: AbstractGradedUnitRange, dual
 using LinearAlgebra: Adjoint
 using TypeParameterAccessors: similartype, unwrap_array_type
 

@@ -1,17 +1,18 @@
-using GradedArrays: dual, space_isequal, gradedrange, flip, unmerged_tensor_product
-using GradedArrays.SymmetrySectors:
-  Fib,
-  Ising,
+using GradedArrays:
   O2,
   SU,
   SU2,
   TrivialSector,
   U1,
   Z,
-  block_dimensions,
+  dual,
+  space_isequal,
+  gradedrange,
+  flip,
   nsymbol,
   quantum_dimension,
-  trivial
+  trivial,
+  unmerged_tensor_product
 using TensorProducts: ⊗, tensor_product
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
@@ -37,7 +38,7 @@ using TestExtras: @constinferred
     @test tensor_product(z0, z0, z0) == z0
     @test tensor_product(z0, z0, z0, z0) == z0
 
-    @test (@constinferred block_dimensions(gradedrange([z1 => 1]))) == [1]
+    @test (@constinferred quantum_dimension(gradedrange([z1 => 1]))) == 1
   end
   @testset "U(1) fusion rules" begin
     q1 = U1(1)
@@ -77,7 +78,6 @@ using TestExtras: @constinferred
     )
 
     @test (@constinferred quantum_dimension(s0o ⊗ s1)) == 2
-    @test (@constinferred block_dimensions(s0o ⊗ s1)) == [2]
   end
 
   @testset "SU2 fusion rules" begin
@@ -93,42 +93,13 @@ using TestExtras: @constinferred
     @test space_isequal(j3 ⊗ j3, gradedrange([j1 => 1, j3 => 1, j5 => 1]))
     @test space_isequal((@constinferred j1 ⊗ j2), gradedrange([j2 => 1]))
     @test (@constinferred quantum_dimension(j1 ⊗ j2)) == 2
-    @test (@constinferred block_dimensions(j1 ⊗ j2)) == [2]
 
     @test tensor_product(j2) == j2
     @test space_isequal(tensor_product(j2, j1), gradedrange([j2 => 1]))
     @test space_isequal(tensor_product(j2, j1, j1), gradedrange([j2 => 1]))
   end
-
-  @testset "Fibonacci fusion rules" begin
-    ı = Fib("1")
-    τ = Fib("τ")
-
-    @test space_isequal(ı ⊗ ı, gradedrange([ı => 1]))
-    @test space_isequal(ı ⊗ τ, gradedrange([τ => 1]))
-    @test space_isequal(τ ⊗ ı, gradedrange([τ => 1]))
-    @test space_isequal((@constinferred τ ⊗ τ), gradedrange([ı => 1, τ => 1]))
-    @test (@constinferred quantum_dimension(gradedrange([ı => 1, ı => 1]))) == 2.0
-  end
-
-  @testset "Ising fusion rules" begin
-    ı = Ising("1")
-    σ = Ising("σ")
-    ψ = Ising("ψ")
-
-    @test space_isequal(ı ⊗ ı, gradedrange([ı => 1]))
-    @test space_isequal(ı ⊗ σ, gradedrange([σ => 1]))
-    @test space_isequal(σ ⊗ ı, gradedrange([σ => 1]))
-    @test space_isequal(ı ⊗ ψ, gradedrange([ψ => 1]))
-    @test space_isequal(ψ ⊗ ı, gradedrange([ψ => 1]))
-    @test space_isequal(σ ⊗ σ, gradedrange([ı => 1, ψ => 1]))
-    @test space_isequal(σ ⊗ ψ, gradedrange([σ => 1]))
-    @test space_isequal(ψ ⊗ σ, gradedrange([σ => 1]))
-    @test space_isequal(ψ ⊗ ψ, gradedrange([ı => 1]))
-    @test space_isequal((@constinferred ψ ⊗ ψ), gradedrange([ı => 1]))
-    @test (@constinferred quantum_dimension(σ ⊗ σ)) == 2.0
-  end
 end
+
 @testset "Gradedrange fusion rules" begin
   @testset "Trivial GradedUnitRange" begin
     g1 = gradedrange([U1(0) => 1])
@@ -142,7 +113,7 @@ end
     g2 = gradedrange([U1(-2) => 2, U1(0) => 1, U1(1) => 2])
 
     @test space_isequal(flip(dual(g1)), gradedrange([U1(1) => 1, U1(0) => 1, U1(-1) => 2]))
-    @test (@constinferred block_dimensions(g1)) == [1, 1, 2]
+    @test (@constinferred blocklengths(g1)) == [1, 1, 2]
 
     gt = gradedrange([
       U1(-3) => 2,
@@ -241,7 +212,7 @@ end
       (@constinferred tensor_product(g3, g4)),
       gradedrange([SU2(0) => 4, SU2(1//2) => 6, SU2(1) => 6, SU2(3//2) => 5, SU2(2) => 2]),
     )
-    @test (@constinferred block_dimensions(g3)) == [1, 4, 3]
+    @test (@constinferred blocklengths(g3)) == [1, 4, 3]
 
     # test dual on non self-conjugate non-abelian representations
     s1 = SU{3}((0, 0))

@@ -10,7 +10,6 @@
 #
 
 using HalfIntegers: Half, HalfInteger
-using ..GradedUnitRanges: GradedUnitRanges
 
 # here we use only one half-integer as label:
 # - l=0 for trivial
@@ -36,7 +35,7 @@ iszero_odd(l::HalfInteger) = l == sector_label(zero_odd(O2))
 
 quantum_dimension(::NotAbelianStyle, s::O2) = 2 - is_zero_even_or_odd(s)
 
-GradedUnitRanges.dual(s::O2) = s
+dual(s::O2) = s
 
 function Base.show(io::IO, s::O2)
   if iszero_odd(s)
