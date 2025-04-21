@@ -4,7 +4,7 @@ using GradedArrays: NoLabel, blocklabels, dag, dual, flip, isdual, space_isequal
 using Test: @test, @testset
 using TensorProducts: OneToOne
 
-@testset "AbstractUnitRange" begin
+@testset "GradedUnitRange interface for AbstractUnitRange" begin
   a0 = OneToOne()
   @test !isdual(a0)
   @test dual(a0) isa OneToOne
