@@ -187,14 +187,14 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test ax isa GradedOneTo
     @test space_isequal(ax, gradedrange(["z" => 1, "y" => 2]; isdual=isdual(g)))
 
-    I = mortar([Block(1)[1:1]])
+    I = mortar([Block(1)[1:1], Block(1)[1:2], Block(2)[1:2]])
     a = g[I]
     @test a isa BlockVector
-    @test length(a) == 1
-    @test blocklength(a) == 1
+    @test length(a) == 5
+    @test blocklength(a) == 3
     ax = only(axes(a))
     @test ax isa GradedOneTo
-    @test space_isequal(ax, gradedrange(["x" => 1]; isdual=isdual(g)))
+    @test space_isequal(ax, gradedrange(["x" => 1, "x" => 2, "y" => 2]; isdual=isdual(g)))
 
     v = mortar([[Block(2), Block(2)], [Block(1)]])
     a = g[v]

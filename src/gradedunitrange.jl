@@ -128,11 +128,11 @@ end
 function gradedunitrange_getindices(
   ::AbelianStyle, g::AbstractUnitRange, indices::BlockVector{<:BlockIndex{1}}
 )
+  blks = blocks(indices)
   newg = gradedrange(
-    map(b -> nondual_sector(g[b]), block.(indices)) .=> blocklength(indices);
-    isdual=isdual(g),
+    map(b -> nondual_sector(g[b]), block.(blks)) .=> length.(blks); isdual=isdual(g)
   )
-  v = mortar(map(b -> g[b], blocks(indices)), (newg,))
+  v = mortar(map(b -> g[b], blks), (newg,))
   return v
 end
 
