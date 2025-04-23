@@ -189,9 +189,12 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     I = mortar([Block(1)[1:1]])
     a = g[I]
-    @test a isa BlockedVector
+    @test a isa BlockVector
     @test length(a) == 1
     @test blocklength(a) == 1
+    ax = only(axes(a))
+    @test ax isa GradedOneTo
+    @test space_isequal(ax, gradedrange(["x" => 1]; isdual=isdual(g)))
 
     v = mortar([[Block(2), Block(2)], [Block(1)]])
     a = g[v]
@@ -312,7 +315,10 @@ end
 
   I = mortar([Block(1)[1:1]])
   a = g[I]
-  @test a isa BlockedVector
+  @test a isa BlockVector
   @test length(a) == 1
   @test blocklength(a) == 1
+  ax = only(axes(a))
+  @test ax isa BlockedOneTo
+  @test blockisequal(ax, blockedrange([1]))
 end

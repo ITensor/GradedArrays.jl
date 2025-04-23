@@ -117,19 +117,19 @@ end
 function gradedunitrange_getindices(
   ::AbelianStyle, g::AbstractUnitRange, indices::AbstractUnitRange{<:Integer}
 )
-  r = blockedunitrange_getindices(unlabel_blocks(g), indices)
-  i = Int(findblock(g, first(indices)))
-  j = Int(findblock(g, last(indices)))
-  labels = nondual_sector.(sector_axes(g))[i:j]
-  new_axes = sectorrange.(labels .=> Base.oneto.(blocklengths(r)), isdual(g))
-  return GradedUnitRange(new_axes, r)
+  new_range = blockedunitrange_getindices(unlabel_blocks(g), indices)
+  bf = findblock(g, first(indices))
+  bl = findblock(g, last(indices))
+  labels = blocklabels(nondual(g)[bf:bl])
+  new_sector_axes = sectorrange.(labels .=> Base.oneto.(blocklengths(new_range)), isdual(g))
+  return GradedUnitRange(new_sector_axes, new_range)
 end
 
 function gradedunitrange_getindices(
-  ::AbelianStyle, g::AbstractGradedUnitRange, indices::BlockVector{<:BlockIndex{1}}
+  ::AbelianStyle, g::AbstractUnitRange, indices::BlockVector{<:BlockIndex{1}}
 )
   newg = gradedrange(
-    map(b -> nondual_sector(g[b]), block.(indices)) .=> length.(blocks(indices));
+    map(b -> nondual_sector(g[b]), block.(indices)) .=> blocklength(indices);
     isdual=isdual(g),
   )
   v = mortar(map(b -> g[b], blocks(indices)), (newg,))
@@ -204,13 +204,6 @@ function BlockSparseArrays.blockedunitrange_getindices(
   return sectorrange(nondual_sector(sr), unlabel_blocks(a)[index], isdual(sr))
 end
 
-# NEVER CALLED TBD REMOVE
-function BlockSparseArrays.blockedunitrange_getindices(
-  a::AbstractGradedUnitRange, indices::Vector{<:Integer}
-)
-  return gradedunitrange_getindice(SymmetryStyle(a), a, indices)
-end
-
 # used in BlockSparseArrays
 function BlockSparseArrays.blockedunitrange_getindices(
   g::AbstractGradedUnitRange,
@@ -218,13 +211,6 @@ function BlockSparseArrays.blockedunitrange_getindices(
 )
   return gradedunitrange_getindices(SymmetryStyle(g), g, indices)
 end
-
-# a priori pas besoin, on peut utiliser la version generique
-#=function BlockSparseArrays.blockedunitrange_getindices(
-  a::AbstractGradedUnitRange, indices::BlockIndexRange{1}
-)
-  return a[block(indices)][only(indices.indices)]
-end=#
 
 function BlockSparseArrays.blockedunitrange_getindices(
   g::AbstractGradedUnitRange, indices::AbstractVector{<:Block{1}}
@@ -264,13 +250,18 @@ function BlockSparseArrays.blockedunitrange_getindices(
   return GradedUnitRange(sector_axes(ga)[Int.(indices)], unlabel_blocks(ga)[indices])
 end
 
-# TBD remove? Not used in BlockSparseArray slicing
-#=
+# used in BlockSparseArray slicing
 function BlockSparseArrays.blockedunitrange_getindices(
-  a::AbstractGradedUnitRange, indices::BlockIndex{1}
+  g::AbstractGradedUnitRange, indices::AbstractBlockVector{<:Block{1}}
 )
-  return a[block(indices)][blockindex(indices)]
-end=#
+  blks = map(bs -> mortar(map(b -> g[b], bs)), blocks(indices))
+  new_labels = map(b -> blocklabels(nondual(g))[Int.(b)], blocks(indices))
+  @assert all(allequal.(new_labels))
+  new_lengths = length.(blks)
+  new_sector_axes = sectorrange.(first.(new_labels), Base.oneto.(new_lengths), isdual(g))
+  newg = axis_cat(new_sector_axes)
+  return mortar(blks, (newg,))
+end
 
 function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer}
@@ -279,17 +270,21 @@ function BlockSparseArrays.blockedunitrange_getindices(
 end
 
 ### Slicing
-# TBD REMOVE? not needed to get result
-function Base.getindex(a::AbstractGradedUnitRange, index::Integer)
-  return unlabel_blocks(a)[index]
-end
-
 function Base.getindex(a::AbstractGradedUnitRange, index::Block{1})
   return blockedunitrange_getindices(a, index)
 end
 
 function Base.getindex(a::AbstractGradedUnitRange, indices::BlockIndexRange{1})
   return blockedunitrange_getindices(a, indices)
+end
+
+# impose Base.getindex and blockedunitrange_getindices to return the same output
+# this version of blockedunitrange_getindices is used in BlockSparseArray slicing
+function Base.getindex(
+  g::AbstractGradedUnitRange,
+  indices::BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}},
+)
+  return blockedunitrange_getindices(g, indices)
 end
 
 function Base.getindex(a::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer})
@@ -300,7 +295,7 @@ end
 
 # fix ambiguities
 function Base.getindex(
-  a::AbstractGradedUnitRange, indices::BlockArrays.BlockRange{1,<:Tuple{Base.OneTo}}
+  a::AbstractGradedUnitRange, indices::BlockRange{1,<:Tuple{Base.OneTo}}
 )
   return blockedunitrange_getindices(a, indices)
 end
@@ -310,7 +305,6 @@ function Base.getindex(
   return blockedunitrange_getindices(a, indices)
 end
 
-# TBD REMOVE: blockedunitrange_getindices not used
 # Fix ambiguity error with BlockArrays.jl.
 #function Base.getindex(a::AbstractGradedUnitRange, indices::BlockIndex{1})
 #  return blockedunitrange_getindices(a, indices)
@@ -336,34 +330,4 @@ function Base.getindex(
   a::AbstractGradedUnitRange, indices::AbstractVector{<:BlockIndexRange{1}}
 )
   return blockedunitrange_getindices(a, indices)
-end
-
-# Fix ambiguity error with BlockArrays.jl.
-#=function Base.getindex(g::AbstractGradedUnitRange, indices::AbstractVector{<:BlockIndex{1}})
-  return unlabel_blocks(g)[indices]
-end
-= #
-function Base.getindex(a::AbstractGradedUnitRange, indices)
-  return blockedunitrange_getindices(a, indices)
-end=#
-
-# TODO: Make sure this handles block labels (AbstractGradedUnitRange) correctly.
-# TODO: Make a special case for `BlockedVector{<:Block{1},<:BlockRange{1}}`?
-# For example:
-# ```julia
-# blocklengths = map(bs -> sum(b -> length(a[b]), bs), blocks(indices))
-# return blockedrange(blocklengths)
-# ```
-
-# used in BlockSparseArray slicing
-function BlockSparseArrays.blockedunitrange_getindices(
-  g::AbstractGradedUnitRange, indices::AbstractBlockVector{<:Block{1}}
-)
-  blks = map(bs -> mortar(map(b -> g[b], bs)), blocks(indices))
-  new_labels = map(b -> blocklabels(nondual(g))[Int.(b)], blocks(indices))
-  @assert all(allequal.(new_labels))
-  new_lengths = length.(blks)
-  new_sector_axes = sectorrange.(first.(new_labels), Base.oneto.(new_lengths), isdual(g))
-  newg = axis_cat(new_sector_axes)
-  return mortar(blks, (newg,))
 end

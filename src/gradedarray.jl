@@ -45,12 +45,11 @@ function similar_blocksparse(
 )
   # TODO: Probably need to unwrap the type of `a` in certain cases
   # to make a proper block type.
-  aaa = BlockSparseArray{
+  return BlockSparseArray{
     elt,length(axes),similartype(unwrap_array_type(blocktype(a)), elt, axes)
   }(
     undef, axes
   )
-  return aaa
 end
 
 function Base.similar(
@@ -69,17 +68,6 @@ function Base.similar(
 )
   return similar_blocksparse(a, elt, axes)
 end
-#=  # TBD needed? => delete
-# Fix ambiguity error with `BlockArrays.jl`.
-function Base.similar(
-  a::StridedArray,
-  elt::Type,
-  axes::Tuple{
-    AbstractGradedUnitRange,AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}
-  },
-)
-  return similar_blocksparse(a, elt, axes)
-end=#
 
 # Fix ambiguity error with `BlockSparseArrays.jl`.
 # TBD DerivableInterfaces?
@@ -90,16 +78,6 @@ function Base.similar(
 )
   return similar_blocksparse(a, elt, axes)
 end
-#=  # TBD needed? => delete
-function Base.similar(
-  a::AnyAbstractBlockSparseArray,
-  elt::Type,
-  axes::Tuple{
-    AbstractGradedUnitRange,AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}
-  },
-)
-  return similar_blocksparse(a, elt, axes)
-end=#
 
 function Base.zeros(
   elt::Type, ax::Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}
