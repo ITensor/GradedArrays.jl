@@ -13,8 +13,12 @@ using TypeParameterAccessors: similartype, unwrap_array_type
 const GradedArray{T,M,A,Blocks,Axes} = BlockSparseArray{
   T,M,A,Blocks,Axes
 } where {Axes<:Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}}
-const GradedMatrix{T,A,Blocks,Axes} = GradedArray{T,2,A,Blocks,Axes}
-const GradedVector{T,A,Blocks,Axes} = GradedArray{T,1,A,Blocks,Axes}
+const GradedMatrix{T,A,Blocks,Axes} = GradedArray{
+  T,2,A,Blocks,Axes
+} where {Axes<:Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}}
+const GradedVector{T,A,Blocks,Axes} = GradedArray{
+  T,1,A,Blocks,Axes
+} where {Axes<:Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}}
 
 # TODO: Handle this through some kind of trait dispatch, maybe
 # a `SymmetryStyle`-like trait to check if the block sparse
@@ -41,11 +45,12 @@ function similar_blocksparse(
 )
   # TODO: Probably need to unwrap the type of `a` in certain cases
   # to make a proper block type.
-  return BlockSparseArray{
+  aaa = BlockSparseArray{
     elt,length(axes),similartype(unwrap_array_type(blocktype(a)), elt, axes)
   }(
     undef, axes
   )
+  return aaa
 end
 
 function Base.similar(
@@ -64,7 +69,7 @@ function Base.similar(
 )
   return similar_blocksparse(a, elt, axes)
 end
-
+#=  # TBD needed? => delete
 # Fix ambiguity error with `BlockArrays.jl`.
 function Base.similar(
   a::StridedArray,
@@ -74,9 +79,10 @@ function Base.similar(
   },
 )
   return similar_blocksparse(a, elt, axes)
-end
+end=#
 
 # Fix ambiguity error with `BlockSparseArrays.jl`.
+# TBD DerivableInterfaces?
 function Base.similar(
   a::AnyAbstractBlockSparseArray,
   elt::Type,
@@ -84,6 +90,7 @@ function Base.similar(
 )
   return similar_blocksparse(a, elt, axes)
 end
+#=  # TBD needed? => delete
 function Base.similar(
   a::AnyAbstractBlockSparseArray,
   elt::Type,
@@ -92,7 +99,7 @@ function Base.similar(
   },
 )
   return similar_blocksparse(a, elt, axes)
-end
+end=#
 
 function Base.zeros(
   elt::Type, ax::Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}

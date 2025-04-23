@@ -16,6 +16,7 @@ using GradedArrays:
 using TensorProducts: ⊗
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
+using BlockArrays: blocklengths
 
 @testset "Test Ordered Products" begin
   @testset "Ordered Constructor" begin

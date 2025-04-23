@@ -3,6 +3,7 @@ using GradedArrays:
   GradedArrays,
   GradedOneTo,
   NotAbelianStyle,
+  SectorUnitRange,
   SU2,
   U1,
   blocklabels,
@@ -15,6 +16,7 @@ using GradedArrays:
   isdual
 using TensorProducts: ⊗, OneToOne, tensor_product
 using Test: @test, @testset
+using TestExtras: @constinferred
 
 GradedArrays.SymmetryStyle(::Type{<:String}) = NotAbelianStyle()
 GradedArrays.tensor_product(s1::String, s2::String) = gradedrange([s1 * s2 => 1])
@@ -104,7 +106,7 @@ end
   g1 = gradedrange([s1 => 1])
   g1d = dual(g1)
 
-  @test (@constinferred s1 ⊗ s1) isa AbstractSector
+  @test (@constinferred s1 ⊗ s1) isa U1
   @test (@constinferred sr1 ⊗ sr1) isa SectorUnitRange
   @test (@constinferred g1 ⊗ g1) isa GradedOneTo
 

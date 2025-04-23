@@ -1,9 +1,19 @@
 using Test: @test, @test_throws, @testset
 
-using BlockArrays: Block, blocklength, blocklengths, blockisequal, blocks
+using BlockArrays:
+  Block,
+  BlockBoundsError,
+  BlockRange,
+  blockaxes,
+  blocklasts,
+  blocklength,
+  blocklengths,
+  blockisequal,
+  blocks,
+  findblock
+using TestExtras: @constinferred
 
 using GradedArrays:
-  AbstractSector,
   U1,
   SU,
   SectorUnitRange,

@@ -5,17 +5,19 @@ using GradedArrays:
   TrivialSector,
   U1,
   Z,
+  blocklengths,
   dual,
-  space_isequal,
-  gradedrange,
   flip,
+  gradedrange,
   nsymbol,
   quantum_dimension,
+  space_isequal,
   trivial,
   unmerged_tensor_product
 using TensorProducts: ⊗, tensor_product
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
+using BlockArrays: blocklengths
 
 @testset "Simple SymmetrySector fusion rules" begin
   @testset "Z{2} fusion rules" begin
