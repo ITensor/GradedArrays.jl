@@ -197,11 +197,11 @@ end
 # BlockSparseArray explicitly calls blockedunitrange_getindices, both Base.getindex
 # and blockedunitrange_getindices must be defined
 
+# fix ambiguity
 function BlockSparseArrays.blockedunitrange_getindices(
-  a::AbstractGradedUnitRange, index::Block{1}
+  a::AbstractGradedUnitRange, indices::BlockSlice
 )
-  sr = sector_axes(a)[Int(index)]
-  return sectorrange(nondual_sector(sr), unlabel_blocks(a)[index], isdual(sr))
+  return a[indices.block]
 end
 
 # used in BlockSparseArrays
@@ -210,6 +210,31 @@ function BlockSparseArrays.blockedunitrange_getindices(
   indices::BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}},
 )
   return gradedunitrange_getindices(SymmetryStyle(g), g, indices)
+end
+
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer}
+)
+  return gradedunitrange_getindices(SymmetryStyle(a), a, indices)
+end
+
+function BlockSparseArrays.blockedunitrange_getindices(
+  g::AbstractGradedUnitRange, indices::AbstractVector{<:BlockIndexRange{1}}
+)
+  return gradedunitrange_getindices(SymmetryStyle(g), g, indices)
+end
+
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::AbstractGradedUnitRange, index::Block{1}
+)
+  sr = sector_axes(a)[Int(index)]
+  return sectorrange(nondual_sector(sr), unlabel_blocks(a)[index], isdual(sr))
+end
+
+function BlockSparseArrays.blockedunitrange_getindices(
+  ga::GradedUnitRange, indices::BlockRange
+)
+  return GradedUnitRange(sector_axes(ga)[Int.(indices)], unlabel_blocks(ga)[indices])
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
@@ -231,25 +256,6 @@ function BlockSparseArrays.blockedunitrange_getindices(
   return mortar(gblocks, (newg,))
 end
 
-function BlockSparseArrays.blockedunitrange_getindices(
-  g::AbstractGradedUnitRange, indices::AbstractVector{<:BlockIndexRange{1}}
-)
-  return gradedunitrange_getindices(SymmetryStyle(g), g, indices)
-end
-
-# fix ambiguity
-function BlockSparseArrays.blockedunitrange_getindices(
-  a::AbstractGradedUnitRange, indices::BlockSlice
-)
-  return a[indices.block]
-end
-
-function BlockSparseArrays.blockedunitrange_getindices(
-  ga::GradedUnitRange, indices::BlockRange
-)
-  return GradedUnitRange(sector_axes(ga)[Int.(indices)], unlabel_blocks(ga)[indices])
-end
-
 # used in BlockSparseArray slicing
 function BlockSparseArrays.blockedunitrange_getindices(
   g::AbstractGradedUnitRange, indices::AbstractBlockVector{<:Block{1}}
@@ -263,19 +269,9 @@ function BlockSparseArrays.blockedunitrange_getindices(
   return mortar(blks, (newg,))
 end
 
-function BlockSparseArrays.blockedunitrange_getindices(
-  a::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer}
-)
-  return gradedunitrange_getindices(SymmetryStyle(a), a, indices)
-end
-
 ### Slicing
 function Base.getindex(a::AbstractGradedUnitRange, index::Block{1})
   return blockedunitrange_getindices(a, index)
-end
-
-function Base.getindex(a::AbstractGradedUnitRange, indices::BlockIndexRange{1})
-  return blockedunitrange_getindices(a, indices)
 end
 
 # impose Base.getindex and blockedunitrange_getindices to return the same output
@@ -304,11 +300,6 @@ function Base.getindex(
 )
   return blockedunitrange_getindices(a, indices)
 end
-
-# Fix ambiguity error with BlockArrays.jl.
-#function Base.getindex(a::AbstractGradedUnitRange, indices::BlockIndex{1})
-#  return blockedunitrange_getindices(a, indices)
-#end
 
 # Fixes ambiguity issues with:
 # ```julia
