@@ -167,6 +167,24 @@ end
 
 Base.first(a::AbstractGradedUnitRange) = first(unlabel_blocks(a))
 
+# BlockSparseArray explicitly calls blockedunitrange_getindices, both Base.getindex
+# and blockedunitrange_getindices must be defined.
+# Also impose Base.getindex and blockedunitrange_getindices to return the same output
+for T in [
+  :(AbstractUnitRange{<:Integer}),
+  :(AbstractVector{<:Block{1}}),
+  :(AbstractVector{<:BlockIndexRange{1}}),
+  :(Block{1}),
+  :(BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}}),
+  :(BlockRange{1,<:Tuple{Base.OneTo}}),
+  :(BlockRange{1,<:Tuple{AbstractUnitRange{<:Integer}}}),
+  :(BlockSlice),
+]
+  @eval Base.getindex(g::AbstractGradedUnitRange, indices::$T) = blockedunitrange_getindices(
+    g, indices
+  )
+end
+
 ### BlockArrays interface
 
 function BlockArrays.blocklasts(a::AbstractGradedUnitRange)
@@ -204,24 +222,14 @@ function BlockSparseArrays.blockedunitrange_getindices(
   return a[indices.block]
 end
 
-# used in BlockSparseArrays
-function BlockSparseArrays.blockedunitrange_getindices(
-  g::AbstractGradedUnitRange,
-  indices::BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}},
-)
-  return gradedunitrange_getindices(SymmetryStyle(g), g, indices)
-end
-
-function BlockSparseArrays.blockedunitrange_getindices(
-  a::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer}
-)
-  return gradedunitrange_getindices(SymmetryStyle(a), a, indices)
-end
-
-function BlockSparseArrays.blockedunitrange_getindices(
-  g::AbstractGradedUnitRange, indices::AbstractVector{<:BlockIndexRange{1}}
-)
-  return gradedunitrange_getindices(SymmetryStyle(g), g, indices)
+for T in [
+  :(AbstractUnitRange{<:Integer}),
+  :(AbstractVector{<:BlockIndexRange{1}}),
+  :(BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}}),
+]
+  @eval BlockSparseArrays.blockedunitrange_getindices(g::AbstractGradedUnitRange, indices::$T) = gradedunitrange_getindices(
+    SymmetryStyle(g), g, indices
+  )
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
@@ -267,58 +275,4 @@ function BlockSparseArrays.blockedunitrange_getindices(
   new_sector_axes = sectorrange.(first.(new_labels), Base.oneto.(new_lengths), isdual(g))
   newg = axis_cat(new_sector_axes)
   return mortar(blks, (newg,))
-end
-
-### Slicing
-function Base.getindex(a::AbstractGradedUnitRange, index::Block{1})
-  return blockedunitrange_getindices(a, index)
-end
-
-# impose Base.getindex and blockedunitrange_getindices to return the same output
-# this version of blockedunitrange_getindices is used in BlockSparseArray slicing
-function Base.getindex(
-  g::AbstractGradedUnitRange,
-  indices::BlockVector{<:BlockIndex{1},<:Vector{<:BlockIndexRange{1}}},
-)
-  return blockedunitrange_getindices(g, indices)
-end
-
-function Base.getindex(a::AbstractGradedUnitRange, indices::AbstractUnitRange{<:Integer})
-  # BlockSparseArray explicitly calls blockedunitrange_getindices, both Base.getindex
-  # and blockedunitrange_getindices must be defined
-  return blockedunitrange_getindices(a, indices)
-end
-
-# fix ambiguities
-function Base.getindex(
-  a::AbstractGradedUnitRange, indices::BlockRange{1,<:Tuple{Base.OneTo}}
-)
-  return blockedunitrange_getindices(a, indices)
-end
-function Base.getindex(
-  a::AbstractGradedUnitRange, indices::BlockRange{1,<:Tuple{AbstractUnitRange{<:Integer}}}
-)
-  return blockedunitrange_getindices(a, indices)
-end
-
-# Fixes ambiguity issues with:
-# ```julia
-# getindex(::BlockedUnitRange, ::BlockSlice)
-# getindex(::GradedUnitRange, ::AbstractUnitRange{<:Integer})
-# getindex(::GradedUnitRange, ::Any)
-# getindex(::AbstractUnitRange, ::AbstractUnitRange{<:Integer})
-# ```
-function Base.getindex(a::AbstractGradedUnitRange, indices::BlockSlice)
-  return blockedunitrange_getindices(a, indices)
-end
-
-# Fix ambiguity error with BlockArrays.jl.
-function Base.getindex(a::AbstractGradedUnitRange, indices::AbstractVector{<:Block{1}})
-  return blockedunitrange_getindices(a, indices)
-end
-
-function Base.getindex(
-  a::AbstractGradedUnitRange, indices::AbstractVector{<:BlockIndexRange{1}}
-)
-  return blockedunitrange_getindices(a, indices)
 end
