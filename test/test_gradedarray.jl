@@ -420,7 +420,9 @@ end
   a[Block(1, 1)] = randn(elt, 2, 2)
   a[Block(2, 2)] = randn(elt, 3, 3)
   @test isdual.(axes(a)) == (false, true)
-  @test_broken ad = dag(a)
-  #@test Array(ad) == conj(Array(a))
-  #@test isdual.(axes(ad)) == (true, false)
+  ad = dag(a)
+  @test Array(ad) == conj(Array(a))
+  @test isdual.(axes(ad)) == (true, false)
+  @test space_isequal(axes(ad, 1), dual(axes(a, 1)))
+  @test space_isequal(axes(ad, 2), dual(axes(a, 2)))
 end

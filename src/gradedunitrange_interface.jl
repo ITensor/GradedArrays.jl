@@ -28,7 +28,7 @@ Complex conjugates `a` and takes the dual of the axes.
 """
 function dag(a::AbstractArray)
   a′ = similar(a, dual.(axes(a)))
-  a′ .= conj.(dual_axes(a))
+  a′ .= conj.(ungrade(a))
   return a′
 end
 

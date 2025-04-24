@@ -163,7 +163,8 @@ end
 
 function Base.show(io::IO, g::AbstractGradedUnitRange)
   v = sectors(g) .=> blocklengths(g)
-  return print(io, nameof(typeof(g)), '[', join(repr.(v), ", "), ']')
+  s = isdual(g) ? " dual " : ""
+  return print(io, nameof(typeof(g)), s, '[', join(repr.(v), ", "), ']')
 end
 
 Base.first(a::AbstractGradedUnitRange) = first(ungrade(a))
@@ -194,9 +195,7 @@ end
 
 function BlockArrays.combine_blockaxes(a::GradedUnitRange, b::GradedUnitRange)
   # avoid mixing different labels
-  # better to throw explicit error than silently dropping labels
   !space_isequal(a, b) && throw(ArgumentError("axes are not compatible"))
-  #!space_isequal(a, b) && return combine_blockaxes(ungrade(a), ungrade(b))
   # preserve BlockArrays convention for BlockedUnitRange / BlockedOneTo
   return GradedUnitRange(eachblockaxis(a), combine_blockaxes(ungrade(a), ungrade(b)))
 end
