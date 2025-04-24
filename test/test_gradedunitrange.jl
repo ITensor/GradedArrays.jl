@@ -23,11 +23,11 @@ using GradedArrays:
   SectorOneTo,
   SectorUnitRange,
   SU,
-  axis_cat,
   dual,
   flip,
   gradedrange,
   isdual,
+  mortar_axis,
   sector,
   sector_type,
   sectors,
@@ -211,8 +211,8 @@ using Test: @test, @test_throws, @testset
 
   sr1 = sectorrange("x", 2)
   sr2 = sectorrange("y", 3)
-  @test space_isequal(g1[Block(1):Block(2)], axis_cat([sr1, sr2]))
-  @test_throws ArgumentError axis_cat([sr1, dual(sr2)])
+  @test space_isequal(g1[Block(1):Block(2)], mortar_axis([sr1, sr2]))
+  @test_throws ArgumentError mortar_axis([sr1, dual(sr2)])
 end
 
 @testset "Non abelian axis" begin

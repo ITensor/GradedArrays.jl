@@ -32,71 +32,74 @@ abstract type AbstractGradedUnitRange{T,BlockLasts} <:
 
 struct GradedUnitRange{T,SUR<:SectorOneTo{T},BR<:AbstractUnitRange{T},BlockLasts} <:
        AbstractGradedUnitRange{T,BlockLasts}
-  sector_axes::Vector{SUR}
+  eachblockaxis::Vector{SUR}
   full_range::BR
 
   function GradedUnitRange{T,SUR,BR,BlockLasts}(
-    sector_axes::AbstractVector{SUR}, full_range::AbstractUnitRange{T}
+    eachblockaxis::AbstractVector{SUR}, full_range::AbstractUnitRange{T}
   ) where {T,SUR,BR,BlockLasts}
-    length.(sector_axes) == blocklengths(full_range) ||
+    length.(eachblockaxis) == blocklengths(full_range) ||
       throw(ArgumentError("sectors and range are not compatible"))
-    allequal(isdual.(sector_axes)) ||
+    allequal(isdual.(eachblockaxis)) ||
       throw(ArgumentError("all blocks must have same duality"))
     typeof(blocklasts(full_range)) == BlockLasts ||
       throw(TypeError(:BlockLasts, "", blocklasts(full_range)))
-    return new{T,SUR,BR,BlockLasts}(sector_axes, full_range)
+    return new{T,SUR,BR,BlockLasts}(eachblockaxis, full_range)
   end
 end
 
 const GradedOneTo{T,SUR,BR,BlockLasts} =
   GradedUnitRange{T,SUR,BR,BlockLasts} where {BR<:BlockedOneTo}
 
-function GradedUnitRange(sector_axes::AbstractVector, full_range::AbstractUnitRange)
+function GradedUnitRange(eachblockaxis::AbstractVector, full_range::AbstractUnitRange)
   return GradedUnitRange{
-    eltype(full_range),eltype(sector_axes),typeof(full_range),typeof(blocklasts(full_range))
+    eltype(full_range),
+    eltype(eachblockaxis),
+    typeof(full_range),
+    typeof(blocklasts(full_range)),
   }(
-    sector_axes, full_range
+    eachblockaxis, full_range
   )
 end
 
 # =====================================  Accessors  ========================================
 
-sector_axes(g::GradedUnitRange) = g.sector_axes
+eachblockaxis(g::GradedUnitRange) = g.eachblockaxis
 ungrade(g::GradedUnitRange) = g.full_range
 
-sector_multiplicities(g::GradedUnitRange) = sector_multiplicity.(sector_axes(g))
+sector_multiplicities(g::GradedUnitRange) = sector_multiplicity.(eachblockaxis(g))
 
 sector_type(::Type{<:GradedUnitRange{<:Any,SUR}}) where {SUR} = sector_type(SUR)
 
 # ====================================  Constructors  ======================================
 
-function axis_cat(sectors::AbstractVector{<:SectorOneTo})
+function mortar_axis(sectors::AbstractVector{<:SectorOneTo})
   brange = blockedrange(length.(sectors))
   return GradedUnitRange(sectors, brange)
 end
 
-function axis_cat(gaxes::AbstractVector{<:GradedOneTo})
-  return axis_cat(mapreduce(sector_axes, vcat, gaxes))
+function mortar_axis(gaxes::AbstractVector{<:GradedOneTo})
+  return mortar_axis(mapreduce(eachblockaxis, vcat, gaxes))
 end
 
 function gradedrange(
   sectors_lengths::AbstractVector{<:Pair{<:Any,<:Integer}}; isdual::Bool=false
 )
-  gsector_axes = sectorrange.(sectors_lengths, isdual)
-  return axis_cat(gsector_axes)
+  geachblockaxis = sectorrange.(sectors_lengths, isdual)
+  return mortar_axis(geachblockaxis)
 end
 
 # =============================  GradedUnitRanges interface  ===============================
-dual(g::GradedUnitRange) = GradedUnitRange(dual.(sector_axes(g)), ungrade(g))
+dual(g::GradedUnitRange) = GradedUnitRange(dual.(eachblockaxis(g)), ungrade(g))
 
-isdual(g::AbstractGradedUnitRange) = isdual(first(sector_axes(g)))  # crash for empty. Should not be an issue.
+isdual(g::AbstractGradedUnitRange) = isdual(first(eachblockaxis(g)))  # crash for empty. Should not be an issue.
 
 function sectors(g::AbstractGradedUnitRange)
-  return sector.(sector_axes(g))
+  return sector.(eachblockaxis(g))
 end
 
 function map_sectors(f, g::GradedUnitRange)
-  return GradedUnitRange(map_sectors.(f, sector_axes(g)), ungrade(g))
+  return GradedUnitRange(map_sectors.(f, eachblockaxis(g)), ungrade(g))
 end
 
 ### GradedUnitRange specific slicing
@@ -106,7 +109,7 @@ function gradedunitrange_getindices(
   gblocks = map(index -> g[index], Vector(indices))
   # pass block labels to the axes of the output,
   # such that `only(axes(g[indices])) isa `GradedOneTo`
-  newg = axis_cat(sectorrange.(sector.(gblocks) .=> length.(gblocks), isdual(g)))
+  newg = mortar_axis(sectorrange.(sector.(gblocks) .=> length.(gblocks), isdual(g)))
   return mortar(gblocks, (newg,))
 end
 
@@ -117,10 +120,10 @@ function gradedunitrange_getindices(
   bf = findblock(g, first(indices))
   bl = findblock(g, last(indices))
   new_sectors = sectors(g)[Int.(bf:bl)]
-  new_sector_axes = sectorrange.(
+  new_eachblockaxis = sectorrange.(
     new_sectors .=> Base.oneto.(blocklengths(new_range)), isdual(g)
   )
-  return GradedUnitRange(new_sector_axes, new_range)
+  return GradedUnitRange(new_eachblockaxis, new_range)
 end
 
 function gradedunitrange_getindices(
@@ -147,7 +150,7 @@ function Base.AbstractUnitRange{T}(a::AbstractGradedUnitRange{T}) where {T}
 end
 
 function Base.axes(ga::AbstractGradedUnitRange)
-  return (axis_cat(sector_axes(ga)),)
+  return (mortar_axis(eachblockaxis(ga)),)
 end
 
 # preserve axes in SubArray
@@ -195,7 +198,7 @@ function BlockArrays.combine_blockaxes(a::GradedUnitRange, b::GradedUnitRange)
   !space_isequal(a, b) && throw(ArgumentError("axes are not compatible"))
   #!space_isequal(a, b) && return combine_blockaxes(ungrade(a), ungrade(b))
   # preserve BlockArrays convention for BlockedUnitRange / BlockedOneTo
-  return GradedUnitRange(sector_axes(a), combine_blockaxes(ungrade(a), ungrade(b)))
+  return GradedUnitRange(eachblockaxis(a), combine_blockaxes(ungrade(a), ungrade(b)))
 end
 
 # preserve BlockedOneTo when possible
@@ -231,14 +234,14 @@ end
 function BlockSparseArrays.blockedunitrange_getindices(
   a::AbstractGradedUnitRange, index::Block{1}
 )
-  sr = sector_axes(a)[Int(index)]
+  sr = eachblockaxis(a)[Int(index)]
   return sectorrange(sector(sr), ungrade(a)[index], isdual(sr))
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
   ga::GradedUnitRange, indices::BlockRange
 )
-  return GradedUnitRange(sector_axes(ga)[Int.(indices)], ungrade(ga)[indices])
+  return GradedUnitRange(eachblockaxis(ga)[Int.(indices)], ungrade(ga)[indices])
 end
 
 function BlockSparseArrays.blockedunitrange_getindices(
@@ -254,7 +257,7 @@ function BlockSparseArrays.blockedunitrange_getindices(
   # such that `only(axes(a[indices])) isa `GradedUnitRange`
   # if `a isa `GradedUnitRange`
   new_sectoraxes = sectorrange.(sector.(gblocks), Base.oneto.(length.(gblocks)), isdual(g))
-  newg = axis_cat(new_sectoraxes)
+  newg = mortar_axis(new_sectoraxes)
   return mortar(gblocks, (newg,))
 end
 
@@ -267,7 +270,7 @@ function BlockSparseArrays.blockedunitrange_getindices(
   new_sectors = map(b -> sectors(g)[Int.(b)], blocks(indices))
   @assert all(allequal.(new_sectors))
   new_lengths = length.(blks)
-  new_sector_axes = sectorrange.(first.(new_sectors), Base.oneto.(new_lengths), isdual(g))
-  newg = axis_cat(new_sector_axes)
+  new_eachblockaxis = sectorrange.(first.(new_sectors), Base.oneto.(new_lengths), isdual(g))
+  newg = mortar_axis(new_eachblockaxis)
   return mortar(blks, (newg,))
 end

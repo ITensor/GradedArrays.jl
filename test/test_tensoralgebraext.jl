@@ -1,15 +1,7 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray
 using GradedArrays:
-  GradedArray,
-  GradedMatrix,
-  GradedOneTo,
-  U1,
-  blocklabels,
-  dual,
-  flip,
-  gradedrange,
-  space_isequal
+  GradedArray, GradedMatrix, GradedOneTo, U1, dual, flip, gradedrange, space_isequal
 using Random: randn!
 using TensorAlgebra: contract, matricize, unmatricize
 using Test: @test, @test_broken, @testset
@@ -97,7 +89,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     @test a_dest isa GradedArray
     @test a_dest ≈ a_dest_dense
 
-    #  vector matrix
+    # vector matrix
     a_dest, dimnames_dest = contract(a3, (1, 2), a1, (2, -1, -2, 1))
     a_dest_dense, dimnames_dest_dense = contract(a3_dense, (1, 2), a1_dense, (2, -1, -2, 1))
     @test dimnames_dest == dimnames_dest_dense

@@ -111,7 +111,7 @@ end
 
 function ×(g1::AbstractGradedUnitRange, g2::AbstractGradedUnitRange)
   v = map(splat(×), Iterators.flatten((Iterators.product(blocks(g1), blocks(g2)),),))
-  return axis_cat(v)
+  return mortar_axis(v)
 end
 
 # ====================================  Fusion rules  ======================================

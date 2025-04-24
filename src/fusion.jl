@@ -64,7 +64,7 @@ unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
 function unmerged_tensor_product(a1::AbstractGradedUnitRange, a2::AbstractGradedUnitRange)
   new_axes = map(splat(⊗), Iterators.flatten((Iterators.product(blocks(a1), blocks(a2)),)))
-  return axis_cat(new_axes)
+  return mortar_axis(new_axes)
 end
 
 # convention: sort dual GradedUnitRange according to nondual blocks

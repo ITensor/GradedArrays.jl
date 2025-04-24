@@ -39,7 +39,7 @@ quantum_dimension(::AbelianStyle, ::AbstractSector) = 1
 
 # convert to range
 to_gradedrange(c::AbstractSector) = gradedrange([c => 1])
-to_gradedrange(sr::SectorUnitRange) = axis_cat([sr])
+to_gradedrange(sr::SectorUnitRange) = mortar_axis([sr])
 to_gradedrange(g::AbstractGradedUnitRange) = g
 
 function nsymbol(s1::AbstractSector, s2::AbstractSector, s3::AbstractSector)
