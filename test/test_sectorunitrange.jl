@@ -17,27 +17,27 @@ using GradedArrays:
   U1,
   SU,
   SectorUnitRange,
-  blocklabels,
   dual,
   flip,
-  full_range,
   isdual,
-  nondual_sector,
   quantum_dimension,
+  sector,
   sector_multiplicities,
   sector_multiplicity,
   sector_type,
   sectorrange,
-  space_isequal
+  sectors,
+  space_isequal,
+  ungrade
 
 @testset "SectorUnitRange" begin
   sr = sectorrange(SU((1, 0)), 2)
   @test sr isa SectorUnitRange
 
   # accessors
-  @test nondual_sector(sr) == SU((1, 0))
-  @test full_range(sr) isa Base.OneTo
-  @test full_range(sr) == 1:6
+  @test sector(sr) == SU((1, 0))
+  @test ungrade(sr) isa Base.OneTo
+  @test ungrade(sr) == 1:6
   @test !isdual(sr)
 
   # Base interface
@@ -58,23 +58,23 @@ using GradedArrays:
 
   sr = sectorrange(SU((1, 0)) => 2)
   @test sr isa SectorUnitRange
-  @test nondual_sector(sr) == SU((1, 0))
-  @test full_range(sr) isa Base.OneTo
-  @test full_range(sr) == 1:6
+  @test sector(sr) == SU((1, 0))
+  @test ungrade(sr) isa Base.OneTo
+  @test ungrade(sr) == 1:6
   @test !isdual(sr)
 
   sr = sectorrange(SU((1, 0)) => 2, true)
   @test sr isa SectorUnitRange
-  @test nondual_sector(sr) == SU((1, 0))
-  @test full_range(sr) isa Base.OneTo
-  @test full_range(sr) == 1:6
+  @test sector(sr) == SU((1, 0))
+  @test ungrade(sr) isa Base.OneTo
+  @test ungrade(sr) == 1:6
   @test isdual(sr)
 
   sr = sectorrange(SU((1, 0)), 4:10, true)
   @test sr isa SectorUnitRange
-  @test nondual_sector(sr) == SU((1, 0))
-  @test full_range(sr) isa UnitRange
-  @test full_range(sr) == 4:10
+  @test sector(sr) == SU((1, 0))
+  @test ungrade(sr) isa UnitRange
+  @test ungrade(sr) == 4:10
   @test isdual(sr)
 
   sr = sectorrange(SU((1, 0)), 2)
@@ -104,18 +104,18 @@ using GradedArrays:
   # GradedUnitRanges interface
   @test sector_type(sr) === SU{3,2}
   @test sector_type(typeof(sr)) === SU{3,2}
-  @test blocklabels(sr) == [SU((1, 0))]
+  @test sectors(sr) == [SU((1, 0))]
   @test sector_multiplicity(sr) == 2
   @test sector_multiplicities(sr) == [2]
   @test quantum_dimension(sr) == 6
 
   srd = dual(sr)
-  @test nondual_sector(srd) == SU((1, 0))
+  @test sector(srd) == SU((1, 0))
   @test space_isequal(srd, sectorrange(SU((1, 0)), 2, true))
-  @test blocklabels(srd) == [SU((1, 1))]
+  @test sectors(srd) == [SU((1, 0))]
 
   srf = flip(sr)
-  @test nondual_sector(srf) == SU((1, 1))
+  @test sector(srf) == SU((1, 1))
   @test space_isequal(srf, sectorrange(SU((1, 1)), 2, true))
 
   # getindex

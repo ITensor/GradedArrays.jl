@@ -24,16 +24,16 @@ using GradedArrays:
   SectorUnitRange,
   SU,
   axis_cat,
-  blocklabels,
   dual,
   flip,
   gradedrange,
   isdual,
-  nondual_sector,
+  sector,
   sector_type,
+  sectors,
   sectorrange,
   space_isequal
-using Test: @test, @test_broken, @test_throws, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "GradedUnitRanges basics" begin
   r0 = Base.OneTo(1)
@@ -55,6 +55,7 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test sector_type(g) === String
     @test blockisequal(g, b0)
     @test space_isequal(g, g)
+    @test space_isequal(copy(g), g)
     @test !space_isequal(r0, g)
     @test !space_isequal(g, r0)
     @test !space_isequal(g, b0)
@@ -65,23 +66,10 @@ using Test: @test, @test_broken, @test_throws, @testset
     for x in iterate(g)
       @test x == 1
     end
-    for x in iterate(g, 1)
-      @test x == 2
-    end
-    for x in iterate(g, 2)
-      @test x == 3
-    end
-    for x in iterate(g, 3)
-      @test x == 4
-    end
-    for x in iterate(g, 4)
-      @test x == 5
-    end
-    for x in iterate(g, 5)
-      @test x == 6
-    end
-    for x in iterate(g, 6)
-      @test x == 7
+    for i in 1:6
+      for x in iterate(g, i)
+        @test x == i + 1
+      end
     end
     @test isnothing(iterate(g, 7))
     @test length(g) == 7
@@ -97,13 +85,13 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @test g[4] == 4
     @test blocklengths(g) == [2, 3, 2]
-    @test blocklabels(g) == ["x", "y", "z"]
+    @test sectors(g) == ["x", "y", "z"]
     @test blockfirsts(g) == [1, 3, 6]
     @test first(g) == 1
     @test blocklasts(g) == [2, 5, 7]
     @test last(g) == 7
     @test blocklengths(only(axes(g))) == blocklengths(g)
-    @test blocklabels(only(axes(g))) == blocklabels(g)
+    @test sectors(only(axes(g))) == sectors(g)
     @test findblock(g, 2) == Block(1)
     @test findblock(g, 3) == Block(2)
     @test findblockindex(g, 3) == Block(2)[1]
@@ -121,7 +109,7 @@ using Test: @test, @test_broken, @test_throws, @testset
     a = g[2:4]
     @test a isa GradedUnitRange
     @test !(a isa GradedOneTo)
-    @test blocklabels(a) == ["x", "y"]
+    @test sectors(a) == ["x", "y"]
     @test blocklength(a) == 2
     @test space_isequal(first(blocks(a)), sectorrange("x", 2:2, isdual(g)))
     @test space_isequal(last(blocks(a)), sectorrange("y", 3:4, isdual(g)))
@@ -153,7 +141,7 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test ax == 1:length(a)
     @test length(ax) == length(a)
     @test blocklengths(ax) == blocklengths(a)
-    @test blocklabels(ax) == blocklabels(a)
+    @test sectors(ax) == sectors(a)
 
     a = g[Block.(Base.oneto(2))]
     @test (a isa GradedOneTo) == (g isa GradedOneTo)
@@ -163,11 +151,8 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test a isa BlockVector
     @test length(a) == 5
     @test blocklength(a) == 2
-    # TODO: `BlockArrays` doesn't define `blocklengths`
-    # `blocklengths(::BlockVector)`, unbrake this test
-    # once it does.
-    @test_broken blocklengths(a) == [2, 3]
-    @test blocklabels(a) == ["z", "y"]
+    @test length.(blocks(a)) == [2, 3]
+    @test sectors(a) == ["z", "y"]
     @test a[Block(1)] == 6:7
     @test a[Block(2)] == 3:5
     ax = only(axes(a))
@@ -178,9 +163,7 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test a isa BlockVector
     @test length(a) == 3
     @test blocklength(a) == 2
-    # TODO: `BlockArrays` doesn't define `blocklengths`
-    # for `BlockVector`, should it?
-    @test_broken blocklengths(a) == [1, 2]
+    @test length.(blocks(a)) == [1, 2]
     @test a[Block(1)] == 6:6
     @test a[Block(2)] == 4:5
     ax = only(axes(a))
@@ -240,7 +223,7 @@ end
   @test length(g) == 8
   @test !isdual(g)
   @test blockisequal(g, b0)
-  @test blocklabels(g) == [SU((0, 0)), SU((1, 0))]
+  @test sectors(g) == [SU((0, 0)), SU((1, 0))]
   @test space_isequal(g[Block(1)], sectorrange(SU((0, 0)), 2))
   @test space_isequal(g[Block(2)], sectorrange(SU((1, 0)), 3:8))
 
@@ -251,7 +234,7 @@ end
   @test !space_isequal(dual(g), g)
   @test space_isequal(flip(g), gradedrange([SU((0, 0)) => 2, SU((1, 1)) => 2]; isdual=true))
 
-  iterate(g) == (1, 1)
+  @test iterate(g) == (1, 1)
   for i in 1:7
     @test iterate(g, i) == (i + 1, i + 1)
   end
@@ -294,7 +277,7 @@ end
   @test a isa BlockVector
   @test length(a) == 8
   @test blocklength(a) == 2
-  @test blocklabels(a) == [SU((1, 0)), SU((0, 0))]
+  @test sectors(a) == [SU((1, 0)), SU((0, 0))]
   @test length.(blocks(g)) == [2, 6]
 
   @test space_isequal(a[Block(1)], sectorrange(SU((1, 0)), 3:8))

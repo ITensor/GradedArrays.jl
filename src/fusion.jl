@@ -12,16 +12,16 @@ end
 function TensorProducts.tensor_product(
   ::AbelianStyle, sr1::SectorUnitRange, sr2::SectorUnitRange
 )
-  s = nondual_sector(flip_dual(sr1)) ⊗ nondual_sector(flip_dual(sr2))
+  s = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
   return sectorrange(s, sector_multiplicity(sr1) * sector_multiplicity(sr2))
 end
 
 function TensorProducts.tensor_product(
   ::NotAbelianStyle, sr1::SectorUnitRange, sr2::SectorUnitRange
 )
-  g0 = nondual_sector(flip_dual(sr1)) ⊗ nondual_sector(flip_dual(sr2))
+  g0 = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
   return gradedrange(
-    blocklabels(g0) .=>
+    sectors(g0) .=>
       sector_multiplicity(sr1) * sector_multiplicity(sr2) .* sector_multiplicities(g0),
   )
 end
@@ -69,7 +69,7 @@ end
 
 # convention: sort dual GradedUnitRange according to nondual blocks
 function sectorsortperm(a::AbstractUnitRange)
-  return Block.(sortperm(blocklabels(nondual(a))))
+  return Block.(sortperm(sectors(a)))
 end
 
 # Get the permutation for sorting, then group by common elements.
@@ -85,14 +85,14 @@ end
 # Get the permutation for sorting, then group by common elements.
 # groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
 function sectormergesortperm(a::AbstractUnitRange)
-  return Block.(groupsortperm(blocklabels(nondual(a))))
+  return Block.(groupsortperm(sectors(a)))
 end
 
 # Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
 invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
 function sectormergesort(g::AbstractGradedUnitRange)
-  glabels = blocklabels(g)
+  glabels = sectors(g)
   multiplicities = sector_multiplicities(g)
   new_blocklengths = map(sort(unique(glabels))) do la
     return la => sum(multiplicities[findall(==(la), glabels)]; init=0)

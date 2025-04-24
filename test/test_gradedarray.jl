@@ -20,7 +20,8 @@ using GradedArrays:
   gradedrange,
   isdual,
   sectorrange,
-  space_isequal
+  space_isequal,
+  ungrade
 using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!
@@ -72,8 +73,15 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     d1 = gradedrange([U1(0) => 2, U1(1) => 2])
     d2 = gradedrange([U1(0) => 2, U1(1) => 2])
     a = randn_blockdiagonal(elt, (d1, d2, d1, d2))
+    @test a isa GradedArray{elt,4}
     @test axes(a, 1) isa GradedOneTo
     @test axes(view(a, 1:4, 1:4, 1:4, 1:4), 1) isa GradedOneTo
+
+    a0 = ungrade(a)
+    @test !(a0 isa GradedArray)
+    @test a0 isa BlockSparseArray{elt,4}
+    @test axes(a0) isa NTuple{4,BlockedOneTo{Int}}
+    @test a0 == a
 
     for b in (a + a, 2 * a)
       @test size(b) == (4, 4, 4, 4)

@@ -103,7 +103,7 @@ end
 function ×(sr1::SectorUnitRange, sr2::SectorUnitRange)
   @assert isdual(sr1) == isdual(sr2)
   return sectorrange(
-    nondual_sector(sr1) × nondual_sector(sr2),
+    sector(sr1) × sector(sr2),
     sector_multiplicity(sr1) * sector_multiplicity(sr1),
     isdual(sr1),
   )
@@ -134,7 +134,7 @@ end
 
 # Abelian case: fusion returns SectorProduct
 function fusion_rule(::AbelianStyle, s1::SectorProduct, s2::SectorProduct)
-  return only(blocklabels((fusion_rule(NotAbelianStyle(), s1, s2))))
+  return only(sectors((fusion_rule(NotAbelianStyle(), s1, s2))))
 end
 
 # lift ambiguities for TrivialSector
@@ -234,5 +234,5 @@ arguments_diff(nt1::NamedTuple, nt2::NamedTuple) = symdiff_keys(nt1, nt2)
 
 function shared_arguments_fusion_rule(shared1::NT, shared2::NT) where {NT<:NamedTuple}
   tuple_fused = shared_arguments_fusion_rule(values(shared1), values(shared2))
-  return map_blocklabels(SectorProduct ∘ NT ∘ arguments ∘ SectorProduct, tuple_fused)
+  return map_sectors(SectorProduct ∘ NT ∘ arguments ∘ SectorProduct, tuple_fused)
 end

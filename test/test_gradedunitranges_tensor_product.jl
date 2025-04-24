@@ -6,14 +6,14 @@ using GradedArrays:
   SectorUnitRange,
   SU2,
   U1,
-  blocklabels,
   dual,
-  unmerged_tensor_product,
   flip,
   gradedrange,
+  isdual,
   sectorrange,
+  sectors,
   space_isequal,
-  isdual
+  unmerged_tensor_product
 using TensorProducts: ⊗, OneToOne, tensor_product
 using Test: @test, @testset
 using TestExtras: @constinferred
@@ -39,7 +39,7 @@ GradedArrays.tensor_product(s1::String, s2::String) = gradedrange([s1 * s2 => 1]
   @test c isa GradedOneTo
   @test length(c) == 375
   @test blocklength(c) == 8
-  @test blocklabels(c) == ["xxx", "yxx", "xyx", "yyx", "xxy", "yxy", "xyy", "yyy"]
+  @test sectors(c) == ["xxx", "yxx", "xyx", "yyx", "xxy", "yxy", "xyy", "yyy"]
 
   a = gradedrange([U1(1) => 1, U1(2) => 3, U1(1) => 1])
   @test space_isequal(

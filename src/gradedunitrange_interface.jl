@@ -10,10 +10,9 @@ is self-dual.
 """
 dual(x) = x
 
-nondual(r::AbstractUnitRange) = r
 isdual(::AbstractUnitRange) = false
 
-flip(a::AbstractUnitRange) = dual(map_blocklabels(dual, a))
+flip(a::AbstractUnitRange) = dual(map_sectors(dual, a))
 
 """
     dag(r::AbstractUnitRange)
@@ -29,24 +28,29 @@ Complex conjugates `a` and takes the dual of the axes.
 """
 function dag(a::AbstractArray)
   a′ = similar(a, dual.(axes(a)))
-  a′ .= conj.(a)
+  a′ .= conj.(dual_axes(a))
   return a′
 end
 
-map_blocklabels(::Any, a::AbstractUnitRange) = a
+"""
+    ungrade(a::AbstractArray)
+
+Return an array without attached sectors. Avoid copying data when possible.
+"""
+ungrade(a::AbstractArray) = a
+
+map_sectors(::Any, a::AbstractUnitRange) = a
 
 to_sector(x) = x
 
 sector_type(x) = sector_type(typeof(x))
 sector_type(::Type) = error("Not implemented")
 
-struct NoLabel end
-blocklabels(r::AbstractUnitRange) = Fill(NoLabel(), blocklength(r))
-blocklabels(v::AbstractBlockVector) = mapreduce(blocklabels, vcat, blocks(v))
+struct NoSector end
+sectors(r::AbstractUnitRange) = Fill(NoSector(), blocklength(r))
+sectors(v::AbstractBlockVector) = mapreduce(sectors, vcat, blocks(v))
 
 # == is just a range comparison that ignores labels. Need dedicated function to check equality.
 function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
-  return (isdual(a1) == isdual(a2)) &&
-         blocklabels(a1) == blocklabels(a2) &&
-         blockisequal(a1, a2)
+  return (isdual(a1) == isdual(a2)) && sectors(a1) == sectors(a2) && blockisequal(a1, a2)
 end

@@ -44,7 +44,7 @@ to_gradedrange(g::AbstractGradedUnitRange) = g
 
 function nsymbol(s1::AbstractSector, s2::AbstractSector, s3::AbstractSector)
   full_space = to_gradedrange(s1 ⊗ s2)
-  i = findfirst(==(s3), blocklabels(full_space))
+  i = findfirst(==(s3), sectors(full_space))
   isnothing(i) && return 0
   return sector_multiplicities(full_space)[i]
 end
@@ -61,7 +61,7 @@ end
 
 # abelian case: return Sector
 function fusion_rule(::AbelianStyle, c1::C, c2::C) where {C<:AbstractSector}
-  return only(blocklabels(fusion_rule(NotAbelianStyle(), c1, c2)))
+  return only(sectors(fusion_rule(NotAbelianStyle(), c1, c2)))
 end
 
 function label_fusion_rule(sector_type::Type{<:AbstractSector}, l1, l2)
