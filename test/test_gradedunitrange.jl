@@ -209,6 +209,14 @@ using Test: @test, @test_throws, @testset
   @test !(a isa GradedOneTo)
   @test space_isequal(a, g2)
 
+  g3 = gradedrange(["x" => 2, "a" => 1, "y" => 2, "z" => 2])
+  @test_throws ArgumentError combine_blockaxes(g1, g3)
+
+  g3 = gradedrange(["x" => 1, "x" => 1, "y" => 2, "z" => 2])
+  g4 = gradedrange(["x" => 2, "y" => 1, "y" => 1, "z" => 2])
+  a = combine_blockaxes(g3, g4)
+  @test space_isequal(a, gradedrange(["x" => 1, "x" => 1, "y" => 1, "y" => 1, "z" => 2]))
+
   sr1 = sectorrange("x", 2)
   sr2 = sectorrange("y", 3)
   @test space_isequal(g1[Block(1):Block(2)], mortar_axis([sr1, sr2]))

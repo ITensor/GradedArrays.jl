@@ -194,10 +194,17 @@ function BlockArrays.blocklasts(a::AbstractGradedUnitRange)
 end
 
 function BlockArrays.combine_blockaxes(a::GradedUnitRange, b::GradedUnitRange)
-  # avoid mixing different labels
-  !space_isequal(a, b) && throw(ArgumentError("axes are not compatible"))
+  isdual(a) == isdual(b) || throw(ArgumentError("axes duality are not compatible"))
+  r = combine_blockaxes(ungrade(a), ungrade(b))
+  sector_axes = map(zip(blocklengths(r), blocklasts(r))) do (blength, blast)
+    s_a = sector(a[findblock(a, blast)])
+    if s_a != sector(b[findblock(b, blast)])  # forbid conflicting sectors
+      throw(ArgumentError("sectors are not compatible"))
+    end
+    return sectorrange(s_a, Base.oneto(blength), isdual(a))
+  end
   # preserve BlockArrays convention for BlockedUnitRange / BlockedOneTo
-  return GradedUnitRange(eachblockaxis(a), combine_blockaxes(ungrade(a), ungrade(b)))
+  return GradedUnitRange(sector_axes, r)
 end
 
 # preserve BlockedOneTo when possible
