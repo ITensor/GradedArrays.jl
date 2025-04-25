@@ -11,8 +11,10 @@ using GradedArrays:
   quantum_dimension,
   fundamental,
   istrivial,
+  level,
   modulus,
   sector_type,
+  su2,
   trivial
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
@@ -98,7 +100,7 @@ using TestExtras: @constinferred
 
     @test trivial(O2) == s0e
     @test istrivial(s0e)
-    @test isnothing(show(devnull, s0e))
+    @test isnothing(show(devnull, [s0o, s0e, s12]))
 
     @test (@constinferred quantum_dimension(s0e)) == 1
     @test (@constinferred quantum_dimension(s0o)) == 1
@@ -227,5 +229,15 @@ using TestExtras: @constinferred
 
     @test ı < σ < ψ
     @test isnothing(show(devnull, (ı, σ, ψ)))
+  end
+
+  @testset "su2{k}" begin
+    s1 = su2{1}(0)
+    s2 = su2{2}(1)
+
+    @test s1 isa su2{1}
+    @test trivial(s2) == su2{2}(0)
+    @test dual(s1) == s1
+    @test level(s1) == 1
   end
 end

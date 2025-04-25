@@ -49,6 +49,7 @@ using BlockArrays: blocklengths
     @test dual(s) == TrivialSector() × U1(-3) × SU2(1//2)
     @test (@constinferred trivial(s)) == SectorProduct(TrivialSector(), U1(0), SU2(0))
     @test s > trivial(s)
+    @test isnothing(show(devnull, s))
   end
 
   @testset "Ordered comparisons" begin
@@ -82,6 +83,13 @@ using BlockArrays: blocklengths
     ])
     @test (@constinferred quantum_dimension(g)) == 16
     @test (@constinferred blocklengths(g)) == [1, 3, 3, 9]
+
+    @test space_isequal(
+      gradedrange([U1(1) => 2]) × SU2(1), gradedrange([U1(1) × SU2(1) => 2])
+    )
+    @test space_isequal(
+      SU2(1) × gradedrange([U1(1) => 2]), gradedrange([SU2(1) × U1(1) => 2])
+    )
 
     # mixed group
     g = gradedrange([(U1(2) × SU2(0) × Z{2}(0)) => 1, (U1(2) × SU2(1) × Z{2}(0)) => 1])
@@ -191,6 +199,7 @@ end
     @test (@constinferred dual(s)) == (A=U1(-1),) × (B=SU2(2),)
     @test (@constinferred trivial(s)) == (A=U1(0),) × (B=SU2(0),)
     @test s == (B=SU2(2),) × (A=U1(1),)
+    @test isnothing(show(devnull, s))
 
     s1 = (A=U1(1),) × (B=Z{2}(0),)
     s2 = (A=U1(1),) × (C=Z{2}(0),)

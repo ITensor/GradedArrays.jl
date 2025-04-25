@@ -99,10 +99,10 @@ end
 ×(c1::AbstractSector, c2::NamedTuple) = ×(SectorProduct(c1), SectorProduct(c2))
 
 function ×(sr1::SectorUnitRange, sr2::SectorUnitRange)
-  @assert isdual(sr1) == isdual(sr2)
+  isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
   return sectorrange(
     sector(sr1) × sector(sr2),
-    sector_multiplicity(sr1) * sector_multiplicity(sr1),
+    sector_multiplicity(sr1) * sector_multiplicity(sr2),
     isdual(sr1),
   )
 end
@@ -119,10 +119,6 @@ function fusion_rule(style::SymmetryStyle, c1::SectorProduct, c2::AbstractSector
 end
 function fusion_rule(style::SymmetryStyle, c1::AbstractSector, c2::SectorProduct)
   return fusion_rule(style, SectorProduct(c1), c2)
-end
-# Fix ambiguity error.
-function fusion_rule(style::SymmetryStyle, c1::SectorProduct, c2::SectorProduct)
-  return throw(ArgumentError("SectorProduct fusion not defined for symmetry style $style."))
 end
 
 # generic case: fusion returns a GradedUnitRanges, even for fusion with Empty
