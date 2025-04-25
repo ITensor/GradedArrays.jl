@@ -77,6 +77,8 @@ using Test: @test, @test_throws, @testset
     @test step(g) == 1
     @test blocklength(g) == 3
     @test length(blocks(g)) == 3
+    @test isnothing(show(devnull, MIME("text/plain"), g))
+    @test isnothing(show(devnull, g))
 
     @test g[Block(1)] isa SectorUnitRange
     @test !(g[Block(1)] isa SectorOneTo)
@@ -262,6 +264,8 @@ end
   @test space_isequal(dual(g), gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2]; isdual=true))
   @test !space_isequal(dual(g), g)
   @test space_isequal(flip(g), gradedrange([SU((0, 0)) => 2, SU((1, 1)) => 2]; isdual=true))
+  @test isnothing(show(devnull, MIME("text/plain"), g))
+  @test isnothing(show(devnull, g))
 
   @test iterate(g) == (1, 1)
   for i in 1:7

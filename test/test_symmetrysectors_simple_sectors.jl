@@ -57,6 +57,7 @@ using TestExtras: @constinferred
     @test U1(-1) < TrivialSector()
     @test TrivialSector() < U1(1)
     @test U1(Int8(1)) < U1(Int32(2))
+    @test isnothing(show(devnull, q1))
   end
 
   @testset "Z₂" begin
@@ -127,6 +128,8 @@ using TestExtras: @constinferred
     @test j2 == SU2(1 / 2)  # Float will be cast to HalfInteger
     @test_throws MethodError SU2((1,))  # avoid confusion between tuple and half-integer interfaces
     @test_throws MethodError SU{2,1}(1)  # avoid confusion
+    @test isnothing(show(devnull, j1))
+    @test isnothing(show(devnull, MIME("text/plain"), j1))
 
     @test trivial(SU{2}) == SU2(0)
     @test istrivial(SU2(0))
@@ -161,6 +164,8 @@ using TestExtras: @constinferred
     @test istrivial(SU{4}((0, 0, 0)))
     @test SU{3}((0, 0)) == TrivialSector()
     @test SU{4}((0, 0, 0)) == TrivialSector()
+    @test isnothing(show(devnull, f3))
+    @test isnothing(show(devnull, MIME("text/plain"), f3))
 
     @test fundamental(SU{3}) == f3
     @test fundamental(SU{4}) == f4

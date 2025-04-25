@@ -10,6 +10,7 @@ using GradedArrays:
   flip,
   gradedrange,
   isdual,
+  sectormergesort,
   sectorrange,
   sectors,
   space_isequal,
@@ -24,6 +25,8 @@ GradedArrays.tensor_product(s1::String, s2::String) = gradedrange([s1 * s2 => 1]
 @testset "unmerged_tensor_product" begin
   @test unmerged_tensor_product() isa OneToOne
   @test unmerged_tensor_product(OneToOne(), OneToOne()) isa OneToOne
+  @test unmerged_tensor_product(1:1, 1:1) == 1:1
+  @test sectormergesort(1:1) isa UnitRange
 
   a = gradedrange(["x" => 2, "y" => 3])
   @test space_isequal(unmerged_tensor_product(a), a)

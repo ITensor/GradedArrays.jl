@@ -21,16 +21,20 @@ include("sector_product.jl")
 include("fusion.jl")
 include("gradedarray.jl")
 
-export U1,
+export SU2,
+  U1,
   Z,
-  blocklabels,
   dag,
   dual,
   flip,
   gradedrange,
   isdual,
+  sector,
+  sector_multiplicities,
+  sector_multiplicity,
   sectorrange,
+  sectors,
   sector_type,
-  space_isequal
-
+  space_isequal,
+  ungrade
 end

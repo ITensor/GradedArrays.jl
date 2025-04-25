@@ -51,6 +51,12 @@ using GradedArrays:
   @test eachindex(sr) == Base.oneto(6)
   @test only(axes(sr)) isa Base.OneTo
   @test only(axes(sr)) == 1:6
+  @test iterate(sr) == (1, 1)
+  for i in 1:5
+    @test iterate(sr, i) == (i + 1, i + 1)
+  end
+  @test isnothing(iterate(sr, 6))
+  @test isnothing(show(devnull, MIME("text/plain"), sr))
 
   @test sr == 1:6
   @test sr == sr

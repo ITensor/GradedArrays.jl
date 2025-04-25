@@ -19,10 +19,6 @@ end
 function fusion_rule(::NotAbelianStyle, c::AbstractSector, ::TrivialSector)
   return to_gradedrange(c)
 end
-# Fix ambiguity error.
-function fusion_rule(::NotAbelianStyle, c::TrivialSector, ::TrivialSector)
-  return to_gradedrange(TrivialSector())
-end
 
 # abelian case: return Sector
 fusion_rule(::AbelianStyle, c::AbstractSector, ::TrivialSector) = c
