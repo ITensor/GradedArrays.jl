@@ -14,13 +14,13 @@ using TensorProducts: OneToOne
   @test only(sectors(a0)) == NoSector()
   @test ungrade(a0) === a0
   @test map_sectors(identity, a0) === a0
+  @test dag(a0) === a0
 
   a = 1:3
   ad = dual(a)
   af = flip(a)
   @test !isdual(a)
   @test !isdual(ad)
-  @test !isdual(dag(a))
   @test !isdual(af)
   @test ad isa UnitRange
   @test af isa UnitRange
@@ -29,6 +29,7 @@ using TensorProducts: OneToOne
   @test only(sectors(a)) == NoSector()
   @test ungrade(a) === a
   @test map_sectors(identity, a) === a
+  @test dag(a) === a
 
   a = blockedrange([2, 3])
   ad = dual(a)
@@ -42,4 +43,5 @@ using TensorProducts: OneToOne
   @test sectors(a) == [NoSector(), NoSector()]
   @test ungrade(a) === a
   @test map_sectors(identity, a) === a
+  @test dag(a) === a
 end
