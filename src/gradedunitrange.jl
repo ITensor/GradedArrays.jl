@@ -304,21 +304,10 @@ function BlockSparseArrays.blockedunitrange_getindices(
   bf, bl = map(i -> Int(findblock(mult_range, i)), (first(r), last(r)))
   new_first =
     blockfirsts(g)[bf] + (first(r) - first(mult_range[Block(bf)])) * length(sectors(g)[bf])
-
-  if bf == bl
-    sr = sectorrange(sectors(g)[bf], length(r), isdual(g))
-    new_range = blockedrange(new_first, [length(sr)])
-    return GradedUnitRange([sr], new_range)
-  end
-
-  sr_first = sectorrange(
-    sectors(g)[bf], blocklasts(mult_range)[bf] - first(r) + 1, isdual(g)
+  new_axes = sectorrange.(
+    sectors(g)[bf:bl] .=> blocklengths(blockedunitrange_getindices(mult_range, r)),
+    isdual(g),
   )
-  sr_last = sectorrange(
-    sectors(g)[bl], last(r) - blockfirsts(mult_range)[bl] + 1, isdual(g)
-  )
-  sector_axes = vcat([sr_first], eachblockaxis(g[Block.((bf + 1):(bl - 1))]), [sr_last])
-
-  new_range = blockedrange(new_first, length.(sector_axes))
-  return GradedUnitRange(sector_axes, new_range)
+  new_range = blockedrange(new_first, length.(new_axes))
+  return GradedUnitRange(new_axes, new_range)
 end
