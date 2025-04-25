@@ -11,6 +11,7 @@ using GradedArrays:
   quantum_dimension,
   fundamental,
   istrivial,
+  modulus,
   sector_type,
   trivial
 using Test: @test, @testset, @test_throws
@@ -73,6 +74,7 @@ using TestExtras: @constinferred
 
     @test dual(z0) == z0
     @test dual(z1) == z1
+    @test modulus(z1) == 2
 
     @test dual(Z{2}(1)) == Z{2}(1)
     @test isless(Z{2}(0), Z{2}(1))
@@ -96,6 +98,7 @@ using TestExtras: @constinferred
 
     @test trivial(O2) == s0e
     @test istrivial(s0e)
+    @test isnothing(show(devnull, s0e))
 
     @test (@constinferred quantum_dimension(s0e)) == 1
     @test (@constinferred quantum_dimension(s0o)) == 1
@@ -165,7 +168,8 @@ using TestExtras: @constinferred
     @test SU{3}((0, 0)) == TrivialSector()
     @test SU{4}((0, 0, 0)) == TrivialSector()
     @test isnothing(show(devnull, f3))
-    @test isnothing(show(devnull, MIME("text/plain"), f3))
+    @test isnothing(show(devnull, MIME("text/plain"), SU((1, 1))))
+    @test isnothing(show(devnull, MIME("text/plain"), SU((0, 0))))
 
     @test fundamental(SU{3}) == f3
     @test fundamental(SU{4}) == f4
@@ -201,6 +205,7 @@ using TestExtras: @constinferred
     @test (@constinferred quantum_dimension(τ)) == ((1 + √5) / 2)
 
     @test ı < τ
+    @test isnothing(show(devnull, (ı, τ)))
   end
 
   @testset "Ising" begin
@@ -221,5 +226,6 @@ using TestExtras: @constinferred
     @test (@constinferred quantum_dimension(ψ)) == 1.0
 
     @test ı < σ < ψ
+    @test isnothing(show(devnull, (ı, σ, ψ)))
   end
 end

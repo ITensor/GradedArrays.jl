@@ -199,6 +199,9 @@ end
 
     g = gradedrange([(Nf=U1(0),) => 2, (Nf=U1(1),) => 3])
     @test sector_type(g) <: SectorProduct
+
+    @test (A=U1(1),) × ((B=SU2(2),) × (C=U1(1),)) isa
+      typeof((A=U1(1),) × (B=SU2(2),) × (C=U1(1),))
   end
 
   @testset "Construct from Pairs" begin
