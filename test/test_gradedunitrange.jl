@@ -29,6 +29,7 @@ using GradedArrays:
   isdual,
   mortar_axis,
   sector,
+  sector_multiplicities,
   sector_type,
   sectors,
   sectorrange,
@@ -86,6 +87,7 @@ using Test: @test, @test_throws, @testset
     @test g[4] == 4
     @test blocklengths(g) == [2, 3, 2]
     @test sectors(g) == ["x", "y", "z"]
+    @test sector_multiplicities(g) == [2, 3, 2]
     @test blockfirsts(g) == [1, 3, 6]
     @test first(g) == 1
     @test blocklasts(g) == [2, 5, 7]
@@ -158,6 +160,15 @@ using Test: @test, @test_throws, @testset
     ax = only(axes(a))
     @test ax isa GradedOneTo
     @test space_isequal(ax, gradedrange(["z" => 2, "y" => 3]; isdual=isdual(g)))
+
+    sr = g[(:, 1)]
+    @test sr isa SectorUnitRange
+    @test !(sr isa SectorOneTo)
+    @test space_isequal(sr, sectorrange("x", 1:1, isdual(g)))
+    sr = g[(:, 3)]
+    @test sr isa SectorUnitRange
+    @test !(sr isa SectorOneTo)
+    @test space_isequal(sr, sectorrange("y", 3:3, isdual(g)))
 
     a = g[[Block(3)[1:1], Block(2)[2:3]]]
     @test a isa BlockVector
@@ -232,6 +243,7 @@ end
   @test !isdual(g)
   @test blockisequal(g, b0)
   @test sectors(g) == [SU((0, 0)), SU((1, 0))]
+  @test sector_multiplicities(g) == [2, 2]
   @test space_isequal(g[Block(1)], sectorrange(SU((0, 0)), 2))
   @test space_isequal(g[Block(2)], sectorrange(SU((1, 0)), 3:8))
 
@@ -293,6 +305,15 @@ end
   ax = only(axes(a))
   @test ax isa GradedOneTo
   @test space_isequal(ax, gradedrange([SU((1, 0)) => 2, SU((0, 0)) => 2]))
+
+  sr = g[(:, 1)]
+  @test sr isa SectorUnitRange
+  @test !(sr isa SectorOneTo)
+  @test space_isequal(sr, sectorrange(SU((0, 0)), 1:1))
+  sr = g[(:, 3)]
+  @test sr isa SectorUnitRange
+  @test !(sr isa SectorOneTo)
+  @test space_isequal(sr, sectorrange(SU((1, 0)), 3:5))
 
   a = g[[Block(2)[1:3], Block(1)[2:2]]]
   @test a isa BlockVector

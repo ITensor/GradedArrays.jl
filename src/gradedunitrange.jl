@@ -10,6 +10,7 @@ using BlockArrays:
   BlockVector,
   BlockedOneTo,
   block,
+  blockfirsts,
   blockedrange,
   blocklasts,
   blocklengths,
@@ -181,6 +182,7 @@ for T in [
   :(BlockRange{1,<:Tuple{Base.OneTo}}),
   :(BlockRange{1,<:Tuple{AbstractUnitRange{<:Integer}}}),
   :(BlockSlice),
+  :(Tuple{Colon,<:Any}),  # TODO replace with Kronecker range
 ]
   @eval Base.getindex(g::AbstractGradedUnitRange, indices::$T) = blockedunitrange_getindices(
     g, indices
@@ -279,4 +281,44 @@ function BlockSparseArrays.blockedunitrange_getindices(
   new_eachblockaxis = sectorrange.(first.(new_sectors), Base.oneto.(new_lengths), isdual(g))
   newg = mortar_axis(new_eachblockaxis)
   return mortar(blks, (newg,))
+end
+
+# TODO use Kronecker range
+# convention: return a sectorrange for this multiplicity
+function BlockSparseArrays.blockedunitrange_getindices(
+  g::AbstractGradedUnitRange, indices::Tuple{Colon,<:Integer}
+)
+  i = last(indices)
+  mult_range = blockedrange(sector_multiplicities(g))
+  b = findblock(mult_range, i)
+  return g[b][(:, i - first(mult_range[b]) + 1)]
+end
+
+# TODO use Kronecker range
+# convention: return a gradedunitrange
+function BlockSparseArrays.blockedunitrange_getindices(
+  g::AbstractGradedUnitRange, indices::Tuple{Colon,<:AbstractUnitRange{<:Integer}}
+)
+  r = last(indices)
+  mult_range = blockedrange(sector_multiplicities(g))
+  bf, bl = map(i -> Int(findblock(mult_range, i)), (first(r), last(r)))
+  new_first =
+    blockfirsts(g)[bf] + (first(r) - first(mult_range[Block(bf)])) * length(sectors(g)[bf])
+
+  if bf == bl
+    sr = sectorrange(sectors(g)[bf], length(r), isdual(g))
+    new_range = blockedrange(new_first, [length(sr)])
+    return GradedUnitRange([sr], new_range)
+  end
+
+  sr_first = sectorrange(
+    sectors(g)[bf], blocklasts(mult_range)[bf] - first(r) + 1, isdual(g)
+  )
+  sr_last = sectorrange(
+    sectors(g)[bl], last(r) - blockfirsts(mult_range)[bl] + 1, isdual(g)
+  )
+  sector_axes = vcat([sr_first], eachblockaxis(g[Block.((bf + 1):(bl - 1))]), [sr_last])
+
+  new_range = blockedrange(new_first, length.(sector_axes))
+  return GradedUnitRange(sector_axes, new_range)
 end
