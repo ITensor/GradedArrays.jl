@@ -5,7 +5,6 @@ using GradedArrays:
   TrivialSector,
   U1,
   Z,
-  blocklengths,
   dual,
   flip,
   gradedrange,

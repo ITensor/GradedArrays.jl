@@ -4,8 +4,6 @@ using BlockSparseArrays:
   AbstractBlockSparseMatrix,
   AnyAbstractBlockSparseArray,
   BlockSparseArray,
-  BlockSparseMatrix,
-  BlockSparseVector,
   blocktype,
   sparsemortar
 using LinearAlgebra: Adjoint

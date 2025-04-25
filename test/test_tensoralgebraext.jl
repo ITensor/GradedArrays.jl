@@ -1,10 +1,9 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray
-using GradedArrays:
-  GradedArray, GradedMatrix, GradedOneTo, U1, dual, flip, gradedrange, space_isequal
+using GradedArrays: GradedArray, GradedMatrix, U1, dual, flip, gradedrange, space_isequal
 using Random: randn!
 using TensorAlgebra: contract, matricize, unmatricize
-using Test: @test, @test_broken, @testset
+using Test: @test, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
   a = BlockSparseArray{elt}(undef, axes)

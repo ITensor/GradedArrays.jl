@@ -4,7 +4,6 @@ using BlockArrays:
   BlockedOneTo,
   BlockVector,
   BlockedUnitRange,
-  BlockedVector,
   blockedrange,
   blockfirsts,
   blockisequal,
@@ -17,7 +16,6 @@ using BlockArrays:
   findblockindex,
   mortar
 using GradedArrays:
-  GradedArrays,
   GradedOneTo,
   GradedUnitRange,
   SectorOneTo,
@@ -28,7 +26,6 @@ using GradedArrays:
   gradedrange,
   isdual,
   mortar_axis,
-  sector,
   sector_multiplicities,
   sector_type,
   sectors,

@@ -1,4 +1,4 @@
-using BlockArrays: Block, blocklengths, blocks
+using BlockArrays: Block, blocks
 using SplitApplyCombine: groupcount
 using TensorProducts: TensorProducts, ⊗, OneToOne, tensor_product
 

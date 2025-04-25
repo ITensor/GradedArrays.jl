@@ -7,7 +7,6 @@ using GradedArrays:
   SU2,
   U1,
   dual,
-  flip,
   gradedrange,
   isdual,
   sectormergesort,

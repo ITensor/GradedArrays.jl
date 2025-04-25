@@ -1,7 +1,6 @@
 using GradedArrays:
   ×,
   SectorProduct,
-  SU,
   SU2,
   TrivialSector,
   U1,

@@ -1,8 +1,6 @@
 # This files defines a structure for Cartesian product of 2 or more fusion sectors
 # e.g. U(1)×U(1), U(1)×SU2(2)×SU(3)
 
-using BlockArrays: blocklengths
-
 # =====================================  Definition  =======================================
 struct SectorProduct{Sectors} <: AbstractSector
   arguments::Sectors

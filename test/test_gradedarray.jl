@@ -1,11 +1,5 @@
 using BlockArrays:
-  AbstractBlockArray,
-  Block,
-  BlockedOneTo,
-  BlockedUnitRange,
-  blockedrange,
-  blocklengths,
-  blocksize
+  Block, BlockedOneTo, BlockedUnitRange, blockedrange, blocklengths, blocksize
 using BlockSparseArrays:
   BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
 using GradedArrays:
@@ -25,7 +19,7 @@ using GradedArrays:
 using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!
-using Test: @test, @test_broken, @testset
+using Test: @test, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
   a = BlockSparseArray{elt}(undef, axes)

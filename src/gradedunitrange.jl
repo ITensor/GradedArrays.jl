@@ -15,15 +15,10 @@ using BlockArrays:
   blocklasts,
   blocklengths,
   blocks,
-  blockindex,
   combine_blockaxes,
   findblock,
   mortar
-using BlockSparseArrays:
-  BlockSparseArrays,
-  blockedunitrange_findblock,
-  blockedunitrange_findblockindex,
-  blockedunitrange_getindices
+using BlockSparseArrays: BlockSparseArrays, blockedunitrange_getindices
 using Compat: allequal
 
 # ====================================  Definitions  =======================================

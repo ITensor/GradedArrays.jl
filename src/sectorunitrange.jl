@@ -1,9 +1,5 @@
 # This files defines SectorUnitRange, a unit range associated with a sector and an arrow
 
-using BlockArrays: BlockArrays
-
-using TensorProducts: tensor_product
-
 # =====================================  Definition  =======================================
 
 # This implementation contains the "full range"
