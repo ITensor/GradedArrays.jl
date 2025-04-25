@@ -74,9 +74,9 @@ sector_type(::Type{<:GradedUnitRange{<:Any,SUR}}) where {SUR} = sector_type(SUR)
 
 # ====================================  Constructors  ======================================
 
-function mortar_axis(sectors::AbstractVector{<:SectorOneTo})
-  brange = blockedrange(length.(sectors))
-  return GradedUnitRange(sectors, brange)
+function mortar_axis(geachblockaxis::AbstractVector{<:SectorOneTo})
+  brange = blockedrange(length.(geachblockaxis))
+  return GradedUnitRange(geachblockaxis, brange)
 end
 
 function mortar_axis(gaxes::AbstractVector{<:GradedOneTo})
@@ -88,6 +88,14 @@ function gradedrange(
 )
   geachblockaxis = sectorrange.(sectors_lengths, isdual)
   return mortar_axis(geachblockaxis)
+end
+
+function gradedrange(
+  f::Integer, sectors_lengths::AbstractVector{<:Pair{<:Any,<:Integer}}; isdual::Bool=false
+)
+  geachblockaxis = sectorrange.(sectors_lengths, isdual)
+  brange = blockedrange(f, length.(geachblockaxis))
+  return GradedUnitRange(geachblockaxis, brange)
 end
 
 # =============================  GradedUnitRanges interface  ===============================

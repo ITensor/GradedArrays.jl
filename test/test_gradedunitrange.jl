@@ -43,7 +43,7 @@ using Test: @test, @test_throws, @testset
   @test g1 isa GradedOneTo
   @test !isdual(g1)
 
-  g2 = g1[1:7]
+  g2 = gradedrange(1, ["x" => 2, "y" => 3, "z" => 2])
   @test !(g2 isa GradedOneTo)
   @test !isdual(g2)
 
@@ -161,6 +161,8 @@ using Test: @test, @test_throws, @testset
     @test ax isa GradedOneTo
     @test space_isequal(ax, gradedrange(["z" => 2, "y" => 3]; isdual=isdual(g)))
 
+    # slice with one multiplicity
+    # TODO use dedicated Kroneckrange
     sr = g[(:, 1)]
     @test sr isa SectorUnitRange
     @test !(sr isa SectorOneTo)
@@ -169,6 +171,13 @@ using Test: @test, @test_throws, @testset
     @test sr isa SectorUnitRange
     @test !(sr isa SectorOneTo)
     @test space_isequal(sr, sectorrange("y", 3:3, isdual(g)))
+
+    # slice along multiplicities
+    # TODO use dedicated Kroneckrange
+    for i in 1:length(g), j in i:length(g)
+      @test g[(:, i:j)] isa GradedUnitRange
+      @test space_isequal(g[(:, i:j)], g[i:j])
+    end
 
     a = g[[Block(3)[1:1], Block(2)[2:3]]]
     @test a isa BlockVector
@@ -306,6 +315,8 @@ end
   @test ax isa GradedOneTo
   @test space_isequal(ax, gradedrange([SU((1, 0)) => 2, SU((0, 0)) => 2]))
 
+  # slice with one multiplicity
+  # TODO use dedicated Kroneckrange
   sr = g[(:, 1)]
   @test sr isa SectorUnitRange
   @test !(sr isa SectorOneTo)
@@ -314,6 +325,31 @@ end
   @test sr isa SectorUnitRange
   @test !(sr isa SectorOneTo)
   @test space_isequal(sr, sectorrange(SU((1, 0)), 3:5))
+
+  g3 = gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2, SU((2, 1)) => 2]; isdual=true)
+  @test g3[(:, 1:1)] isa GradedUnitRange
+  @test space_isequal(g3[(:, 1:1)], gradedrange([SU((0, 0)) => 1]; isdual=true))
+  @test space_isequal(g3[(:, 1:2)], gradedrange([SU((0, 0)) => 2]; isdual=true))
+  @test space_isequal(
+    g3[(:, 1:3)], gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 1]; isdual=true)
+  )
+  @test space_isequal(
+    g3[(:, 1:4)], gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2]; isdual=true)
+  )
+  @test space_isequal(
+    g3[(:, 1:5)],
+    gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2, SU((2, 1)) => 1]; isdual=true),
+  )
+  @test space_isequal(
+    g3[(:, 2:5)],
+    gradedrange(2, [SU((0, 0)) => 1, SU((1, 0)) => 2, SU((2, 1)) => 1]; isdual=true),
+  )
+  @test space_isequal(
+    g3[(:, 3:5)], gradedrange(3, [SU((1, 0)) => 2, SU((2, 1)) => 1]; isdual=true)
+  )
+  @test space_isequal(
+    g3[(:, 4:5)], gradedrange(6, [SU((1, 0)) => 1, SU((2, 1)) => 1]; isdual=true)
+  )
 
   a = g[[Block(2)[1:3], Block(1)[2:2]]]
   @test a isa BlockVector
