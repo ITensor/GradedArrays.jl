@@ -98,7 +98,7 @@ end
 ×(c1::NamedTuple, c2::AbstractSector) = ×(SectorProduct(c1), SectorProduct(c2))
 ×(c1::AbstractSector, c2::NamedTuple) = ×(SectorProduct(c1), SectorProduct(c2))
 
-function ×(sr1::SectorUnitRange, sr2::SectorUnitRange)
+function ×(sr1::SectorOneTo, sr2::SectorOneTo)
   isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
   return sectorrange(
     sector(sr1) × sector(sr2),
@@ -107,8 +107,10 @@ function ×(sr1::SectorUnitRange, sr2::SectorUnitRange)
   )
 end
 
-function ×(g1::AbstractGradedUnitRange, g2::AbstractGradedUnitRange)
-  v = map(splat(×), Iterators.flatten((Iterators.product(blocks(g1), blocks(g2)),),))
+function ×(g1::GradedOneTo, g2::GradedOneTo)
+  v = map(
+    splat(×), Iterators.flatten((Iterators.product(eachblockaxis(g1), eachblockaxis(g2)),),)
+  )
   return mortar_axis(v)
 end
 
