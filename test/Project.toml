@@ -16,7 +16,7 @@ TestExtras = "5ed8adda-3752-4e41-b88a-e8b09835ee3a"
 [compat]
 Aqua = "0.8.11"
 BlockArrays = "1.6.0"
-BlockSparseArrays = "0.4.2"
+BlockSparseArrays = "0.5"
 GradedArrays = "0.4"
 LinearAlgebra = "1.10.0"
 Random = "1.10.0"
