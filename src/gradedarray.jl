@@ -5,6 +5,7 @@ using BlockSparseArrays:
   AnyAbstractBlockSparseArray,
   BlockSparseArray,
   blocktype,
+  eachblockstoredindex,
   sparsemortar
 using LinearAlgebra: Adjoint
 using TypeParameterAccessors: similartype, unwrap_array_type
@@ -119,3 +120,22 @@ function Base.getindex(
 end
 
 ungrade(a::GradedArray) = sparsemortar(blocks(a), ungrade.(axes(a)))
+
+function flux(a::GradedArray{<:Any,N}, I::Vararg{Block{1},N}) where {N}
+  sects = ntuple(N) do d
+    return flux(axes(a, d), I[d])
+  end
+  return ⊗(sects...)
+end
+function flux(a::GradedArray{<:Any,N}, I::Block{N}) where {N}
+  return flux(a, Tuple(I)...)
+end
+function flux(a::GradedArray)
+  sect = nothing
+  for I in eachblockstoredindex(a)
+    sect_I = flux(a, I)
+    isnothing(sect) || sect_I == sect || throw(ArgumentError("Inconsistent flux."))
+    sect = sect_I
+  end
+  return sect
+end

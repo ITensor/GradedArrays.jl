@@ -20,6 +20,7 @@ include("sector_product.jl")
 
 include("fusion.jl")
 include("gradedarray.jl")
+include("factorizations.jl")
 
 export SU2,
   U1,
