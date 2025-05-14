@@ -420,3 +420,23 @@ end
   @test space_isequal(axes(ad, 1), dual(axes(a, 1)))
   @test space_isequal(axes(ad, 2), dual(axes(a, 2)))
 end
+
+@testset "show" begin
+  elt = Float64
+  r = gradedrange([U1(0) => 2, U1(1) => 2])
+
+  a = zeros(elt, r)
+  a[1] = one(elt)
+  @test sprint(show, "text/plain", a) ==
+    "2-blocked 4-element GradedVector{$(elt), Vector{$(elt)}, …, …}:\n $(one(elt))\n $(zero(elt))\n ───\n  ⋅ \n  ⋅ "
+
+  a = zeros(elt, r, r)
+  a[1, 1] = one(elt)
+  @test sprint(show, "text/plain", a) ==
+    "2×2-blocked 4×4 GradedMatrix{$(elt), Matrix{$(elt)}, …, …}:\n $(one(elt))  $(zero(elt))  │   ⋅    ⋅ \n $(zero(elt))  $(zero(elt))  │   ⋅    ⋅ \n ──────────┼──────────\n  ⋅    ⋅   │   ⋅    ⋅ \n  ⋅    ⋅   │   ⋅    ⋅ "
+
+  a = zeros(elt, r, r, r)
+  a[1, 1, 1] = one(elt)
+  @test sprint(show, "text/plain", a) ==
+    "2×2×2-blocked 4×4×4 GradedArray{$(elt), 3, Array{$(elt), 3}, …, …}:\n[:, :, 1] =\n $(one(elt))  $(zero(elt))   ⋅    ⋅ \n $(zero(elt))  $(zero(elt))   ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n\n[:, :, 2] =\n $(zero(elt))  $(zero(elt))   ⋅    ⋅ \n $(zero(elt))  $(zero(elt))   ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n\n[:, :, 3] =\n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n\n[:, :, 4] =\n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ "
+end
