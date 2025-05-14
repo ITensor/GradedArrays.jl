@@ -9,9 +9,9 @@ using BlockSparseArrays:
 using LinearAlgebra: Adjoint
 using TypeParameterAccessors: similartype, unwrap_array_type
 
-const GradedArray{T,M,A,Blocks,Axes} = BlockSparseArray{
-  T,M,A,Blocks,Axes
-} where {Axes<:Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}}}
+const GradedArray{T,N,A<:AbstractArray{T,N},Blocks<:AbstractArray{A,N},Axes<:Tuple{AbstractGradedUnitRange{<:Integer},Vararg{AbstractGradedUnitRange{<:Integer}}}} = BlockSparseArray{
+  T,N,A,Blocks,Axes
+}
 const GradedMatrix{T,A,Blocks,Axes} = GradedArray{
   T,2,A,Blocks,Axes
 } where {Axes<:Tuple{AbstractGradedUnitRange,AbstractGradedUnitRange}}
@@ -119,3 +119,77 @@ function Base.getindex(
 end
 
 ungrade(a::GradedArray) = sparsemortar(blocks(a), ungrade.(axes(a)))
+
+# Copy of `Base.dims2string` defined in `show.jl`.
+function dims_to_string(d)
+  isempty(d) && return "0-dimensional"
+  length(d) == 1 && return "$(d[1])-element"
+  return join(map(string, d), '×')
+end
+
+# Copy of `BlockArrays.block2string` from `BlockArrays.jl`.
+block_to_string(b, s) = string(join(map(string, b), '×'), "-blocked ", dims_to_string(s))
+
+using TypeParameterAccessors: type_parameters, unspecify_type_parameters
+function base_type_and_params(type::Type)
+  alias = Base.make_typealias(type)
+  base_type, params = if isnothing(alias)
+    unspecify_type_parameters(type), type_parameters(type)
+  else
+    base_type_globalref, params_svec = alias
+    base_type_globalref.name, params_svec
+  end
+  return base_type, params
+end
+
+function base_type_and_params(type::Type{<:GradedArray})
+  return :GradedArray, type_parameters(type)
+end
+function base_type_and_params(type::Type{<:GradedVector})
+  params = type_parameters(type)
+  params′ = [params[1:1]..., params[3:end]...]
+  return :GradedVector, params′
+end
+function base_type_and_params(type::Type{<:GradedMatrix})
+  params = type_parameters(type)
+  params′ = [params[1:1]..., params[3:end]...]
+  return :GradedMatrix, params′
+end
+
+# Modified version of `BlockSparseArrays.concretetype_to_string_truncated`.
+# This accounts for the fact that the GradedArray alias is not defined in
+# BlockSparseArrays so for the sake of printing, Julia doesn't show it as
+# an alias: https://github.com/JuliaLang/julia/issues/40448
+function concretetype_to_string_truncated(type::Type; param_truncation_length=typemax(Int))
+  isconcretetype(type) || throw(ArgumentError("Type must be concrete."))
+  base_type, params = base_type_and_params(type)
+  str = string(base_type)
+  if isempty(params)
+    return str
+  end
+  str *= '{'
+  param_strings = map(params) do param
+    param_string = string(param)
+    if length(param_string) > param_truncation_length
+      return "…"
+    end
+    return param_string
+  end
+  str *= join(param_strings, ", ")
+  str *= '}'
+  return str
+end
+
+using BlockArrays: blocksize
+function Base.summary(io::IO, a::GradedArray)
+  print(io, block_to_string(blocksize(a), size(a)))
+  print(io, ' ')
+  print(io, concretetype_to_string_truncated(typeof(a); param_truncation_length=40))
+  return nothing
+end
+
+function Base.showarg(io::IO, a::GradedArray, toplevel::Bool)
+  !toplevel && print(io, "::")
+  print(io, concretetype_to_string_truncated(typeof(a); param_truncation_length=40))
+  return nothing
+end
