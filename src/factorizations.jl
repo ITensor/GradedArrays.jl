@@ -56,7 +56,7 @@ function BlockSparseArrays.similar_truncate(
   ax = axes(S, 1)
   counter = Base.Fix1(count, Base.Fix1(getindex, indexmask))
   s_lengths = filter!(>(0), map(counter, blocks(ax)))
-  s_axis = gradedrange(sectors(ax) .=> s_lengths)
+  s_axis = gradedrange(sectors(ax)[Base.OneTo(length(s_lengths))] .=> s_lengths)
   u_axis = s_axis
   flx = flux(S)
   axs = eachblockaxis(s_axis)
