@@ -18,7 +18,8 @@ using BlockArrays:
   combine_blockaxes,
   findblock,
   mortar
-using BlockSparseArrays: BlockSparseArrays, blockedunitrange_getindices
+using BlockSparseArrays:
+  BlockSparseArrays, blockedunitrange_getindices, eachblockaxis, mortar_axis
 using Compat: allequal
 
 # ====================================  Definitions  =======================================
@@ -60,7 +61,7 @@ end
 
 # =====================================  Accessors  ========================================
 
-eachblockaxis(g::GradedUnitRange) = g.eachblockaxis
+BlockSparseArrays.eachblockaxis(g::GradedUnitRange) = g.eachblockaxis
 ungrade(g::GradedUnitRange) = g.full_range
 
 sector_multiplicities(g::GradedUnitRange) = sector_multiplicity.(eachblockaxis(g))
@@ -69,12 +70,12 @@ sector_type(::Type{<:GradedUnitRange{<:Any,SUR}}) where {SUR} = sector_type(SUR)
 
 # ====================================  Constructors  ======================================
 
-function mortar_axis(geachblockaxis::AbstractVector{<:SectorOneTo})
+function BlockSparseArrays.mortar_axis(geachblockaxis::AbstractVector{<:SectorOneTo})
   brange = blockedrange(length.(geachblockaxis))
   return GradedUnitRange(geachblockaxis, brange)
 end
 
-function mortar_axis(gaxes::AbstractVector{<:GradedOneTo})
+function BlockSparseArrays.mortar_axis(gaxes::AbstractVector{<:GradedOneTo})
   return mortar_axis(mapreduce(eachblockaxis, vcat, gaxes))
 end
 
@@ -100,6 +101,11 @@ isdual(g::AbstractGradedUnitRange) = isdual(first(eachblockaxis(g)))  # crash fo
 
 function sectors(g::AbstractGradedUnitRange)
   return sector.(eachblockaxis(g))
+end
+
+function flux(a::AbstractGradedUnitRange, I::Block{1})
+  sect = sector(a[I])
+  return isdual(a) ? dual(sect) : sect
 end
 
 function map_sectors(f, g::GradedUnitRange)

@@ -5,6 +5,7 @@ using BlockSparseArrays:
   AnyAbstractBlockSparseArray,
   BlockSparseArray,
   blocktype,
+  eachblockstoredindex,
   sparsemortar
 using LinearAlgebra: Adjoint
 using TypeParameterAccessors: similartype, unwrap_array_type
@@ -41,13 +42,17 @@ function similar_blocksparse(
   elt::Type,
   axes::Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}},
 )
-  # TODO: Probably need to unwrap the type of `a` in certain cases
-  # to make a proper block type.
-  return BlockSparseArray{
-    elt,length(axes),similartype(unwrap_array_type(blocktype(a)), elt, axes)
-  }(
-    undef, axes
-  )
+  blockaxistypes = Tuple{map(axes) do axis
+    return eltype(Base.promote_op(eachblockaxis, typeof(axis)))
+  end...}
+  similar_blocktype = Base.promote_op(similar, blocktype(a), Type{elt}, blockaxistypes)
+  return BlockSparseArray{elt,length(axes),similar_blocktype}(undef, axes)
+end
+
+function Base.similar(
+  a::AbstractArray, elt::Type, axes::Tuple{SectorOneTo,Vararg{SectorOneTo}}
+)
+  return similar(a, elt, Base.OneTo.(length.(axes)))
 end
 
 function Base.similar(
@@ -119,6 +124,25 @@ function Base.getindex(
 end
 
 ungrade(a::GradedArray) = sparsemortar(blocks(a), ungrade.(axes(a)))
+
+function flux(a::GradedArray{<:Any,N}, I::Vararg{Block{1},N}) where {N}
+  sects = ntuple(N) do d
+    return flux(axes(a, d), I[d])
+  end
+  return ⊗(sects...)
+end
+function flux(a::GradedArray{<:Any,N}, I::Block{N}) where {N}
+  return flux(a, Tuple(I)...)
+end
+function flux(a::GradedArray)
+  sect = nothing
+  for I in eachblockstoredindex(a)
+    sect_I = flux(a, I)
+    isnothing(sect) || sect_I == sect || throw(ArgumentError("Inconsistent flux."))
+    sect = sect_I
+  end
+  return sect
+end
 
 # Copy of `Base.dims2string` defined in `show.jl`.
 function dims_to_string(d)
