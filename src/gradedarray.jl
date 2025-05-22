@@ -42,10 +42,10 @@ function similar_blocksparse(
   elt::Type,
   axes::Tuple{AbstractGradedUnitRange,Vararg{AbstractGradedUnitRange}},
 )
-  blockaxistypes = Tuple{map(axes) do axis
+  blockaxistypes = map(axes) do axis
     return eltype(Base.promote_op(eachblockaxis, typeof(axis)))
-  end...}
-  similar_blocktype = Base.promote_op(similar, blocktype(a), Type{elt}, blockaxistypes)
+  end
+  similar_blocktype = Base.promote_op(similar, blocktype(a), Type{elt}, Tuple{blockaxistypes...})
   return BlockSparseArray{elt,length(axes),similar_blocktype}(undef, axes)
 end
 
