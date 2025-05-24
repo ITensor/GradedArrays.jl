@@ -8,7 +8,8 @@ using BlockSparseArrays:
   eachblockaxis,
   mortar_axis
 using LinearAlgebra: Diagonal
-using MatrixAlgebraKit: MatrixAlgebraKit, svd_compact!, svd_full!, svd_trunc!
+using MatrixAlgebraKit:
+  MatrixAlgebraKit, qr_compact!, qr_full!, svd_compact!, svd_full!, svd_trunc!
 
 function BlockSparseArrays.similar_output(
   ::typeof(svd_compact!), A::GradedMatrix, S_axes, alg::BlockPermutedDiagonalAlgorithm
@@ -55,4 +56,20 @@ function BlockSparseArrays.similar_truncate(
   S̃ = similar(S, u_axis, v_axis)
   Ṽᴴ = similar(Vᴴ, dual(v_axis), axes(Vᴴ, 2))
   return Ũ, S̃, Ṽᴴ
+end
+
+function BlockSparseArrays.similar_output(
+  ::typeof(qr_compact!), A::GradedMatrix, R_axis, alg::BlockPermutedDiagonalAlgorithm
+)
+  Q = similar(A, axes(A, 1), dual(R_axis))
+  R = similar(A, R_axis, axes(A, 2))
+  return Q, R
+end
+
+function BlockSparseArrays.similar_output(
+  ::typeof(qr_full!), A::GradedMatrix, R_axis, alg::BlockPermutedDiagonalAlgorithm
+)
+  Q = similar(A, axes(A, 1), dual(R_axis))
+  R = similar(A, R_axis, axes(A, 2))
+  return Q, R
 end
