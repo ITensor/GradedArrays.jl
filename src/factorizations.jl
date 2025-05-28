@@ -9,7 +9,14 @@ using BlockSparseArrays:
   mortar_axis
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit:
-  MatrixAlgebraKit, qr_compact!, qr_full!, svd_compact!, svd_full!, svd_trunc!
+  MatrixAlgebraKit,
+  lq_compact!,
+  lq_full!,
+  qr_compact!,
+  qr_full!,
+  svd_compact!,
+  svd_full!,
+  svd_trunc!
 
 function BlockSparseArrays.similar_output(
   ::typeof(svd_compact!), A::GradedMatrix, S_axes, alg::BlockPermutedDiagonalAlgorithm
@@ -72,4 +79,20 @@ function BlockSparseArrays.similar_output(
   Q = similar(A, axes(A, 1), dual(R_axis))
   R = similar(A, R_axis, axes(A, 2))
   return Q, R
+end
+
+function BlockSparseArrays.similar_output(
+  ::typeof(lq_compact!), A::GradedMatrix, L_axis, alg::BlockPermutedDiagonalAlgorithm
+)
+  L = similar(A, axes(A, 1), L_axis)
+  Q = similar(A, dual(L_axis), axes(A, 2))
+  return L, Q
+end
+
+function BlockSparseArrays.similar_output(
+  ::typeof(lq_full!), A::GradedMatrix, L_axis, alg::BlockPermutedDiagonalAlgorithm
+)
+  L = similar(A, axes(A, 1), L_axis)
+  Q = similar(A, dual(L_axis), axes(A, 2))
+  return L, Q
 end
