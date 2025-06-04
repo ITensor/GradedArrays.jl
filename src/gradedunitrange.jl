@@ -320,3 +320,21 @@ function BlockSparseArrays.blockedunitrange_getindices(
   new_range = blockedrange(new_first, length.(new_axes))
   return GradedUnitRange(new_axes, new_range)
 end
+
+using BlockArrays: BlockedVector
+function BlockSparseArrays.blockedunitrange_getindices(
+  a::AbstractGradedUnitRange, indices::AbstractVector{Bool}
+)
+  blocked_indices = BlockedVector(indices, axes(a))
+  bs = map(Base.OneTo(blocklength(blocked_indices))) do b
+    binds = blocked_indices[Block(b)]
+    bstart = blockfirsts(only(axes(blocked_indices)))[b]
+    return findall(binds) .+ (bstart - 1)
+  end
+  keep = map(!isempty, bs)
+  secs = sectors(a)[keep]
+  bs = bs[keep]
+  r = gradedrange(secs .=> length.(bs); isdual=isdual(a))
+  I = mortar(bs, (r,))
+  return I
+end
