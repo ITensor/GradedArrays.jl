@@ -37,7 +37,7 @@ quantum_dimension(::NotAbelianStyle, s::O2) = 2 - is_zero_even_or_odd(s)
 
 dual(s::O2) = s
 
-function Base.show(io::IO, s::O2)
+function Base.show(io::IO, ::MIME"text/plain", s::O2)
   if iszero_odd(s)
     disp = "0o"
   elseif istrivial(s)
@@ -45,8 +45,10 @@ function Base.show(io::IO, s::O2)
   else
     disp = "±" * string(sector_label(s))
   end
-  return print(io, "O(2)[", disp, "]")
+  return print(io, "O2(", disp, ")")
 end
+
+Base.show(io::IO, s::O2) = print(io, "O2(", sector_label(s), ")")
 
 function label_fusion_rule(::Type{O2}, l1, l2)
   if is_zero_even_or_odd(l1)

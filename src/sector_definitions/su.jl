@@ -50,7 +50,7 @@ end
 
 function Base.show(io::IO, s::SU)
   disp = join([string(l) for l in sector_label(s)], ", ")
-  return print(io, "SU(", groupdim(s), ")[", disp, "]")
+  return print(io, "SU{", groupdim(s), "}((", disp, "))")
 end
 
 # display SU(N) irrep as a Young tableau with utf8 box char
@@ -99,7 +99,7 @@ SU2(h::Number) = SU{2}((twice(HalfInteger(h)),))
 
 # display SU2 using half-integers
 function Base.show(io::IO, s::SU{2})
-  return print(io, "SU(2)[S=", half(quantum_dimension(s) - 1), "]")
+  return print(io, "SU2(", half(quantum_dimension(s) - 1), ")")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::SU{2})
