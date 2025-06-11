@@ -180,7 +180,7 @@ using TestExtras: @constinferred
     @test isnothing(show(devnull, MIME("text/plain"), SU((1, 1))))
     @test isnothing(show(devnull, MIME("text/plain"), SU((0, 0))))
 
-    @test sprint(show, f3) == "SU{3}((1,0))"
+    @test sprint(show, f3) == "SU{3}((1, 0))"
     @test sprint(show, MIME("text/plain"), f3) == "┌─┐\n└─┘"
     @test sprint(show, MIME("text/plain"), ad3) == "┌─┬─┐\n├─┼─┘\n└─┘"
 
