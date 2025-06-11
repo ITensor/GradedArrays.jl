@@ -1,13 +1,12 @@
 name = "GradedArrays"
 uuid = "bc96ca6e-b7c8-4bb6-888e-c93f838762c2"
 authors = ["ITensor developers <support@itensor.org> and contributors"]
-version = "0.4.7"
+version = "0.4.8"
 
 [deps]
 BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 BlockSparseArrays = "2c9a651f-6452-4ace-a6ac-809f4280fbb4"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
-DerivableInterfaces = "6c5e35bf-e59e-4898-b73c-732dcc4ba65f"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 HalfIntegers = "f0d1745a-41c9-11e9-1dd9-e5d34d218721"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -27,7 +26,6 @@ GradedArraysTensorAlgebraExt = "TensorAlgebra"
 BlockArrays = "1.6.0"
 BlockSparseArrays = "0.7.0"
 Compat = "4.16.0"
-DerivableInterfaces = "0.4.4"
 FillArrays = "1.13.0"
 HalfIntegers = "1.6.0"
 LinearAlgebra = "1.10.0"
