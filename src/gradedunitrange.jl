@@ -103,10 +103,7 @@ function sectors(g::AbstractGradedUnitRange)
   return sector.(eachblockaxis(g))
 end
 
-function flux(a::AbstractGradedUnitRange, I::Block{1})
-  sect = sector(a[I])
-  return isdual(a) ? dual(sect) : sect
-end
+flux(a::AbstractBlockedUnitRange, I::Block{1}) = flux(a[I])
 
 function map_sectors(f, g::GradedUnitRange)
   return GradedUnitRange(map_sectors.(f, eachblockaxis(g)), ungrade(g))

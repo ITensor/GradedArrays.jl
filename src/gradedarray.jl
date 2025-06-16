@@ -127,6 +127,11 @@ end
 
 ungrade(a::GradedArray) = sparsemortar(blocks(a), ungrade.(axes(a)))
 
+struct UndefinedFlux end
+
+# default flux. Includes zero-dim BlockSparseArrays, which are not GradedArrays
+flux(::AbstractArray) = UndefinedFlux()
+
 function flux(a::GradedArray{<:Any,N}, I::Vararg{Block{1},N}) where {N}
   sects = ntuple(N) do d
     return flux(axes(a, d), I[d])
@@ -137,13 +142,20 @@ function flux(a::GradedArray{<:Any,N}, I::Block{N}) where {N}
   return flux(a, Tuple(I)...)
 end
 function flux(a::GradedArray)
-  sect = nothing
-  for I in eachblockstoredindex(a)
-    sect_I = flux(a, I)
-    isnothing(sect) || sect_I == sect || throw(ArgumentError("Inconsistent flux."))
-    sect = sect_I
-  end
+  isempty(eachblockstoredindex(a)) && return UndefinedFlux()
+  sect = flux(a, first(eachblockstoredindex(a)))
+  checkflux(a, sect)
   return sect
+end
+
+function checkflux(::AbstractArray, sect)
+  return sect == UndefinedFlux() ? nothing : throw(ArgumentError("Inconsistent flux."))
+end
+function checkflux(a::GradedArray, sect)
+  for I in eachblockstoredindex(a)
+    flux(a, I) == sect || throw(ArgumentError("Inconsistent flux."))
+  end
+  return nothing
 end
 
 # Copy of `Base.dims2string` defined in `show.jl`.

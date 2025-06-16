@@ -8,7 +8,9 @@ using GradedArrays:
   GradedVector,
   GradedOneTo,
   GradedUnitRange,
+  UndefinedFlux,
   U1,
+  checkflux,
   dag,
   dual,
   gradedrange,
@@ -61,6 +63,49 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     @test !(a isa GradedArray)
     a = BlockSparseArray{elt}(undef, r, b0, r)
     @test !(a isa GradedArray)
+  end
+
+  @testset "flux" begin
+    @test flux(ones(2)) == UndefinedFlux()
+    @test flux(ones()) == UndefinedFlux()
+    @test isnothing(checkflux(ones(2), UndefinedFlux()))
+    @test isnothing(checkflux(ones(), UndefinedFlux()))
+
+    r0 = blockedrange([2, 2])
+    v0 = BlockSparseArray{elt}(undef, r0)
+    @test flux(r0) == UndefinedFlux()
+    @test flux(r0, Block(1)) == UndefinedFlux()
+    @test flux(r0[Block(1)]) == UndefinedFlux()
+    @test flux(v0) == UndefinedFlux()
+    v0[Block(1)] = ones(2)
+    @test flux(v0) == UndefinedFlux()
+    @test isnothing(checkflux(v0, UndefinedFlux()))
+
+    r = gradedrange([U1(1) => 2, U1(2) => 2])
+    rd = dual(r)
+    @test flux(r) == UndefinedFlux()
+    @test flux(r, Block(1)) == U1(1)
+    @test flux(r[Block(1)]) == U1(1)
+    @test flux(rd) == UndefinedFlux()
+    @test flux(rd, Block(1)) == U1(-1)
+    @test flux(rd[Block(1)]) == U1(-1)
+
+    v = BlockSparseArray{elt}(undef, r)
+    @test flux(v) == UndefinedFlux()
+    v[Block(1)] = ones(2)
+    @test flux(v) == U1(1)
+    @test isnothing(checkflux(v, U1(1)))
+
+    v = BlockSparseArray{elt}(undef, rd)
+    @test flux(v) == UndefinedFlux()
+    v[Block(1)] = ones(2)
+    @test flux(v) == U1(-1)
+
+    v[Block(2)] = ones(2)
+    @test_throws ArgumentError checkflux(v, UndefinedFlux())
+    @test_throws ArgumentError checkflux(v, U1(-1))
+    @test_throws ArgumentError checkflux(v, U1(-2))
+    @test_throws ArgumentError flux(v)
   end
 
   @testset "map" begin

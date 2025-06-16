@@ -100,6 +100,10 @@ function flip(sr::SectorUnitRange)
   return sectorrange(dual(sector(sr)), ungrade(sr), !isdual(sr))
 end
 
+function flux(sr::SectorUnitRange)
+  return isdual(sr) ? dual(sector(sr)) : sector(sr)
+end
+
 function map_sectors(f, sr::SectorUnitRange)
   return sectorrange(f(sector(sr)), ungrade(sr), isdual(sr))
 end
