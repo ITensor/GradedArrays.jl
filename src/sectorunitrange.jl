@@ -63,11 +63,6 @@ function Base.getindex(sr::SectorUnitRange, ::NotAbelianStyle, r::AbstractUnitRa
   return ungrade(sr)[r]
 end
 function Base.getindex(sr::SectorUnitRange, ::AbelianStyle, r::AbstractUnitRange)
-  return sectorrange(sector(sr), ungrade(sr)[r], isdual(sr))
-end
-function Base.getindex(sr::SectorUnitRange, ::AbelianStyle, r::SectorUnitRange)
-  sector(sr) == sector(r) || throw(ArgumentError("Cannot slice with a different sector"))
-  isdual(sr) == isdual(r) || throw(ArgumentError("Cannot slice with a different duality"))
   return sectorrange(sector(sr), ungrade(sr)[ungrade(r)], isdual(sr))
 end
 
