@@ -13,6 +13,7 @@ using GradedArrays:
   checkflux,
   dag,
   dual,
+  flux,
   gradedrange,
   isdual,
   sectorrange,
