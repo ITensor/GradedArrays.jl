@@ -148,4 +148,9 @@ using GradedArrays:
   @test (@constinferred getindex(srab, 2:2)) isa SectorUnitRange
   @test space_isequal(srab[2:2], sectorrange(U1(1), 2:2))
   @test space_isequal(dual(srab)[2:2], sectorrange(U1(1), 2:2, true))
+
+  # Slice sector range with sector range
+  sr1 = sectorrange(U1(1), 4)
+  sr2 = sectorrange(U1(1), 3)
+  @test sr1[sr2] === sr2
 end
