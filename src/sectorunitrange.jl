@@ -28,7 +28,8 @@ end
 
 # sectorrange(SU2(1), 1)
 function sectorrange(s, m::Integer, b::Bool=false)
-  return sectorrange(s, Base.oneto(m * length(s)), b)
+  s1 = to_sector(s)  # convert now to get correct length of e.g. (;S=SU2(1))
+  return sectorrange(s1, Base.oneto(m * length(s1)), b)
 end
 
 # sectorrange(SU2(1) => 1)

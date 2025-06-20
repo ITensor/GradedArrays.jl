@@ -2,7 +2,7 @@ using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray
 using GradedArrays: GradedArray, GradedMatrix, U1, dual, flip, gradedrange, space_isequal
 using Random: randn!
-using TensorAlgebra: contract, matricize, unmatricize
+using TensorAlgebra: contract, matricize, trivial_axis, unmatricize
 using Test: @test, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
@@ -13,6 +13,15 @@ function randn_blockdiagonal(elt::Type, axes::Tuple)
     a[b] = randn!(a[b])
   end
   return a
+end
+
+@testset "trivial_axis" begin
+  gN = gradedrange([(; N=U1(1)) => 1])
+  gS = gradedrange([(; S=SU2(1//2)) => 1])
+  gNS = gradedrange([(; N=U1(0), S=SU2(0)) => 1])
+
+  @test space_isequal(trivial_axis(sector_type(gN)), gradedrange([(; N=U1(0)) => 1]))
+  @test space_isequal(trivial_axis((gN, gS)), gNS)
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})

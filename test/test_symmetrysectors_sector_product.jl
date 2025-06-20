@@ -10,6 +10,7 @@ using GradedArrays:
   gradedrange,
   quantum_dimension,
   sector_type,
+  sectorrange,
   space_isequal,
   trivial
 using TensorProducts: ⊗
@@ -207,6 +208,13 @@ end
 
     g = gradedrange([(Nf=U1(0),) => 2, (Nf=U1(1),) => 3])
     @test sector_type(g) <: SectorProduct
+    sr = sectorrange((; S=SU2(1//2)) => 1)
+    @test length(sr) == 2
+    @test space_isequal(sr, sectorrange(SectorProduct(; S=SU2(1//2)), 1))
+    @test space_isequal(sr, sectorrange(SectorProduct(; S=SU2(1//2)), 1:2))
+    g = gradedrange([(; S=SU2(1//2)) => 1])
+    @test length(g) == 2
+    @test space_isequal(g, gradedrange([SectorProduct(; S=SU2(1//2)) => 1]))
 
     @test (A=U1(1),) × ((B=SU2(2),) × (C=U1(1),)) isa
       typeof((A=U1(1),) × (B=SU2(2),) × (C=U1(1),))
