@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray
 using GradedArrays:
-  GradedArray, GradedMatrix, SU2, U1, dual, flip, gradedrange, space_isequal
+  GradedArray, GradedMatrix, SU2, U1, dual, flip, gradedrange, sector_type, space_isequal
 using Random: randn!
 using TensorAlgebra: contract, matricize, trivial_axis, unmatricize
 using Test: @test, @testset
