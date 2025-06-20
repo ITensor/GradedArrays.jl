@@ -26,7 +26,12 @@ struct SectorFusion <: FusionStyle end
 
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 
+function TensorAlgebra.trivial_axis(t::Tuple{Vararg{G}}) where {G<:AbstractGradedUnitRange}
+  return trivial(first(t))
+end
+# heterogeneous sectors
 TensorAlgebra.trivial_axis(t::Tuple{Vararg{AbstractGradedUnitRange}}) = ⊗(trivial.(t)...)
+# trivial_axis from sector_type
 function TensorAlgebra.trivial_axis(::Type{S}) where {S<:AbstractSector}
   return gradedrange([trivial(S) => 1])
 end

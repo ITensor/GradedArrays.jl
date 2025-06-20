@@ -16,10 +16,13 @@ function randn_blockdiagonal(elt::Type, axes::Tuple)
 end
 
 @testset "trivial_axis" begin
+  g1 = gradedrange([U1(1) => 1, U1(2) => 1])
+  g2 = gradedrange([U1(-1) => 2, U1(2) => 1])
+  @test space_isequal(trivial_axis((g1, g2)), gradedrange([U1(0) => 1]))
+
   gN = gradedrange([(; N=U1(1)) => 1])
   gS = gradedrange([(; S=SU2(1//2)) => 1])
   gNS = gradedrange([(; N=U1(0), S=SU2(0)) => 1])
-
   @test space_isequal(trivial_axis(sector_type(gN)), gradedrange([(; N=U1(0)) => 1]))
   @test space_isequal(trivial_axis((gN, gS)), gNS)
 end
