@@ -22,6 +22,7 @@ using GradedArrays:
   SectorUnitRange,
   SU,
   dual,
+  findfirstblock_sector,
   flip,
   gradedrange,
   isdual,
@@ -96,6 +97,8 @@ using Test: @test, @test_throws, @testset
     @test findblock(g, 2) == Block(1)
     @test findblock(g, 3) == Block(2)
     @test findblockindex(g, 3) == Block(2)[1]
+    @test findfirstblock_sector(g, "y") == Block(2)
+    @test isnothing(findfirstblock_sector(g, "a"))
 
     @test axes(Base.Slice(g)) isa Tuple{typeof(g)}
     @test AbstractUnitRange{Int}(g) == 1:7

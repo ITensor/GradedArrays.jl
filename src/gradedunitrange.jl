@@ -149,6 +149,13 @@ function gradedunitrange_getindices(::NotAbelianStyle, g::AbstractUnitRange, ind
   return blockedunitrange_getindices(ungrade(g), indices)
 end
 
+# do not overload BlockArrays.findblock to avoid ambiguity for findblock(g, 1)
+function findfirstblock_sector(g::AbstractGradedUnitRange, s)
+  i = findfirst(==(s), sectors(g))
+  isnothing(i) && return nothing
+  return Block(i)
+end
+
 # ==================================  Base interface  ======================================
 
 # needed in BlockSparseArrays
