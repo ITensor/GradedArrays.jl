@@ -21,6 +21,8 @@ using GradedArrays:
   SectorOneTo,
   SectorUnitRange,
   SU,
+  checkspaces,
+  checkspaces_dual,
   dual,
   findfirstblock_sector,
   flip,
@@ -210,6 +212,9 @@ using Test: @test, @test_throws, @testset
 
   @test space_isequal(g1d, dual(g1))
   @test space_isequal(dual(g1d), g1)
+  @test checkspaces((g1, g1d), (g1, g1d))
+  @test checkspaces_dual((g1, g1d), (g1d, g1))
+  @test_throws ArgumentError checkspaces((g1, g1), (g1, g1d))
 
   for a in (
     combine_blockaxes(g1, b0),

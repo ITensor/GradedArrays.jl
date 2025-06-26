@@ -54,3 +54,12 @@ sectors(v::AbstractBlockVector) = mapreduce(sectors, vcat, blocks(v))
 function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
   return (isdual(a1) == isdual(a2)) && sectors(a1) == sectors(a2) && blockisequal(a1, a2)
 end
+
+function checkspaces(::Type{Bool}, axes1, axes2)
+  return length(axes1) == length(axes2) && all(space_isequal.(axes1, axes2))
+end
+
+function checkspaces(ax1, ax2)
+  return checkspaces(Bool, ax1, ax2) || throw(ArgumentError(lazy"$ax1 does not match $ax2"))
+end
+checkspaces_dual(axes1, axes2) = checkspaces(axes1, dual.(axes2))
