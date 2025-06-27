@@ -24,6 +24,7 @@ using GradedArrays:
   checkspaces,
   checkspaces_dual,
   dual,
+  findfirstblock,
   findfirstblock_sector,
   flip,
   gradedrange,
@@ -282,6 +283,8 @@ end
   @test g[4] == 4
   @test g[Block(1)[1]] == 1
   @test g[Block(2)[1]] == 3
+  @test findfirstblock(g, SU((1, 0))) == Block(2)
+  @test isnothing(findfirstblock(g, SU((2, 0))))
 
   # Non-abelian slicing operations
   a = g[2:4]
