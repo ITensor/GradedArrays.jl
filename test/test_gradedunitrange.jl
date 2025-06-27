@@ -211,11 +211,15 @@ using Test: @test, @test_throws, @testset
     @test space_isequal(only(axes(a)), gradedrange(["y" => 6, "x" => 2]; isdual=isdual(g)))
   end
 
+  @test checkspaces(Bool, (g1, g1d), (g1, g1d))
+
   @test space_isequal(g1d, dual(g1))
   @test space_isequal(dual(g1d), g1)
   @test checkspaces((g1, g1d), (g1, g1d))
+  @test checkspaces_dual(Bool, (g1, g1d), (g1d, g1))
   @test checkspaces_dual((g1, g1d), (g1d, g1))
   @test_throws ArgumentError checkspaces((g1, g1), (g1, g1d))
+  @test_throws ArgumentError checkspaces_dual((g1, g1), (g1, g1d))
 
   for a in (
     combine_blockaxes(g1, b0),

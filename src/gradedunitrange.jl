@@ -156,10 +156,6 @@ function findfirstblock_sector(g::AbstractGradedUnitRange, s)
   return Block(i)
 end
 
-function findfirstblock(g::AbstractGradedUnitRange, s::AbstractSector)
-  return findfirstblock_sector(g::AbstractGradedUnitRange, s)
-end
-
 # ==================================  Base interface  ======================================
 
 # needed in BlockSparseArrays
