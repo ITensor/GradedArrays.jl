@@ -1,5 +1,25 @@
 # This files defines SectorUnitRange, a unit range associated with a sector and an arrow
 
+struct SectorVector{T,Sector,Values<:AbstractVector{T}} <: AbstractVector{T}
+  sector::Sector
+  values::Values
+  isdual::Bool
+end
+
+sector(sv::SectorVector) = sv.sector
+ungrade(sv::SectorVector) = sv.values
+isdual(sv::SectorVector) = sv.isdual
+
+function sectorvector(s, v::AbstractVector, b::Bool=false)
+  return SectorVector(to_sector(s), v, b)
+end
+Base.length(sv::SectorVector) = length(sv.values)
+Base.size(sv::SectorVector) = (length(sv),)
+function Base.axes(sv::SectorVector)
+  (sectorrange(sector(sv), only(axes(ungrade(sv))), isdual(sv)),)
+end
+Base.getindex(sv::SectorVector, i::Integer) = ungrade(sv)[i]
+
 # =====================================  Definition  =======================================
 
 # This implementation contains the "full range"
@@ -51,20 +71,33 @@ Base.iterate(sr::SectorUnitRange) = iterate(ungrade(sr))
 Base.iterate(sr::SectorUnitRange, i::Integer) = iterate(ungrade(sr), i)
 
 Base.length(sr::SectorUnitRange) = length(ungrade(sr))
+Base.size(sr::SectorUnitRange) = (length(sr),)
+function Base.axes(sr::SectorUnitRange)
+  (sectorrange(sector(sr), only(axes(ungrade(sr))), isdual(sr)),)
+end
 
 Base.last(sr::SectorUnitRange) = last(ungrade(sr))
 
 # slicing
 Base.getindex(sr::SectorUnitRange, i::Integer) = ungrade(sr)[i]
 
-function Base.getindex(sr::SectorUnitRange, r::AbstractUnitRange{T}) where {T<:Integer}
-  return sr[SymmetryStyle(sr), r]
+function Base.getindex(sr::SectorUnitRange, I::AbstractVector{<:Integer})
+  return sr[SymmetryStyle(sr), I]
 end
-function Base.getindex(sr::SectorUnitRange, ::NotAbelianStyle, r::AbstractUnitRange)
+function Base.getindex(sr::SectorUnitRange, I::AbstractUnitRange{<:Integer})
+  return sr[SymmetryStyle(sr), I]
+end
+function Base.getindex(sr::SectorUnitRange, ::NotAbelianStyle, r::AbstractVector{<:Integer})
   return ungrade(sr)[r]
 end
-function Base.getindex(sr::SectorUnitRange, ::AbelianStyle, r::AbstractUnitRange)
+function Base.getindex(sr::SectorUnitRange, ::AbelianStyle, r::AbstractUnitRange{<:Integer})
   return sectorrange(sector(sr), ungrade(sr)[ungrade(r)], isdual(sr))
+end
+function Base.getindex(sr::SectorUnitRange, ::AbelianStyle, r::AbstractVector{<:Integer})
+  return sectorvector(sector(sr), ungrade(sr)[ungrade(r)], isdual(sr))
+end
+function Base.getindex(sr::SectorUnitRange, I::AbstractVector{Bool})
+  return sr[to_indices(sr, (I,))...]
 end
 
 # TODO replace (:,x) indexing with kronecker(:, x)
@@ -114,3 +147,7 @@ sector_type(::Type{<:SectorUnitRange{T,Sector}}) where {T,Sector} = Sector
 # TBD error for non-integer?
 sector_multiplicity(sr::SectorUnitRange) = length(sr) ÷ length(sector(sr))
 sector_multiplicities(sr::SectorUnitRange) = [sector_multiplicity(sr)]  # TBD remove?
+
+function Base.similar(A::Type{<:AbstractArray}, ax::Tuple{SectorOneTo,Vararg{SectorOneTo}})
+  return similar(A, ungrade.(ax))
+end

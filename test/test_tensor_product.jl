@@ -18,8 +18,15 @@ using TensorProducts: ⊗, OneToOne, tensor_product
 using Test: @test, @testset
 using TestExtras: @constinferred
 
-GradedArrays.SymmetryStyle(::Type{<:String}) = NotAbelianStyle()
-GradedArrays.tensor_product(s1::String, s2::String) = gradedrange([s1 * s2 => 1])
+struct NotAbelianString
+  str::String
+end
+Base.:*(s1::NotAbelianString, s2::NotAbelianString) = NotAbelianString(s1.str * s2.str)
+GradedArrays.SymmetryStyle(::Type{<:NotAbelianString}) = NotAbelianStyle()
+function GradedArrays.tensor_product(s1::NotAbelianString, s2::NotAbelianString)
+  gradedrange([s1 * s2 => 1])
+end
+Base.length(s::NotAbelianString) = length(s.str)
 
 @testset "unmerged_tensor_product" begin
   @test unmerged_tensor_product() isa OneToOne
@@ -27,7 +34,7 @@ GradedArrays.tensor_product(s1::String, s2::String) = gradedrange([s1 * s2 => 1]
   @test unmerged_tensor_product(1:1, 1:1) == 1:1
   @test sectormergesort(1:1) isa UnitRange
 
-  a = gradedrange(["x" => 2, "y" => 3])
+  a = gradedrange([NotAbelianString("x") => 2, NotAbelianString("y") => 3])
   @test space_isequal(unmerged_tensor_product(a), a)
 
   b = unmerged_tensor_product(a, a)
@@ -35,13 +42,22 @@ GradedArrays.tensor_product(s1::String, s2::String) = gradedrange([s1 * s2 => 1]
   @test length(b) == 50
   @test blocklength(b) == 4
   @test blocklengths(b) == [8, 12, 12, 18]
-  @test space_isequal(b, gradedrange(["xx" => 4, "yx" => 6, "xy" => 6, "yy" => 9]))
+  @test space_isequal(
+    b,
+    gradedrange([
+      NotAbelianString("xx") => 4,
+      NotAbelianString("yx") => 6,
+      NotAbelianString("xy") => 6,
+      NotAbelianString("yy") => 9,
+    ]),
+  )
 
   c = unmerged_tensor_product(a, a, a)
   @test c isa GradedOneTo
   @test length(c) == 375
   @test blocklength(c) == 8
-  @test sectors(c) == ["xxx", "yxx", "xyx", "yyx", "xxy", "yxy", "xyy", "yyy"]
+  @test sectors(c) ==
+    NotAbelianString.(["xxx", "yxx", "xyx", "yyx", "xxy", "yxy", "xyy", "yyy"])
 
   a = gradedrange([U1(1) => 1, U1(2) => 3, U1(1) => 1])
   @test space_isequal(

@@ -1,5 +1,3 @@
-using Test: @test, @test_throws, @testset
-
 using BlockArrays:
   Block,
   BlockBoundsError,
@@ -11,12 +9,12 @@ using BlockArrays:
   blockisequal,
   blocks,
   findblock
-using TestExtras: @constinferred
-
 using GradedArrays:
   U1,
   SU,
+  SectorOneTo,
   SectorUnitRange,
+  SectorVector,
   dual,
   flip,
   isdual,
@@ -29,6 +27,8 @@ using GradedArrays:
   sectors,
   space_isequal,
   ungrade
+using Test: @test, @test_throws, @testset
+using TestExtras: @constinferred
 
 @testset "SectorUnitRange" begin
   sr = sectorrange(SU((1, 0)), 2)
@@ -49,7 +49,8 @@ using GradedArrays:
   @test eltype(sr) === Int
   @test step(sr) == 1
   @test eachindex(sr) == Base.oneto(6)
-  @test only(axes(sr)) isa Base.OneTo
+  @test only(axes(sr)) isa SectorOneTo
+  @test sector(only(axes(sr))) == sector(sr)
   @test only(axes(sr)) == 1:6
   @test iterate(sr) == (1, 1)
   for i in 1:5
@@ -148,6 +149,11 @@ using GradedArrays:
   @test (@constinferred getindex(srab, 2:2)) isa SectorUnitRange
   @test space_isequal(srab[2:2], sectorrange(U1(1), 2:2))
   @test space_isequal(dual(srab)[2:2], sectorrange(U1(1), 2:2, true))
+  @test srab[[1, 3]] isa SectorVector{Int}
+  @test sector(srab[[1, 3]]) == sector(srab)
+  @test ungrade(srab[[1, 3]]) == [1, 3]
+  @test length(srab[[1, 3]]) == 2
+  @test space_isequal(only(axes(srab[[1, 3]])), sectorrange(U1(1), 2))
 
   # Slice sector range with sector range
   sr1 = sectorrange(U1(1), 4)
