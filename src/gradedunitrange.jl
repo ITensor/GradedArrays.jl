@@ -48,6 +48,10 @@ end
 const GradedOneTo{T,SUR,BR,BlockLasts} =
   GradedUnitRange{T,SUR,BR,BlockLasts} where {BR<:BlockedOneTo}
 
+Base.axes(S::Base.Slice{<:GradedOneTo}) = (S.indices,)
+Base.axes1(S::Base.Slice{<:GradedOneTo}) = S.indices
+Base.unsafe_indices(S::Base.Slice{<:GradedOneTo}) = (S.indices,)
+
 function GradedUnitRange(eachblockaxis::AbstractVector, full_range::AbstractUnitRange)
   return GradedUnitRange{
     eltype(full_range),

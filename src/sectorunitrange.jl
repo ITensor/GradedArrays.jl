@@ -39,6 +39,10 @@ end
 
 const SectorOneTo{T,Sector,Range} = SectorUnitRange{T,Sector,Base.OneTo{T}}
 
+Base.axes(S::Base.Slice{<:SectorOneTo}) = (S.indices,)
+Base.axes1(S::Base.Slice{<:SectorOneTo}) = S.indices
+Base.unsafe_indices(S::Base.Slice{<:SectorOneTo}) = (S.indices,)
+
 # ====================================  Constructors  ======================================
 
 # sectorrange(SU2(1), 2:5)
