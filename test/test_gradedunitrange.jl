@@ -44,6 +44,11 @@ using Test: @test, @test_throws, @testset
   @test g1 isa GradedOneTo
   @test !isdual(g1)
 
+  # Base.Slice
+  @test axes(Base.Slice(g1)) === (g1,)
+  @test Base.axes1(Base.Slice(g1)) === g1
+  @test Base.unsafe_indices(Base.Slice(g1)) === (g1,)
+
   g2 = gradedrange(1, ["x" => 2, "y" => 3, "z" => 2])
   @test !(g2 isa GradedOneTo)
   @test !isdual(g2)
@@ -51,6 +56,11 @@ using Test: @test, @test_throws, @testset
   g1d = gradedrange(["x" => 2, "y" => 3, "z" => 2]; isdual=true)
   @test g1d isa GradedOneTo
   @test isdual(g1d)
+
+  # Base.Slice
+  @test axes(Base.Slice(g1d)) === (g1d,)
+  @test Base.axes1(Base.Slice(g1d)) === g1d
+  @test Base.unsafe_indices(Base.Slice(g1d)) === (g1d,)
 
   for g in (g1, g2, g1d)
     @test g isa GradedUnitRange

@@ -59,6 +59,11 @@ using TestExtras: @constinferred
   @test isnothing(iterate(sr, 6))
   @test isnothing(show(devnull, MIME("text/plain"), sr))
 
+  # Base.Slice
+  @test axes(Base.Slice(sr)) === (sr,)
+  @test Base.axes1(Base.Slice(sr)) === sr
+  @test Base.unsafe_indices(Base.Slice(sr)) === (sr,)
+
   @test sr == 1:6
   @test sr == sr
   @test space_isequal(sr, sr)
