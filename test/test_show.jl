@@ -1,4 +1,4 @@
-# test show separetly as it may behave differently locally and on CI.
+# test show separately as it may behave differently locally and on CI.
 # sometimes displays GradedArrays.GradedUnitRange and sometimes GradedUnitRange depending
 # on exact setup
 
