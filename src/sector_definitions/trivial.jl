@@ -6,7 +6,8 @@
 # Trivial is special as it does not have a label
 struct TrivialSector <: Sector end
 
-SymmetryStyle(::Type{TrivialSector}) = AbelianStyle()
+TKS.FusionStyle(::Type{TrivialSector}) = TKS.UniqueFusion()
+TKS.BraidingStyle(::Type{TrivialSector}) = TKS.Bosonic()
 
 Base.one(::Type{TrivialSector}) = TrivialSector()
 

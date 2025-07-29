@@ -8,7 +8,8 @@ struct su2{k} <: Sector
   j::Half{Int}
 end
 
-SymmetryStyle(::Type{<:su2}) = NotAbelianStyle()
+TKS.FusionStyle(::Type{<:su2}) = TKS.SimpleFusion()
+TKS.BraidingStyle(::Type{<:su2}) = TKS.Anyonic()
 
 dual(s::su2) = s
 

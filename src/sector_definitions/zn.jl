@@ -10,7 +10,9 @@ end
 modulus(::Type{Z{N}}) where {N} = N
 modulus(c::Z) = modulus(typeof(c))
 
-SymmetryStyle(::Type{<:Z}) = AbelianStyle()
+TKS.FusionStyle(::Type{<:Z}) = TKS.UniqueFusion()
+TKS.BraidingStyle(::Type{<:Z}) = TKS.Bosonic()
+
 sector_label(c::Z) = c.m
 
 set_sector_label(s::Z, sector_label) = typeof(s)(sector_label)

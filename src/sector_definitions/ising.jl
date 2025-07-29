@@ -18,7 +18,8 @@ function Ising(s::AbstractString)
   return error("Unrecognized input \"$s\" to Ising constructor")
 end
 
-SymmetryStyle(::Type{Ising}) = NotAbelianStyle()
+TKS.FusionStyle(::Type{Ising}) = TKS.SimpleFusion()
+TKS.BraidingStyle(::Type{Ising}) = TKS.Anyonic()
 
 dual(i::Ising) = i
 
