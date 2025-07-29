@@ -5,9 +5,6 @@ import TensorKitSectors as TKS
 using TensorKitSectors: Sector
 
 # ===================================  Base interface  =====================================
-function Base.isless(c1::C, c2::C) where {C<:Sector}
-  return isless(sector_label(c1), sector_label(c2))
-end
 
 Base.length(s::Sector) = quantum_dimension(s)
 
