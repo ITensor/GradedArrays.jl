@@ -1,7 +1,7 @@
 # This file defines the abstract type AbstractSector
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of AbstractSector
-
 using TensorProducts: TensorProducts, ⊗
+import TensorKitSectors as TKS
 
 abstract type AbstractSector end
 
