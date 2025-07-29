@@ -6,7 +6,7 @@
 
 using HalfIntegers: Half, twice
 
-struct Ising <: AbstractSector
+struct Ising <: Sector
   l::Half{Int}
 end
 

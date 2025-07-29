@@ -28,22 +28,22 @@ end
 
 # allow to fuse a Sector with a GradedUnitRange
 function TensorProducts.tensor_product(
-  s::Union{AbstractSector,SectorUnitRange}, g::AbstractGradedUnitRange
+  s::Union{Sector,SectorUnitRange}, g::AbstractGradedUnitRange
 )
   return to_gradedrange(s) ⊗ g
 end
 
 function TensorProducts.tensor_product(
-  g::AbstractGradedUnitRange, s::Union{AbstractSector,SectorUnitRange}
+  g::AbstractGradedUnitRange, s::Union{Sector,SectorUnitRange}
 )
   return g ⊗ to_gradedrange(s)
 end
 
-function TensorProducts.tensor_product(sr::SectorUnitRange, s::AbstractSector)
+function TensorProducts.tensor_product(sr::SectorUnitRange, s::Sector)
   return sr ⊗ sectorrange(s, 1)
 end
 
-function TensorProducts.tensor_product(s::AbstractSector, sr::SectorUnitRange)
+function TensorProducts.tensor_product(s::Sector, sr::SectorUnitRange)
   return sectorrange(s, 1) ⊗ sr
 end
 

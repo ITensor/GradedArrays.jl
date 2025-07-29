@@ -2,7 +2,7 @@ using BlockArrays: blocks
 using BlockSparseArrays: BlockSparseArray, blockreshape
 using GradedArrays:
   AbstractGradedUnitRange,
-  AbstractSector,
+  Sector,
   GradedArray,
   flip,
   gradedrange,
@@ -30,7 +30,7 @@ end
 # heterogeneous sectors
 TensorAlgebra.trivial_axis(t::Tuple{Vararg{AbstractGradedUnitRange}}) = ⊗(trivial.(t)...)
 # trivial_axis from sector_type
-function TensorAlgebra.trivial_axis(::Type{S}) where {S<:AbstractSector}
+function TensorAlgebra.trivial_axis(::Type{S}) where {S<:Sector}
   return gradedrange([trivial(S) => 1])
 end
 
