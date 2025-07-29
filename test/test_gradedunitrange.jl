@@ -284,8 +284,9 @@ end
   @test space_isequal(dual(g), gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2]; isdual=true))
   @test !space_isequal(dual(g), g)
   @test space_isequal(flip(g), gradedrange([SU((0, 0)) => 2, SU((1, 1)) => 2]; isdual=true))
-  @test isnothing(show(devnull, MIME("text/plain"), g))
-  @test isnothing(show(devnull, g))
+  @test sprint(show, "text/plain", g) ==
+    "GradedUnitRange{Int64, SectorUnitRange{Int64, SU{3, 2}, Base.OneTo{Int64}}, BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\nSectorUnitRange SU{3}((0, 0)) => 1:2\nSectorUnitRange SU{3}((1, 0)) => 3:8"
+  @test sprint(show, g) == "GradedUnitRange[SU{3}((0, 0)) => 2, SU{3}((1, 0)) => 2]"
 
   @test iterate(g) == (1, 1)
   for i in 1:7

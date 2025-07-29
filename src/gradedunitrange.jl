@@ -180,7 +180,7 @@ function Base.show(io::IO, ::MIME"text/plain", g::AbstractGradedUnitRange)
 end
 
 function Base.show(io::IO, g::AbstractGradedUnitRange)
-  v = sectors(g) .=> blocklengths(g)
+  v = sectors(g) .=> sector_multiplicities(g)
   s = isdual(g) ? " dual " : ""
   return print(io, nameof(typeof(g)), s, '[', join(repr.(v), ", "), ']')
 end
