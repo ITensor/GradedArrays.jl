@@ -34,7 +34,7 @@ is_zero_even_or_odd(l::HalfInteger) = iszero_even(l) || iszero_odd(l)
 iszero_even(l::HalfInteger) = l == sector_label(trivial(O2))
 iszero_odd(l::HalfInteger) = l == sector_label(zero_odd(O2))
 
-quantum_dimension(::NotAbelianStyle, s::O2) = 2 - is_zero_even_or_odd(s)
+TKS.dim(s::O2) = 2 - is_zero_even_or_odd(s)
 
 dual(s::O2) = s
 

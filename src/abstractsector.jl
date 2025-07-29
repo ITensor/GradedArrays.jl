@@ -26,13 +26,7 @@ function sector_label(c::Sector)
 end
 
 quantum_dimension(g::AbstractUnitRange) = length(g)
-quantum_dimension(s::Sector) = quantum_dimension(SymmetryStyle(s), s)
-
-function quantum_dimension(::NotAbelianStyle, c::Sector)
-  return error("method `quantum_dimension` not defined for type $(typeof(c))")
-end
-
-quantum_dimension(::AbelianStyle, ::Sector) = 1
+quantum_dimension(s::Sector) = TKS.dim(s)
 
 # convert to range
 to_gradedrange(c::Sector) = gradedrange([c => 1])
