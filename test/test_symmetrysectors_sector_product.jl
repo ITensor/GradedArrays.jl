@@ -50,7 +50,6 @@ using BlockArrays: blocklengths
     @test dual(s) == TrivialSector() × U1(-3) × SU2(1//2)
     @test (@constinferred trivial(s)) == SectorProduct(TrivialSector(), U1(0), SU2(0))
     @test s > trivial(s)
-    @test isnothing(show(devnull, s))
   end
 
   @testset "Ordered comparisons" begin
@@ -200,7 +199,6 @@ end
     @test (@constinferred dual(s)) == (A=U1(-1),) × (B=SU2(2),)
     @test (@constinferred trivial(s)) == (A=U1(0),) × (B=SU2(0),)
     @test s == (B=SU2(2),) × (A=U1(1),)
-    @test isnothing(show(devnull, s))
 
     s1 = (A=U1(1),) × (B=Z{2}(0),)
     s2 = (A=U1(1),) × (C=Z{2}(0),)

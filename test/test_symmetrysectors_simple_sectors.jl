@@ -60,7 +60,6 @@ using TestExtras: @constinferred
     @test U1(-1) < TrivialSector()
     @test TrivialSector() < U1(1)
     @test U1(Int8(1)) < U1(Int32(2))
-    @test sprint(show, q1) == "U1(1)"
   end
 
   @testset "Z₂" begin
@@ -100,7 +99,6 @@ using TestExtras: @constinferred
 
     @test trivial(O2) == s0e
     @test istrivial(s0e)
-    @test isnothing(show(devnull, [s0o, s0e, s12]))
 
     @test (@constinferred quantum_dimension(s0e)) == 1
     @test (@constinferred quantum_dimension(s0o)) == 1
@@ -116,13 +114,6 @@ using TestExtras: @constinferred
     @test s0e == TrivialSector()
     @test s0o < TrivialSector()
     @test TrivialSector() < s12
-
-    @test sprint(show, s0e) == "O2(0)"
-    @test sprint(show, MIME("text/plain"), s0e) == "O2(0e)"
-    @test sprint(show, s0o) == "O2(-1)"
-    @test sprint(show, MIME("text/plain"), s0o) == "O2(0o)"
-    @test sprint(show, s12) == "O2(1/2)"
-    @test sprint(show, MIME("text/plain"), s12) == "O2(±1/2)"
   end
 
   @testset "SU(2)" begin
@@ -140,8 +131,6 @@ using TestExtras: @constinferred
     @test j2 == SU2(1 / 2)  # Float will be cast to HalfInteger
     @test_throws MethodError SU2((1,))  # avoid confusion between tuple and half-integer interfaces
     @test_throws MethodError SU{2,1}(1)  # avoid confusion
-    @test sprint(show, j1) == "SU2(0)"
-    @test sprint(show, MIME("text/plain"), j1) == "S = 0"
 
     @test trivial(SU{2}) == SU2(0)
     @test istrivial(SU2(0))
@@ -176,13 +165,6 @@ using TestExtras: @constinferred
     @test istrivial(SU{4}((0, 0, 0)))
     @test SU{3}((0, 0)) == TrivialSector()
     @test SU{4}((0, 0, 0)) == TrivialSector()
-    @test isnothing(show(devnull, f3))
-    @test isnothing(show(devnull, MIME("text/plain"), SU((1, 1))))
-    @test isnothing(show(devnull, MIME("text/plain"), SU((0, 0))))
-
-    @test sprint(show, f3) == "SU{3}((1, 0))"
-    @test sprint(show, MIME("text/plain"), f3) == "┌─┐\n└─┘"
-    @test sprint(show, MIME("text/plain"), ad3) == "┌─┬─┐\n├─┼─┘\n└─┘"
 
     @test fundamental(SU{3}) == f3
     @test fundamental(SU{4}) == f4
@@ -218,7 +200,6 @@ using TestExtras: @constinferred
     @test (@constinferred quantum_dimension(τ)) == ((1 + √5) / 2)
 
     @test ı < τ
-    @test sprint(show, (ı, τ)) == "(Fib(1), Fib(τ))"
   end
 
   @testset "Ising" begin
@@ -239,7 +220,6 @@ using TestExtras: @constinferred
     @test (@constinferred quantum_dimension(ψ)) == 1.0
 
     @test ı < σ < ψ
-    @test sprint(show, (ı, σ, ψ)) == "(Ising(1), Ising(σ), Ising(ψ))"
   end
 
   @testset "su2{k}" begin

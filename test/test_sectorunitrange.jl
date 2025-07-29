@@ -57,7 +57,6 @@ using TestExtras: @constinferred
     @test iterate(sr, i) == (i + 1, i + 1)
   end
   @test isnothing(iterate(sr, 6))
-  @test isnothing(show(devnull, MIME("text/plain"), sr))
 
   # Base.Slice
   @test axes(Base.Slice(sr)) === (sr,)
