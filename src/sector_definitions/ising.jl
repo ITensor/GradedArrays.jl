@@ -24,7 +24,7 @@ dual(i::Ising) = i
 
 sector_label(i::Ising) = i.l
 
-trivial(::Type{Ising}) = Ising(0)
+Base.one(::Type{Ising}) = Ising(0)
 
 quantum_dimension(::NotAbelianStyle, i::Ising) = (sector_label(i) == 1//2) ? √2 : 1.0
 

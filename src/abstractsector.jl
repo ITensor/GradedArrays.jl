@@ -16,8 +16,10 @@ end
 function trivial(type::Type)
   return error("`trivial` not defined for type $(type).")
 end
+trivial(::Type{I}) where {I<:Sector} = one(I)
 
-istrivial(c::Sector) = (c == trivial(c))
+istrivial(c::Sector) = isone(c)
+istrivial(c) = (c == trivial(c))
 
 function sector_label(c::Sector)
   return error("method `sector_label` not defined for type $(typeof(c))")

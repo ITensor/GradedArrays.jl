@@ -28,7 +28,7 @@ sector_label(s::SU) = s.l
 
 groupdim(::SU{N}) where {N} = N
 
-trivial(::Type{<:SU{N}}) where {N} = SU{N}(ntuple(_ -> 0, Val(N - 1)))
+Base.one(::Type{<:SU{N}}) where {N} = SU{N}(ntuple(_ -> 0, Val(N - 1)))
 
 fundamental(::Type{<:SU{N}}) where {N} = SU{N}(ntuple(i -> i == 1, Val(N - 1)))
 

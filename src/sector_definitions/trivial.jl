@@ -8,7 +8,7 @@ struct TrivialSector <: Sector end
 
 SymmetryStyle(::Type{TrivialSector}) = AbelianStyle()
 
-trivial(::Type{TrivialSector}) = TrivialSector()
+Base.one(::Type{TrivialSector}) = TrivialSector()
 
 dual(::TrivialSector) = TrivialSector()
 
