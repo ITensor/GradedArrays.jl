@@ -25,7 +25,7 @@ end
 # use map instead of broadcast to support both Tuple and NamedTuple
 dual(s::SectorProduct) = SectorProduct(map(dual, arguments(s)))
 
-function trivial(type::Type{<:SectorProduct})
+function Base.one(type::Type{<:SectorProduct})
   return SectorProduct(arguments_trivial(arguments_type(type)))
 end
 

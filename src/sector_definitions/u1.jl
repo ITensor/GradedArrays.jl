@@ -14,8 +14,8 @@ sector_label(u::U1) = u.n
 set_sector_label(s::U1, sector_label) = typeof(s)(sector_label)
 dual(s::U1) = set_sector_label(s, -sector_label(s))
 
-trivial(::Type{U1}) = trivial(U1{Int})
-trivial(::Type{U1{T}}) where {T} = U1(zero(T))
+Base.one(::Type{U1}) = Base.one(U1{Int})
+Base.one(::Type{U1{T}}) where {T} = U1(zero(T))
 
 abelian_label_fusion_rule(sector_type::Type{<:U1}, n1, n2) = sector_type(n1 + n2)
 

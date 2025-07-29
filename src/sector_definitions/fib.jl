@@ -24,7 +24,7 @@ dual(f::Fib) = f
 
 sector_label(f::Fib) = f.l
 
-trivial(::Type{Fib}) = Fib(0)
+Base.one(::Type{Fib}) = Fib(0)
 
 quantum_dimension(::NotAbelianStyle, f::Fib) = istrivial(f) ? 1.0 : ((1 + √5) / 2)
 

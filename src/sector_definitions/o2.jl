@@ -23,7 +23,7 @@ SymmetryStyle(::Type{O2}) = NotAbelianStyle()
 
 sector_label(s::O2) = s.l
 
-trivial(::Type{O2}) = O2(0)
+Base.one(::Type{O2}) = O2(0)
 zero_odd(::Type{O2}) = O2(-1)
 
 is_zero_even_or_odd(s::O2) = is_zero_even_or_odd(sector_label(s))
