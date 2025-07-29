@@ -4,7 +4,7 @@
 
 using HalfIntegers: Half
 
-struct su2{k} <: AbstractSector
+struct su2{k} <: Sector
   j::Half{Int}
 end
 

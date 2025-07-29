@@ -4,7 +4,7 @@
 # (same fusion rules as subcategory {0,1} of su2{3})
 #
 
-struct Fib <: AbstractSector
+struct Fib <: Sector
   l::Int
 end
 

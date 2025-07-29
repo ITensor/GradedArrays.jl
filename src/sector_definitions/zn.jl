@@ -2,7 +2,7 @@
 # Cyclic group Zₙ
 #
 
-struct Z{N} <: AbstractSector
+struct Z{N} <: Sector
   m::Int
   Z{N}(m) where {N} = new{N}(mod(m, N))
 end

@@ -4,7 +4,7 @@
 
 using HalfIntegers: HalfInteger, half, twice
 
-struct SU{N,M} <: AbstractSector
+struct SU{N,M} <: Sector
   # l is the first row of the
   # Gelfand-Tsetlin (GT) pattern describing
   # an SU(N) irrep

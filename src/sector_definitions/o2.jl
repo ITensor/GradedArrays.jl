@@ -15,7 +15,7 @@ using HalfIntegers: Half, HalfInteger
 # - l=0 for trivial
 # - l=-1 for zero odd
 # - l=+|m| for Sz=±|m|
-struct O2 <: AbstractSector
+struct O2 <: Sector
   l::Half{Int}
 end
 
