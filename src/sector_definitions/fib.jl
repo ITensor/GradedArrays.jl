@@ -27,7 +27,7 @@ sector_label(f::Fib) = f.l
 
 Base.one(::Type{Fib}) = Fib(0)
 
-quantum_dimension(::NotAbelianStyle, f::Fib) = istrivial(f) ? 1.0 : ((1 + √5) / 2)
+TKS.dim(f::Fib) = istrivial(f) ? 1.0 : ((1 + √5) / 2)
 
 # Fusion rules identical to su2₃
 function label_fusion_rule(::Type{Fib}, l1, l2)

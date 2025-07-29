@@ -33,7 +33,7 @@ Base.one(::Type{<:SU{N}}) where {N} = SU{N}(ntuple(_ -> 0, Val(N - 1)))
 
 fundamental(::Type{<:SU{N}}) where {N} = SU{N}(ntuple(i -> i == 1, Val(N - 1)))
 
-function quantum_dimension(::NotAbelianStyle, s::SU)
+function TKS.dim(s::SU)
   N = groupdim(s)
   l = (sector_label(s)..., 0)
   d = 1
@@ -85,7 +85,7 @@ end
 #
 
 # optimize implementation
-quantum_dimension(s::SU{2}) = sector_label(s)[1] + 1
+TKS.dim(s::SU{2}) = sector_label(s)[1] + 1
 
 dual(s::SU{2}) = s
 

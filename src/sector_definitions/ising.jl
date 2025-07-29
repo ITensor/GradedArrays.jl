@@ -27,7 +27,7 @@ sector_label(i::Ising) = i.l
 
 Base.one(::Type{Ising}) = Ising(0)
 
-quantum_dimension(::NotAbelianStyle, i::Ising) = (sector_label(i) == 1//2) ? √2 : 1.0
+TKS.dim(i::Ising) = (sector_label(i) == 1//2) ? √2 : 1.0
 
 # Fusion rules identical to su2₂
 function label_fusion_rule(::Type{Ising}, l1, l2)

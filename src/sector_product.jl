@@ -18,7 +18,7 @@ function SymmetryStyle(T::Type{<:SectorProduct})
   return arguments_symmetrystyle(arguments_type(T))
 end
 
-function quantum_dimension(::NotAbelianStyle, s::SectorProduct)
+function TKS.dim(s::SectorProduct)
   return mapreduce(quantum_dimension, *, arguments(s))
 end
 
