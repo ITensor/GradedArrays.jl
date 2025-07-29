@@ -12,6 +12,13 @@ SymmetryStyle(x) = SymmetryStyle(typeof(x))
 # allows for abelian-like slicing style for GradedUnitRange: assume length(::label) = 1
 # and preserve labels in any slicing operation
 SymmetryStyle(T::Type) = AbelianStyle()
+function SymmetryStyle(::Type{T}) where {T<:Sector}
+    if TKS.FusionStyle(T) == TKS.UniqueFusion() && TKS.BraidingStyle(T) == TKS.Bosonic()
+        return AbelianStyle()
+    else
+        return NotAbelianStyle()
+    end
+end
 SymmetryStyle(G::Type{<:AbstractUnitRange}) = SymmetryStyle(sector_type(G))
 
 combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()

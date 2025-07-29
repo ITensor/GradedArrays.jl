@@ -19,7 +19,8 @@ struct O2 <: Sector
   l::Half{Int}
 end
 
-SymmetryStyle(::Type{O2}) = NotAbelianStyle()
+TKS.FusionStyle(::Type{O2}) = TKS.SimpleFusion()
+TKS.BraidingStyle(::Type{O2}) = TKS.Bosonic()
 
 sector_label(s::O2) = s.l
 

@@ -22,7 +22,8 @@ end
 SU{N}(t::Tuple) where {N} = SU{N,length(t)}(t)
 SU(t::Tuple) = SU{length(t) + 1}(t)  # infer N from tuple length
 
-SymmetryStyle(::Type{<:SU}) = NotAbelianStyle()
+TKS.FusionStyle(::Type{<:SU{N}}) where {N} = N ≤ 2 ? TKS.SimpleFusion() : TKS.GenericFusion()
+TKS.BraidingStyle(::Type{<:SU}) = TKS.Bosonic()
 
 sector_label(s::SU) = s.l
 

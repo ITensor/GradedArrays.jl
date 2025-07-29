@@ -18,7 +18,8 @@ function Fib(s::AbstractString)
   return error("Unrecognized input \"$s\" to Fib constructor")
 end
 
-SymmetryStyle(::Type{Fib}) = NotAbelianStyle()
+TKS.FusionStyle(::Type{Fib}) = TKS.SimpleFusion()
+TKS.BraidingStyle(::Type{Fib}) = TKS.Anyonic()
 
 dual(f::Fib) = f
 

@@ -8,7 +8,9 @@ struct U1{T} <: Sector
   n::T
 end
 
-SymmetryStyle(::Type{<:U1}) = AbelianStyle()
+TKS.FusionStyle(::Type{<:U1}) = TKS.UniqueFusion()
+TKS.BraidingStyle(::Type{<:U1}) = TKS.Bosonic()
+
 sector_label(u::U1) = u.n
 
 set_sector_label(s::U1, sector_label) = typeof(s)(sector_label)
