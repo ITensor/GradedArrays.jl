@@ -155,3 +155,7 @@ sector_multiplicities(sr::SectorUnitRange) = [sector_multiplicity(sr)]  # TBD re
 function Base.similar(A::Type{<:AbstractArray}, ax::Tuple{SectorOneTo,Vararg{SectorOneTo}})
   return similar(A, ungrade.(ax))
 end
+
+function Base.reshape(A::AbstractArray, ax::Tuple{SectorOneTo,Vararg{SectorOneTo}})
+  return reshape(A, ungrade.(ax))
+end
