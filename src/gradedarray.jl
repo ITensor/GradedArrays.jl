@@ -48,7 +48,12 @@ function similar_blocksparse(
   similar_blocktype = Base.promote_op(
     similar, blocktype(a), Type{elt}, Tuple{blockaxistypes...}
   )
-  return BlockSparseArray{elt,length(axes),similar_blocktype}(undef, axes)
+  similar_blocktype′ = if !isconcretetype(similar_blocktype)
+    AbstractArray{elt,length(axes)}
+  else
+    similar_blocktype
+  end
+  return BlockSparseArray{elt,length(axes),similar_blocktype′}(undef, axes)
 end
 
 function Base.similar(

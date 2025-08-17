@@ -24,7 +24,7 @@ GradedArraysTensorAlgebraExt = "TensorAlgebra"
 
 [compat]
 BlockArrays = "1.6"
-BlockSparseArrays = "0.8, 0.9"
+BlockSparseArrays = "0.8, 0.9.2"
 Compat = "4.16"
 FillArrays = "1.13"
 HalfIntegers = "1.6"
