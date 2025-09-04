@@ -1,6 +1,12 @@
 using BlockArrays: blocks
 using BlockSparseArrays:
-  BlockSparseArrays, eachblockaxis, mortar_axis, infimum, output_type, BlockType
+  BlockSparseArrays,
+  eachblockaxis,
+  mortar_axis,
+  infimum,
+  output_type,
+  BlockType,
+  BlockDiagonalAlgorithm
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit:
   MatrixAlgebraKit,
@@ -107,7 +113,7 @@ function MatrixAlgebraKit.initialize_output(
 end
 
 function MatrixAlgebraKit.initialize_output(
-  ::typeof(qr_full!), A::AbstractBlockSparseMatrix, alg::BlockDiagonalAlgorithm
+  ::typeof(qr_full!), A::GradedMatrix, alg::BlockDiagonalAlgorithm
 )
   BQ, BR = fieldtypes(output_type(qr_full!, blocktype(A)))
   Q = similar(A, BlockType(BQ), (axes(A, 1), dual(axes(A, 1))))
@@ -116,7 +122,7 @@ function MatrixAlgebraKit.initialize_output(
 end
 
 function MatrixAlgebraKit.initialize_output(
-  ::typeof(lq_compact!), A::AbstractBlockSparseMatrix, alg::BlockDiagonalAlgorithm
+  ::typeof(lq_compact!), A::GradedMatrix, alg::BlockDiagonalAlgorithm
 )
   brows = eachblockaxis(axes(A, 1))
   bcols = eachblockaxis(axes(A, 2))
@@ -132,12 +138,7 @@ function MatrixAlgebraKit.initialize_output(
 end
 
 function MatrixAlgebraKit.initialize_output(
-  ::typeof(lq_full!), ::AbstractBlockSparseMatrix, ::BlockPermutedDiagonalAlgorithm
-)
-  return nothing
-end
-function MatrixAlgebraKit.initialize_output(
-  ::typeof(lq_full!), A::AbstractBlockSparseMatrix, alg::BlockDiagonalAlgorithm
+  ::typeof(lq_full!), A::GradedMatrix, alg::BlockDiagonalAlgorithm
 )
   BL, BQ = fieldtypes(output_type(lq_full!, blocktype(A)))
   L = similar(A, BlockType(BL), (axes(A, 1), axes(A, 2)))
