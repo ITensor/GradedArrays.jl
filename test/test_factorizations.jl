@@ -193,13 +193,11 @@ end
   a = zeros(elt, r1, dual(r2))
   a[Block(1, 2)] = randn(elt, blocksizes(a)[1, 2])
   @test flux(a) == U1(-1)
-
-  # tests broken for nonzero flux
-  # q, r = left_polar(a)
-  # @test q * r ≈ a
-  # @test Array(q'q) ≈ I
-  # @test_broken flux(q) == trivial(flux(a))
-  # @test_broken flux(r) == flux(a)
+  q, r = left_polar(a)
+  @test q * r ≈ a
+  @test_broken Array(q'q) ≈ I
+  @test_broken flux(q) == trivial(flux(a))
+  @test_broken flux(r) == flux(a)
 end
 
 @testset "lq_compact, right_orth (eltype=$elt)" for elt in elts
@@ -275,11 +273,9 @@ end
   a = zeros(elt, r1, dual(r2))
   a[Block(1, 2)] = randn(elt, blocksizes(a)[1, 2])
   @test flux(a) == U1(-1)
-
-  # tests broken for nonzero flux
-  # l, q = right_polar(a)
-  # @test l * q ≈ a
-  # @test Array(q * q') ≈ I
-  # @test_broken flux(l) == flux(a)
-  # @test_broken flux(q) == trivial(flux(a))
+  l, q = right_polar(a)
+  @test l * q ≈ a
+  @test_broken Array(q * q') ≈ I
+  @test_broken flux(l) == flux(a)
+  @test_broken flux(q) == trivial(flux(a))
 end
