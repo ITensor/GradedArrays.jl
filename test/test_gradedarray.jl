@@ -22,7 +22,7 @@ using GradedArrays:
 using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!
-using Test: @test, @testset
+using Test: @test, @testset, @test_throws
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
   a = BlockSparseArray{elt}(undef, axes)
@@ -387,12 +387,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     a2[Block(2, 1)] = randn(elt, size(@view(a2[Block(2, 1)])))
     @test Array(a1 * a2) ≈ Array(a1) * Array(a2)
     @test Array(a1' * a2') ≈ Array(a1') * Array(a2')
-
-    a2 = BlockSparseArray{elt}(undef, r, dual(r))
-    a2[Block(1, 2)] = randn(elt, size(@view(a2[Block(1, 2)])))
-    a2[Block(2, 1)] = randn(elt, size(@view(a2[Block(2, 1)])))
     @test Array(a1' * a2) ≈ Array(a1') * Array(a2)
     @test Array(a1 * a2') ≈ Array(a1) * Array(a2')
+
+    @test_throws DimensionMismatch a1 * permutedims(a2, (2, 1))
   end
   @testset "Construct from dense" begin
     r = gradedrange([U1(0) => 2, U1(1) => 3])
