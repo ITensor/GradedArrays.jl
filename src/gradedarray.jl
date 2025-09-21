@@ -9,6 +9,7 @@ using BlockSparseArrays:
   sparsemortar
 using LinearAlgebra: Adjoint
 using TypeParameterAccessors: similartype, unwrap_array_type
+using ArrayLayouts: ArrayLayouts
 
 const GradedArray{T,N,A<:AbstractArray{T,N},Blocks<:AbstractArray{A,N},Axes<:Tuple{AbstractGradedUnitRange{<:Integer},Vararg{AbstractGradedUnitRange{<:Integer}}}} = BlockSparseArray{
   T,N,A,Blocks,Axes
@@ -235,4 +236,12 @@ function Base.showarg(io::IO, a::GradedArray, toplevel::Bool)
   !toplevel && print(io, "::")
   print(io, concretetype_to_string_truncated(typeof(a); param_truncation_length=40))
   return nothing
+end
+
+const AnyGradedMatrix{T} = Union{GradedMatrix{T},Adjoint{T,<:GradedMatrix{T}}}
+
+function ArrayLayouts._check_mul_axes(A::AnyGradedMatrix, B::AnyGradedMatrix)
+  axA = axes(A, 2)
+  axB = axes(B, 1)
+  return space_isequal(dual(axA), axB) || ArrayLayouts.throw_mul_axes_err(axA, axB)
 end
