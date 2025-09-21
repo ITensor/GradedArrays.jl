@@ -1,7 +1,7 @@
 name = "GradedArrays"
 uuid = "bc96ca6e-b7c8-4bb6-888e-c93f838762c2"
 authors = ["ITensor developers <support@itensor.org> and contributors"]
-version = "0.4.19"
+version = "0.4.20"
 
 [deps]
 ArrayLayouts = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
@@ -24,7 +24,7 @@ TensorAlgebra = "68bd88dc-f39d-4e12-b2ca-f046b68fcc6a"
 GradedArraysTensorAlgebraExt = "TensorAlgebra"
 
 [compat]
-ArrayLayouts = "1.11.2"
+ArrayLayouts = "1"
 BlockArrays = "1.6"
 BlockSparseArrays = "0.8, 0.9.3"
 Compat = "4.16"
