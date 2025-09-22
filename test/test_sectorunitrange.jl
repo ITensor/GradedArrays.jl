@@ -165,7 +165,8 @@ using TestExtras: @constinferred
   @test sr1[sr2] ≡ sr2
 
   sr = sectorrange(U1(1), 4)
+  r = Base.OneTo(4)
   @test Broadcast.axistype(sr, sr) ≡ sr
-  @test Broadcast.axistype(sr, Base.OneTo(4)) ≡ sr
-  @test Broadcast.axistype(Base.OneTo(4), sr) ≡ sr
+  @test Broadcast.axistype(sr, r) ≡ r
+  @test Broadcast.axistype(r, sr) ≡ r
 end
