@@ -6,7 +6,10 @@ using BlockSparseArrays:
   infimum,
   output_type,
   BlockType,
-  BlockDiagonalAlgorithm
+  blockstoredlength,
+  BlockPermutedDiagonalAlgorithm,
+  BlockDiagonalAlgorithm,
+  BlockDiagonalTruncationStrategy
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit:
   MatrixAlgebraKit,
@@ -16,16 +19,64 @@ using MatrixAlgebraKit:
   qr_full!,
   svd_compact!,
   svd_full!,
-  svd_trunc!
+  svd_trunc!,
+  TruncatedAlgorithm
+using TensorAlgebra: TensorAlgebra
+
+# flux but assume zero if it cannot be obtained
+_safe_flux(A) = blockstoredlength(A) > 0 ? flux(A) : trivial(sector_type(axes(A, 1)))
+
+function unfluxify(A, phi; side::Symbol=:domain)
+  side === :domain || side === :codomain || throw(ArgumentError("invalid side $(side)"))
+
+  istrivial(phi) && return TensorAlgebra.matricize(A, (1,), (2,))
+
+  if side === :domain
+    A′ = similar(A, (axes(A, 1), axes(A, 2), to_gradedrange(dual(phi))))
+    for I in eachblockstoredindex(A)
+      bI = A[I]
+      A′[I, Block(1)] = reshape(bI, size(bI)..., 1)
+    end
+
+    return TensorAlgebra.matricize(A′, (1,), (2, 3))
+  else
+    A′ = similar(A, (to_gradedrange(dual(phi)), axes(A, 1), axes(A, 2)))
+    for I in eachblockstoredindex(A)
+      bI = A[I]
+      A′[Block(1), I] = reshape(bI, 1, size(bI)...)
+    end
+    return TensorAlgebra.matricize(A′, (1, 2), (3,))
+  end
+end
+
+function fluxify(A, Aaxes, phi; side::Symbol=:domain)
+  side === :domain || side === :codomain || throw(ArgumentError("invalid side $(side)"))
+
+  istrivial(phi) && return TensorAlgebra.unmatricize(A, (Aaxes[1],), (Aaxes[2],))
+
+  if side === :domain
+    A′ = TensorAlgebra.unmatricize(A, (Aaxes[1],), (Aaxes[2], to_gradedrange(phi)))
+  else
+    A′ = TensorAlgebra.unmatricize(A, (to_gradedrange(phi), Aaxes[1]), (Aaxes[2],))
+  end
+
+  A″ = similar(A′, Aaxes)
+  for I in eachblockstoredindex(A′)
+    bI = A′[I]
+    I′ = side === :domain ? (Tuple(I)[1], Tuple(I)[2]) : (Tuple(I)[2], Tuple(I)[3])
+    A″[I′...] = dropdims(bI; dims=(side === :domain ? 3 : 1))
+  end
+  return A″
+end
 
 function BlockSparseArrays.blockdiagonalize(A::GradedMatrix)
   ax1, ax2 = axes(A)
   s1 = sectors(ax1)
   s2 = sectors(ax2)
-  @assert allunique(s1) && allunique(s2) "TBA"
-  allsectors1 = sort!(union(s1, fusion_rule.(s2, Ref(flux(A)))))
-  allsectors2 = fusion_rule.(allsectors1, Ref(dual(flux(A))))
-  allsectors2 = isdual(ax1) == isdual(ax2) ? dual.(allsectors2) : allsectors2
+  @assert allunique(s1) && allunique(s2) "input should have merged axes for sectors"
+  @assert istrivial(_safe_flux(A)) "input should have trivial flux"
+  allsectors1 = sort!(union(s1, s2))
+  allsectors2 = isdual(ax1) == isdual(ax2) ? dual.(allsectors1) : allsectors1
 
   p1 = indexin(allsectors1, s1)
   ax1′ = gradedrange(
@@ -96,6 +147,58 @@ function MatrixAlgebraKit.initialize_output(
   return U, S, Vᴴ
 end
 
+for f! in (:svd_compact!, :svd_full!)
+  @eval function MatrixAlgebraKit.$f!(
+    A::GradedMatrix, USVᴴ, alg::BlockPermutedDiagonalAlgorithm
+  )
+    MatrixAlgebraKit.check_input($f!, A, USVᴴ, alg)
+
+    phi = _safe_flux(A)
+    axA = axes(A)
+    A = unfluxify(A, phi; side=:domain)
+
+    Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
+    Ud, S, Vᴴd = $f!(Ad, BlockDiagonalAlgorithm(alg))
+    U = BlockSparseArrays.transform_rows(Ud, invrowperm)
+    Vᴴ = BlockSparseArrays.transform_cols(Vᴴd, invcolperm)
+
+    Vᴴ = fluxify(Vᴴ, (axes(Vᴴ, 1), axA[2]), phi; side=:domain)
+    Vᴴ = unfluxify(Vᴴ, phi; side=:codomain)
+    S = unfluxify(S, dual(phi); side=:domain)
+
+    nonzero_blocks_U = Block.(findall(!isempty, eachblockaxis(axes(U, 2))))
+    nonzero_blocks_Vᴴ = Block.(findall(!isempty, eachblockaxis(axes(Vᴴ, 1))))
+    return U[:, nonzero_blocks_U],
+    S[nonzero_blocks_U, nonzero_blocks_Vᴴ],
+    Vᴴ[nonzero_blocks_Vᴴ, :]
+  end
+end
+
+function MatrixAlgebraKit.svd_trunc!(
+  A::GradedMatrix, USVᴴ, alg::TruncatedAlgorithm{<:BlockPermutedDiagonalAlgorithm}
+)
+  phi = _safe_flux(A)
+  axA = axes(A)
+  A = unfluxify(A, phi; side=:domain)
+
+  Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
+  blockalg = BlockDiagonalAlgorithm(alg.alg)
+  blockstrategy = BlockDiagonalTruncationStrategy(alg.trunc)
+  Ud, S, Vᴴd = svd_trunc!(Ad, TruncatedAlgorithm(blockalg, blockstrategy))
+  U = BlockSparseArrays.transform_rows(Ud, invrowperm)
+  Vᴴ = BlockSparseArrays.transform_cols(Vᴴd, invcolperm)
+
+  Vᴴ = fluxify(Vᴴ, (axes(Vᴴ, 1), axA[2]), phi; side=:domain)
+  Vᴴ = unfluxify(Vᴴ, phi; side=:codomain)
+  S = unfluxify(S, dual(phi); side=:domain)
+
+  nonzero_blocks_U = Block.(findall(!isempty, eachblockaxis(axes(U, 2))))
+  nonzero_blocks_Vᴴ = Block.(findall(!isempty, eachblockaxis(axes(Vᴴ, 1))))
+  return U[:, nonzero_blocks_U],
+  S[nonzero_blocks_U, nonzero_blocks_Vᴴ],
+  Vᴴ[nonzero_blocks_Vᴴ, :]
+end
+
 function MatrixAlgebraKit.initialize_output(
   ::typeof(qr_compact!), A::GradedMatrix, alg::BlockDiagonalAlgorithm
 )
@@ -121,6 +224,28 @@ function MatrixAlgebraKit.initialize_output(
   return Q, R
 end
 
+for f! in (:qr_compact!, :qr_full!)
+  @eval function MatrixAlgebraKit.$f!(
+    A::GradedMatrix, QR, alg::BlockPermutedDiagonalAlgorithm
+  )
+    MatrixAlgebraKit.check_input($f!, A, QR, alg)
+
+    axA = axes(A)
+    phi = _safe_flux(A)
+    A = unfluxify(A, phi; side=:domain)
+
+    Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
+    Qd, Rd = $f!(Ad, BlockDiagonalAlgorithm(alg))
+    Q = BlockSparseArrays.transform_rows(Qd, invrowperm)
+    R = BlockSparseArrays.transform_cols(Rd, invcolperm)
+
+    R = fluxify(R, (axes(R, 1), axA[2]), phi; side=:domain)
+
+    nonzero_blocks = Block.(findall(!isempty, eachblockaxis(axes(R, 1))))
+    return Q[:, nonzero_blocks], R[nonzero_blocks, :]
+  end
+end
+
 function MatrixAlgebraKit.initialize_output(
   ::typeof(lq_compact!), A::GradedMatrix, alg::BlockDiagonalAlgorithm
 )
@@ -144,4 +269,27 @@ function MatrixAlgebraKit.initialize_output(
   L = similar(A, BlockType(BL), (axes(A, 1), axes(A, 2)))
   Q = similar(A, BlockType(BQ), (dual(axes(A, 2)), axes(A, 2)))
   return L, Q
+end
+
+for f! in (:lq_compact!, :lq_full!)
+  @eval function MatrixAlgebraKit.$f!(
+    A::GradedMatrix, LQ, alg::BlockPermutedDiagonalAlgorithm
+  )
+    MatrixAlgebraKit.check_input($f!, A, LQ, alg)
+
+    phi = _safe_flux(A)
+    axA = axes(A)
+    A = unfluxify(A, phi; side=:codomain)
+
+    Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
+    Ld, Qd = $f!(Ad, BlockDiagonalAlgorithm(alg))
+    L = BlockSparseArrays.transform_rows(Ld, invrowperm)
+    Q = BlockSparseArrays.transform_cols(Qd, invcolperm)
+
+    L = fluxify(L, (axA[1], axes(L, 2)), phi; side=:codomain)
+
+    # avoid length zero blockaxis
+    nonzero_blocks = Block.(findall(!isempty, eachblockaxis(axes(L, 2))))
+    return L[:, nonzero_blocks], Q[nonzero_blocks, :]
+  end
 end
