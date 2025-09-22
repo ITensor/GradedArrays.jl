@@ -46,7 +46,7 @@ using TestExtras: @constinferred
   @test length(sr) == 6
   @test firstindex(sr) == 1
   @test lastindex(sr) == 6
-  @test eltype(sr) === Int
+  @test eltype(sr) ≡ Int
   @test step(sr) == 1
   @test eachindex(sr) == Base.oneto(6)
   @test only(axes(sr)) isa SectorOneTo
@@ -59,9 +59,9 @@ using TestExtras: @constinferred
   @test isnothing(iterate(sr, 6))
 
   # Base.Slice
-  @test axes(Base.Slice(sr)) === (sr,)
-  @test Base.axes1(Base.Slice(sr)) === sr
-  @test Base.unsafe_indices(Base.Slice(sr)) === (sr,)
+  @test axes(Base.Slice(sr)) ≡ (sr,)
+  @test Base.axes1(Base.Slice(sr)) ≡ sr
+  @test Base.unsafe_indices(Base.Slice(sr)) ≡ (sr,)
 
   @test sr == 1:6
   @test sr == sr
@@ -113,8 +113,8 @@ using TestExtras: @constinferred
   @test blockisequal(sr, sr)
 
   # GradedUnitRanges interface
-  @test sector_type(sr) === SU{3,2}
-  @test sector_type(typeof(sr)) === SU{3,2}
+  @test sector_type(sr) ≡ SU{3,2}
+  @test sector_type(typeof(sr)) ≡ SU{3,2}
   @test sectors(sr) == [SU((1, 0))]
   @test sector_multiplicity(sr) == 2
   @test sector_multiplicities(sr) == [2]
@@ -138,7 +138,7 @@ using TestExtras: @constinferred
   end
   @test sr[2:3] == 2:3
   @test (@constinferred getindex(sr, 2:3)) isa UnitRange
-  @test sr[Block(1)] === sr
+  @test sr[Block(1)] ≡ sr
   @test_throws BlockBoundsError sr[Block(2)]
 
   sr2 = (@constinferred getindex(sr, (:, 2)))
@@ -162,5 +162,10 @@ using TestExtras: @constinferred
   # Slice sector range with sector range
   sr1 = sectorrange(U1(1), 4)
   sr2 = sectorrange(U1(1), 3)
-  @test sr1[sr2] === sr2
+  @test sr1[sr2] ≡ sr2
+
+  sr = sectorrange(U1(1), 4)
+  @test Broadcast.axistype(sr, sr) ≡ sr
+  @test Broadcast.axistype(sr, Base.OneTo(4)) ≡ sr
+  @test Broadcast.axistype(Base.OneTo(4), sr) ≡ sr
 end

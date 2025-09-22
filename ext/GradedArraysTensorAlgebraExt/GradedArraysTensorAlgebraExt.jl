@@ -62,6 +62,14 @@ function TensorAlgebra.unmatricize(
   m::AbstractMatrix,
   blocked_axes::BlockedTuple{2,<:Any,<:Tuple{Vararg{AbstractUnitRange}}},
 )
+  if isempty(blocked_axes)
+    # Handle edge case of empty blocked_axes, which can occur
+    # when matricizing a 0-dimensional array (a scalar).
+    a = similar(m, ())
+    a[] = only(m)
+    return a
+  end
+
   # First, fuse axes to get `sectormergesortperm`.
   # Then unpermute the blocks.
   fused_axes = matricize_axes(blocked_axes)

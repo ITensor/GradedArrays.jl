@@ -159,3 +159,10 @@ end
 function Base.reshape(A::AbstractArray, ax::Tuple{SectorOneTo,Vararg{SectorOneTo}})
   return reshape(A, ungrade.(ax))
 end
+
+# Fixes issues when broadcasting over mixtures of arrays
+# where some have SectorOneTo axes and some have OneTo axes,
+# which can show up in BlockSparseArrays blockwise broadcasting.
+# See https://github.com/ITensor/GradedArrays.jl/pull/65.
+Base.Broadcast.axistype(r1::SectorOneTo, ::Base.OneTo) = r1
+Base.Broadcast.axistype(::Base.OneTo, r2::SectorOneTo) = r2
