@@ -196,8 +196,8 @@ end
   q, r = left_polar(a)
   @test q * r ≈ a
   @test_broken Array(q'q) ≈ I
-  @test_broken flux(q) == trivial(flux(a))
-  @test_broken flux(r) == flux(a)
+  @test flux(q) == trivial(flux(a))
+  @test flux(r) == flux(a)
 end
 
 @testset "lq_compact, right_orth (eltype=$elt)" for elt in elts
@@ -276,6 +276,6 @@ end
   l, q = right_polar(a)
   @test l * q ≈ a
   @test_broken Array(q * q') ≈ I
-  @test_broken flux(l) == flux(a)
-  @test_broken flux(q) == trivial(flux(a))
+  @test flux(l) == flux(a)
+  @test flux(q) == trivial(flux(a))
 end

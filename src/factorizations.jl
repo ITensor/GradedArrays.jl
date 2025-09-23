@@ -20,7 +20,10 @@ using MatrixAlgebraKit:
   svd_compact!,
   svd_full!,
   svd_trunc!,
-  TruncatedAlgorithm
+  left_polar!,
+  right_polar!,
+  TruncatedAlgorithm,
+  PolarViaSVD
 using TensorAlgebra: TensorAlgebra
 
 # flux but assume zero if it cannot be obtained
@@ -224,7 +227,7 @@ function MatrixAlgebraKit.initialize_output(
   return Q, R
 end
 
-for f! in (:qr_compact!, :qr_full!)
+for f! in (:qr_compact!, :qr_full!, :left_polar!)
   @eval function MatrixAlgebraKit.$f!(
     A::GradedMatrix, QR, alg::BlockPermutedDiagonalAlgorithm
   )
@@ -271,7 +274,7 @@ function MatrixAlgebraKit.initialize_output(
   return L, Q
 end
 
-for f! in (:lq_compact!, :lq_full!)
+for f! in (:lq_compact!, :lq_full!, :right_polar!)
   @eval function MatrixAlgebraKit.$f!(
     A::GradedMatrix, LQ, alg::BlockPermutedDiagonalAlgorithm
   )
@@ -292,4 +295,49 @@ for f! in (:lq_compact!, :lq_full!)
     nonzero_blocks = Block.(findall(!isempty, eachblockaxis(axes(L, 2))))
     return L[:, nonzero_blocks], Q[nonzero_blocks, :]
   end
+end
+
+# Fix for polar decompositions not following standard codepath
+for f! in (:left_polar!, :right_polar!)
+  @eval function MatrixAlgebraKit.$f!(A::GradedMatrix, alg::PolarViaSVD)
+    return $f!(A, MatrixAlgebraKit.initialize_output($f!, A, alg), alg)
+  end
+end
+
+function MatrixAlgebraKit.left_polar!(
+  A::GradedMatrix, WP, alg::PolarViaSVD{<:BlockPermutedDiagonalAlgorithm}
+)
+  MatrixAlgebraKit.check_input(left_polar!, A, WP, alg)
+
+  phi = _safe_flux(A)
+  axA = axes(A)
+  A = unfluxify(A, phi; side=:domain)
+
+  Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
+  Ud, S, Vᴴd = svd_compact!(Ad, BlockDiagonalAlgorithm(alg.svdalg))
+  U = BlockSparseArrays.transform_rows(Ud, invrowperm)
+  Vᴴ = BlockSparseArrays.transform_cols(Vᴴd, invcolperm)
+
+  W = U * Vᴴ
+  P = Vᴴ' * S * Vᴴ
+  P = fluxify(P, (dual(axes(W, 2)), axA[2]), phi; side=:domain)
+  return W, P
+end
+
+function MatrixAlgebraKit.right_polar!(A::GradedMatrix, PWᴴ, alg::PolarViaSVD)
+  MatrixAlgebraKit.check_input(right_polar!, A, PWᴴ, alg)
+
+  phi = _safe_flux(A)
+  axA = axes(A)
+  A = unfluxify(A, phi; side=:codomain)
+
+  Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
+  Ud, S, Vᴴd = svd_compact!(Ad, BlockDiagonalAlgorithm(alg.svdalg))
+  U = BlockSparseArrays.transform_rows(Ud, invrowperm)
+  Vᴴ = BlockSparseArrays.transform_cols(Vᴴd, invcolperm)
+
+  Wᴴ = U * Vᴴ
+  P = U * S * U'
+  P = fluxify(P, (axA[1], dual(axes(Wᴴ, 1))), phi; side=:domain)
+  return P, Wᴴ
 end
