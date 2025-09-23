@@ -84,7 +84,7 @@ function BlockSparseArrays.blockdiagonalize(A::GradedMatrix)
   p1 = indexin(allsectors1, s1)
   ax1′ = gradedrange(
     map(allsectors1, p1) do s, i
-      return s => isnothing(i) ? 0 : length(ax1[Block(i)].full_range)
+      return s => isnothing(i) ? 0 : length(ax1[Block(i)])
     end;
     isdual=isdual(ax1),
   )
@@ -92,7 +92,7 @@ function BlockSparseArrays.blockdiagonalize(A::GradedMatrix)
   p2 = indexin(allsectors2, s2)
   ax2′ = gradedrange(
     map(allsectors2, p2) do s, i
-      return s => isnothing(i) ? 0 : length(ax2[Block(i)].full_range)
+      return s => isnothing(i) ? 0 : length(ax2[Block(i)])
     end;
     isdual=isdual(ax2),
   )
