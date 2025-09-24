@@ -20,6 +20,7 @@ include("sector_product.jl")
 
 include("fusion.jl")
 include("gradedarray.jl")
+include("tensoralgebra.jl")
 include("factorizations.jl")
 
 export SU2,
@@ -38,4 +39,5 @@ export SU2,
   sector_type,
   space_isequal,
   ungrade
+
 end

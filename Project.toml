@@ -18,9 +18,6 @@ TensorAlgebra = "68bd88dc-f39d-4e12-b2ca-f046b68fcc6a"
 TensorProducts = "decf83d6-1968-43f4-96dc-fdb3fe15fc6d"
 TypeParameterAccessors = "7e5a90cf-f82e-492e-a09b-e3e26432c138"
 
-[extensions]
-GradedArraysTensorAlgebraExt = "TensorAlgebra"
-
 [compat]
 ArrayLayouts = "1"
 BlockArrays = "1.6"

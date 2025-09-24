@@ -1,5 +1,3 @@
-module GradedArraysTensorAlgebraExt
-
 using BlockArrays: blocks
 using BlockSparseArrays: BlockSparseArray, blockreshape
 using GradedArrays:
@@ -90,5 +88,4 @@ end
 function sectormergesort(a::AbstractArray)
   I = sectormergesortperm.(axes(a))
   return a[I...]
-end
 end
