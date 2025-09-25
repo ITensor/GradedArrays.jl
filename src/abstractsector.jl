@@ -39,7 +39,7 @@ function Base.show(io::IO, r::Sector{T,I}) where {T,I}
   ioc = IOContext(io, :typeinfo => I)
   print(io, '(')
   show(ioc, r.sector)
-  print(io, ')')
+  return print(io, ')')
 end
 
 # =================================  Sectors interface  ====================================
@@ -139,6 +139,7 @@ sector_type(S::Type{<:Sector}) = S
 
 const TrivialSector = Sector{Int,TKS.Trivial}
 const Z{N} = Sector{Int,TKS.ZNIrrep{N}}
+sector_label(c::TKS.ZNIrrep) = c.n
 const Z2 = Z{2}
 
 const U1 = Sector{Int,TKS.U1Irrep}
@@ -146,6 +147,35 @@ U1(n::Real) = U1(TKS.U1Irrep(n))
 sector_label(c::TKS.U1Irrep) = c.charge
 
 const O2 = Sector{Int,TKS.CU1Irrep}
+function O2(l::Real)
+  j = max(l, zero(l))
+  s = if l == 0
+    0
+  elseif l == -1
+    1
+  else
+    2
+  end
+  return O2(TKS.CU1Irrep(j, s))
+end
+function sector_label(c::TKS.CU1Irrep)
+  return if c.s == 0
+    c.j
+  elseif c.s == 1
+    oftype(c.j, -1)
+  else
+    c.j
+  end
+end
+
 const SU2 = Sector{Int,TKS.SU2Irrep}
+sector_label(c::TKS.SU2Irrep) = c.j
+
 const Fib = Sector{Int,TKS.FibonacciAnyon}
+function Fib(s::AbstractString)
+  s == "1" && return Fib(0)
+  s == "τ" && return Fib(1)
+  throw(ArgumentError("Unrecognized input `$s`"))
+end
+
 const Ising = Sector{Int,TKS.IsingAnyon}
