@@ -2,7 +2,7 @@
 # e.g. U(1)×U(1), U(1)×SU2(2)×SU(3)
 
 # =====================================  Definition  =======================================
-struct SectorProduct{Sectors} <: Sector
+struct SectorProduct{Sectors} <: AbstractSector
   arguments::Sectors
   global _SectorProduct(l) = new{typeof(l)}(l)
 end
