@@ -143,7 +143,6 @@ sector_label(c::TKS.ZNIrrep) = c.n
 const Z2 = Z{2}
 
 const U1 = Sector{Int,TKS.U1Irrep}
-U1(n::Real) = U1(TKS.U1Irrep(n))
 sector_label(c::TKS.U1Irrep) = c.charge
 
 const O2 = Sector{Int,TKS.CU1Irrep}
@@ -179,3 +178,7 @@ function Fib(s::AbstractString)
 end
 
 const Ising = Sector{Int,TKS.IsingAnyon}
+function Ising(s::AbstractString)
+  s in ("1", "σ", "ψ") || throw(ArgumentError("Unrecognized input `$s`"))
+  return Ising(Symbol(v))
+end
