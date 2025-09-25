@@ -20,7 +20,7 @@ using GradedArrays:
   GradedUnitRange,
   SectorOneTo,
   SectorUnitRange,
-  SU,
+  SU2,
   checkspaces,
   checkspaces_dual,
   dual,
@@ -265,23 +265,23 @@ end
 
 @testset "Non abelian axis" begin
   b0 = blockedrange([2, 6])
-  g = gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2])
+  g = gradedrange([SU2(0) => 2, SU2(1) => 2])
 
   @test g isa GradedOneTo
   @test length(g) == 8
   @test !isdual(g)
   @test blockisequal(g, b0)
-  @test sectors(g) == [SU((0, 0)), SU((1, 0))]
+  @test sectors(g) == [SU2(0), SU2(1)]
   @test sector_multiplicities(g) == [2, 2]
-  @test space_isequal(g[Block(1)], sectorrange(SU((0, 0)), 2))
-  @test space_isequal(g[Block(2)], sectorrange(SU((1, 0)), 3:8))
+  @test space_isequal(g[Block(1)], sectorrange(SU2(0), 2))
+  @test space_isequal(g[Block(2)], sectorrange(SU2(1), 3:8))
 
-  @test sector_type(g) === SU{3,2}
+  @test sector_type(g) === SU2
   @test space_isequal(g, g)
   @test g == 1:8
-  @test space_isequal(dual(g), gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2]; isdual=true))
+  @test space_isequal(dual(g), gradedrange([SU2(0) => 2, SU2(1) => 2]; isdual=true))
   @test !space_isequal(dual(g), g)
-  @test space_isequal(flip(g), gradedrange([SU((0, 0)) => 2, SU((1, 1)) => 2]; isdual=true))
+  @test space_isequal(flip(g), gradedrange([SU2(0) => 2, SU2(1) => 2]; isdual=true))
 
   @test iterate(g) == (1, 1)
   for i in 1:7
@@ -293,8 +293,8 @@ end
   @test g[4] == 4
   @test g[Block(1)[1]] == 1
   @test g[Block(2)[1]] == 3
-  @test findfirstblock(g, SU((1, 0))) == Block(2)
-  @test isnothing(findfirstblock(g, SU((2, 0))))
+  @test findfirstblock(g, SU2(1)) == Block(2)
+  @test isnothing(findfirstblock(g, SU2(1 / 2)))
 
   # Non-abelian slicing operations
   a = g[2:4]
@@ -304,7 +304,7 @@ end
   # Regression test for ambiguity errors.
   a = g[BlockSlice(Block(1), Base.OneTo(2))]
   @test a isa SectorUnitRange
-  @test space_isequal(a, sectorrange(SU((0, 0)) => 2))
+  @test space_isequal(a, sectorrange(SU2(0) => 2))
   @test space_isequal(g, g[:])
   @test typeof(g[:]) === typeof(g)
 
@@ -315,10 +315,10 @@ end
   a = g[Block(2):Block(2)]
   @test a isa GradedUnitRange
   @test !(a isa GradedOneTo)
-  @test space_isequal(only(blocks(a)), sectorrange(SU((1, 0)), 3:8))
+  @test space_isequal(only(blocks(a)), sectorrange(SU2(1), 3:8))
   ax = only(axes(a))
   @test ax isa GradedOneTo
-  @test space_isequal(ax, gradedrange([SU((1, 0)) => 2]))
+  @test space_isequal(ax, gradedrange([SU2(1) => 2]))
 
   a = g[Block.(Base.oneto(2))]
   @test a isa GradedOneTo
@@ -328,49 +328,47 @@ end
   @test a isa BlockVector
   @test length(a) == 8
   @test blocklength(a) == 2
-  @test sectors(a) == [SU((1, 0)), SU((0, 0))]
+  @test sectors(a) == [SU2(1), SU2(0)]
   @test length.(blocks(g)) == [2, 6]
 
-  @test space_isequal(a[Block(1)], sectorrange(SU((1, 0)), 3:8))
-  @test space_isequal(a[Block(2)], sectorrange(SU((0, 0)), 2))
+  @test space_isequal(a[Block(1)], sectorrange(SU2(1), 3:8))
+  @test space_isequal(a[Block(2)], sectorrange(SU2(0), 2))
   ax = only(axes(a))
   @test ax isa GradedOneTo
-  @test space_isequal(ax, gradedrange([SU((1, 0)) => 2, SU((0, 0)) => 2]))
+  @test space_isequal(ax, gradedrange([SU2(1) => 2, SU2(0) => 2]))
 
   # slice with one multiplicity
   # TODO use dedicated Kroneckrange
   sr = g[(:, 1)]
   @test sr isa SectorUnitRange
   @test !(sr isa SectorOneTo)
-  @test space_isequal(sr, sectorrange(SU((0, 0)), 1:1))
+  @test space_isequal(sr, sectorrange(SU2(0), 1:1))
   sr = g[(:, 3)]
   @test sr isa SectorUnitRange
   @test !(sr isa SectorOneTo)
-  @test space_isequal(sr, sectorrange(SU((1, 0)), 3:5))
+  @test space_isequal(sr, sectorrange(SU2(1), 3:5))
 
-  g3 = gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2, SU((2, 1)) => 2]; isdual=true)
+  g3 = gradedrange([SU2(0) => 2, SU2(1 / 2) => 2, SU2(1) => 2]; isdual=true)
   @test g3[(:, 1:1)] isa GradedUnitRange
-  @test space_isequal(g3[(:, 1:1)], gradedrange([SU((0, 0)) => 1]; isdual=true))
-  @test space_isequal(g3[(:, 1:2)], gradedrange([SU((0, 0)) => 2]; isdual=true))
+  @test space_isequal(g3[(:, 1:1)], gradedrange([SU2(0) => 1]; isdual=true))
+  @test space_isequal(g3[(:, 1:2)], gradedrange([SU2(0) => 2]; isdual=true))
   @test space_isequal(
-    g3[(:, 1:3)], gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 1]; isdual=true)
+    g3[(:, 1:3)], gradedrange([SU2(0) => 2, SU2(1 / 2) => 1]; isdual=true)
   )
   @test space_isequal(
-    g3[(:, 1:4)], gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2]; isdual=true)
+    g3[(:, 1:4)], gradedrange([SU2(0) => 2, SU2(1 / 2) => 2]; isdual=true)
   )
   @test space_isequal(
-    g3[(:, 1:5)],
-    gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2, SU((2, 1)) => 1]; isdual=true),
+    g3[(:, 1:5)], gradedrange([SU2(0) => 2, SU2(1 / 2) => 2, SU2(1) => 1]; isdual=true)
   )
   @test space_isequal(
-    g3[(:, 2:5)],
-    gradedrange(2, [SU((0, 0)) => 1, SU((1, 0)) => 2, SU((2, 1)) => 1]; isdual=true),
+    g3[(:, 2:5)], gradedrange(2, [SU2(0) => 1, SU2(1 / 2) => 2, SU2(1) => 1]; isdual=true)
   )
   @test space_isequal(
-    g3[(:, 3:5)], gradedrange(3, [SU((1, 0)) => 2, SU((2, 1)) => 1]; isdual=true)
+    g3[(:, 3:5)], gradedrange(3, [SU2(1 / 2) => 2, SU2(1) => 1]; isdual=true)
   )
   @test space_isequal(
-    g3[(:, 4:5)], gradedrange(6, [SU((1, 0)) => 1, SU((2, 1)) => 1]; isdual=true)
+    g3[(:, 4:5)], gradedrange(5, [SU2(1 / 2) => 1, SU2(1) => 1]; isdual=true)
   )
 
   a = g[[Block(2)[1:3], Block(1)[2:2]]]
