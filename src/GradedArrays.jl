@@ -14,10 +14,8 @@ include("gradedarray.jl")
 include("tensoralgebra.jl")
 include("factorizations.jl")
 
-export SU2,
-  U1,
-  Z,
-  dag,
+export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
+export dag,
   dual,
   flip,
   gradedrange,

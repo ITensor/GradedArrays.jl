@@ -153,7 +153,7 @@ function gradedunitrange_getindices(::NotAbelianStyle, g::AbstractUnitRange, ind
   return blockedunitrange_getindices(ungrade(g), indices)
 end
 
-function findfirstblock(g::AbstractGradedUnitRange, s::Sector)
+function findfirstblock(g::AbstractGradedUnitRange, s::SectorRange)
   return findfirstblock_sector(g, s)
 end
 

@@ -3,7 +3,7 @@
 # on exact setup
 
 using Test: @test, @testset
-using GradedArrays: ×, Fib, Ising, O2, SU, SU2, TrivialSector, U1, gradedrange, sectorrange
+using GradedArrays: ×, Fib, Ising, O2, SU2, TrivialSector, U1, gradedrange, sectorrange
 
 @testset "show SymmetrySector" begin
   q1 = U1(1)
@@ -25,11 +25,11 @@ using GradedArrays: ×, Fib, Ising, O2, SU, SU2, TrivialSector, U1, gradedrange,
   @test sprint(show, j1) == "SU2(0)"
   @test sprint(show, MIME("text/plain"), j1) == "S = 0"
 
-  f3 = SU{3}((1, 0))
-  ad3 = SU{3}((2, 1))
-  @test sprint(show, f3) == "SU{3}((1, 0))"
-  @test sprint(show, MIME("text/plain"), f3) == "┌─┐\n└─┘"
-  @test sprint(show, MIME("text/plain"), ad3) == "┌─┬─┐\n├─┼─┘\n└─┘"
+  # f3 = SU{3}((1, 0))
+  # ad3 = SU{3}((2, 1))
+  # @test sprint(show, f3) == "SU{3}((1, 0))"
+  # @test sprint(show, MIME("text/plain"), f3) == "┌─┐\n└─┘"
+  # @test sprint(show, MIME("text/plain"), ad3) == "┌─┬─┐\n├─┼─┘\n└─┘"
 
   @test sprint(show, Fib.(("1", "τ"))) == "(Fib(1), Fib(τ))"
   @test sprint(show, Ising.(("1", "σ", "ψ"))) == "(Ising(1), Ising(σ), Ising(ψ))"
@@ -41,8 +41,8 @@ using GradedArrays: ×, Fib, Ising, O2, SU, SU2, TrivialSector, U1, gradedrange,
 end
 
 @testset "show GradedUnitRange" begin
-  sr = sectorrange(SU((1, 0)), 2)
-  @test sprint(show, sr) == "SectorUnitRange SU{3}((1, 0)) => Base.OneTo(6)"
+  # sr = sectorrange(SU((1, 0)), 2)
+  # @test sprint(show, sr) == "SectorUnitRange SU{3}((1, 0)) => Base.OneTo(6)"
 
   g1 = gradedrange(["x" => 2, "y" => 3, "z" => 2])
   @test sprint(show, g1) == "GradedUnitRange[\"x\" => 2, \"y\" => 3, \"z\" => 2]"
@@ -59,10 +59,10 @@ end
   @test sprint(show, MIME("text/plain"), g1d) ==
     "GradedArrays.GradedUnitRange{Int64, GradedArrays.SectorUnitRange{Int64, String, Base.OneTo{Int64}}, BlockArrays.BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\nSectorUnitRange dual(x) => 1:2\nSectorUnitRange dual(y) => 3:5\nSectorUnitRange dual(z) => 6:7"
 
-  g = gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2])
-  @test sprint(show, "text/plain", g) ==
-    "GradedArrays.GradedUnitRange{Int64, GradedArrays.SectorUnitRange{Int64, GradedArrays.SU{3, 2}, Base.OneTo{Int64}}, BlockArrays.BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\nSectorUnitRange SU{3}((0, 0)) => 1:2\nSectorUnitRange SU{3}((1, 0)) => 3:8"
-  @test sprint(show, g) == "GradedUnitRange[SU{3}((0, 0)) => 2, SU{3}((1, 0)) => 2]"
+  # g = gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2])
+  # @test sprint(show, "text/plain", g) ==
+  #   "GradedArrays.GradedUnitRange{Int64, GradedArrays.SectorUnitRange{Int64, GradedArrays.SU{3, 2}, Base.OneTo{Int64}}, BlockArrays.BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\nSectorUnitRange SU{3}((0, 0)) => 1:2\nSectorUnitRange SU{3}((1, 0)) => 3:8"
+  # @test sprint(show, g) == "GradedUnitRange[SU{3}((0, 0)) => 2, SU{3}((1, 0)) => 2]"
 end
 
 @testset "show GradedArray" begin

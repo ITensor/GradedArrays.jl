@@ -5,41 +5,35 @@ import TensorKitSectors as TKS
 using TensorKitSectors: Sector as AbstractSector
 
 """
-    Sector(sector)
-    Sector{T}(sector)
+    SectorRange(sector::AbstractSector)
 
-Unit range with elements of type `T` that additionally stores a sector to denote the grading.
+Unit range with elements of type `Int` that additionally stores a sector to denote the grading.
 Equivalent to `Base.OneTo(length(sector))`.
 """
-struct Sector{T,I<:AbstractSector} <: AbstractUnitRange{T}
+struct SectorRange{I<:AbstractSector} <: AbstractUnitRange{Int}
   sector::I
 end
 
-Sector{T,I}(a) where {T,I} = Sector{T,I}(convert(I, a)::I)
-Sector(a::Sector) = Sector{Int}(a)
-
-sector(r::Sector) = r.sector
-isdual(r::Sector) = r.isdual
+sector(r::SectorRange) = r.sector
+sector_type(I::Type{<:SectorRange}) = I
 
 # ===================================  Base interface  =====================================
 
-Base.length(r::Sector) = quantum_dimension(r)
-Base.isless(r1::Sector, r2::Sector) = isless(sector(r1), sector(r2))
-Base.isequal(r1::Sector, r2::Sector) = isequal(sector(r1), sector(r2))
-Base.:(==)(r1::Sector, r2::Sector) = sector(r1) == sector(r2)
+Base.length(r::SectorRange) = quantum_dimension(r)
+Base.isless(r1::SectorRange, r2::SectorRange) = isless(sector(r1), sector(r2))
+Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(sector(r1), sector(r2))
+Base.:(==)(r1::SectorRange, r2::SectorRange) = sector(r1) == sector(r2)
 
-Base.hash(r::Sector, h::UInt) = hash(r.sector, h)
+Base.hash(r::SectorRange, h::UInt) = hash(r.sector, h)
 
-Base.OneTo(r::Sector{T}) where {T} = Base.OneTo(T(length(r))::T)
-Base.first(r::Sector) = first(Base.OneTo(r))
-Base.last(r::Sector) = last(Base.OneTo(r))
+Base.OneTo(r::SectorRange) = Base.OneTo(length(r))
+Base.first(r::SectorRange) = first(Base.OneTo(r))
+Base.last(r::SectorRange) = last(Base.OneTo(r))
 
-function Base.show(io::IO, r::Sector{T,I}) where {T,I}
+function Base.show(io::IO, r::SectorRange{I}) where {I}
   show(io, typeof(r))
-  ioc = IOContext(io, :typeinfo => I)
-  print(io, '(')
-  show(ioc, r.sector)
-  return print(io, ')')
+  print(io, '(', sector_label(sector(r)), ')')
+  return nothing
 end
 
 # =================================  Sectors interface  ====================================
@@ -51,33 +45,34 @@ end
 function trivial(type::Type)
   return error("`trivial` not defined for type $(type).")
 end
-trivial(::Type{Sector{T,I}}) where {T,I} = Sector{T,I}(one(I))
+trivial(::Type{SectorRange{I}}) where {I} = SectorRange{I}(one(I))
 
-istrivial(r::Sector) = isone(sector(r))
+istrivial(r::SectorRange) = isone(sector(r))
 istrivial(r) = (r == trivial(r))
 
-sector_label(r::Sector) = sector_label(sector(r))
+sector_label(r::SectorRange) = sector_label(sector(r))
 function sector_label(c::AbstractSector)
   return error("method `sector_label` not defined for type $(typeof(c))")
 end
 
 quantum_dimension(g::AbstractUnitRange) = length(g)
-quantum_dimension(r::Sector) = quantum_dimension(sector(r))
+quantum_dimension(r::SectorRange) = quantum_dimension(sector(r))
 quantum_dimension(s::AbstractSector) = TKS.dim(s)
 
 # convert to range
-to_gradedrange(c::Sector) = gradedrange([c => 1])
+to_gradedrange(c::SectorRange) = gradedrange([c => 1])
+to_gradedrange(c::AbstractSector) = to_gradedrange(SectorRange(c))
 
-function nsymbol(s1::Sector, s2::Sector, s3::Sector)
+function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
   return TKS.Nsymbol(sector(s1), sector(s2), sector(s3))
 end
 
-dual(r1::Sector) = typeof(r1)(TKS.dual(sector(r1)))
+dual(r1::SectorRange) = typeof(r1)(TKS.dual(sector(r1)))
 
 # ===============================  Fusion rule interface  ==================================
 
-TKS.FusionStyle(::Type{<:Sector{<:Any,I}}) where {I} = TKS.FusionStyle(I)
-TKS.BraidingStyle(::Type{<:Sector{<:Any,I}}) where {I} = TKS.BraidingStyle(I)
+TKS.FusionStyle(::Type{SectorRange{I}}) where {I} = TKS.FusionStyle(I)
+TKS.BraidingStyle(::Type{SectorRange{I}}) where {I} = TKS.BraidingStyle(I)
 
 abstract type SymmetryStyle end
 
@@ -90,8 +85,8 @@ SymmetryStyle(x) = SymmetryStyle(typeof(x))
 # allows for abelian-like slicing style for GradedUnitRange: assume length(::label) = 1
 # and preserve labels in any slicing operation
 SymmetryStyle(T::Type) = AbelianStyle()
-function SymmetryStyle(::Type{T}) where {T<:Sector}
-  if TKS.FusionStyle(T) == TKS.UniqueFusion() && TKS.BraidingStyle(T) == TKS.Bosonic()
+function SymmetryStyle(::Type{T}) where {T<:SectorRange}
+  if TKS.FusionStyle(T) === TKS.UniqueFusion() && TKS.BraidingStyle(T) === TKS.Bosonic()
     return AbelianStyle()
   else
     return NotAbelianStyle()
@@ -103,49 +98,46 @@ combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
 combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()
 
 # Suggestion:
-# function fusion_rule(r1::Sector{T₁,I}, r2::Sector{T₂,I}) where {T₁,T₂,I}
-#   T = promote_type(T₁, T₂)
+# function fusion_rule(r1::C, r2::C) where {C<:SectorRange}
 #   a = sector(r1)
 #   b = sector(r2)
-#   FusionStyle(I) == UniqueFusion() && return Sector{T}(only(TKS.otimes(a, b)))
-#   return gradedrange([Sector{T}(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
+#   FusionStyle(I) == UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
+#   return gradedrange([SectorRange(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
 # end
 
-function fusion_rule(c1::Sector, c2::Sector)
+function fusion_rule(c1::SectorRange, c2::SectorRange)
   return fusion_rule(combine_styles(SymmetryStyle(c1), SymmetryStyle(c2)), c1, c2)
 end
 
-function fusion_rule(::NotAbelianStyle, r1::C, r2::C) where {C<:Sector}
+function fusion_rule(::NotAbelianStyle, r1::C, r2::C) where {C<:SectorRange}
   a = sector(r1)
   b = sector(r2)
   return gradedrange([C(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
 end
 
-# abelian case: return Sector
-function fusion_rule(::AbelianStyle, c1::C, c2::C) where {C<:Sector}
+# abelian case: return SectorRange
+function fusion_rule(::AbelianStyle, c1::C, c2::C) where {C<:SectorRange}
   return only(sectors(fusion_rule(NotAbelianStyle(), c1, c2)))
 end
 
 # =============================  TensorProducts interface  =====--==========================
 
-TensorProducts.tensor_product(s::Sector) = s
-TensorProducts.tensor_product(c1::Sector, c2::Sector) = fusion_rule(c1, c2)
-
-# ================================  GradedUnitRanges interface  ==================================
-
-sector_type(S::Type{<:Sector}) = S
+TensorProducts.tensor_product(s::SectorRange) = s
+TensorProducts.tensor_product(c1::SectorRange, c2::SectorRange) = fusion_rule(c1, c2)
 
 # =====================================  Sectors ===========================================
 
-const TrivialSector = Sector{Int,TKS.Trivial}
-const Z{N} = Sector{Int,TKS.ZNIrrep{N}}
+const TrivialSector = SectorRange{TKS.Trivial}
+TrivialSector() = TrivialSector(TKS.Trivial())
+
+const Z{N} = SectorRange{TKS.ZNIrrep{N}}
 sector_label(c::TKS.ZNIrrep) = c.n
 const Z2 = Z{2}
 
-const U1 = Sector{Int,TKS.U1Irrep}
+const U1 = SectorRange{TKS.U1Irrep}
 sector_label(c::TKS.U1Irrep) = c.charge
 
-const O2 = Sector{Int,TKS.CU1Irrep}
+const O2 = SectorRange{TKS.CU1Irrep}
 function O2(l::Real)
   j = max(l, zero(l))
   s = if l == 0
@@ -167,18 +159,21 @@ function sector_label(c::TKS.CU1Irrep)
   end
 end
 
-const SU2 = Sector{Int,TKS.SU2Irrep}
+const SU2 = SectorRange{TKS.SU2Irrep}
 sector_label(c::TKS.SU2Irrep) = c.j
 
-const Fib = Sector{Int,TKS.FibonacciAnyon}
+const Fib = SectorRange{TKS.FibonacciAnyon}
 function Fib(s::AbstractString)
-  s == "1" && return Fib(0)
-  s == "τ" && return Fib(1)
+  s == "1" && return Fib(:I)
+  s == "τ" && return Fib(:τ)
   throw(ArgumentError("Unrecognized input `$s`"))
 end
+sector_label(c::TKS.FibonacciAnyon) = c.isone ? "1" : "τ"
 
-const Ising = Sector{Int,TKS.IsingAnyon}
+const Ising = SectorRange{TKS.IsingAnyon}
 function Ising(s::AbstractString)
   s in ("1", "σ", "ψ") || throw(ArgumentError("Unrecognized input `$s`"))
-  return Ising(Symbol(v))
+  sym = s == "1" ? :I : Symbol(s)
+  return Ising(sym)
 end
+sector_label(c::TKS.IsingAnyon) = Symbol(c.s) == :I ? "1" : String(c.s)

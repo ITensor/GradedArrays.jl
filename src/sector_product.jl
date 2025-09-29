@@ -7,6 +7,9 @@ struct SectorProduct{Sectors} <: AbstractSector
   global _SectorProduct(l) = new{typeof(l)}(l)
 end
 
+const SectorProductRange = SectorRange{SectorProduct}
+
+SectorProduct(x::AbstractSector...) = _SectorProduct(x)
 SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 
 arguments(s::SectorProduct) = s.arguments
@@ -14,6 +17,7 @@ arguments(s::SectorProduct) = s.arguments
 to_sector(nt::NamedTuple) = SectorProduct(nt)
 
 # =================================  Sectors interface  ====================================
+
 function SymmetryStyle(T::Type{<:SectorProduct})
   return arguments_symmetrystyle(arguments_type(T))
 end
@@ -34,7 +38,8 @@ function Base.:(==)(A::SectorProduct, B::SectorProduct)
   return arguments_isequal(arguments(A), arguments(B))
 end
 
-function Base.show(io::IO, s::SectorProduct)
+function Base.show(io::IO, r::SectorRange{<:SectorProduct})
+  s = sector(r)
   (length(arguments(s)) < 2) && print(io, "sector")
   print(io, "(")
   symbol = ""
@@ -87,16 +92,19 @@ function arguments_isless(a1, b1)
 end
 
 # =================================  Cartesian Product  ====================================
-×(c1::Sector, c2::Sector) = ×(SectorProduct(c1), SectorProduct(c2))
+×(c1::SectorRange, c2::SectorRange) = SectorRange(×(sector(c1), sector(c2)))
+×(c1::AbstractSector, c2::AbstractSector) = ×(SectorProduct(c1), SectorProduct(c2))
 function ×(p1::SectorProduct, p2::SectorProduct)
   return SectorProduct(arguments_product(arguments(p1), arguments(p2)))
 end
 
 ×(a, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
 ×(g::AbstractUnitRange, b) = ×(g, to_gradedrange(b))
-×(nt1::NamedTuple, nt2::NamedTuple) = ×(SectorProduct(nt1), SectorProduct(nt2))
-×(c1::NamedTuple, c2::Sector) = ×(SectorProduct(c1), SectorProduct(c2))
-×(c1::Sector, c2::NamedTuple) = ×(SectorProduct(c1), SectorProduct(c2))
+×(a::SectorRange, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
+×(g::AbstractUnitRange, b::SectorRange) = ×(g, to_gradedrange(b))
+×(nt1::NamedTuple, nt2::NamedTuple) = SectorRange(×(SectorProduct(nt1), SectorProduct(nt2)))
+×(c1::NamedTuple, c2::SectorRange) = ×(SectorProduct(c1), SectorProduct(c2))
+×(c1::SectorRange, c2::NamedTuple) = ×(SectorProduct(c1), SectorProduct(c2))
 
 function ×(sr1::SectorOneTo, sr2::SectorOneTo)
   isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
@@ -116,10 +124,10 @@ end
 
 # ====================================  Fusion rules  ======================================
 # cast Sector to SectorProduct
-function fusion_rule(style::SymmetryStyle, c1::SectorProduct, c2::Sector)
+function fusion_rule(style::SymmetryStyle, c1::SectorProduct, c2::SectorRange)
   return fusion_rule(style, c1, SectorProduct(c2))
 end
-function fusion_rule(style::SymmetryStyle, c1::Sector, c2::SectorProduct)
+function fusion_rule(style::SymmetryStyle, c1::SectorRange, c2::SectorProduct)
   return fusion_rule(style, SectorProduct(c1), c2)
 end
 
@@ -149,7 +157,7 @@ end
 
 # ===============================  Ordered implementation  =================================
 SectorProduct(t::Tuple) = _SectorProduct(t)
-SectorProduct(sects::Sector...) = SectorProduct(sects)
+SectorProduct(sects::SectorRange...) = SectorProduct(sects)
 
 function arguments_symmetrystyle(T::Type{<:Tuple})
   return mapreduce(SymmetryStyle, combine_styles, fieldtypes(T); init=AbelianStyle())
