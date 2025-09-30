@@ -57,7 +57,12 @@ function Base.show(io::IO, r::SectorRange{<:SectorProduct})
 end
 
 sector_show(io::IO, ::Int, v) = show(io, v)
-sector_show(io::IO, k::Symbol, v) = print(io, "($k=$v,)")
+function sector_show(io::IO, k::Symbol, v)
+  print(io, '(', k, '=')
+  show(io, v)
+  print(io, ",)")
+  return nothing
+end
 
 function Base.isless(s1::SectorProduct, s2::SectorProduct)
   return arguments_isless(arguments(s1), arguments(s2))
