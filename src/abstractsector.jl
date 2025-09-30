@@ -32,7 +32,10 @@ Base.last(r::SectorRange) = last(Base.OneTo(r))
 
 function Base.show(io::IO, r::SectorRange{I}) where {I}
   show(io, typeof(r))
-  print(io, '(', sector_label(sector(r)), ')')
+  print(io, '(')
+  l = sector_label(sector(r))
+  isnothing(l) || show(io, l)
+  print(io, ')')
   return nothing
 end
 
@@ -52,7 +55,10 @@ istrivial(r) = (r == trivial(r))
 
 sector_label(r::SectorRange) = sector_label(sector(r))
 function sector_label(c::AbstractSector)
-  return error("method `sector_label` not defined for type $(typeof(c))")
+  return map(fieldnames(typeof(c))) do f
+    return getfield(c, f)
+  end
+  return c
 end
 
 quantum_dimension(g::AbstractUnitRange) = length(g)
@@ -97,28 +103,13 @@ SymmetryStyle(G::Type{<:AbstractUnitRange}) = SymmetryStyle(sector_type(G))
 combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
 combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()
 
-# Suggestion:
-# function fusion_rule(r1::C, r2::C) where {C<:SectorRange}
-#   a = sector(r1)
-#   b = sector(r2)
-#   FusionStyle(I) == UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
-#   return gradedrange([SectorRange(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
-# end
-
-function fusion_rule(c1::SectorRange, c2::SectorRange)
-  return fusion_rule(combine_styles(SymmetryStyle(c1), SymmetryStyle(c2)), c1, c2)
-end
-
-function fusion_rule(::NotAbelianStyle, r1::C, r2::C) where {C<:SectorRange}
+function fusion_rule(r1::C, r2::C) where {C<:SectorRange}
   a = sector(r1)
   b = sector(r2)
-  return gradedrange([C(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
+  TKS.FusionStyle(C) == TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
+  return gradedrange([SectorRange(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
 end
-
-# abelian case: return SectorRange
-function fusion_rule(::AbelianStyle, c1::C, c2::C) where {C<:SectorRange}
-  return only(sectors(fusion_rule(NotAbelianStyle(), c1, c2)))
-end
+fusion_rule(r1::SectorRange, r2::SectorRange) = fusion_rule(promote(r1, r2)...)
 
 # =============================  TensorProducts interface  =====--==========================
 
@@ -129,6 +120,11 @@ TensorProducts.tensor_product(c1::SectorRange, c2::SectorRange) = fusion_rule(c1
 
 const TrivialSector = SectorRange{TKS.Trivial}
 TrivialSector() = TrivialSector(TKS.Trivial())
+sector_label(::TKS.Trivial) = nothing
+
+# use promotion to handle trivial sectors in tensor products
+Base.promote_rule(::Type{TrivialSector}, ::Type{T}) where {T<:SectorRange} = T
+Base.convert(::Type{T}, ::TrivialSector) where {T<:SectorRange} = trivial(T)
 
 const Z{N} = SectorRange{TKS.ZNIrrep{N}}
 sector_label(c::TKS.ZNIrrep) = c.n

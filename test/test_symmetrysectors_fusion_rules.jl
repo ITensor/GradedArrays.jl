@@ -1,6 +1,6 @@
 using GradedArrays:
+  GradedArrays,
   O2,
-  SU,
   SU2,
   TrivialSector,
   U1,
@@ -17,6 +17,11 @@ using TensorProducts: ⊗, tensor_product
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
 using BlockArrays: blocklengths
+using SUNRepresentations: SUNIrrep
+
+const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
+SU{N}(λ::NTuple{M,Int}) where {N,M} = (@assert(M + 1 == N); SU{N}(SUNIrrep((λ..., 0))))
+sector_label(c::SUNIrrep) = Base.front(c.I)
 
 @testset "Simple SymmetrySector fusion rules" begin
   @testset "Z{2} fusion rules" begin
@@ -75,7 +80,7 @@ using BlockArrays: blocklengths
     @test space_isequal((@constinferred s12 ⊗ s0o), gradedrange([s12 => 1]))
     @test space_isequal((@constinferred s12 ⊗ s1), gradedrange([s12 => 1, O2(3//2) => 1]))
     @test space_isequal(
-      (@constinferred s12 ⊗ s12), gradedrange([s0o => 1, s0e => 1, s1 => 1])
+      (@constinferred s12 ⊗ s12), gradedrange([s0e => 1, s0o => 1, s1 => 1])
     )
 
     @test (@constinferred quantum_dimension(s0o ⊗ s1)) == 2
@@ -236,7 +241,7 @@ end
       gradedrange([s1 => 1, f3 => 2, c3 => 1, SU{3}((2, 0)) => 1]),
     )
     @test space_isequal(
-      tensor_product(dual(g5), dual(g6)), gradedrange([s1 => 2, f3 => 1, c3 => 1, ad8 => 1])
+      tensor_product(dual(g5), dual(g6)), gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
     )
 
     @test nsymbol(ad8, ad8, ad8) == 2
@@ -254,9 +259,9 @@ end
     @test space_isequal((@constinferred tensor_product(SU2(1//2), g3)), g4)
 
     # test different simple sectors cannot be fused
-    @test_throws MethodError Z{2}(0) ⊗ U1(1)
-    @test_throws MethodError SU2(1) ⊗ U1(1)
-    @test_throws MethodError tensor_product(g1, SU2(1))
-    @test_throws MethodError tensor_product(U1(1), g3)
+    @test_throws ErrorException Z{2}(0) ⊗ U1(1)
+    @test_throws ErrorException SU2(1) ⊗ U1(1)
+    @test_throws ErrorException tensor_product(g1, SU2(1))
+    @test_throws ErrorException tensor_product(U1(1), g3)
   end
 end

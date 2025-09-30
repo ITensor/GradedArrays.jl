@@ -14,7 +14,12 @@ SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 
 arguments(s::SectorProduct) = s.arguments
 
-to_sector(nt::NamedTuple) = SectorProduct(nt)
+function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{AbstractSector}}}
+  return SectorProduct(nt)
+end
+function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{SectorRange}}}
+  return SectorRange(SectorProduct(NamedTuple(k => sector(v) for (k, v) in pairs(nt))))
+end
 
 # =================================  Sectors interface  ====================================
 
@@ -45,13 +50,13 @@ function Base.show(io::IO, r::SectorRange{<:SectorProduct})
   symbol = ""
   for p in pairs(arguments(s))
     print(io, symbol)
-    sector_show(io, p[1], p[2])
+    sector_show(io, p[1], SectorRange(p[2]))
     symbol = " × "
   end
   return print(io, ")")
 end
 
-sector_show(io::IO, ::Int, v) = print(io, v)
+sector_show(io::IO, ::Int, v) = show(io, v)
 sector_show(io::IO, k::Symbol, v) = print(io, "($k=$v,)")
 
 function Base.isless(s1::SectorProduct, s2::SectorProduct)
@@ -102,9 +107,10 @@ end
 ×(g::AbstractUnitRange, b) = ×(g, to_gradedrange(b))
 ×(a::SectorRange, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
 ×(g::AbstractUnitRange, b::SectorRange) = ×(g, to_gradedrange(b))
-×(nt1::NamedTuple, nt2::NamedTuple) = SectorRange(×(SectorProduct(nt1), SectorProduct(nt2)))
-×(c1::NamedTuple, c2::SectorRange) = ×(SectorProduct(c1), SectorProduct(c2))
-×(c1::SectorRange, c2::NamedTuple) = ×(SectorProduct(c1), SectorProduct(c2))
+
+×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))
+×(c1::NamedTuple, c2::SectorRange) = ×(to_sector(c1), c2)
+×(c1::SectorRange, c2::NamedTuple) = ×(c1, to + sector(c2))
 
 function ×(sr1::SectorOneTo, sr2::SectorOneTo)
   isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
