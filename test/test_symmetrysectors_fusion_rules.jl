@@ -190,8 +190,8 @@ end
     @test space_isequal((@constinferred tensor_product(dual(g1), dual(g2))), gfd)
 
     # test different (non-product) sectors cannot be fused
-    @test_throws MethodError tensor_product(gradedrange([Z{2}(0) => 1]), g1)
-    @test_throws MethodError tensor_product(gradedrange([Z{2}(0) => 1]), g2)
+    @test_throws ErrorException tensor_product(gradedrange([Z{2}(0) => 1]), g1)
+    @test_throws ErrorException tensor_product(gradedrange([Z{2}(0) => 1]), g2)
   end
 
   @testset "GradedUnitRange non-abelian fusion rules" begin
@@ -230,15 +230,15 @@ end
     g6 = gradedrange([s1 => 1, c3 => 1])
     @test space_isequal(dual(flip(g5)), g6)
     @test space_isequal(
-      tensor_product(g5, g6), gradedrange([s1 => 2, f3 => 1, c3 => 1, ad8 => 1])
+      tensor_product(g5, g6), gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
     )
     @test space_isequal(
       tensor_product(dual(g5), g6),
-      gradedrange([s1 => 1, f3 => 1, c3 => 2, SU{3}((2, 2)) => 1]),
+      gradedrange([s1 => 1, c3 => 2, f3 => 1, SU{3}((2, 2)) => 1]),
     )
     @test space_isequal(
       tensor_product(g5, dual(g6)),
-      gradedrange([s1 => 1, f3 => 2, c3 => 1, SU{3}((2, 0)) => 1]),
+      gradedrange([s1 => 1, c3 => 1, f3 => 2, SU{3}((2, 0)) => 1]),
     )
     @test space_isequal(
       tensor_product(dual(g5), dual(g6)), gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])

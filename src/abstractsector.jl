@@ -132,6 +132,7 @@ const Z2 = Z{2}
 
 const U1 = SectorRange{TKS.U1Irrep}
 sector_label(c::TKS.U1Irrep) = c.charge
+Base.isless(r1::U1, r2::U1) = isless(sector_label(r1), sector_label(r2))
 
 const O2 = SectorRange{TKS.CU1Irrep}
 function O2(l::Real)
