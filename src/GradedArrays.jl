@@ -24,20 +24,20 @@ include("tensoralgebra.jl")
 include("factorizations.jl")
 
 export SU2,
-  U1,
-  Z,
-  dag,
-  dual,
-  flip,
-  gradedrange,
-  isdual,
-  sector,
-  sector_multiplicities,
-  sector_multiplicity,
-  sectorrange,
-  sectors,
-  sector_type,
-  space_isequal,
-  ungrade
+    U1,
+    Z,
+    dag,
+    dual,
+    flip,
+    gradedrange,
+    isdual,
+    sector,
+    sector_multiplicities,
+    sector_multiplicity,
+    sectorrange,
+    sectors,
+    sector_type,
+    space_isequal,
+    ungrade
 
 end
