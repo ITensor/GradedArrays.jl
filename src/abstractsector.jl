@@ -143,6 +143,20 @@ end
 const TrivialSector = SectorRange{TKS.Trivial}
 TrivialSector() = TrivialSector(TKS.Trivial())
 sector_label(::TKS.Trivial) = nothing
+function fusion_rule(::TrivialSector, r::SectorRange)
+  return TKS.FusionStyle(sector(r)) === TKS.UniqueFusion() ? r : to_gradedrange(r)
+end
+function fusion_rule(r::SectorRange, ::TrivialSector)
+  return TKS.FusionStyle(sector(r)) === TKS.UniqueFusion() ? r : to_gradedrange(r)
+end
+fusion_rule(r::TrivialSector, ::TrivialSector) = r
+
+Base.:(==)(::TrivialSector, ::TrivialSector) = true
+Base.:(==)(::TrivialSector, r::SectorRange) = isone(sector(r))
+Base.:(==)(r::SectorRange, ::TrivialSector) = isone(sector(r))
+Base.isless(::TrivialSector, ::TrivialSector) = false
+Base.isless(::TrivialSector, r::SectorRange) = trivial(r) < r
+Base.isless(r::SectorRange, ::TrivialSector) = r < trivial(r)
 
 # use promotion to handle trivial sectors in tensor products
 Base.promote_rule(::Type{TrivialSector}, ::Type{T}) where {T<:SectorRange} = T
@@ -150,6 +164,7 @@ Base.convert(::Type{T}, ::TrivialSector) where {T<:SectorRange} = trivial(T)
 
 const Z{N} = SectorRange{TKS.ZNIrrep{N}}
 sector_label(c::TKS.ZNIrrep) = c.n
+modulus(::Z{N}) where {N} = N
 const Z2 = Z{2}
 
 const U1 = SectorRange{TKS.U1Irrep}
@@ -177,6 +192,7 @@ function sector_label(c::TKS.CU1Irrep)
     c.j
   end
 end
+Base.isless(r1::O2, r2::O2) = isless(sector_label(r1), sector_label(r2))
 
 const SU2 = SectorRange{TKS.SU2Irrep}
 sector_label(c::TKS.SU2Irrep) = c.j

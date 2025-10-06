@@ -337,39 +337,6 @@ function ×(g1::GradedOneTo, g2::GradedOneTo)
   return mortar_axis(v)
 end
 
-# ====================================  Fusion rules  ======================================
-# cast Sector to SectorProduct
-# function fusion_rule(style::SymmetryStyle, c1::SectorProduct, c2::SectorRange)
-#   return fusion_rule(style, c1, SectorProduct(c2))
-# end
-# function fusion_rule(style::SymmetryStyle, c1::SectorRange, c2::SectorProduct)
-#   return fusion_rule(style, SectorProduct(c1), c2)
-# end
-
-# # generic case: fusion returns a GradedUnitRanges, even for fusion with Empty
-# function fusion_rule(::NotAbelianStyle, s1::SectorProduct, s2::SectorProduct)
-#   return to_gradedrange(arguments_fusion_rule(arguments(s1), arguments(s2)))
-# end
-
-# # Abelian case: fusion returns SectorProduct
-# function fusion_rule(::AbelianStyle, s1::SectorProduct, s2::SectorProduct)
-#   return only(sectors((fusion_rule(NotAbelianStyle(), s1, s2))))
-# end
-
-# lift ambiguities for TrivialSector
-# fusion_rule(::AbelianStyle, c::SectorProduct, ::TrivialSector) = c
-# fusion_rule(::AbelianStyle, ::TrivialSector, c::SectorProduct) = c
-# fusion_rule(::NotAbelianStyle, c::SectorProduct, ::TrivialSector) = to_gradedrange(c)
-# fusion_rule(::NotAbelianStyle, ::TrivialSector, c::SectorProduct) = to_gradedrange(c)
-
-# function arguments_fusion_rule(sects1, sects2)
-# isempty(sects1) && return SectorProduct(sects2)
-#   isempty(sects2) && return SectorProduct(sects1)
-#   shared_sect = shared_arguments_fusion_rule(arguments_common(sects1, sects2)...)
-#   diff_sect = SectorProduct(arguments_diff(sects1, sects2))
-#   return shared_sect × diff_sect
-# end
-
 # ===============================  Ordered implementation  =================================
 SectorProduct(t::Tuple) = _SectorProduct(t)
 

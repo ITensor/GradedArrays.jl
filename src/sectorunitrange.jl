@@ -16,7 +16,7 @@ end
 Base.length(sv::SectorVector) = length(sv.values)
 Base.size(sv::SectorVector) = (length(sv),)
 function Base.axes(sv::SectorVector)
-  (sectorrange(sector(sv), only(axes(ungrade(sv))), isdual(sv)),)
+  return (sectorrange(sector(sv), only(axes(ungrade(sv))), isdual(sv)),)
 end
 Base.getindex(sv::SectorVector, i::Integer) = ungrade(sv)[i]
 
@@ -77,7 +77,7 @@ Base.iterate(sr::SectorUnitRange, i::Integer) = iterate(ungrade(sr), i)
 Base.length(sr::SectorUnitRange) = length(ungrade(sr))
 Base.size(sr::SectorUnitRange) = (length(sr),)
 function Base.axes(sr::SectorUnitRange)
-  (sectorrange(sector(sr), only(axes(ungrade(sr))), isdual(sr)),)
+  return (sectorrange(sector(sr), only(axes(ungrade(sr))), isdual(sr)),)
 end
 
 Base.last(sr::SectorUnitRange) = last(ungrade(sr))
@@ -127,6 +127,8 @@ end
 # generic
 
 # =============================  GradedUnitRanges interface  ===============================
+
+to_gradedrange(sr::SectorUnitRange) = gradedrange([sr => 1])
 
 sectors(sr::SectorUnitRange) = [sector(sr)]
 

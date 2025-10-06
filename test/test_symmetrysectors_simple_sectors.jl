@@ -2,22 +2,26 @@ using GradedArrays:
   Fib,
   Ising,
   O2,
-  SU,
   SU2,
   TrivialSector,
   U1,
   Z,
   dual,
   quantum_dimension,
-  fundamental,
   istrivial,
-  level,
   modulus,
   sector_type,
-  su2,
-  trivial
+  trivial,
+  SectorRange
 using Test: @test, @testset, @test_throws
 using TestExtras: @constinferred
+using SUNRepresentations: SUNRepresentations
+
+const SU{N} = SectorRange{SUNRepresentations.SUNIrrep{N}}
+function SU{N}(λ::NTuple{M,Int}) where {N,M}
+  return (@assert M + 1 == N; SU{N}(SUNRepresentations.SUNIrrep((λ..., 0))))
+end
+fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
 
 @testset "Test SymmetrySectors Types" begin
   @testset "TrivialSector" begin
@@ -39,8 +43,8 @@ using TestExtras: @constinferred
     q2 = U1(2)
     q3 = U1(3)
 
-    @test sector_type(q1) === U1{Int}
-    @test sector_type(typeof(q1)) === U1{Int}
+    @test sector_type(q1) === U1
+    @test sector_type(typeof(q1)) === U1
     @test quantum_dimension(q1) == 1
     @test quantum_dimension(q2) == 1
     @test (@constinferred quantum_dimension(q1)) == 1
@@ -123,18 +127,11 @@ using TestExtras: @constinferred
     j4 = SU2(3//2)
 
     # alternative constructors
-    @test j2 == SU{2}((1,))  # tuple SU(N)-like constructor
-    @test j2 == SU{2,1}((1,))  # tuple constructor with explicit {N,N-1}
-    @test j2 == SU((1,))  # infer N from tuple length
-    @test j2 == SU{2}((Int8(1),))  # any Integer type accepted
-    @test j2 == SU{2}((UInt32(1),))  # any Integer type accepted
     @test j2 == SU2(1 / 2)  # Float will be cast to HalfInteger
     @test_throws MethodError SU2((1,))  # avoid confusion between tuple and half-integer interfaces
-    @test_throws MethodError SU{2,1}(1)  # avoid confusion
 
-    @test trivial(SU{2}) == SU2(0)
+    @test trivial(SU2) == SU2(0)
     @test istrivial(SU2(0))
-    @test fundamental(SU{2}) == SU2(1//2)
 
     @test quantum_dimension(j1) == 1
     @test quantum_dimension(j2) == 2
@@ -220,15 +217,5 @@ using TestExtras: @constinferred
     @test (@constinferred quantum_dimension(ψ)) == 1.0
 
     @test ı < σ < ψ
-  end
-
-  @testset "su2{k}" begin
-    s1 = su2{1}(0)
-    s2 = su2{2}(1)
-
-    @test s1 isa su2{1}
-    @test trivial(s2) == su2{2}(0)
-    @test dual(s1) == s1
-    @test level(s1) == 1
   end
 end
