@@ -20,9 +20,15 @@ sector_type(I::Type{<:SectorRange}) = I
 # ===================================  Base interface  =====================================
 
 Base.length(r::SectorRange) = quantum_dimension(r)
+
 Base.isless(r1::SectorRange, r2::SectorRange) = isless(sector(r1), sector(r2))
+Base.isless(r1::SectorRange, r2::AbstractSector) = isless(sector(r1), r2)
+Base.isless(r1::AbstractSector, r2::SectorRange) = isless(r1, sector(r2))
+
 Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(sector(r1), sector(r2))
 Base.:(==)(r1::SectorRange, r2::SectorRange) = sector(r1) == sector(r2)
+Base.:(==)(r1::SectorRange, r2::AbstractSector) = sector(r1) == r2
+Base.:(==)(r1::AbstractSector, r2::SectorRange) = r1 == sector(r2)
 
 Base.hash(r::SectorRange, h::UInt) = hash(r.sector, h)
 
@@ -49,6 +55,7 @@ function trivial(type::Type)
   return error("`trivial` not defined for type $(type).")
 end
 trivial(::Type{SectorRange{I}}) where {I} = SectorRange{I}(one(I))
+trivial(::Type{I}) where {I<:AbstractSector} = one(I)
 
 istrivial(r::SectorRange) = isone(sector(r))
 istrivial(r) = (r == trivial(r))
@@ -65,6 +72,8 @@ quantum_dimension(g::AbstractUnitRange) = length(g)
 quantum_dimension(r::SectorRange) = quantum_dimension(sector(r))
 quantum_dimension(s::AbstractSector) = TKS.dim(s)
 
+to_sector(x::AbstractSector) = SectorRange(x)
+
 # convert to range
 to_gradedrange(c::SectorRange) = gradedrange([c => 1])
 to_gradedrange(c::AbstractSector) = to_gradedrange(SectorRange(c))
@@ -73,7 +82,8 @@ function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
   return TKS.Nsymbol(sector(s1), sector(s2), sector(s3))
 end
 
-dual(r1::SectorRange) = typeof(r1)(TKS.dual(sector(r1)))
+dual(c::AbstractSector) = TKS.dual(c)
+dual(r1::SectorRange) = typeof(r1)(dual(sector(r1)))
 
 # ===============================  Fusion rule interface  ==================================
 
@@ -103,18 +113,30 @@ SymmetryStyle(G::Type{<:AbstractUnitRange}) = SymmetryStyle(sector_type(G))
 combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
 combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()
 
-function fusion_rule(r1::C, r2::C) where {C<:SectorRange}
+function fusion_rule(r1::SectorRange, r2::SectorRange)
   a = sector(r1)
   b = sector(r2)
-  TKS.FusionStyle(C) == TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
-  return gradedrange([SectorRange(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
+  fstyle = TKS.FusionStyle(typeof(r1)) & TKS.FusionStyle(typeof(r2))
+  fstyle === TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
+  return gradedrange(
+    vec([SectorRange(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
+  )
 end
-fusion_rule(r1::SectorRange, r2::SectorRange) = fusion_rule(promote(r1, r2)...)
+# fusion_rule(r1::SectorRange, r2::SectorRange) = fusion_rule(promote(r1, r2)...)
 
 # =============================  TensorProducts interface  =====--==========================
 
 TensorProducts.tensor_product(s::SectorRange) = s
 TensorProducts.tensor_product(c1::SectorRange, c2::SectorRange) = fusion_rule(c1, c2)
+function TensorProducts.tensor_product(c1::AbstractSector, c2::AbstractSector)
+  return tensor_product(to_sector(c1), to_sector(c2))
+end
+function TensorProducts.tensor_product(c1::SectorRange, c2::AbstractSector)
+  return tensor_product(c1, to_sector(c2))
+end
+function TensorProducts.tensor_product(c1::AbstractSector, c2::SectorRange)
+  return tensor_product(to_sector(c1), c2)
+end
 
 # =====================================  Sectors ===========================================
 
