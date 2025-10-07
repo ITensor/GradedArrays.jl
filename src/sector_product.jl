@@ -19,6 +19,7 @@ SectorProduct(; kws...) = SectorProduct((; kws...))
 SectorProduct(x::AbstractSector...) = _SectorProduct(x)
 SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 SectorProduct(c::SectorRange...) = _SectorProduct(map(sector, c))
+# SectorProduct(::TKS.Trivial) = _SectorProduct((;))  # empty tuple
 
 arguments(s::SectorProduct) = s.arguments
 arguments_type(::Type{SectorProduct{T}}) where {T} = T
@@ -207,120 +208,90 @@ end
 
 # ===========================  Canonicalize arguments  =====================================
 
-# some issues to get things type stable so use generated functions :(
-@generated function arguments_type_canonicalize(
-  ::Type{T1}, ::Type{T2}
-) where {T1<:SectorProduct{<:Tuple},T2<:SectorProduct{<:Tuple}}
-  F1 = fieldtypes(fieldtypes(T1)[1])
-  F2 = fieldtypes(fieldtypes(T2)[1])
-  L1 = length(F1)
-  L2 = length(F2)
-  m = max(L1, L2)
-  T = ntuple(m) do i
-    if i <= L1 && i <= L2
-      if F1[i] == F2[i]
-        F1[i]
-      elseif F1[i] == TKS.Trivial
-        F2[i]
-      elseif F2[i] == TKS.Trivial
-        F1[i]
-      else
-        throw(
-          ArgumentError(
-            "Cannot canonicalize SectorProduct with different non-trivial arguments"
-          ),
-        )
-      end
-    elseif i <= L1
-      F1[i]
-    else
-      F2[i]
-    end
+function arguments_canonicalize(s1::SectorProduct{<:Tuple}, s2::SectorProduct{<:Tuple})
+  # isempty(arguments(s1)) && return (one(s2), s2)
+  # isempty(arguments(s2)) && return (s1, one(s1))
+  lmin = min(length(arguments(s1)), length(arguments(s2)))
+  for i in 1:lmin
+    typeof(arguments(s1)[i]) == TKS.Trivial ||
+      typeof(arguments(s2)[i]) == TKS.Trivial ||
+      typeof(arguments(s1)[i]) == typeof(arguments(s2)[i]) ||
+      throw(
+        ArgumentError(
+          "Cannot canonicalize SectorProduct with different non-trivial arguments"
+        ),
+      )
   end
-  return :(SectorProduct{Tuple{$T...}})
-end
-@generated function arguments_type_canonicalize(
-  ::Type{T1}, ::Type{T2}
-) where {T1<:SectorProduct{<:NamedTuple},T2<:SectorProduct{<:NamedTuple}}
-  K1 = fieldnames(fieldtypes(T1)[1])
-  K2 = fieldnames(fieldtypes(T2)[1])
-  F1 = fieldtypes(fieldtypes(T1)[1])
-  F2 = fieldtypes(fieldtypes(T2)[1])
-  allkeys = sort(union(K1, K2))
-  allvals = map(allkeys) do k
-    i1 = findfirst(==(k), K1)
-    i2 = findfirst(==(k), K2)
-    if isnothing(i1)
-      return F2[i2]
-    elseif isnothing(i2)
-      return F1[i1]
-    else
-      if F1[i1] == F2[i2]
-        return F1[i1]
-      elseif F1[i1] == TKS.Trivial
-        return F2[i2]
-      elseif F2[i2] == TKS.Trivial
-        return F1[i1]
-      else
-        throw(MethodError(arguments_type_canonicalize, (T1, T2)))
+  lmax = max(length(arguments(s1)), length(arguments(s2)))
+  s1′ = SectorProduct(
+    ntuple(lmax) do i
+      if i <= length(arguments(s1))
+        si = arguments(s1)[i]
+        si != TKS.Trivial() && return si
       end
-    end
-  end
-  return :(SectorProduct{NamedTuple{($allkeys...,),Tuple{$(allvals...)}}})
-end
-function arguments_type_canonicalize(
-  ::Type{T1}, ::Type{T2}
-) where {T1<:SectorProduct,T2<:SectorProduct}
-  length(fieldtypes(arguments_type(T1))) == 0 && return T2
-  length(fieldtypes(arguments_type(T2))) == 0 && return T1
-  throw(MethodError(arguments_type_canonicalize, (T1, T2)))
-end
-@inline function arguments_type_canonicalize(
-  ::Type{T1}, ::Type{T2}, Ts::Type{T}...
-) where {T1<:SectorProduct,T2<:SectorProduct,T<:SectorProduct}
-  return arguments_type_canonicalize(arguments_type_canonicalize(T1, T2), Ts...)
+      return one(arguments(s2)[i])
+    end,
+  )
+  s2′ = SectorProduct(
+    ntuple(lmax) do i
+      if i <= length(arguments(s2))
+        si = arguments(s2)[i]
+        si != TKS.Trivial() && return si
+      end
+      return one(arguments(s1)[i])
+    end,
+  )
+  return s1′, s2′
 end
 
-function arguments_canonicalize(s1::SectorProduct, s2::SectorProduct)
-  isempty(arguments(s1)) && return (one(s2), s2)
-  isempty(arguments(s2)) && return (s1, one(s1))
-  T = arguments_type_canonicalize(typeof(s1), typeof(s2))
-  return arguments_canonicalize(T, s1), arguments_canonicalize(T, s2)
-end
-function arguments_canonicalize(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
-  T = arguments_type_canonicalize(typeof(s1), typeof(s2), typeof(s3))
-  return arguments_canonicalize(T, s1),
-  arguments_canonicalize(T, s2),
-  arguments_canonicalize(T, s3)
-end
+Base.@assume_effects :foldable _allkeys(::Val{K1}, ::Val{K2}) where {K1,K2} = Tuple(
+  sort(union(K1, K2))
+)
 
 function arguments_canonicalize(
-  ::Type{SectorProduct{T}}, s::SectorProduct{<:Tuple}
-)::SectorProduct{T} where {T<:Tuple}
-  b = one(SectorProduct{T})
-  a = ntuple(length(arguments(b))) do i
-    if i <= length(arguments(s)) && !(arguments(s)[i] isa TKS.Trivial)
-      arguments(s)[i]
-    else
-      arguments(b)[i]
-    end
+  s1::SectorProduct{<:NamedTuple{K1}}, s2::SectorProduct{<:NamedTuple{K2}}
+) where {K1,K2}
+  allkeys = _allkeys(Val(K1), Val(K2))
+  for k in allkeys
+    si1 = get(arguments(s1), k, TKS.Trivial())
+    si2 = get(arguments(s2), k, TKS.Trivial())
+    si1 == TKS.Trivial() ||
+      si2 == TKS.Trivial() ||
+      (typeof(si1) == typeof(si2)) ||
+      throw(
+        ArgumentError(
+          "Cannot canonicalize SectorProduct with different non-trivial arguments"
+        ),
+      )
   end
-  return SectorProduct(a)::SectorProduct{T}
-end
-function arguments_canonicalize(
-  ::Type{SectorProduct{T}}, s::SectorProduct{<:NamedTuple}
-)::SectorProduct{T} where {T<:NamedTuple}
-  b = one(SectorProduct{T})
-  a = T(
-    map(keys(arguments(b))) do k
-      si = get(arguments(s), k, TKS.Trivial())
+  s1′ = SectorProduct(NamedTuple{allkeys}(
+    ntuple(length(allkeys)) do i
+      k = allkeys[i]
+      si = get(arguments(s1), k, TKS.Trivial())
       if si === TKS.Trivial()
-        return getproperty(arguments(b), k)
+        return one(getproperty(arguments(s2), k))
       else
         return si
       end
     end,
-  )
+  ))
+  s2′ = SectorProduct(NamedTuple{allkeys}(
+    ntuple(length(allkeys)) do i
+      k = allkeys[i]
+      si = get(arguments(s2), k, TKS.Trivial())
+      if si === TKS.Trivial()
+        return one(getproperty(arguments(s1), k))
+      else
+        return si
+      end
+    end,
+  ))
+  return s1′, s2′
+end
 
-  return SectorProduct(a)::SectorProduct{T}
+function arguments_canonicalize(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
+  s1′, s2′ = arguments_canonicalize(s1, s2)
+  s1″, s3′ = arguments_canonicalize(s1′, s3)
+  s2″, s3″ = arguments_canonicalize(s2′, s3′)
+  return s1″, s2″, s3″
 end
