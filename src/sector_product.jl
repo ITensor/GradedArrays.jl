@@ -53,9 +53,14 @@ function Base.one(::Type{SectorProduct{NT}}) where {NT<:NamedTuple}
 end
 Base.isone(s::SectorProduct) = all(isone, arguments(s))
 
+is_global_trivial(s::AbstractSector) = false
+is_global_trivial(s::SectorProduct) = isempty(arguments(s))
+is_global_trivial(s::TKS.Trivial) = true
+
 function TKS.otimes(s1::SectorProduct, s2::SectorProduct)
-  isempty(arguments(s1)) && return (s2,)
-  isempty(arguments(s2)) && return (s1,)
+  is_global_trivial(s1) && is_global_trivial(s2) && return (SectorProduct((;)),)
+  is_global_trivial(s1) && return TKS.otimes(one(s2), s2)
+  is_global_trivial(s2) && return TKS.otimes(s1, one(s1))
   return TKS.otimes(arguments_canonicalize(s1, s2)...)
 end
 TKS.otimes(s1::SectorProduct, s2::AbstractSector) = TKS.otimes(s1, SectorProduct(s2))
@@ -77,21 +82,11 @@ function TKS.otimes(s1::I, s2::I) where {T<:NamedTuple,I<:SectorProduct{T}}
 end
 
 function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
-  if isempty(arguments(s1)) && isempty(arguments(s2)) && isempty(arguments(s3))
-    return 1
-  elseif isempty(arguments(s1)) && isempty(arguments(s2))
-    return isone(s3) ? 1 : 0
-  elseif isempty(arguments(s1)) && isempty(arguments(s3))
-    return isone(s2) ? 1 : 0
-  elseif isempty(arguments(s2)) && isempty(arguments(s3))
-    return isone(s1) ? 1 : 0
-  elseif isempty(arguments(s1))
-    return TKS.Nsymbol(one(s2), s2, s3)
-  elseif isempty(arguments(s2))
-    return TKS.Nsymbol(s1, one(s1), s3)
-  elseif isempty(arguments(s3))
-    return TKS.Nsymbol(s1, s2, one(s1))
-  end
+  is_global_trivial(s1) && is_global_trivial(s2) && return isone(s3) ? 1 : 0
+  is_global_trivial(s1) && return TKS.Nsymbol(one(s2), s2, s3)
+  is_global_trivial(s2) && return TKS.Nsymbol(s1, one(s1), s3)
+  is_global_trivial(s3) && return TKS.Nsymbol(s1, s2, one(s1))
+
   s1_can, s2_can, s3_can = arguments_canonicalize(s1, s2, s3)
   return prod(
     splat(TKS.Nsymbol), zip(arguments(s1_can), arguments(s2_can), arguments(s3_can)); init=1

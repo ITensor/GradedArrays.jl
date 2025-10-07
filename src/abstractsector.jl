@@ -122,7 +122,6 @@ function fusion_rule(r1::SectorRange, r2::SectorRange)
     vec([SectorRange(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
   )
 end
-# fusion_rule(r1::SectorRange, r2::SectorRange) = fusion_rule(promote(r1, r2)...)
 
 # =============================  TensorProducts interface  =====--==========================
 

@@ -378,7 +378,6 @@ end
   sA1 = ×((; A=U1(1)))
 
   for s in (SectorProduct(()), SectorProduct((;)))
-    s = SectorProduct(())
     @test s == TrivialSector()
     @test s == SectorProduct(())
     @test s == SectorProduct((;))
