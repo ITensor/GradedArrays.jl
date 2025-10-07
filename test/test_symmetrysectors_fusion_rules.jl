@@ -20,8 +20,6 @@ using BlockArrays: blocklengths
 using SUNRepresentations: SUNIrrep
 
 const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
-SU{N}(λ::NTuple{M,Int}) where {N,M} = (@assert(M + 1 == N); SU{N}(SUNIrrep((λ..., 0))))
-sector_label(c::SUNIrrep) = Base.front(c.I)
 
 @testset "Simple SymmetrySector fusion rules" begin
   @testset "Z{2} fusion rules" begin

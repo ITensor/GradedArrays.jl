@@ -18,9 +18,6 @@ using TestExtras: @constinferred
 using SUNRepresentations: SUNRepresentations
 
 const SU{N} = SectorRange{SUNRepresentations.SUNIrrep{N}}
-function SU{N}(λ::NTuple{M,Int}) where {N,M}
-  return (@assert M + 1 == N; SU{N}(SUNRepresentations.SUNIrrep((λ..., 0))))
-end
 fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
 
 @testset "Test SymmetrySectors Types" begin
