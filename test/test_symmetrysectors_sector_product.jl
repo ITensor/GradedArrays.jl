@@ -369,8 +369,8 @@ end
   @test_throws MethodError st1 < sA1
   @test_throws MethodError st1 ⊗ sA1
   @test_throws MethodError sA1 ⊗ st1
-  @test_throws ArgumentError st1 × sA1
-  @test_throws ArgumentError sA1 × st1
+  @test_throws MethodError st1 × sA1
+  @test_throws MethodError sA1 × st1
 end
 
 @testset "Empty SymmetrySector" begin
