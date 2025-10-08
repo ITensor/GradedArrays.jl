@@ -18,7 +18,7 @@ SectorProduct(; kws...) = SectorProduct((; kws...))
 
 SectorProduct(x::TKS.Sector...) = _SectorProduct(x)
 SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
-SectorProduct(c::SectorRange...) = _SectorProduct(map(sector, c))
+SectorProduct(c::SectorRange...) = _SectorProduct(map(label, c))
 # SectorProduct(::TKS.Trivial) = _SectorProduct((;))  # empty tuple
 
 arguments(s::SectorProduct) = s.arguments
@@ -28,7 +28,7 @@ function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{TKS.Sector}}}
   return SectorRange(SectorProduct(nt))
 end
 function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{SectorRange}}}
-  return SectorRange(SectorProduct(NamedTuple(k => sector(v) for (k, v) in pairs(nt))))
+  return SectorRange(SectorProduct(NamedTuple(k => label(v) for (k, v) in pairs(nt))))
 end
 to_sector(nt::@NamedTuple{}) = to_sector(_SectorProduct(nt))
 
@@ -135,7 +135,7 @@ Base.isless(s1::SectorProduct, s2::TKS.Sector) = s1 < SectorProduct(s2)
 Base.isless(s1::TKS.Sector, s2::SectorProduct) = SectorProduct(s1) < s2
 
 function Base.show(io::IO, r::SectorRange{<:SectorProduct})
-  s = sector(r)
+  s = label(r)
   (length(arguments(s)) < 2) && print(io, "sector")
   print(io, "(")
   symbol = ""
@@ -156,8 +156,8 @@ function sector_show(io::IO, k::Symbol, v)
 end
 
 # =================================  Cartesian Product  ====================================
-×(c::SectorRange) = SectorRange(SectorProduct(sector(c)))
-×(c1::SectorRange, c2::SectorRange) = SectorRange(×(sector(c1), sector(c2)))
+×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
+×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
 ×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
 
 function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})

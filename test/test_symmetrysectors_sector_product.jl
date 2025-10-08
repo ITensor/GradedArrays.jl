@@ -14,6 +14,7 @@ using GradedArrays:
   space_isequal,
   trivial,
   sector,
+  label,
   GradedArrays
 using TensorProducts: ⊗
 using Test: @test, @testset, @test_throws, @test_broken
@@ -39,19 +40,19 @@ import TensorKitSectors as TKS
     @test (@constinferred trivial(s)) == SectorProduct(TKS.U1Irrep(0), TKS.U1Irrep(0))
 
     s = U1(1) × SU2(1//2) × U1(3)
-    @test length(arguments(sector(s))) == 3
+    @test length(arguments(label(s))) == 3
     @test (@constinferred quantum_dimension(s)) == 2
     @test (@constinferred dual(s)) == U1(-1) × SU2(1//2) × U1(-3)
-    @test arguments(sector(s))[1] == sector(U1(1))
-    @test arguments(sector(s))[2] == sector(SU2(1//2))
-    @test arguments(sector(s))[3] == sector(U1(3))
-    @test (@constinferred sector(trivial(s))) == SectorProduct(U1(0), SU2(0), U1(0))
+    @test arguments(label(s))[1] == label(U1(1))
+    @test arguments(label(s))[2] == label(SU2(1//2))
+    @test arguments(label(s))[3] == label(U1(3))
+    @test (@constinferred label(trivial(s))) == SectorProduct(U1(0), SU2(0), U1(0))
 
     s = TrivialSector() × U1(3) × SU2(1 / 2)
-    @test length(arguments(sector(s))) == 3
+    @test length(arguments(label(s))) == 3
     @test (@constinferred quantum_dimension(s)) == 2
     @test dual(s) == TrivialSector() × U1(-3) × SU2(1//2)
-    @test (@constinferred sector(trivial(s))) ==
+    @test (@constinferred label(trivial(s))) ==
       SectorProduct(TrivialSector(), U1(0), SU2(0))
     @test s > trivial(s)
   end
@@ -64,7 +65,7 @@ import TensorKitSectors as TKS
     @test_broken SectorProduct(U1(1)) != U1(1)
     @test SectorProduct(U1(1)) == SectorProduct(U1(1), U1(0))
     @test SectorProduct(U1(1)) != SectorProduct(U1(1), U1(1))
-    @test SectorProduct(U1(0), SU2(0)) == sector(TrivialSector())
+    @test SectorProduct(U1(0), SU2(0)) == label(TrivialSector())
     @test SectorProduct(U1(0), SU2(0)) == SectorProduct(TrivialSector(), SU2(0))
     @test SectorProduct(U1(0), SU2(0)) == SectorProduct(U1(0), TrivialSector())
     @test SectorProduct(U1(0), SU2(0)) == SectorProduct(TrivialSector(), TrivialSector())
@@ -184,17 +185,17 @@ end
 @testset "Test Named Sector Products" begin
   @testset "Construct from × of NamedTuples" begin
     s = (A=U1(1),) × (B=Z{2}(0),)
-    @test length(arguments(sector(s))) == 2
-    @test arguments(sector(s))[:A] == sector(U1(1))
-    @test arguments(sector(s))[:B] == sector(Z{2}(0))
+    @test length(arguments(label(s))) == 2
+    @test arguments(label(s))[:A] == label(U1(1))
+    @test arguments(label(s))[:B] == label(Z{2}(0))
     @test (@constinferred quantum_dimension(s)) == 1
     @test (@constinferred dual(s)) == (A=U1(-1),) × (B=Z{2}(0),)
     @test (@constinferred trivial(s)) == (A=U1(0),) × (B=Z{2}(0),)
 
     s = (A=U1(1),) × (B=SU2(2),)
-    @test length(arguments(sector(s))) == 2
-    @test arguments(sector(s))[:A] == sector(U1(1))
-    @test arguments(sector(s))[:B] == sector(SU2(2))
+    @test length(arguments(label(s))) == 2
+    @test arguments(label(s))[:A] == label(U1(1))
+    @test arguments(label(s))[:B] == label(SU2(2))
     @test (@constinferred quantum_dimension(s)) == 5
     @test (@constinferred dual(s)) == (A=U1(-1),) × (B=SU2(2),)
     @test (@constinferred trivial(s)) == (A=U1(0),) × (B=SU2(0),)
@@ -220,17 +221,17 @@ end
 
   @testset "Construct from Pairs" begin
     s = ×("A" => U1(2))
-    @test length(arguments(sector(s))) == 1
-    @test arguments(sector(s))[:A] == sector(U1(2))
+    @test length(arguments(label(s))) == 1
+    @test arguments(label(s))[:A] == label(U1(2))
     @test s == ×((; A=U1(2)))
     @test (@constinferred quantum_dimension(s)) == 1
     @test (@constinferred dual(s)) == ×("A" => U1(-2))
     @test (@constinferred trivial(s)) == ×((; A=U1(0)))
 
     s = ×("B" => SU2(1//2), :C => Z{2}(1))
-    @test length(arguments(sector(s))) == 2
-    @test arguments(sector(s))[:B] == sector(SU2(1//2))
-    @test arguments(sector(s))[:C] == sector(Z{2}(1))
+    @test length(arguments(label(s))) == 2
+    @test arguments(label(s))[:B] == label(SU2(1//2))
+    @test arguments(label(s))[:C] == label(Z{2}(1))
     @test (@constinferred quantum_dimension(s)) == 2
   end
 
@@ -387,8 +388,8 @@ end
 
     @test (@constinferred s × SectorProduct(())) == s
     @test (@constinferred s × SectorProduct((;))) == s
-    @test sector(@constinferred s ⊗ SectorProduct(())) == s
-    @test sector(@constinferred s ⊗ SectorProduct((;))) == s
+    @test label(@constinferred s ⊗ SectorProduct(())) == s
+    @test label(@constinferred s ⊗ SectorProduct((;))) == s
 
     @test (@constinferred dual(s)) == s
     @test (@constinferred trivial(s)) == s

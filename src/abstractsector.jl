@@ -10,26 +10,26 @@ Unit range with elements of type `Int` that additionally stores a sector to deno
 Equivalent to `Base.OneTo(length(sector))`.
 """
 struct SectorRange{I<:TKS.Sector} <: AbstractUnitRange{Int}
-  sector::I
+  label::I
 end
 
-sector(r::SectorRange) = r.sector
+label(r::SectorRange) = r.label
 sector_type(I::Type{<:SectorRange}) = I
 
 # ===================================  Base interface  =====================================
 
 Base.length(r::SectorRange) = quantum_dimension(r)
 
-Base.isless(r1::SectorRange, r2::SectorRange) = isless(sector(r1), sector(r2))
-Base.isless(r1::SectorRange, r2::TKS.Sector) = isless(sector(r1), r2)
-Base.isless(r1::TKS.Sector, r2::SectorRange) = isless(r1, sector(r2))
+Base.isless(r1::SectorRange, r2::SectorRange) = isless(label(r1), label(r2))
+Base.isless(r1::SectorRange, r2::TKS.Sector) = isless(label(r1), r2)
+Base.isless(r1::TKS.Sector, r2::SectorRange) = isless(r1, label(r2))
 
-Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(sector(r1), sector(r2))
-Base.:(==)(r1::SectorRange, r2::SectorRange) = sector(r1) == sector(r2)
-Base.:(==)(r1::SectorRange, r2::TKS.Sector) = sector(r1) == r2
-Base.:(==)(r1::TKS.Sector, r2::SectorRange) = r1 == sector(r2)
+Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(label(r1), label(r2))
+Base.:(==)(r1::SectorRange, r2::SectorRange) = label(r1) == label(r2)
+Base.:(==)(r1::SectorRange, r2::TKS.Sector) = label(r1) == r2
+Base.:(==)(r1::TKS.Sector, r2::SectorRange) = r1 == label(r2)
 
-Base.hash(r::SectorRange, h::UInt) = hash(r.sector, h)
+Base.hash(r::SectorRange, h::UInt) = hash(label(r), h)
 
 Base.OneTo(r::SectorRange) = Base.OneTo(length(r))
 Base.first(r::SectorRange) = first(Base.OneTo(r))
@@ -38,7 +38,7 @@ Base.last(r::SectorRange) = last(Base.OneTo(r))
 function Base.show(io::IO, r::SectorRange{I}) where {I}
   show(io, typeof(r))
   print(io, '(')
-  l = sector_label(sector(r))
+  l = sector_label(r)
   isnothing(l) || show(io, l)
   print(io, ')')
   return nothing
@@ -56,10 +56,10 @@ end
 trivial(::Type{SectorRange{I}}) where {I} = SectorRange{I}(one(I))
 trivial(::Type{I}) where {I<:TKS.Sector} = one(I)
 
-istrivial(r::SectorRange) = isone(sector(r))
+istrivial(r::SectorRange) = isone(label(r))
 istrivial(r) = (r == trivial(r))
 
-sector_label(r::SectorRange) = sector_label(sector(r))
+sector_label(r::SectorRange) = sector_label(label(r))
 function sector_label(c::TKS.Sector)
   return map(fieldnames(typeof(c))) do f
     return getfield(c, f)
@@ -68,7 +68,7 @@ function sector_label(c::TKS.Sector)
 end
 
 quantum_dimension(g::AbstractUnitRange) = length(g)
-quantum_dimension(r::SectorRange) = quantum_dimension(sector(r))
+quantum_dimension(r::SectorRange) = quantum_dimension(label(r))
 quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 
 to_sector(x::TKS.Sector) = SectorRange(x)
@@ -78,11 +78,11 @@ to_gradedrange(c::SectorRange) = gradedrange([c => 1])
 to_gradedrange(c::TKS.Sector) = to_gradedrange(SectorRange(c))
 
 function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
-  return TKS.Nsymbol(sector(s1), sector(s2), sector(s3))
+  return TKS.Nsymbol(label(s1), label(s2), label(s3))
 end
 
 dual(c::TKS.Sector) = TKS.dual(c)
-dual(r1::SectorRange) = typeof(r1)(dual(sector(r1)))
+dual(r1::SectorRange) = typeof(r1)(dual(label(r1)))
 
 # ===============================  Fusion rule interface  ==================================
 
@@ -113,8 +113,8 @@ combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
 combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()
 
 function fusion_rule(r1::SectorRange, r2::SectorRange)
-  a = sector(r1)
-  b = sector(r2)
+  a = label(r1)
+  b = label(r2)
   fstyle = TKS.FusionStyle(typeof(r1)) & TKS.FusionStyle(typeof(r2))
   fstyle === TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
   return gradedrange(
@@ -142,16 +142,16 @@ const TrivialSector = SectorRange{TKS.Trivial}
 TrivialSector() = TrivialSector(TKS.Trivial())
 sector_label(::TKS.Trivial) = nothing
 function fusion_rule(::TrivialSector, r::SectorRange)
-  return TKS.FusionStyle(sector(r)) === TKS.UniqueFusion() ? r : to_gradedrange(r)
+  return TKS.FusionStyle(label(r)) === TKS.UniqueFusion() ? r : to_gradedrange(r)
 end
 function fusion_rule(r::SectorRange, ::TrivialSector)
-  return TKS.FusionStyle(sector(r)) === TKS.UniqueFusion() ? r : to_gradedrange(r)
+  return TKS.FusionStyle(label(r)) === TKS.UniqueFusion() ? r : to_gradedrange(r)
 end
 fusion_rule(r::TrivialSector, ::TrivialSector) = r
 
 Base.:(==)(::TrivialSector, ::TrivialSector) = true
-Base.:(==)(::TrivialSector, r::SectorRange) = isone(sector(r))
-Base.:(==)(r::SectorRange, ::TrivialSector) = isone(sector(r))
+Base.:(==)(::TrivialSector, r::SectorRange) = isone(label(r))
+Base.:(==)(r::SectorRange, ::TrivialSector) = isone(label(r))
 Base.isless(::TrivialSector, ::TrivialSector) = false
 Base.isless(::TrivialSector, r::SectorRange) = trivial(r) < r
 Base.isless(r::SectorRange, ::TrivialSector) = r < trivial(r)
