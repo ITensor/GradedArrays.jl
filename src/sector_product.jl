@@ -244,14 +244,14 @@ function arguments_canonicalize(s1::SectorProduct{<:Tuple}, s2::SectorProduct{<:
   return s1′, s2′
 end
 
-Base.@assume_effects :foldable _allkeys(::Val{K1}, ::Val{K2}) where {K1,K2} = Tuple(
-  sort(union(K1, K2))
-)
+Base.@assume_effects :foldable function _sorted_union(::Val{K1}, ::Val{K2}) where {K1,K2}
+  return Tuple(sort(union(K1, K2)))
+end
 
 function arguments_canonicalize(
   s1::SectorProduct{<:NamedTuple{K1}}, s2::SectorProduct{<:NamedTuple{K2}}
 ) where {K1,K2}
-  allkeys = _allkeys(Val(K1), Val(K2))
+  allkeys = _sorted_union(Val(K1), Val(K2))
   for k in allkeys
     si1 = get(arguments(s1), k, TKS.Trivial())
     si2 = get(arguments(s2), k, TKS.Trivial())
