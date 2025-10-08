@@ -82,6 +82,17 @@ function TKS.otimes(s1::I, s2::I) where {T<:NamedTuple,I<:SectorProduct{T}}
   return TKS.SectorSet{I}(prod_otimes)
 end
 
+# multiple dispatch through explicit loop
+const _TKSSector = TKS.Sector
+for T1 in (:SectorProduct, :_TKSSector),
+  T2 in (:SectorProduct, :_TKSSector),
+  T3 in (:SectorProduct, :_TKSSector)
+
+  T1 === T2 === T3 && continue
+  @eval function TKS.Nsymbol(s1::$T1, s2::$T2, s3::$T3)
+    return TKS.Nsymbol(SectorProduct(s1), SectorProduct(s2), SectorProduct(s3))
+  end
+end
 function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
   is_global_trivial(s1) && is_global_trivial(s2) && return isone(s3) ? 1 : 0
   is_global_trivial(s1) && return TKS.Nsymbol(one(s2), s2, s3)
@@ -92,25 +103,6 @@ function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
   return prod(
     splat(TKS.Nsymbol), zip(arguments(s1_can), arguments(s2_can), arguments(s3_can)); init=1
   )
-end
-# multiple dispatch hell :(
-function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::TKS.Sector)
-  return TKS.Nsymbol(s1, s2, SectorProduct(s3))
-end
-function TKS.Nsymbol(s1::SectorProduct, s2::TKS.Sector, s3::SectorProduct)
-  return TKS.Nsymbol(s1, SectorProduct(s2), s3)
-end
-function TKS.Nsymbol(s1::TKS.Sector, s2::SectorProduct, s3::SectorProduct)
-  return TKS.Nsymbol(SectorProduct(s1), s2, s3)
-end
-function TKS.Nsymbol(s1::SectorProduct, s2::TKS.Sector, s3::TKS.Sector)
-  return TKS.Nsymbol(s1, SectorProduct(s2), SectorProduct(s3))
-end
-function TKS.Nsymbol(s1::TKS.Sector, s2::SectorProduct, s3::TKS.Sector)
-  return TKS.Nsymbol(SectorProduct(s1), s2, SectorProduct(s3))
-end
-function TKS.Nsymbol(s1::TKS.Sector, s2::TKS.Sector, s3::SectorProduct)
-  return TKS.Nsymbol(SectorProduct(s1), SectorProduct(s2), s3)
 end
 
 # ===================================  Base interface  =====================================
