@@ -2,15 +2,14 @@
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of Sector
 using TensorProducts: TensorProducts, ⊗
 import TensorKitSectors as TKS
-using TensorKitSectors: Sector as AbstractSector
 
 """
-    SectorRange(sector::AbstractSector)
+    SectorRange(sector::TKS.Sector)
 
 Unit range with elements of type `Int` that additionally stores a sector to denote the grading.
 Equivalent to `Base.OneTo(length(sector))`.
 """
-struct SectorRange{I<:AbstractSector} <: AbstractUnitRange{Int}
+struct SectorRange{I<:TKS.Sector} <: AbstractUnitRange{Int}
   sector::I
 end
 
@@ -22,13 +21,13 @@ sector_type(I::Type{<:SectorRange}) = I
 Base.length(r::SectorRange) = quantum_dimension(r)
 
 Base.isless(r1::SectorRange, r2::SectorRange) = isless(sector(r1), sector(r2))
-Base.isless(r1::SectorRange, r2::AbstractSector) = isless(sector(r1), r2)
-Base.isless(r1::AbstractSector, r2::SectorRange) = isless(r1, sector(r2))
+Base.isless(r1::SectorRange, r2::TKS.Sector) = isless(sector(r1), r2)
+Base.isless(r1::TKS.Sector, r2::SectorRange) = isless(r1, sector(r2))
 
 Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(sector(r1), sector(r2))
 Base.:(==)(r1::SectorRange, r2::SectorRange) = sector(r1) == sector(r2)
-Base.:(==)(r1::SectorRange, r2::AbstractSector) = sector(r1) == r2
-Base.:(==)(r1::AbstractSector, r2::SectorRange) = r1 == sector(r2)
+Base.:(==)(r1::SectorRange, r2::TKS.Sector) = sector(r1) == r2
+Base.:(==)(r1::TKS.Sector, r2::SectorRange) = r1 == sector(r2)
 
 Base.hash(r::SectorRange, h::UInt) = hash(r.sector, h)
 
@@ -55,13 +54,13 @@ function trivial(type::Type)
   return error("`trivial` not defined for type $(type).")
 end
 trivial(::Type{SectorRange{I}}) where {I} = SectorRange{I}(one(I))
-trivial(::Type{I}) where {I<:AbstractSector} = one(I)
+trivial(::Type{I}) where {I<:TKS.Sector} = one(I)
 
 istrivial(r::SectorRange) = isone(sector(r))
 istrivial(r) = (r == trivial(r))
 
 sector_label(r::SectorRange) = sector_label(sector(r))
-function sector_label(c::AbstractSector)
+function sector_label(c::TKS.Sector)
   return map(fieldnames(typeof(c))) do f
     return getfield(c, f)
   end
@@ -70,19 +69,19 @@ end
 
 quantum_dimension(g::AbstractUnitRange) = length(g)
 quantum_dimension(r::SectorRange) = quantum_dimension(sector(r))
-quantum_dimension(s::AbstractSector) = TKS.dim(s)
+quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 
-to_sector(x::AbstractSector) = SectorRange(x)
+to_sector(x::TKS.Sector) = SectorRange(x)
 
 # convert to range
 to_gradedrange(c::SectorRange) = gradedrange([c => 1])
-to_gradedrange(c::AbstractSector) = to_gradedrange(SectorRange(c))
+to_gradedrange(c::TKS.Sector) = to_gradedrange(SectorRange(c))
 
 function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
   return TKS.Nsymbol(sector(s1), sector(s2), sector(s3))
 end
 
-dual(c::AbstractSector) = TKS.dual(c)
+dual(c::TKS.Sector) = TKS.dual(c)
 dual(r1::SectorRange) = typeof(r1)(dual(sector(r1)))
 
 # ===============================  Fusion rule interface  ==================================
@@ -127,13 +126,13 @@ end
 
 TensorProducts.tensor_product(s::SectorRange) = s
 TensorProducts.tensor_product(c1::SectorRange, c2::SectorRange) = fusion_rule(c1, c2)
-function TensorProducts.tensor_product(c1::AbstractSector, c2::AbstractSector)
+function TensorProducts.tensor_product(c1::TKS.Sector, c2::TKS.Sector)
   return tensor_product(to_sector(c1), to_sector(c2))
 end
-function TensorProducts.tensor_product(c1::SectorRange, c2::AbstractSector)
+function TensorProducts.tensor_product(c1::SectorRange, c2::TKS.Sector)
   return tensor_product(c1, to_sector(c2))
 end
-function TensorProducts.tensor_product(c1::AbstractSector, c2::SectorRange)
+function TensorProducts.tensor_product(c1::TKS.Sector, c2::SectorRange)
   return tensor_product(to_sector(c1), c2)
 end
 

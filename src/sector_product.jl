@@ -2,7 +2,7 @@
 # e.g. U(1)×U(1), U(1)×SU2(2)×SU(3)
 
 # =====================================  Definition  =======================================
-struct SectorProduct{Sectors} <: AbstractSector
+struct SectorProduct{Sectors} <: TKS.Sector
   arguments::Sectors
   global _SectorProduct(l) = new{typeof(l)}(l)
 end
@@ -16,7 +16,7 @@ function SectorProduct(nt::NamedTuple)
 end
 SectorProduct(; kws...) = SectorProduct((; kws...))
 
-SectorProduct(x::AbstractSector...) = _SectorProduct(x)
+SectorProduct(x::TKS.Sector...) = _SectorProduct(x)
 SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 SectorProduct(c::SectorRange...) = _SectorProduct(map(sector, c))
 # SectorProduct(::TKS.Trivial) = _SectorProduct((;))  # empty tuple
@@ -24,7 +24,7 @@ SectorProduct(c::SectorRange...) = _SectorProduct(map(sector, c))
 arguments(s::SectorProduct) = s.arguments
 arguments_type(::Type{SectorProduct{T}}) where {T} = T
 
-function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{AbstractSector}}}
+function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{TKS.Sector}}}
   return SectorRange(SectorProduct(nt))
 end
 function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{SectorRange}}}
@@ -54,7 +54,7 @@ function Base.one(::Type{SectorProduct{NT}}) where {NT<:NamedTuple}
 end
 Base.isone(s::SectorProduct) = all(isone, arguments(s))
 
-is_global_trivial(s::AbstractSector) = false
+is_global_trivial(s::TKS.Sector) = false
 is_global_trivial(s::SectorProduct) = isempty(arguments(s))
 is_global_trivial(s::TKS.Trivial) = true
 
@@ -64,8 +64,8 @@ function TKS.otimes(s1::SectorProduct, s2::SectorProduct)
   is_global_trivial(s2) && return TKS.otimes(s1, one(s1))
   return TKS.otimes(arguments_canonicalize(s1, s2)...)
 end
-TKS.otimes(s1::SectorProduct, s2::AbstractSector) = TKS.otimes(s1, SectorProduct(s2))
-TKS.otimes(s1::AbstractSector, s2::SectorProduct) = TKS.otimes(SectorProduct(s1), s2)
+TKS.otimes(s1::SectorProduct, s2::TKS.Sector) = TKS.otimes(s1, SectorProduct(s2))
+TKS.otimes(s1::TKS.Sector, s2::SectorProduct) = TKS.otimes(SectorProduct(s1), s2)
 
 function TKS.otimes(s1::I, s2::I) where {I<:SectorProduct{<:Tuple}}
   isempty(arguments(s1)) && return (s2,)
@@ -94,22 +94,22 @@ function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
   )
 end
 # multiple dispatch hell :(
-function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::AbstractSector)
+function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::TKS.Sector)
   return TKS.Nsymbol(s1, s2, SectorProduct(s3))
 end
-function TKS.Nsymbol(s1::SectorProduct, s2::AbstractSector, s3::SectorProduct)
+function TKS.Nsymbol(s1::SectorProduct, s2::TKS.Sector, s3::SectorProduct)
   return TKS.Nsymbol(s1, SectorProduct(s2), s3)
 end
-function TKS.Nsymbol(s1::AbstractSector, s2::SectorProduct, s3::SectorProduct)
+function TKS.Nsymbol(s1::TKS.Sector, s2::SectorProduct, s3::SectorProduct)
   return TKS.Nsymbol(SectorProduct(s1), s2, s3)
 end
-function TKS.Nsymbol(s1::SectorProduct, s2::AbstractSector, s3::AbstractSector)
+function TKS.Nsymbol(s1::SectorProduct, s2::TKS.Sector, s3::TKS.Sector)
   return TKS.Nsymbol(s1, SectorProduct(s2), SectorProduct(s3))
 end
-function TKS.Nsymbol(s1::AbstractSector, s2::SectorProduct, s3::AbstractSector)
+function TKS.Nsymbol(s1::TKS.Sector, s2::SectorProduct, s3::TKS.Sector)
   return TKS.Nsymbol(SectorProduct(s1), s2, SectorProduct(s3))
 end
-function TKS.Nsymbol(s1::AbstractSector, s2::AbstractSector, s3::SectorProduct)
+function TKS.Nsymbol(s1::TKS.Sector, s2::TKS.Sector, s3::SectorProduct)
   return TKS.Nsymbol(SectorProduct(s1), SectorProduct(s2), s3)
 end
 
@@ -121,8 +121,8 @@ function Base.:(==)(A::SectorProduct, B::SectorProduct)
   A′, B′ = arguments_canonicalize(A, B)
   return all(splat(==), zip(arguments(A′), arguments(B′)))
 end
-Base.:(==)(A::SectorProduct, B::AbstractSector) = A == SectorProduct(B)
-Base.:(==)(A::AbstractSector, B::SectorProduct) = SectorProduct(A) == B
+Base.:(==)(A::SectorProduct, B::TKS.Sector) = A == SectorProduct(B)
+Base.:(==)(A::TKS.Sector, B::SectorProduct) = SectorProduct(A) == B
 
 function Base.isless(s1::SectorProduct, s2::SectorProduct)
   isempty(arguments(s1)) && isempty(arguments(s2)) && return false
@@ -131,8 +131,8 @@ function Base.isless(s1::SectorProduct, s2::SectorProduct)
   s1′, s2′ = arguments_canonicalize(s1, s2)
   return arguments(s1′) < arguments(s2′)
 end
-Base.isless(s1::SectorProduct, s2::AbstractSector) = s1 < SectorProduct(s2)
-Base.isless(s1::AbstractSector, s2::SectorProduct) = SectorProduct(s1) < s2
+Base.isless(s1::SectorProduct, s2::TKS.Sector) = s1 < SectorProduct(s2)
+Base.isless(s1::TKS.Sector, s2::SectorProduct) = SectorProduct(s1) < s2
 
 function Base.show(io::IO, r::SectorRange{<:SectorProduct})
   s = sector(r)
@@ -158,7 +158,7 @@ end
 # =================================  Cartesian Product  ====================================
 ×(c::SectorRange) = SectorRange(SectorProduct(sector(c)))
 ×(c1::SectorRange, c2::SectorRange) = SectorRange(×(sector(c1), sector(c2)))
-×(c1::AbstractSector, c2::AbstractSector) = ×(SectorProduct(c1), SectorProduct(c2))
+×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
 
 function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
   return SectorProduct(arguments(p1)..., arguments(p2)...)
