@@ -111,9 +111,9 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     @test (@constinferred dual(s12)) == s12
     @test (@constinferred dual(s1)) == s1
 
-    @test s0o < s0e < s12 < s1
+    @test s0e < s0o < s12 < s1
     @test s0e == TrivialSector()
-    @test s0o < TrivialSector()
+    @test s0o > TrivialSector()
     @test TrivialSector() < s12
   end
 

@@ -190,7 +190,6 @@ function sector_label(c::TKS.CU1Irrep)
     c.j
   end
 end
-Base.isless(r1::O2, r2::O2) = isless(sector_label(r1), sector_label(r2))
 
 const SU2 = SectorRange{TKS.SU2Irrep}
 sector_label(c::TKS.SU2Irrep) = c.j
