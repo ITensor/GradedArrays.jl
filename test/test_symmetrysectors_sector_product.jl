@@ -18,7 +18,7 @@ using GradedArrays:
   space_isequal,
   trivial
 using TensorProducts: ⊗
-using Test: @test, @testset, @test_throws, @test_broken
+using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
 using BlockArrays: blocklengths
 import TensorKitSectors as TKS
