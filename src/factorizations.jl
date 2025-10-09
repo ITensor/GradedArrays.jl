@@ -58,9 +58,9 @@ function fluxify(A, Aaxes, charge; side::Symbol=:domain)
   istrivial(charge) && return TensorAlgebra.unmatricize(A, (Aaxes[1],), (Aaxes[2],))
 
   if side === :domain
-    A′ = TensorAlgebra.unmatricize(A, (Aaxes[1],), (Aaxes[2], to_gradedrange(charge)))
+    A′ = TensorAlgebra.unmatricize(A, (Aaxes[1],), (Aaxes[2], to_gradedrange(dual(charge))))
   else
-    A′ = TensorAlgebra.unmatricize(A, (to_gradedrange(charge), Aaxes[1]), (Aaxes[2],))
+    A′ = TensorAlgebra.unmatricize(A, (to_gradedrange(dual(charge)), Aaxes[1]), (Aaxes[2],))
   end
 
   A″ = similar(A′, Aaxes)

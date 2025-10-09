@@ -3,49 +3,43 @@
 # on exact setup
 
 using Test: @test, @testset
-using GradedArrays: ×, Fib, Ising, O2, SU, SU2, TrivialSector, U1, gradedrange, sectorrange
+using GradedArrays:
+  GradedArrays, ×, Fib, Ising, O2, SU2, TrivialSector, U1, gradedrange, sectorrange
+
+show_namespaced(x) = sprint(show, x; context=(:module => GradedArrays))
+show_non_namespaced(x) = sprint(show, x)
 
 @testset "show SymmetrySector" begin
   q1 = U1(1)
-  @test sprint(show, q1) == "U1(1)"
+  @test show_namespaced(q1) == "U1(1)"
+  @test show_non_namespaced(q1) == "GradedArrays.U1(1)"
 
   s0e = O2(0)
   s0o = O2(-1)
   s12 = O2(1//2)
   s1 = O2(1)
   @test isnothing(show(devnull, [s0o, s0e, s12]))
-  @test sprint(show, s0e) == "O2(0)"
-  @test sprint(show, MIME("text/plain"), s0e) == "O2(0e)"
-  @test sprint(show, s0o) == "O2(-1)"
-  @test sprint(show, MIME("text/plain"), s0o) == "O2(0o)"
-  @test sprint(show, s12) == "O2(1/2)"
-  @test sprint(show, MIME("text/plain"), s12) == "O2(±1/2)"
+  @test show_namespaced(s0e) == "O2(0)"
+  @test show_namespaced(s0o) == "O2(-1)"
+  @test show_namespaced(s12) == "O2(1/2)"
+  @test show_non_namespaced(s0e) == "GradedArrays.O2(0)"
 
   j1 = SU2(0)
-  @test sprint(show, j1) == "SU2(0)"
-  @test sprint(show, MIME("text/plain"), j1) == "S = 0"
+  @test show_namespaced(j1) == "SU2(0)"
 
-  f3 = SU{3}((1, 0))
-  ad3 = SU{3}((2, 1))
-  @test sprint(show, f3) == "SU{3}((1, 0))"
-  @test sprint(show, MIME("text/plain"), f3) == "┌─┐\n└─┘"
-  @test sprint(show, MIME("text/plain"), ad3) == "┌─┬─┐\n├─┼─┘\n└─┘"
-
-  @test sprint(show, Fib.(("1", "τ"))) == "(Fib(1), Fib(τ))"
-  @test sprint(show, Ising.(("1", "σ", "ψ"))) == "(Ising(1), Ising(σ), Ising(ψ))"
+  @test show_namespaced(Fib.(("1", "τ"))) == "(Fib(\"1\"), Fib(\"τ\"))"
+  @test show_namespaced(Ising.(("1", "σ", "ψ"))) ==
+    "(Ising(\"1\"), Ising(\"σ\"), Ising(\"ψ\"))"
 
   s = (A=U1(1),) × (B=SU2(2),)
-  @test sprint(show, s) == "((A=U1(1),) × (B=SU2(2),))"
+  @test show_namespaced(s) == "((A=U1(1),) × (B=SU2(2),))"
   s = TrivialSector() × U1(3) × SU2(1 / 2)
-  @test sprint(show, s) == "(GradedArrays.TrivialSector() × U1(3) × SU2(1/2))"
+  @test show_namespaced(s) == "(TrivialSector() × U1(3) × SU2(1/2))"
 end
 
 @testset "show GradedUnitRange" begin
-  sr = sectorrange(SU((1, 0)), 2)
-  @test sprint(show, sr) == "SectorUnitRange SU{3}((1, 0)) => Base.OneTo(6)"
-
   g1 = gradedrange(["x" => 2, "y" => 3, "z" => 2])
-  @test sprint(show, g1) == "GradedUnitRange[\"x\" => 2, \"y\" => 3, \"z\" => 2]"
+  @test show_namespaced(g1) == "GradedUnitRange[\"x\" => 2, \"y\" => 3, \"z\" => 2]"
   @test sprint(show, MIME("text/plain"), g1) ==
     "GradedArrays.GradedUnitRange{Int64, GradedArrays.SectorUnitRange{Int64, String, Base.OneTo{Int64}}, BlockArrays.BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\nSectorUnitRange x => 1:2\nSectorUnitRange y => 3:5\nSectorUnitRange z => 6:7"
 
@@ -58,11 +52,6 @@ end
   @test sprint(show, g1d) == "GradedUnitRange dual [\"x\" => 2, \"y\" => 3, \"z\" => 2]"
   @test sprint(show, MIME("text/plain"), g1d) ==
     "GradedArrays.GradedUnitRange{Int64, GradedArrays.SectorUnitRange{Int64, String, Base.OneTo{Int64}}, BlockArrays.BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\nSectorUnitRange dual(x) => 1:2\nSectorUnitRange dual(y) => 3:5\nSectorUnitRange dual(z) => 6:7"
-
-  g = gradedrange([SU((0, 0)) => 2, SU((1, 0)) => 2])
-  @test sprint(show, "text/plain", g) ==
-    "GradedArrays.GradedUnitRange{Int64, GradedArrays.SectorUnitRange{Int64, GradedArrays.SU{3, 2}, Base.OneTo{Int64}}, BlockArrays.BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\nSectorUnitRange SU{3}((0, 0)) => 1:2\nSectorUnitRange SU{3}((1, 0)) => 3:8"
-  @test sprint(show, g) == "GradedUnitRange[SU{3}((0, 0)) => 2, SU{3}((1, 0)) => 2]"
 end
 
 @testset "show GradedArray" begin

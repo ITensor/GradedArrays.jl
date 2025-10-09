@@ -1,6 +1,7 @@
+using BlockArrays: blocklengths
 using GradedArrays:
+  GradedArrays,
   O2,
-  SU,
   SU2,
   TrivialSector,
   U1,
@@ -14,9 +15,11 @@ using GradedArrays:
   trivial,
   unmerged_tensor_product
 using TensorProducts: ⊗, tensor_product
-using Test: @test, @testset, @test_throws
+using SUNRepresentations: SUNIrrep
+using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
-using BlockArrays: blocklengths
+
+const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
 
 @testset "Simple SymmetrySector fusion rules" begin
   @testset "Z{2} fusion rules" begin
@@ -75,7 +78,7 @@ using BlockArrays: blocklengths
     @test space_isequal((@constinferred s12 ⊗ s0o), gradedrange([s12 => 1]))
     @test space_isequal((@constinferred s12 ⊗ s1), gradedrange([s12 => 1, O2(3//2) => 1]))
     @test space_isequal(
-      (@constinferred s12 ⊗ s12), gradedrange([s0o => 1, s0e => 1, s1 => 1])
+      (@constinferred s12 ⊗ s12), gradedrange([s0e => 1, s0o => 1, s1 => 1])
     )
 
     @test (@constinferred quantum_dimension(s0o ⊗ s1)) == 2
@@ -225,18 +228,18 @@ end
     g6 = gradedrange([s1 => 1, c3 => 1])
     @test space_isequal(dual(flip(g5)), g6)
     @test space_isequal(
-      tensor_product(g5, g6), gradedrange([s1 => 2, f3 => 1, c3 => 1, ad8 => 1])
+      tensor_product(g5, g6), gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
     )
     @test space_isequal(
       tensor_product(dual(g5), g6),
-      gradedrange([s1 => 1, f3 => 1, c3 => 2, SU{3}((2, 2)) => 1]),
+      gradedrange([s1 => 1, c3 => 2, f3 => 1, SU{3}((2, 2)) => 1]),
     )
     @test space_isequal(
       tensor_product(g5, dual(g6)),
-      gradedrange([s1 => 1, f3 => 2, c3 => 1, SU{3}((2, 0)) => 1]),
+      gradedrange([s1 => 1, c3 => 1, f3 => 2, SU{3}((2, 0)) => 1]),
     )
     @test space_isequal(
-      tensor_product(dual(g5), dual(g6)), gradedrange([s1 => 2, f3 => 1, c3 => 1, ad8 => 1])
+      tensor_product(dual(g5), dual(g6)), gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
     )
 
     @test nsymbol(ad8, ad8, ad8) == 2

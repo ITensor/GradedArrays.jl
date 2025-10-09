@@ -4,9 +4,14 @@ using Test: @test, @testset
 @testset "Test exports" begin
   exports = [
     :GradedArrays,
+    :Fib,
+    :Ising,
+    :O2,
     :SU2,
+    :TrivialSector,
     :U1,
     :Z,
+    :Z2,
     :dag,
     :dual,
     :flip,
