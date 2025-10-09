@@ -3,19 +3,19 @@ using GradedArrays:
   Ising,
   O2,
   SU2,
+  SectorRange,
   TrivialSector,
   U1,
   Z,
   dual,
-  quantum_dimension,
   istrivial,
   modulus,
+  quantum_dimension,
   sector_type,
-  trivial,
-  SectorRange
-using Test: @test, @testset, @test_throws
-using TestExtras: @constinferred
+  trivial
 using SUNRepresentations: SUNRepresentations
+using Test: @test, @test_throws, @testset
+using TestExtras: @constinferred
 
 const SU{N} = SectorRange{SUNRepresentations.SUNIrrep{N}}
 fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
