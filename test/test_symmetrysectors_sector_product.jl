@@ -1,22 +1,22 @@
 using GradedArrays:
-  ×,
-  sectorproduct,
+  GradedArrays,
   SectorProduct,
   SU2,
   TrivialSector,
   U1,
   Z,
+  ×,
   arguments,
   dual,
   gradedrange,
+  label,
   quantum_dimension,
+  sector,
   sector_type,
+  sectorproduct,
   sectorrange,
   space_isequal,
-  trivial,
-  sector,
-  label,
-  GradedArrays
+  trivial
 using TensorProducts: ⊗
 using Test: @test, @testset, @test_throws, @test_broken
 using TestExtras: @constinferred
