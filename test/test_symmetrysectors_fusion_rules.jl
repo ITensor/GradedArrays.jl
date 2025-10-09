@@ -6,18 +6,26 @@ using GradedArrays:
   U1,
   Z,
   dual,
-  flip,
-  gradedrange,
-  nsymbol,
-  quantum_dimension,
-  space_isequal,
-  trivial,
-  unmerged_tensor_product
-using TensorProducts: ⊗, tensor_product
-using Test: @test, @testset, @test_throws
-using TestExtras: @constinferred
 using BlockArrays: blocklengths
+using GradedArrays:
+  GradedArrays,
+O2,
+SU2,
+TrivialSector,
+U1,
+Z,
+dual,
+flip,
+gradedrange,
+nsymbol,
+quantum_dimension,
+space_isequal,
+trivial,
+unmerged_tensor_product
+using TensorProducts: ⊗, tensor_product
 using SUNRepresentations: SUNIrrep
+using Test: @test, @test_throws, @testset
+using TestExtras: @constinferred
 
 const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
 
