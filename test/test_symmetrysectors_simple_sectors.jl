@@ -104,7 +104,7 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     @test (@constinferred quantum_dimension(s0e)) == 1
     @test (@constinferred quantum_dimension(s0o)) == 1
     @test (@constinferred quantum_dimension(s12)) == 2
-    @test (@constinferred quantum_dimension(s1)) == 2
+    @test (@constinferred quantum_dimension(s1)) == e2
 
     @test (@constinferred dual(s0e)) == s0e
     @test (@constinferred dual(s0o)) == s0o

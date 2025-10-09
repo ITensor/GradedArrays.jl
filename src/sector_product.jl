@@ -7,7 +7,7 @@ struct SectorProduct{Sectors} <: TKS.Sector
   global _SectorProduct(l) = new{typeof(l)}(l)
 end
 
-const SectorProductRange = SectorRange{SectorProduct}
+const SectorProductRange{T<:SectorProduct} = SectorRange{T}
 
 SectorProduct(t::Tuple) = _SectorProduct(t)
 function SectorProduct(nt::NamedTuple)
@@ -23,6 +23,13 @@ SectorProduct(c::SectorRange...) = _SectorProduct(map(label, c))
 
 arguments(s::SectorProduct) = s.arguments
 arguments_type(::Type{SectorProduct{T}}) where {T} = T
+
+function arguments(r::SectorProductRange{T}) where {T<:SectorProduct{<:Tuple}}
+  return map(SectorRange, arguments(label(r)))
+end
+function arguments(r::SectorProductRange{T}) where {T<:SectorProduct{<:NamedTuple}}
+  return NamedTuple(k => SectorRange(v) for (k, v) in pairs(arguments(label(r))))
+end
 
 function to_sector(nt::NamedTuple{<:Any,T}) where {T<:Tuple{Vararg{TKS.Sector}}}
   return SectorRange(SectorProduct(nt))
