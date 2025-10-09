@@ -16,7 +16,7 @@ using HalfIntegers: Half, HalfInteger
 # - l=-1 for zero odd
 # - l=+|m| for Sz=±|m|
 struct O2 <: AbstractSector
-  l::Half{Int}
+    l::Half{Int}
 end
 
 SymmetryStyle(::Type{O2}) = NotAbelianStyle()
@@ -38,39 +38,39 @@ quantum_dimension(::NotAbelianStyle, s::O2) = 2 - is_zero_even_or_odd(s)
 dual(s::O2) = s
 
 function Base.show(io::IO, ::MIME"text/plain", s::O2)
-  if iszero_odd(s)
-    disp = "0o"
-  elseif istrivial(s)
-    disp = "0e"
-  else
-    disp = "±" * string(sector_label(s))
-  end
-  return print(io, "O2(", disp, ")")
+    if iszero_odd(s)
+        disp = "0o"
+    elseif istrivial(s)
+        disp = "0e"
+    else
+        disp = "±" * string(sector_label(s))
+    end
+    return print(io, "O2(", disp, ")")
 end
 
 Base.show(io::IO, s::O2) = print(io, "O2(", sector_label(s), ")")
 
 function label_fusion_rule(::Type{O2}, l1, l2)
-  if is_zero_even_or_odd(l1)
-    degens = [1]
-    if is_zero_even_or_odd(l2)
-      labels = l1 == l2 ? [sector_label(trivial(O2))] : [sector_label(zero_odd(O2))]
+    if is_zero_even_or_odd(l1)
+        degens = [1]
+        if is_zero_even_or_odd(l2)
+            labels = l1 == l2 ? [sector_label(trivial(O2))] : [sector_label(zero_odd(O2))]
+        else
+            labels = [l2]
+        end
     else
-      labels = [l2]
+        if is_zero_even_or_odd(l2)
+            degens = [1]
+            labels = [l1]
+        else
+            if l1 == l2
+                degens = [1, 1, 1]
+                labels = [sector_label(zero_odd(O2)), sector_label(trivial(O2)), 2 * l1]
+            else
+                degens = [1, 1]
+                labels = [abs(l1 - l2), l1 + l2]
+            end
+        end
     end
-  else
-    if is_zero_even_or_odd(l2)
-      degens = [1]
-      labels = [l1]
-    else
-      if l1 == l2
-        degens = [1, 1, 1]
-        labels = [sector_label(zero_odd(O2)), sector_label(trivial(O2)), 2 * l1]
-      else
-        degens = [1, 1]
-        labels = [abs(l1 - l2), l1 + l2]
-      end
-    end
-  end
-  return O2.(labels) .=> degens
+    return O2.(labels) .=> degens
 end

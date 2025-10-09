@@ -14,10 +14,10 @@ dual(::TrivialSector) = TrivialSector()
 
 # TrivialSector acts as trivial on any AbstractSector
 function fusion_rule(::NotAbelianStyle, ::TrivialSector, c::AbstractSector)
-  return to_gradedrange(c)
+    return to_gradedrange(c)
 end
 function fusion_rule(::NotAbelianStyle, c::AbstractSector, ::TrivialSector)
-  return to_gradedrange(c)
+    return to_gradedrange(c)
 end
 
 # abelian case: return Sector
