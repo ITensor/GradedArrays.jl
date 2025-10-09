@@ -1,5 +1,6 @@
 using GradedArrays:
   ×,
+  sectorproduct,
   SectorProduct,
   SU2,
   TrivialSector,
@@ -58,21 +59,21 @@ import TensorKitSectors as TKS
 
   @testset "Ordered comparisons" begin
     # convention: missing arguments are filled with singlets
-    @test SectorProduct(U1(1), SU2(1)) == SectorProduct(U1(1), SU2(1))
-    @test SectorProduct(U1(1), SU2(0)) != SectorProduct(U1(1), SU2(1))
-    @test SectorProduct(U1(0), SU2(1)) != SectorProduct(U1(1), SU2(1))
-    @test_broken SectorProduct(U1(1)) != U1(1)
-    @test SectorProduct(U1(1)) == SectorProduct(U1(1), U1(0))
-    @test SectorProduct(U1(1)) != SectorProduct(U1(1), U1(1))
-    @test SectorProduct(U1(0), SU2(0)) == label(TrivialSector())
-    @test SectorProduct(U1(0), SU2(0)) == SectorProduct(TrivialSector(), SU2(0))
-    @test SectorProduct(U1(0), SU2(0)) == SectorProduct(U1(0), TrivialSector())
-    @test SectorProduct(U1(0), SU2(0)) == SectorProduct(TrivialSector(), TrivialSector())
+    @test sectorproduct(U1(1), SU2(1)) == sectorproduct(U1(1), SU2(1))
+    @test sectorproduct(U1(1), SU2(0)) != sectorproduct(U1(1), SU2(1))
+    @test sectorproduct(U1(0), SU2(1)) != sectorproduct(U1(1), SU2(1))
+    @test_broken sectorproduct(U1(1)) != U1(1)
+    @test sectorproduct(U1(1)) == sectorproduct(U1(1), U1(0))
+    @test sectorproduct(U1(1)) != sectorproduct(U1(1), U1(1))
+    @test sectorproduct(U1(0), SU2(0)) == label(TrivialSector())
+    @test sectorproduct(U1(0), SU2(0)) == sectorproduct(TrivialSector(), SU2(0))
+    @test sectorproduct(U1(0), SU2(0)) == sectorproduct(U1(0), TrivialSector())
+    @test sectorproduct(U1(0), SU2(0)) == sectorproduct(TrivialSector(), TrivialSector())
 
-    @test SectorProduct(U1(0)) < SectorProduct((U1(1)))
-    @test SectorProduct(U1(0), U1(2)) < SectorProduct((U1(1)), U1(0))
-    @test SectorProduct(U1(0)) < SectorProduct(U1(0), U1(1))
-    @test SectorProduct(U1(0)) > SectorProduct(U1(0), U1(-1))
+    @test sectorproduct(U1(0)) < sectorproduct((U1(1)))
+    @test sectorproduct(U1(0), U1(2)) < sectorproduct((U1(1)), U1(0))
+    @test sectorproduct(U1(0)) < sectorproduct(U1(0), U1(1))
+    @test sectorproduct(U1(0)) > sectorproduct(U1(0), U1(-1))
   end
 
   @testset "Quantum dimension and GradedUnitRange" begin
@@ -117,8 +118,8 @@ import TensorKitSectors as TKS
     p123 = U1(1) × U1(2) × U1(3)
     @test p123 ⊗ p123 == U1(2) × U1(4) × U1(6)
 
-    s1 = SectorProduct(U1(1), Z{2}(1))
-    s2 = SectorProduct(U1(0), Z{2}(0))
+    s1 = sectorproduct(U1(1), Z{2}(1))
+    s2 = sectorproduct(U1(0), Z{2}(0))
     @test s1 ⊗ s2 == U1(1) × Z{2}(1)
   end
 
@@ -126,10 +127,10 @@ import TensorKitSectors as TKS
     p0 = ×(SU2(0))
     ph = ×(SU2(1//2))
     @test space_isequal(
-      (@constinferred p0 ⊗ TrivialSector()), gradedrange([SectorProduct(SU2(0)) => 1])
+      (@constinferred p0 ⊗ TrivialSector()), gradedrange([sectorproduct(SU2(0)) => 1])
     )
     @test space_isequal(
-      (@constinferred TrivialSector() ⊗ ph), gradedrange([SectorProduct(SU2(1//2)) => 1])
+      (@constinferred TrivialSector() ⊗ ph), gradedrange([sectorproduct(SU2(1//2)) => 1])
     )
 
     phh = SU2(1//2) × SU2(1//2)

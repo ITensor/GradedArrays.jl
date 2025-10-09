@@ -163,6 +163,16 @@ function sector_show(io::IO, k::Symbol, v)
 end
 
 # =================================  Cartesian Product  ====================================
+
+"""
+    ×(x, y...)
+    sectorproduct(x, y...)
+
+Convenience constructor for taking the Cartesian product of 2 or more sectors or sector ranges.
+"""
+function × end
+const sectorproduct = ×
+
 ×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
 ×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
 ×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
