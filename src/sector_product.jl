@@ -133,6 +133,14 @@ end
 Base.isless(s1::SectorProduct, s2::TKS.Sector) = s1 < SectorProduct(s2)
 Base.isless(s1::TKS.Sector, s2::SectorProduct) = SectorProduct(s1) < s2
 
+function Base.isless(s1::SectorProductRange, s2::SectorProductRange)
+  isempty(arguments(s1)) && isempty(arguments(s2)) && return false
+  isempty(arguments(s1)) && return trivial(s2) < s2
+  isempty(arguments(s2)) && return s1 < trivial(s1)
+  s1′, s2′ = arguments_canonicalize(s1, s2)
+  return arguments(s1′) < arguments(s2′)
+end
+
 function Base.show(io::IO, r::SectorRange{<:SectorProduct})
   s = label(r)
   (length(arguments(s)) < 2) && print(io, "sector")
@@ -293,4 +301,15 @@ function arguments_canonicalize(s1::SectorProduct, s2::SectorProduct, s3::Sector
   s1″, s3′ = arguments_canonicalize(s1′, s3)
   s2″, s3″ = arguments_canonicalize(s2′, s3′)
   return s1″, s2″, s3″
+end
+
+function arguments_canonicalize(s1::SectorProductRange, s2::SectorProductRange)
+  s1′, s2′ = arguments_canonicalize(label(s1), label(s2))
+  return SectorRange(s1′), SectorRange(s2′)
+end
+function arguments_canonicalize(
+  s1::SectorProductRange, s2::SectorProductRange, s3::SectorProductRange
+)
+  s1′, s2′, s3′ = arguments_canonicalize(label(s1), label(s2), label(s3))
+  return SectorRange(s1′), SectorRange(s2′), SectorRange(s3′)
 end

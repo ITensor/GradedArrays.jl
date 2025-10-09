@@ -72,7 +72,7 @@ import TensorKitSectors as TKS
     @test SectorProduct(U1(0)) < SectorProduct((U1(1)))
     @test SectorProduct(U1(0), U1(2)) < SectorProduct((U1(1)), U1(0))
     @test SectorProduct(U1(0)) < SectorProduct(U1(0), U1(1))
-    @test SectorProduct(U1(0)) < SectorProduct(U1(0), U1(-1))
+    @test SectorProduct(U1(0)) > SectorProduct(U1(0), U1(-1))
   end
 
   @testset "Quantum dimension and GradedUnitRange" begin
