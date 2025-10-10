@@ -2,12 +2,12 @@ module GradedArrays
 
 include("gradedunitrange_interface.jl")
 
-include("abstractsector.jl")
+include("sectorrange.jl")
 include("sectorunitrange.jl")
 include("gradedunitrange.jl")
 
 include("namedtuple_operations.jl")
-include("sector_product.jl")
+include("sectorproduct.jl")
 
 include("fusion.jl")
 include("gradedarray.jl")
