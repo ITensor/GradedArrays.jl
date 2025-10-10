@@ -12,7 +12,8 @@ using GradedArrays:
     modulus,
     quantum_dimension,
     sector_type,
-    trivial
+    trivial,
+    zero_odd
 using SUNRepresentations: SUNRepresentations
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
@@ -100,6 +101,7 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
 
         @test trivial(O2) == s0e
         @test istrivial(s0e)
+        @test zero_odd(O2) == s0o
 
         @test (@constinferred quantum_dimension(s0e)) == 1
         @test (@constinferred quantum_dimension(s0o)) == 1
