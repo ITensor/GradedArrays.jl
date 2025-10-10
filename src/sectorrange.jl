@@ -68,7 +68,7 @@ function sector_label(c::TKS.Sector)
 end
 
 quantum_dimension(g::AbstractUnitRange) = length(g)
-quantum_dimension(r::SectorRange) = quantum_dimension(label(r))
+quantum_dimension(r::SectorRange) = TKS.dim(label(r))
 quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 
 to_sector(x::TKS.Sector) = SectorRange(x)
@@ -190,6 +190,7 @@ function sector_label(c::TKS.CU1Irrep)
         c.j
     end
 end
+zero_odd(::Type{O2}) = O2(-1)
 
 const SU2 = SectorRange{TKS.SU2Irrep}
 sector_label(c::TKS.SU2Irrep) = c.j

@@ -34,7 +34,8 @@ using GradedArrays:
     sector_type,
     sectors,
     sectorrange,
-    space_isequal
+    space_isequal,
+    to_gradedrange
 using Test: @test, @test_throws, @testset
 
 @testset "GradedUnitRanges basics" begin
@@ -43,11 +44,12 @@ using Test: @test, @test_throws, @testset
     g1 = gradedrange(["x" => 2, "y" => 3, "z" => 2])
     @test g1 isa GradedOneTo
     @test !isdual(g1)
+    @test to_gradedrange(g1) ≡ g1
 
     # Base.Slice
-    @test axes(Base.Slice(g1)) === (g1,)
-    @test Base.axes1(Base.Slice(g1)) === g1
-    @test Base.unsafe_indices(Base.Slice(g1)) === (g1,)
+    @test axes(Base.Slice(g1)) ≡ (g1,)
+    @test Base.axes1(Base.Slice(g1)) ≡ g1
+    @test Base.unsafe_indices(Base.Slice(g1)) ≡ (g1,)
 
     g2 = gradedrange(1, ["x" => 2, "y" => 3, "z" => 2])
     @test !(g2 isa GradedOneTo)
@@ -58,13 +60,13 @@ using Test: @test, @test_throws, @testset
     @test isdual(g1d)
 
     # Base.Slice
-    @test axes(Base.Slice(g1d)) === (g1d,)
-    @test Base.axes1(Base.Slice(g1d)) === g1d
-    @test Base.unsafe_indices(Base.Slice(g1d)) === (g1d,)
+    @test axes(Base.Slice(g1d)) ≡ (g1d,)
+    @test Base.axes1(Base.Slice(g1d)) ≡ g1d
+    @test Base.unsafe_indices(Base.Slice(g1d)) ≡ (g1d,)
 
     for g in (g1, g2, g1d)
         @test g isa GradedUnitRange
-        @test sector_type(g) === String
+        @test sector_type(g) ≡ String
         @test blockisequal(g, b0)
         @test space_isequal(g, g)
         @test space_isequal(copy(g), g)
@@ -138,7 +140,7 @@ using Test: @test, @test_throws, @testset
         @test a isa SectorUnitRange
         @test space_isequal(a, sectorrange("x" => 2, isdual(g)))
         @test space_isequal(g, g[:])
-        @test typeof(g[:]) === typeof(g)
+        @test typeof(g[:]) ≡ typeof(g)
 
         a = g[Block(2)[2:3]]
         @test a isa SectorUnitRange
@@ -276,7 +278,7 @@ end
     @test space_isequal(g[Block(1)], sectorrange(SU2(0), 2))
     @test space_isequal(g[Block(2)], sectorrange(SU2(1), 3:8))
 
-    @test sector_type(g) === SU2
+    @test sector_type(g) ≡ SU2
     @test space_isequal(g, g)
     @test g == 1:8
     @test space_isequal(dual(g), gradedrange([SU2(0) => 2, SU2(1) => 2]; isdual = true))
@@ -306,7 +308,7 @@ end
     @test a isa SectorUnitRange
     @test space_isequal(a, sectorrange(SU2(0) => 2))
     @test space_isequal(g, g[:])
-    @test typeof(g[:]) === typeof(g)
+    @test typeof(g[:]) ≡ typeof(g)
 
     a = g[Block(2)[2:3]]
     @test a isa UnitRange

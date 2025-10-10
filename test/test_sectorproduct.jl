@@ -41,6 +41,8 @@ import TensorKitSectors as TKS
         @test (@constinferred trivial(s)) == SectorProduct(TKS.U1Irrep(0), TKS.U1Irrep(0))
 
         s = U1(1) × SU2(1 // 2) × U1(3)
+        @test s ≡ sectorproduct(U1(1), SU2(1 // 2), U1(3))
+        @test s ≡ ×(U1(1), SU2(1 // 2), U1(3))
         @test length(arguments(s)) == 3
         @test (@constinferred quantum_dimension(s)) == 2
         @test (@constinferred dual(s)) == U1(-1) × SU2(1 // 2) × U1(-3)

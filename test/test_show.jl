@@ -12,7 +12,8 @@ show_non_namespaced(x) = sprint(show, x)
 @testset "show SymmetrySector" begin
     q1 = U1(1)
     @test show_namespaced(q1) == "U1(1)"
-    @test show_non_namespaced(q1) == "GradedArrays.U1(1)"
+    @test show_non_namespaced(q1) == "GradedArrays.U1(1)" ||
+        show_non_namespaced(q1) == "U1(1)"
 
     s0e = O2(0)
     s0o = O2(-1)

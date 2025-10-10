@@ -27,6 +27,8 @@ using Compat: allequal
 abstract type AbstractGradedUnitRange{T, BlockLasts} <:
 AbstractBlockedUnitRange{T, BlockLasts} end
 
+to_gradedrange(r::AbstractGradedUnitRange) = r
+
 struct GradedUnitRange{T, SUR <: SectorOneTo{T}, BR <: AbstractUnitRange{T}, BlockLasts} <:
     AbstractGradedUnitRange{T, BlockLasts}
     eachblockaxis::Vector{SUR}

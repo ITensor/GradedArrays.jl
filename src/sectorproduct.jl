@@ -21,14 +21,11 @@ SectorProduct(c::SectorProduct) = _SectorProduct(arguments(c))
 SectorProduct(c::SectorRange...) = _SectorProduct(map(label, c))
 # SectorProduct(::TKS.Trivial) = _SectorProduct((;))  # empty tuple
 
-arguments(s::SectorProduct) = s.arguments
+arguments(s::SectorProduct) = getfield(s, :arguments)
 arguments_type(::Type{SectorProduct{T}}) where {T} = T
 
-function arguments(r::SectorProductRange{T}) where {T <: SectorProduct{<:Tuple}}
+function arguments(r::SectorProductRange)
     return map(SectorRange, arguments(label(r)))
-end
-function arguments(r::SectorProductRange{T}) where {T <: SectorProduct{<:NamedTuple}}
-    return NamedTuple(k => SectorRange(v) for (k, v) in pairs(arguments(label(r))))
 end
 
 function to_sector(nt::NamedTuple{<:Any, T}) where {T <: Tuple{Vararg{TKS.Sector}}}
@@ -141,14 +138,13 @@ function Base.isless(s1::SectorProductRange, s2::SectorProductRange)
     return arguments(s1′) < arguments(s2′)
 end
 
-function Base.show(io::IO, r::SectorRange{<:SectorProduct})
-    s = label(r)
-    (length(arguments(s)) < 2) && print(io, "sector")
+function Base.show(io::IO, r::SectorProductRange)
+    (length(arguments(r)) < 2) && print(io, "sector")
     print(io, "(")
     symbol = ""
-    for p in pairs(arguments(s))
+    for (k, v) in pairs(arguments(r))
         print(io, symbol)
-        sector_show(io, p[1], SectorRange(p[2]))
+        sector_show(io, k, v)
         symbol = " × "
     end
     return print(io, ")")
@@ -176,6 +172,9 @@ const sectorproduct = ×
 ×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
 ×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
 ×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
+
+# n-arg implemented as a left fold.
+×(r1, r2, r3, r_rest...) = ×(×(r1, r2), r3, r_rest...)
 
 function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
     return SectorProduct(arguments(p1)..., arguments(p2)...)
