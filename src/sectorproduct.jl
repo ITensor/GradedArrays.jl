@@ -139,13 +139,12 @@ function Base.isless(s1::SectorProductRange, s2::SectorProductRange)
 end
 
 function Base.show(io::IO, r::SectorProductRange)
-    s = label(r)
-    (length(arguments(s)) < 2) && print(io, "sector")
+    (length(arguments(r)) < 2) && print(io, "sector")
     print(io, "(")
     symbol = ""
-    for p in pairs(arguments(s))
+    for (k, v) in pairs(arguments(r))
         print(io, symbol)
-        sector_show(io, p[1], p[2])
+        sector_show(io, k, v)
         symbol = " × "
     end
     return print(io, ")")
