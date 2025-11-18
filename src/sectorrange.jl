@@ -4,17 +4,24 @@ using TensorProducts: TensorProducts, ⊗
 import TensorKitSectors as TKS
 
 """
-    SectorRange(sector::TKS.Sector)
+    SectorRange(sector::TKS.Sector, isdual::Bool)
 
 Unit range with elements of type `Int` that additionally stores a sector to denote the grading.
-Equivalent to `Base.OneTo(length(sector))`.
+Equivalent to `Base.OneTo(length(sector))`. Additionally holds a flag to denote the duality.
 """
 struct SectorRange{I <: TKS.Sector} <: AbstractUnitRange{Int}
     label::I
+    isdual::Bool
 end
+SectorRange{I}(label) where {I} = SectorRange{I}(label, false)
+SectorRange(label::TKS.Sector) = SectorRange(label, false)
 
-label(r::SectorRange) = r.label
+label(r::SectorRange) = isdual(r) ? dual(r.label) : r.label
+isdual(r::SectorRange) = r.isdual
+
+sector_type(x) = sector_type(typeof(x))
 sector_type(I::Type{<:SectorRange}) = I
+sector_type(T::Type) = throw(MethodError(sector_type, T))
 
 # ===================================  Base interface  =====================================
 
@@ -24,12 +31,12 @@ Base.isless(r1::SectorRange, r2::SectorRange) = isless(label(r1), label(r2))
 Base.isless(r1::SectorRange, r2::TKS.Sector) = isless(label(r1), r2)
 Base.isless(r1::TKS.Sector, r2::SectorRange) = isless(r1, label(r2))
 
-Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(label(r1), label(r2))
-Base.:(==)(r1::SectorRange, r2::SectorRange) = label(r1) == label(r2)
+Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(label(r1), label(r2)) && isequal(isdual(r1), isdual(r2))
+Base.:(==)(r1::SectorRange, r2::SectorRange) = label(r1) == label(r2) && isdual(r1) == isdual(r2)
 Base.:(==)(r1::SectorRange, r2::TKS.Sector) = label(r1) == r2
-Base.:(==)(r1::TKS.Sector, r2::SectorRange) = r1 == label(r2)
+Base.:(==)(r1::TKS.Sector, r2::SectorRange) = r2 == r1
 
-Base.hash(r::SectorRange, h::UInt) = hash(label(r), h)
+Base.hash(r::SectorRange, h::UInt) = hash(label(r), hash(isdual(r), h))
 
 Base.OneTo(r::SectorRange) = Base.OneTo(length(r))
 Base.first(r::SectorRange) = first(Base.OneTo(r))
@@ -41,6 +48,7 @@ function Base.show(io::IO, r::SectorRange{I}) where {I}
     l = sector_label(r)
     isnothing(l) || show(io, l)
     print(io, ')')
+    isdual(r) && print(io, "'")
     return nothing
 end
 
@@ -48,7 +56,7 @@ end
 
 trivial(x) = trivial(typeof(x))
 function trivial(axis_type::Type{<:AbstractUnitRange})
-    return gradedrange([trivial(sector_type(axis_type)) => 1])  # always returns nondual
+    return blockrange([trivial(sector_type(axis_type)) × 1])  # always returns nondual
 end
 function trivial(type::Type)
     return error("`trivial` not defined for type $(type).")
@@ -74,7 +82,7 @@ quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 to_sector(x::TKS.Sector) = SectorRange(x)
 
 # convert to range
-to_gradedrange(c::SectorRange) = gradedrange([c => 1])
+to_gradedrange(c::SectorRange) = blockrange([c × 1])
 to_gradedrange(c::TKS.Sector) = to_gradedrange(SectorRange(c))
 
 function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
@@ -82,7 +90,8 @@ function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
 end
 
 dual(c::TKS.Sector) = TKS.dual(c)
-dual(r1::SectorRange) = typeof(r1)(dual(label(r1)))
+dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
+flip(r1::SectorRange) = typeof(r1)(dual(r1.label), isdual(r1))
 
 # ===============================  Fusion rule interface  ==================================
 
@@ -117,8 +126,8 @@ function fusion_rule(r1::SectorRange, r2::SectorRange)
     b = label(r2)
     fstyle = TKS.FusionStyle(typeof(r1)) & TKS.FusionStyle(typeof(r2))
     fstyle === TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
-    return gradedrange(
-        vec([SectorRange(c) => TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
+    return blockrange(
+        vec([SectorRange(c) × TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
     )
 end
 
@@ -163,7 +172,7 @@ Base.convert(::Type{T}, ::TrivialSector) where {T <: SectorRange} = trivial(T)
 const Z{N} = SectorRange{TKS.ZNIrrep{N}}
 sector_label(c::TKS.ZNIrrep) = c.n
 modulus(::Z{N}) where {N} = N
-const Z2 = Z{2}
+const Z2 = SectorRange{TKS.ZNIrrep{2}}
 
 const U1 = SectorRange{TKS.U1Irrep}
 sector_label(c::TKS.U1Irrep) = c.charge

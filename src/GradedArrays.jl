@@ -1,32 +1,37 @@
 module GradedArrays
 
-include("gradedunitrange_interface.jl")
+# exports
+# -------
+export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
+export SectorRange, SectorDelta
+export SectorUnitRange, SectorOneTo, SectorArray, SectorMatrix
+export GradedUnitRange, GradedOneTo, GradedArray
+
+export sector_type
+
+export dag, dual, flip, gradedrange, isdual,
+    sector, sector_multiplicities, sector_multiplicity,
+    sectorrange, sectors, sector_type,
+    space_isequal, ungrade
+
+# imports
+# -------
+using KroneckerArrays
+using KroneckerArrays: AbstractKroneckerArray, CartesianProductUnitRange
+using SparseArraysBase: SparseArraysBase, isstored
+using BlockArrays: Block
+using BlockSparseArrays: AbstractBlockSparseArray, blockrange, @view!
 
 include("sectorrange.jl")
-include("sectorunitrange.jl")
-include("gradedunitrange.jl")
+include("sectorarray.jl")
+include("gradedarray.jl")
 
 include("namedtuple_operations.jl")
 include("sectorproduct.jl")
 
 include("fusion.jl")
-include("gradedarray.jl")
 include("tensoralgebra.jl")
 include("factorizations.jl")
 
-export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
-export dag,
-    dual,
-    flip,
-    gradedrange,
-    isdual,
-    sector,
-    sector_multiplicities,
-    sector_multiplicity,
-    sectorrange,
-    sectors,
-    sector_type,
-    space_isequal,
-    ungrade
 
 end

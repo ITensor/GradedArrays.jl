@@ -1,37 +1,25 @@
 using BlockArrays: blocks
-using BlockSparseArrays: BlockSparseArray, blockreshape
+using BlockSparseArrays: BlockSparseArray, blockreshape, blockrange
 using GradedArrays:
-    AbstractGradedUnitRange,
-    SectorRange,
-    GradedArray,
-    flip,
-    gradedrange,
-    invblockperm,
-    sectormergesortperm,
-    sectorsortperm,
-    trivial,
-    unmerged_tensor_product
+    GradedUnitRange, SectorRange, GradedArray,
+    flip, invblockperm, sectormergesortperm, sectorsortperm, trivial,
+    unmerged_tensor_product, ×
 using TensorAlgebra:
-    TensorAlgebra,
-    ⊗,
-    AbstractBlockPermutation,
-    BlockedTuple,
-    FusionStyle,
-    trivial_axis,
-    unmatricize
+    TensorAlgebra, ⊗, AbstractBlockPermutation, BlockedTuple,
+    FusionStyle, trivial_axis, unmatricize
 
 struct SectorFusion <: FusionStyle end
 
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 
-function TensorAlgebra.trivial_axis(t::Tuple{Vararg{G}}) where {G <: AbstractGradedUnitRange}
+function TensorAlgebra.trivial_axis(t::Tuple{Vararg{G}}) where {G <: GradedUnitRange}
     return trivial(first(t))
 end
 # heterogeneous sectors
-TensorAlgebra.trivial_axis(t::Tuple{Vararg{AbstractGradedUnitRange}}) = ⊗(trivial.(t)...)
+TensorAlgebra.trivial_axis(t::Tuple{Vararg{GradedUnitRange}}) = ⊗(trivial.(t)...)
 # trivial_axis from sector_type
 function TensorAlgebra.trivial_axis(::Type{S}) where {S <: SectorRange}
-    return gradedrange([trivial(S) => 1])
+    return blockrange([trivial(S) × 1])
 end
 
 function matricize_axes(
@@ -86,6 +74,6 @@ end
 
 # Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)
-    I = sectormergesortperm.(axes(a))
+    @show I = sectormergesortperm.(axes(a))
     return a[I...]
 end

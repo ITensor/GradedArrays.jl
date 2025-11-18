@@ -160,13 +160,15 @@ end
 
 # =================================  Cartesian Product  ====================================
 
-"""
-    ×(x, y...)
-    sectorproduct(x, y...)
+# """
+#     ×(x, y...)
+#     sectorproduct(x, y...)
+#
+# Convenience constructor for taking the Cartesian product of 2 or more sectors or sector ranges.
+# """
+# function × end
 
-Convenience constructor for taking the Cartesian product of 2 or more sectors or sector ranges.
-"""
-function × end
+import KroneckerArrays: ×
 const sectorproduct = ×
 
 ×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
@@ -174,7 +176,7 @@ const sectorproduct = ×
 ×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
 
 # n-arg implemented as a left fold.
-×(r1, r2, r3, r_rest...) = ×(×(r1, r2), r3, r_rest...)
+# ×(r1, r2, r3, r_rest...) = ×(×(r1, r2), r3, r_rest...)
 
 function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
     return SectorProduct(arguments(p1)..., arguments(p2)...)
@@ -190,8 +192,8 @@ function ×(a::SectorProduct, b::SectorProduct)
     throw(MethodError(×, typeof.((a, b))))
 end
 
-×(a, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
-×(g::AbstractUnitRange, b) = ×(g, to_gradedrange(b))
+# ×(a, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
+# ×(g::AbstractUnitRange, b) = ×(g, to_gradedrange(b))
 ×(a::SectorRange, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
 ×(g::AbstractUnitRange, b::SectorRange) = ×(g, to_gradedrange(b))
 
@@ -215,12 +217,8 @@ function ×(sr1::SectorOneTo, sr2::SectorOneTo)
     )
 end
 
-function ×(g1::GradedOneTo, g2::GradedOneTo)
-    v = map(
-        splat(×), Iterators.flatten((Iterators.product(eachblockaxis(g1), eachblockaxis(g2)),))
-    )
-    return mortar_axis(v)
-end
+KroneckerArrays.to_product_indices(nt::NamedTuple) =
+    KroneckerArrays.to_product_indices(to_sector(nt))
 
 # ===========================  Canonicalize arguments  =====================================
 
@@ -325,4 +323,8 @@ function arguments_canonicalize(
     )
     s1′, s2′, s3′ = arguments_canonicalize(label(s1), label(s2), label(s3))
     return SectorRange(s1′), SectorRange(s2′), SectorRange(s3′)
+end
+
+@generated function sort_keys(nt::NamedTuple{N}) where {N}
+    return :(NamedTuple{$(Tuple(sort(collect(N))))}(nt))
 end
