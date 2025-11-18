@@ -16,17 +16,17 @@ export dag, dual, flip, gradedrange, isdual,
 
 # imports
 # -------
+using LinearAlgebra: LinearAlgebra, Adjoint
 using KroneckerArrays
 using KroneckerArrays: AbstractKroneckerArray, CartesianProductUnitRange
 using SparseArraysBase: SparseArraysBase, isstored
-using BlockArrays: Block
+using BlockArrays: BlockArrays, Block
 using BlockSparseArrays: AbstractBlockSparseArray, blockrange, @view!
 
 include("sectorrange.jl")
 include("sectorarray.jl")
 include("gradedarray.jl")
 
-include("namedtuple_operations.jl")
 include("sectorproduct.jl")
 
 include("fusion.jl")

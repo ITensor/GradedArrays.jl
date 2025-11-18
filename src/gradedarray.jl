@@ -35,7 +35,7 @@ dual(g::GradedUnitRange) = BlockSparseArrays.BlockUnitRange(g.r, dual.(eachblock
 flip(g::GradedUnitRange) = BlockSparseArrays.BlockUnitRange(g.r, flip.(eachblockaxis(g)))
 isdual(g::GradedUnitRange) = isdual(first(eachblockaxis(g)))  # crash for empty. Should not be an issue.
 
-flux(a::BlockUnitRange, I::Block{1}) = flux(a[I])
+flux(a::AbstractBlockedUnitRange, I::Block{1}) = flux(a[I])
 
 function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
     return (isdual(a1) == isdual(a2)) && sectors(a1) == sectors(a2) && blockisequal(a1, a2)

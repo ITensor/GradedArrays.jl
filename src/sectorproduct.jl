@@ -194,8 +194,8 @@ end
 
 # ×(a, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
 # ×(g::AbstractUnitRange, b) = ×(g, to_gradedrange(b))
-×(a::SectorRange, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
-×(g::AbstractUnitRange, b::SectorRange) = ×(g, to_gradedrange(b))
+# ×(a::SectorRange, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
+# ×(g::AbstractUnitRange, b::SectorRange) = ×(g, to_gradedrange(b))
 
 ×(nt1::NamedTuple) = to_sector(nt1)
 ×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))

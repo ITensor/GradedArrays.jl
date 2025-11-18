@@ -27,13 +27,18 @@ dual(x::SectorUnitRange) = cartesianrange(dual(kroneckerfactors(x, 1)), kronecke
 flip(x::SectorUnitRange) = cartesianrange(flip(kroneckerfactors(x, 1)), kroneckerfactors(x, 2), unproduct(x))
 isdual(x::SectorUnitRange) = isdual(kroneckerfactors(x, 1))
 
-flux(sr::SectorUnitRange) = isdual(sr) ? dual(sector(sr)) : sector(sr)
-
+flux(sr::SectorUnitRange) = sector(sr)
 
 # allow getindex for abelian symmetries
 function Base.getindex(x::SectorUnitRange, y::AbstractUnitRange{Int})
     return cartesianrange(kroneckerfactors(x, 1), kroneckerfactors(x, 2)[y], unproduct(x)[y])
 end
+
+function BlockArrays.mortar(blocks::AbstractVector{<:CartesianProductUnitRange})
+    baxes = blockrange(map(Base.axes1, blocks))
+    return BlockArrays.mortar(blocks, (baxes,))
+end
+
 
 # Array
 # -----
@@ -64,6 +69,15 @@ Base.similar(::SectorDelta, ::Type{T}, sectors::Tuple{I, Vararg{I}}) where {T, I
 Base.similar(::Type{<:AbstractArray{T}}, sectors::Tuple{I, Vararg{I}}) where {T, I <: SectorRange} =
     SectorDelta{T}(sectors)
 
+sectors(x::SectorDelta) = x.sectors
+sector_type(::Type{SectorDelta{T, N, I}}) where {T, N, I} = I
+
+function Base.permutedims(x::SectorDelta, perm)
+    return SectorDelta{eltype(x)}(Base.Fix1(getindex, sectors(x)).(perm))
+end
+KroneckerArrays.DerivableInterfaces.permuteddims(x::SectorDelta, perm) = permutedims(x, perm)
+
+# Defined as this makes broadcasting work better
 Base.copy(A::SectorDelta) = A
 function Base.copy!(C::SectorDelta, A::SectorDelta)
     axes(C) == axes(A) || throw(DimensionMismatch())
@@ -73,14 +87,17 @@ function Base.copyto!(C::SectorDelta, A::SectorDelta)
     axes(C) == axes(A) || throw(DimensionMismatch())
     return C
 end
-
-sectors(x::SectorDelta) = x.sectors
-sector_type(::Type{SectorDelta{T, N, I}}) where {T, N, I} = I
-
-function Base.permutedims(x::SectorDelta, perm)
-    return SectorDelta{eltype(x)}(Base.Fix1(getindex, sectors(x)).(perm))
+Base.copy(A::Adjoint{T, <:SectorDelta{T, 2}}) where {T} = SectorDelta{T}(reverse(dual.(sectors(adjoint(A)))))
+function LinearAlgebra.adjoint!(A::SectorDelta{T, 2, I}, B::SectorDelta{T, 2, I}) where {T, I}
+    reverse(dual.(sectors(B))) == sectors(A) || throw(DimensionMismatch())
+    return A
 end
-KroneckerArrays.DerivableInterfaces.permuteddims(x::SectorDelta, perm) = permutedims(x, perm)
+
+function Base.:(*)(a::SectorDelta{T₁, 2, I}, b::SectorDelta{T₂, 2, I}) where {T₁, T₂, I}
+    axes(a, 2) == dual(axes(b, 1)) || throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
+    T = Base.promote_type(T₁, T₂)
+    return SectorDelta{T}((axes(a, 1), axes(b, 2)))
+end
 
 # want to add something to opt out of the broadcasting kronecker thingies
 # so need something to dispatch on...
@@ -173,9 +190,11 @@ function Base.convert(::Type{SectorArray{T₁, N, I, A}}, x::SectorArray{T₂, N
     return SectorArray(sectors(x), convert(A, x.data))
 end
 
-# view
-# ----
-# Base.view(x::SectorArray{<:Any, N}, I::Vararg{Any, N}) where {N} = SectorArray(sectors(x), view(x.data, I...))
+# Avoid infinite recursion while eagerly adjointing the sectors
+function Base.adjoint(a::SectorArray)
+    sectors_adjoint = adjoint(kroneckerfactors(a, 1))
+    return SectorArray(axes(sectors_adjoint), adjoint(kroneckerfactors(a, 2)))
+end
 
 # Other
 # -----

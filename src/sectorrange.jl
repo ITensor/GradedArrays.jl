@@ -16,7 +16,7 @@ end
 SectorRange{I}(label) where {I} = SectorRange{I}(label, false)
 SectorRange(label::TKS.Sector) = SectorRange(label, false)
 
-label(r::SectorRange) = isdual(r) ? dual(r.label) : r.label
+label(r::SectorRange) = r.label # isdual(r) ? dual(r.label) : r.label
 isdual(r::SectorRange) = r.isdual
 
 sector_type(x) = sector_type(typeof(x))
@@ -51,6 +51,8 @@ function Base.show(io::IO, r::SectorRange{I}) where {I}
     isdual(r) && print(io, "'")
     return nothing
 end
+
+Base.axes(r::SectorRange) = (r,)
 
 # =================================  Sectors interface  ====================================
 
@@ -92,6 +94,8 @@ end
 dual(c::TKS.Sector) = TKS.dual(c)
 dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
 flip(r1::SectorRange) = typeof(r1)(dual(r1.label), isdual(r1))
+
+Base.adjoint(r1::SectorRange) = dual(r1)
 
 # ===============================  Fusion rule interface  ==================================
 
