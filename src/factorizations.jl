@@ -314,7 +314,7 @@ function MatrixAlgebraKit.left_polar!(
     A = unfluxify(A, charge; side = :domain)
 
     Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
-    Ud, S, Vᴴd = svd_compact!(Ad, BlockDiagonalAlgorithm(alg.svdalg))
+    Ud, S, Vᴴd = svd_compact!(Ad, BlockDiagonalAlgorithm(alg.svd_alg))
     U = BlockSparseArrays.transform_rows(Ud, invrowperm)
     Vᴴ = BlockSparseArrays.transform_cols(Vᴴd, invcolperm)
 
@@ -332,7 +332,7 @@ function MatrixAlgebraKit.right_polar!(A::GradedMatrix, PWᴴ, alg::PolarViaSVD)
     A = unfluxify(A, charge; side = :codomain)
 
     Ad, (invrowperm, invcolperm) = BlockSparseArrays.blockdiagonalize(A)
-    Ud, S, Vᴴd = svd_compact!(Ad, BlockDiagonalAlgorithm(alg.svdalg))
+    Ud, S, Vᴴd = svd_compact!(Ad, BlockDiagonalAlgorithm(alg.svd_alg))
     U = BlockSparseArrays.transform_rows(Ud, invrowperm)
     Vᴴ = BlockSparseArrays.transform_cols(Vᴴd, invcolperm)
 
