@@ -45,21 +45,25 @@ function matricize_axes(
     return codomain_axis, flip(unflipped_domain_axis)
 end
 
+using TensorAlgebra: blockedtrivialperm
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbstractArray, biperm::AbstractBlockPermutation{2}
+        ::SectorFusion, a::AbstractArray, codomain_length::Val, domain_length::Val
     )
-    a_perm = permutedims(a, Tuple(biperm))
+    biperm = blockedtrivialperm((codomain_length, domain_length))
     codomain_axis, domain_axis = matricize_axes(axes(a)[biperm])
-    a_reshaped = blockreshape(a_perm, (codomain_axis, domain_axis))
+    a_reshaped = blockreshape(a, (codomain_axis, domain_axis))
     # Sort the blocks by sector and merge the equivalent sectors.
     return sectormergesort(a_reshaped)
 end
 
+using TensorAlgebra: tuplemortar
 function TensorAlgebra.unmatricize(
         ::SectorFusion,
         m::AbstractMatrix,
-        blocked_axes::BlockedTuple{2, <:Any, <:Tuple{Vararg{AbstractUnitRange}}},
+        codomain_axes::Tuple{Vararg{AbstractUnitRange}},
+        domain_axes::Tuple{Vararg{AbstractUnitRange}},
     )
+    blocked_axes = tuplemortar((codomain_axes, domain_axes))
     if isempty(blocked_axes)
         # Handle edge case of empty blocked_axes, which can occur
         # when matricizing a 0-dimensional array (a scalar).
