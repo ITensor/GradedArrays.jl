@@ -32,11 +32,21 @@ end
 
 function TensorAlgebra.trivial_axis(
         ::BlockReshapeFusion,
+        ::Val{:codomain},
         a::GradedArray,
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
         axes_domain::Tuple{Vararg{AbstractUnitRange}},
     )
     return trivial_gradedrange(axes(a))
+end
+function TensorAlgebra.trivial_axis(
+        ::BlockReshapeFusion,
+        ::Val{:domain},
+        a::GradedArray,
+        axes_codomain::Tuple{Vararg{AbstractUnitRange}},
+        axes_domain::Tuple{Vararg{AbstractUnitRange}},
+    )
+    return dual(trivial_gradedrange(axes(a)))
 end
 function TensorAlgebra.tensor_product_axis(
         ::ReshapeFusion, ::Val{:codomain}, r1::SectorUnitRange, r2::SectorUnitRange
@@ -78,15 +88,6 @@ function TensorAlgebra.tensor_product_axis(
     )
     return tensor_product_gradedrange(style, side, r1, r2)
 end
-## using TensorAlgebra: trivialbiperm
-## unval(::Val{x}) where {x} = x
-## function TensorAlgebra.matricize_axes(
-##         style::BlockReshapeFusion, a::GradedArray, ndims_codomain::Val
-##     )
-##     # TODO: Remove `TensorAlgebra.` once we delete `GradedArrays.matricize_axes`.
-##     axis_codomain, axis_domain = @invoke TensorAlgebra.matricize_axes(style, a::AbstractArray, ndims_codomain)
-##     return axis_codomain, flip(axis_domain)
-## end
 function TensorAlgebra.matricize(
         ::SectorFusion, a::AbstractArray, length_codomain::Val
     )
