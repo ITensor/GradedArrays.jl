@@ -3,7 +3,6 @@ using SplitApplyCombine: groupcount
 
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
 
-# TODO: Overload `TensorAlgebra.tensor_product_axis` for `SectorFusion`.
 function tensor_product(sr1::SectorUnitRange, sr2::SectorUnitRange)
     return tensor_product(combine_styles(SymmetryStyle(sr1), SymmetryStyle(sr2)), sr1, sr2)
 end
@@ -71,7 +70,6 @@ end
 # default to tensor_product
 unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
-# TODO: Use `TensorAlgebra.tensor_product_axis(::BlockReshapeFusion, ...)` instead.
 using BlockSparseArrays: mortar_axis
 function unmerged_tensor_product(a1::AbstractGradedUnitRange, a2::AbstractGradedUnitRange)
     new_axes = map(splat(⊗), Iterators.flatten((Iterators.product(blocks(a1), blocks(a2)),)))

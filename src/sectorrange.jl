@@ -123,7 +123,6 @@ end
 
 # =============================  Tensor products  ==========================================
 
-# TODO: Overload `TensorAlgebra.tensor_product_axis` for `SectorFusion`.
 function tensor_product end
 const ⊗ = tensor_product
 tensor_product(s::SectorRange) = s
