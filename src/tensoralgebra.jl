@@ -46,6 +46,23 @@ function TensorAlgebra.tensor_product_axis(
     blockaxs = vec(map(splat(tensor_product_axis), blockaxpairs))
     return mortar_axis(blockaxs)
 end
+using TensorAlgebra: trivialbiperm
+unval(::Val{x}) where {x} = x
+function TensorAlgebra.matricize_axes(
+        style::BlockReshapeFusion, a::GradedArray, ndims_codomain::Val
+    )
+    unval(ndims_codomain) ≤ ndims(a) ||
+        throw(ArgumentError("Codomain length exceeds number of dimensions."))
+    biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
+    axesblocks = blocks(axes(a)[biperm])
+    init_axis = TensorAlgebra.trivial_axis(style, a)
+    axis_codomain, axis_domain = map(axesblocks) do axesblock
+        return reduce(axesblock; init = init_axis) do ax1, ax2
+            return tensor_product_axis(style, ax1, ax2)
+        end
+    end
+    return axis_codomain, flip(axis_domain)
+end
 function TensorAlgebra.matricize(
         ::SectorFusion, a::AbstractArray, length_codomain::Val
     )
