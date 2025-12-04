@@ -73,7 +73,9 @@ function tensor_product_gradedrange(
         throw(ArgumentError("Only one-based axes are supported"))
     blockaxpairs = Iterators.product(eachblockaxes1(r1), eachblockaxes1(r2))
     blockaxs = map(blockaxpairs) do (b1, b2)
-        return tensor_product_axis(ReshapeFusion(), side, b1, b2)
+        # TODO: Store a FusionStyle for the blocks in `BlockReshapeFusion`
+        # and use that here.
+        return tensor_product_axis(side, b1, b2)
     end
     return mortar_axis(vec(blockaxs))
 end
