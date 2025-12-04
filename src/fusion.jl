@@ -46,17 +46,26 @@ function tensor_product(s::SectorRange, sr::SectorUnitRange)
     return sectorrange(s, 1) ⊗ sr
 end
 
+function tensor_product(r1::AbstractUnitRange, r2::AbstractUnitRange)
+    (isone(first(r1)) && isone(first(r2))) ||
+        throw(ArgumentError("Only one-based axes are supported"))
+    return Base.OneTo(length(r1) * length(r2))
+end
+
+function tensor_product(
+        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange,
+        rs::AbstractUnitRange...,
+    )
+    return tensor_product(tensor_product(r1, r2), r3, rs...)
+end
+
 # unmerged_tensor_product is a private function needed in GradedArraysTensorAlgebraExt
 # to get block permutation
 # it is not aimed for generic use and does not support all tensor_product methods (no dispatch on SymmetryStyle)
-unmerged_tensor_product() = OneToOne()
+unmerged_tensor_product() = Base.OneTo(1)
 unmerged_tensor_product(a) = a
-# TODO: Delete.
-# unmerged_tensor_product(a, ::OneToOne) = a
-# unmerged_tensor_product(::OneToOne, a) = a
-# unmerged_tensor_product(::OneToOne, ::OneToOne) = OneToOne()
-function unmerged_tensor_product(a1, a2, as...)
-    return unmerged_tensor_product(unmerged_tensor_product(a1, a2), as...)
+function unmerged_tensor_product(a1, a2, a3, as...)
+    return unmerged_tensor_product(unmerged_tensor_product(a1, a2), a3, as...)
 end
 
 # default to tensor_product
