@@ -5,6 +5,7 @@ using GradedArrays:
     TrivialSector,
     U1,
     Z,
+    ⊗,
     ×,
     arguments,
     dual,
@@ -17,7 +18,6 @@ using GradedArrays:
     sectorrange,
     space_isequal,
     trivial
-using TensorProducts: ⊗
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
 using BlockArrays: blocklengths
