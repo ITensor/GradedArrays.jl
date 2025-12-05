@@ -24,7 +24,7 @@ function TensorAlgebra.trivial_axis(
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
         axes_domain::Tuple{Vararg{AbstractUnitRange}},
     )
-    return dual(trivial_gradedrange(axes(a)))
+    return flip(trivial_gradedrange(axes(a)))
 end
 function trivial_gradedrange(t::Tuple{Vararg{G}}) where {G <: AbstractGradedUnitRange}
     return trivial(first(t))

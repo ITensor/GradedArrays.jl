@@ -16,9 +16,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestExtras = "5ed8adda-3752-4e41-b88a-e8b09835ee3a"
 
 [sources]
-BlockSparseArrays = {path = "/Users/mfishman/.julia/dev/BlockSparseArrays"}
 GradedArrays = {path = ".."}
-TensorAlgebra = {path = "/Users/mfishman/.julia/dev/TensorAlgebra"}
 
 [compat]
 Aqua = "0.8.11"
