@@ -19,9 +19,11 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 TypeParameterAccessors = "7e5a90cf-f82e-492e-a09b-e3e26432c138"
 
 [weakdeps]
+NamedDimsArrays = "60cbd0c0-df58-4cb7-918c-6f5607b73fde"
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 
 [extensions]
+GradedArraysNamedDimsArraysExt = "NamedDimsArrays"
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"
 
 [compat]
@@ -33,6 +35,7 @@ FillArrays = "1.13"
 HalfIntegers = "1.6"
 LinearAlgebra = "1.10"
 MatrixAlgebraKit = "0.6"
+NamedDimsArrays = "0.9"
 Random = "1.10"
 SUNRepresentations = "0.3"
 SplitApplyCombine = "1.2.3"
