@@ -34,10 +34,10 @@ function Base.getindex(x::SectorUnitRange, y::AbstractUnitRange{Int})
     return cartesianrange(kroneckerfactors(x, 1), kroneckerfactors(x, 2)[y], unproduct(x)[y])
 end
 
-function BlockArrays.mortar(blocks::AbstractVector{<:CartesianProductUnitRange})
-    baxes = blockrange(map(Base.axes1, blocks))
-    return BlockArrays.mortar(blocks, (baxes,))
-end
+# function BlockArrays.mortar(blocks::AbstractVector{<:CartesianProductUnitRange})
+#     baxes = blockrange(map(Base.axes1, blocks))
+#     return BlockArrays.mortar(blocks, (baxes,))
+# end
 
 
 # Array
