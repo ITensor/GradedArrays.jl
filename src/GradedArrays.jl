@@ -6,6 +6,7 @@ export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
 export SectorRange, SectorDelta
 export SectorUnitRange, SectorOneTo, SectorArray, SectorMatrix
 export GradedUnitRange, GradedOneTo, GradedArray
+export gradedrange
 
 export sector_type
 

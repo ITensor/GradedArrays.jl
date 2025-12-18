@@ -46,6 +46,8 @@ function BlockSparseArrays.blockrange(xs::Vector{<:GradedUnitRange})
     return blockrange(baxis) # FIXME this is probably ignoring information somewhere
 end
 
+gradedrange(xs::AbstractVector{Pair{<:SectorRange, Int}}) = blockrange(map(splat(×), xs))
+
 
 # Array
 # -----
