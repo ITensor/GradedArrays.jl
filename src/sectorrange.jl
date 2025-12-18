@@ -18,10 +18,12 @@ SectorRange(label::TKS.Sector) = SectorRange(label, false)
 
 label(r::SectorRange) = r.label # isdual(r) ? dual(r.label) : r.label
 isdual(r::SectorRange) = r.isdual
+isdual(x::AbstractUnitRange) = false
 
 sector_type(x) = sector_type(typeof(x))
 sector_type(I::Type{<:SectorRange}) = I
 sector_type(T::Type) = throw(MethodError(sector_type, T))
+
 
 # ===================================  Base interface  =====================================
 

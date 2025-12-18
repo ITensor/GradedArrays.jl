@@ -29,6 +29,10 @@ sector_multiplicity(r::SectorUnitRange) = length(kroneckerfactors(r, 2))
 sectors(r::SectorUnitRange) = [sector(r)]
 sector_multiplicities(r::SectorUnitRange) = [sector_multiplicity(r)]
 
+# should this be trivial?
+sector(x) = nothing
+sectors(x) = nothing
+
 dual(x::SectorUnitRange) = cartesianrange(dual(kroneckerfactors(x, 1)), kroneckerfactors(x, 2), unproduct(x))
 flip(x::SectorUnitRange) = cartesianrange(flip(kroneckerfactors(x, 1)), kroneckerfactors(x, 2), unproduct(x))
 isdual(x::SectorUnitRange) = isdual(kroneckerfactors(x, 1))

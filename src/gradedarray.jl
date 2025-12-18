@@ -46,8 +46,10 @@ function BlockSparseArrays.blockrange(xs::Vector{<:GradedUnitRange})
     return blockrange(baxis) # FIXME this is probably ignoring information somewhere
 end
 
-gradedrange(xs::AbstractVector{Pair{<:SectorRange, Int}}) = blockrange(map(splat(×), xs))
-
+function gradedrange(xs::AbstractVector{<:Pair{<:SectorRange, Int}}; isdual::Bool = false)
+    r = blockrange(map(splat(cartesianrange), xs))
+    return isdual ? dual(r) : r
+end
 
 # Array
 # -----
