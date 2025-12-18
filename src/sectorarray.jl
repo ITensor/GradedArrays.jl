@@ -13,15 +13,21 @@ function SectorUnitRange(sector::SectorRange, range::AbstractUnitRange, isdual::
     return cartesianrange(sector, range)
 end
 
+sectorrange(sector::SectorRange, range::AbstractUnitRange, isdual::Bool = false) = (isdual ? dual(sector) : sector) × range
+sectorrange(sector::SectorRange, dim::Integer, isdual::Bool = false) = sectorrange(sector, 1:dim, isdual)
+sectorrange(sector_dim::Pair{<:SectorRange}, isdual::Bool = false) = sectorrange(sector_dim..., isdual)
+
 """
     const SectorOneTo{I <: SectorRange} =
         SectorUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}
 """
 const SectorOneTo{I <: SectorRange} = SectorUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}
 
+sector_type(::Type{<:SectorUnitRange{I}}) where {I} = I
 sector(r::SectorUnitRange) = kroneckerfactors(r, 1)
 sector_multiplicity(r::SectorUnitRange) = length(kroneckerfactors(r, 2))
-sector_type(::Type{<:SectorUnitRange{I}}) where {I} = I
+sectors(r::SectorUnitRange) = [sector(r)]
+sector_multiplicities(r::SectorUnitRange) = [sector_multiplicity(r)]
 
 dual(x::SectorUnitRange) = cartesianrange(dual(kroneckerfactors(x, 1)), kroneckerfactors(x, 2), unproduct(x))
 flip(x::SectorUnitRange) = cartesianrange(flip(kroneckerfactors(x, 1)), kroneckerfactors(x, 2), unproduct(x))
@@ -34,11 +40,7 @@ function Base.getindex(x::SectorUnitRange, y::AbstractUnitRange{Int})
     return cartesianrange(kroneckerfactors(x, 1), kroneckerfactors(x, 2)[y], unproduct(x)[y])
 end
 
-# function BlockArrays.mortar(blocks::AbstractVector{<:CartesianProductUnitRange})
-#     baxes = blockrange(map(Base.axes1, blocks))
-#     return BlockArrays.mortar(blocks, (baxes,))
-# end
-
+ungrade(x::SectorUnitRange) = KroneckerArrays.unproduct(x)
 
 # Array
 # -----
