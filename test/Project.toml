@@ -16,8 +16,8 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestExtras = "5ed8adda-3752-4e41-b88a-e8b09835ee3a"
 
-[sources]
-GradedArrays = {path = ".."}
+[sources.GradedArrays]
+path = ".."
 
 [compat]
 Aqua = "0.8.11"
@@ -26,7 +26,7 @@ BlockSparseArrays = "0.10"
 GradedArrays = "0.5"
 LinearAlgebra = "1.10"
 MatrixAlgebraKit = "0.6"
-NamedDimsArrays = "0.9, 0.10, 0.11"
+NamedDimsArrays = "0.9, 0.10, 0.11, 0.12"
 Random = "1.10"
 SUNRepresentations = "0.3"
 SafeTestsets = "0.1"
