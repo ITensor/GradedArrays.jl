@@ -1,5 +1,5 @@
 using GradedArrays: U1, dual, gradedrange, isdual
-using NamedDimsArrays: dename, named
+using NamedDimsArrays: denamed, named
 using Test: @test, @testset
 
 @testset "GradedArraysNamedDimsArraysExt" begin
@@ -7,5 +7,5 @@ using Test: @test, @testset
     nr = named(r, "i")
     nr_dual = dual(nr)
     @test isdual(nr_dual)
-    @test isdual(dename(nr_dual))
+    @test isdual(denamed(nr_dual))
 end
