@@ -1,14 +1,9 @@
 module GradedArraysNamedDimsArraysExt
 
 using GradedArrays: GradedArrays, dual, isdual
-using NamedDimsArrays: AbstractNamedUnitRange, dename, name, named
+using NamedDimsArrays: AbstractNamedUnitRange, denamed, name, named
 
-function GradedArrays.dual(r::AbstractNamedUnitRange)
-    return named(dual(dename(r)), dual(name(r)))
-end
-
-function GradedArrays.isdual(r::AbstractNamedUnitRange)
-    return isdual(dename(r))
-end
+GradedArrays.dual(r::AbstractNamedUnitRange) = named(dual(denamed(r)), dual(name(r)))
+GradedArrays.isdual(r::AbstractNamedUnitRange) = isdual(denamed(r))
 
 end
