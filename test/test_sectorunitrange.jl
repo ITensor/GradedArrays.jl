@@ -9,7 +9,7 @@ using GradedArrays:
     quantum_dimension,
     sector, sector_multiplicities, sector_multiplicity, sector_type,
     sectorrange, ungrade, sectors, space_isequal
-using Test: @test, @test_throws, @testset
+using Test: @test, @test_throws, @testset, @test_broken
 using TestExtras: @constinferred
 
 @testset "SectorUnitRange" begin
