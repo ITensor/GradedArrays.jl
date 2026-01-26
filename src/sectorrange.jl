@@ -85,7 +85,7 @@ quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 to_sector(x::TKS.Sector) = SectorRange(x)
 
 # convert to range
-to_gradedrange(c::SectorRange) = blockrange([c × 1])
+to_gradedrange(c::SectorRange) = gradedrange([c => 1])
 to_gradedrange(c::TKS.Sector) = to_gradedrange(SectorRange(c))
 
 function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
@@ -94,7 +94,7 @@ end
 
 dual(c::TKS.Sector) = TKS.dual(c)
 dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
-flip(r1::SectorRange) = typeof(r1)(dual(r1.label), isdual(r1))
+flip(r1::SectorRange) = typeof(r1)(dual(r1.label), !isdual(r1))
 
 Base.adjoint(r1::SectorRange) = dual(r1)
 
