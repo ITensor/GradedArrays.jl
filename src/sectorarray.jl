@@ -81,7 +81,7 @@ sector_type(::Type{SectorDelta{T, N, I}}) where {T, N, I} = I
 function Base.permutedims(x::SectorDelta, perm)
     return SectorDelta{eltype(x)}(Base.Fix1(getindex, sectors(x)).(perm))
 end
-KroneckerArrays.DerivableInterfaces.permuteddims(x::SectorDelta, perm) = permutedims(x, perm)
+KroneckerArrays.FunctionImplementations.permuteddims(x::SectorDelta, perm) = permutedims(x, perm)
 
 # Defined as this makes broadcasting work better
 Base.copy(A::SectorDelta) = A
