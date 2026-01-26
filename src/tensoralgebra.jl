@@ -5,7 +5,7 @@ using GradedArrays:
     flip, invblockperm, sectormergesortperm, sectorsortperm, trivial,
     unmerged_tensor_product, ×
 using TensorAlgebra:
-    TensorAlgebra, ⊗, AbstractBlockPermutation, BlockedTuple,
+    TensorAlgebra, AbstractBlockPermutation, BlockedTuple,
     FusionStyle, trivial_axis, unmatricize
 
 struct SectorFusion <: FusionStyle end

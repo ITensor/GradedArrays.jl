@@ -1,6 +1,5 @@
 # This file defines the interface for type Sector
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of Sector
-using TensorProducts: TensorProducts, ⊗
 import TensorKitSectors as TKS
 
 """
@@ -133,21 +132,21 @@ function fusion_rule(r1::SectorRange, r2::SectorRange)
     fstyle = TKS.FusionStyle(typeof(r1)) & TKS.FusionStyle(typeof(r2))
     fstyle === TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
     return blockrange(
-        vec([SectorRange(c) × TKS.Nsymbol(a, b, c) for c in TKS.otimes(a, b)])
+        vec([SectorRange(c) × Int(TKS.Nsymbol(a, b, c)) for c in TKS.otimes(a, b)])
     )
 end
 
 # =============================  TensorProducts interface  =====--==========================
 
-TensorProducts.tensor_product(s::SectorRange) = s
-TensorProducts.tensor_product(c1::SectorRange, c2::SectorRange) = fusion_rule(c1, c2)
-function TensorProducts.tensor_product(c1::TKS.Sector, c2::TKS.Sector)
+tensor_product(s::SectorRange) = s
+tensor_product(c1::SectorRange, c2::SectorRange) = fusion_rule(c1, c2)
+function tensor_product(c1::TKS.Sector, c2::TKS.Sector)
     return tensor_product(to_sector(c1), to_sector(c2))
 end
-function TensorProducts.tensor_product(c1::SectorRange, c2::TKS.Sector)
+function tensor_product(c1::SectorRange, c2::TKS.Sector)
     return tensor_product(c1, to_sector(c2))
 end
-function TensorProducts.tensor_product(c1::TKS.Sector, c2::SectorRange)
+function tensor_product(c1::TKS.Sector, c2::SectorRange)
     return tensor_product(to_sector(c1), c2)
 end
 

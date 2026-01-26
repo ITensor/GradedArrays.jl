@@ -1,22 +1,22 @@
 using BlockArrays: Block, blocks, BlockVector
 using SplitApplyCombine: groupcount
-using TensorProducts: TensorProducts, ⊗, OneToOne, tensor_product
+using BlockSparseArrays: mortar_axis
 
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
 
 # TensorProducts interface
-function TensorProducts.tensor_product(sr1::SectorUnitRange, sr2::SectorUnitRange)
+function tensor_product(sr1::SectorUnitRange, sr2::SectorUnitRange)
     return tensor_product(combine_styles(SymmetryStyle(sr1), SymmetryStyle(sr2)), sr1, sr2)
 end
 
-function TensorProducts.tensor_product(
+function tensor_product(
         ::AbelianStyle, sr1::SectorUnitRange, sr2::SectorUnitRange
     )
     s = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
     return cartesianrange(s, sector_multiplicity(sr1) * sector_multiplicity(sr2))
 end
 
-function TensorProducts.tensor_product(
+function tensor_product(
         ::NotAbelianStyle, sr1::SectorUnitRange, sr2::SectorUnitRange
     )
     g = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
@@ -26,34 +26,31 @@ function TensorProducts.tensor_product(
 end
 
 # allow to fuse a Sector with a GradedUnitRange
-function TensorProducts.tensor_product(
+function tensor_product(
         s::Union{SectorRange, SectorUnitRange}, g::GradedUnitRange
     )
     return to_gradedrange(s) ⊗ g
 end
 
-function TensorProducts.tensor_product(
+function tensor_product(
         g::GradedUnitRange, s::Union{SectorRange, SectorUnitRange}
     )
     return g ⊗ to_gradedrange(s)
 end
 
-function TensorProducts.tensor_product(sr::SectorUnitRange, s::SectorRange)
+function tensor_product(sr::SectorUnitRange, s::SectorRange)
     return sr ⊗ sectorrange(s, 1)
 end
 
-function TensorProducts.tensor_product(s::SectorRange, sr::SectorUnitRange)
+function tensor_product(s::SectorRange, sr::SectorUnitRange)
     return sectorrange(s, 1) ⊗ sr
 end
 
 # unmerged_tensor_product is a private function needed in GradedArraysTensorAlgebraExt
 # to get block permutation
 # it is not aimed for generic use and does not support all tensor_product methods (no dispatch on SymmetryStyle)
-unmerged_tensor_product() = OneToOne()
+unmerged_tensor_product() = Base.OneTo(1)
 unmerged_tensor_product(a) = a
-unmerged_tensor_product(a, ::OneToOne) = a
-unmerged_tensor_product(::OneToOne, a) = a
-unmerged_tensor_product(::OneToOne, ::OneToOne) = OneToOne()
 function unmerged_tensor_product(a1, a2, as...)
     return unmerged_tensor_product(unmerged_tensor_product(a1, a2), as...)
 end
@@ -105,8 +102,8 @@ end
 sectormergesort(g::AbstractUnitRange) = g
 
 # tensor_product produces a sorted, non-dual GradedUnitRange
-TensorProducts.tensor_product(g::GradedUnitRange) = sectormergesort(flip_dual(g))
+tensor_product(g::GradedUnitRange) = sectormergesort(flip_dual(g))
 
-function TensorProducts.tensor_product(g1::GradedUnitRange, g2::GradedUnitRange)
+function tensor_product(g1::GradedUnitRange, g2::GradedUnitRange)
     return sectormergesort(unmerged_tensor_product(g1, g2))
 end
