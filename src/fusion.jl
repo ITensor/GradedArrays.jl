@@ -4,7 +4,12 @@ using BlockSparseArrays: mortar_axis
 
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
 
-# TensorProducts interface
+function tensor_product(
+        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange, rs::AbstractUnitRange...,
+    )
+    return tensor_product(tensor_product(r1, r2), r3, rs...)
+end
+
 function tensor_product(sr1::SectorUnitRange, sr2::SectorUnitRange)
     return tensor_product(combine_styles(SymmetryStyle(sr1), SymmetryStyle(sr2)), sr1, sr2)
 end
@@ -59,7 +64,7 @@ end
 unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
 function unmerged_tensor_product(a1::GradedUnitRange, a2::GradedUnitRange)
-    new_axes = map(splat(⊗), Iterators.flatten((Iterators.product(blocks(a1), blocks(a2)),)))
+    new_axes = vec([a ⊗ b for a in blocks(a1), b in blocks(a2)])
     return mortar_axis(new_axes)
 end
 
