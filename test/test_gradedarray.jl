@@ -449,7 +449,7 @@ end
     @test v2 == v
 end
 
-@testset "dag" begin
+@testset "adjoint" begin
     elt = ComplexF64
     r = blockrange([U1(0) × 2, U1(1) × 3])
     a = BlockSparseArray{elt}(undef, r, dual(r))
