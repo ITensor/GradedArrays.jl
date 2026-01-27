@@ -64,7 +64,14 @@ end
 unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
 function unmerged_tensor_product(a1::GradedUnitRange, a2::GradedUnitRange)
-    new_axes = vec([a ⊗ b for a in blocks(a1), b in blocks(a2)])
+    # TODO: eltype(blocks(a1)) loses information
+    T1 = eltype(a1.eachblockaxis)
+    T2 = eltype(a2.eachblockaxis)
+    new_axes = Base.promote_op(⊗, T1, T2)[]
+    for b in blocks(a2), a in blocks(a1)
+        push!(new_axes, a ⊗ b)
+    end
+    # new_axes = vec([a ⊗ b for a in blocks(a1), b in blocks(a2)])
     return mortar_axis(new_axes)
 end
 

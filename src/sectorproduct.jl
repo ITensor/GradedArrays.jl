@@ -50,11 +50,11 @@ TKS.dim(s::SectorProduct) = prod(TKS.dim, arguments(s); init = 1)
 # use map instead of broadcast to support both Tuple and NamedTuple
 TKS.dual(s::SectorProduct) = SectorProduct(map(TKS.dual, arguments(s)))
 
-function Base.one(::Type{SectorProduct{T}}) where {T <: Tuple}
-    return SectorProduct(map(one, fieldtypes(T)))
+function TKS.unit(::Type{SectorProduct{T}}) where {T <: Tuple}
+    return SectorProduct(map(TKS.unit, fieldtypes(T)))
 end
-function Base.one(::Type{SectorProduct{NT}}) where {NT <: NamedTuple}
-    return SectorProduct(NT(map(one, fieldtypes(NT))))
+function TKS.unit(::Type{SectorProduct{NT}}) where {NT <: NamedTuple}
+    return SectorProduct(NT(map(TKS.unit, fieldtypes(NT))))
 end
 Base.isone(s::SectorProduct) = all(isone, arguments(s))
 
@@ -168,7 +168,6 @@ end
 # """
 # function × end
 
-import KroneckerArrays: ×
 const sectorproduct = ×
 
 ×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
@@ -191,11 +190,6 @@ function ×(a::SectorProduct, b::SectorProduct)
     isempty(arguments(b)) && return a
     throw(MethodError(×, typeof.((a, b))))
 end
-
-# ×(a, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
-# ×(g::AbstractUnitRange, b) = ×(g, to_gradedrange(b))
-# ×(a::SectorRange, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
-# ×(g::AbstractUnitRange, b::SectorRange) = ×(g, to_gradedrange(b))
 
 ×(nt1::NamedTuple) = to_sector(nt1)
 ×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))

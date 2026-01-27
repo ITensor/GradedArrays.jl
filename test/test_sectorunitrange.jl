@@ -110,7 +110,7 @@ using TestExtras: @constinferred
 
     srf = flip(sr)
     @test sector(srf) == flip(sector(sr))
-    @test isdual(srf) == isdual(sr)
+    @test isdual(srf) == !isdual(sr)
     @test space_isequal(srf, sectorrange(flip(SU2(1 / 2)), 2))
 
     # getindex

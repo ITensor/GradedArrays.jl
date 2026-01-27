@@ -9,8 +9,7 @@ using BlockArrays:
 using GradedArrays:
     GradedOneTo, GradedUnitRange, SectorOneTo, SectorUnitRange,
     U1, SU2,
-    checkspaces, checkspaces_dual, dual, flip, isdual,
-    findfirstblock, findfirstblock_sector,
+    dual, flip, isdual,
     gradedrange,
     mortar_axis, sector_multiplicities, sector_type,
     sectors, sectorrange, space_isequal, to_gradedrange

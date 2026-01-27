@@ -93,7 +93,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         v = BlockSparseArray{elt}(undef, rd)
         @test flux(v) == UndefinedFlux()
         v[Block(1)] = ones(2)
-        @test flux(v) == U1(1)'
+        @test flux(v) == U1(-1)
 
         v[Block(2)] = ones(2)
         @test_throws ArgumentError checkflux(v, UndefinedFlux())

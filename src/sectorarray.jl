@@ -17,6 +17,14 @@ sectorrange(sector::SectorRange, range::AbstractUnitRange, isdual::Bool = false)
 sectorrange(sector::SectorRange, dim::Integer, isdual::Bool = false) = sectorrange(sector, 1:dim, isdual)
 sectorrange(sector_dim::Pair{<:SectorRange}, isdual::Bool = false) = sectorrange(sector_dim..., isdual)
 
+sectorrange(sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}, range::AbstractUnitRange, isdual::Bool = false) =
+    sectorrange(to_sector(sector), range, isdual)
+sectorrange(sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}, dim::Integer, isdual::Bool = false) = sectorrange(sector, 1:dim, isdual)
+sectorrange(sector_dim::Pair{<:NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}}, isdual::Bool = false) = sectorrange(sector_dim..., isdual)
+
+×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
+×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)
+
 """
     const SectorOneTo{I <: SectorRange} =
         SectorUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}

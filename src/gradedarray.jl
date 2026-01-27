@@ -37,6 +37,20 @@ isdual(g::GradedUnitRange) = isdual(first(eachblockaxis(g)))  # crash for empty.
 
 flux(a::AbstractBlockedUnitRange, I::Block{1}) = flux(a[I])
 
+function ×(g1::GradedOneTo, g2::GradedOneTo)
+    v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
+    return mortar_axis(v)
+end
+
+×(g::GradedUnitRange, a::AbstractUnitRange) = ×(g, to_gradedrange(a))
+×(a::AbstractUnitRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
+×(g::GradedUnitRange, a::SectorRange) = ×(g, to_gradedrange(a))
+×(a::SectorRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
+function ×(g1::GradedUnitRange, g2::GradedUnitRange)
+    v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
+    return mortar_axis(v)
+end
+
 function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
     return (isdual(a1) == isdual(a2)) && sectors(a1) == sectors(a2) && blockisequal(a1, a2)
 end
@@ -46,7 +60,8 @@ function BlockSparseArrays.blockrange(xs::Vector{<:GradedUnitRange})
     return blockrange(baxis) # FIXME this is probably ignoring information somewhere
 end
 
-function gradedrange(xs::AbstractVector{<:Pair{<:SectorRange, Int}}; isdual::Bool = false)
+const _gradedrange_allowed_types = Union{SectorRange, <:NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}}
+function gradedrange(xs::AbstractVector{<:Pair{<:_gradedrange_allowed_types, Int}}; isdual::Bool = false)
     r = blockrange(map(splat(cartesianrange), xs))
     return isdual ? dual(r) : r
 end
@@ -154,7 +169,7 @@ end
 # TODO: Handle this through some kind of trait dispatch, maybe
 # a `SymmetryStyle`-like trait to check if the block sparse
 # matrix has graded axes.
-function Base.axes(a::Adjoint{<:Any, <:AbstractBlockSparseMatrix})
+function Base.axes(a::Adjoint{<:Any, <:GradedArray})
     return dual.(reverse(axes(a')))
 end
 
