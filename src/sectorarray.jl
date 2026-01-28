@@ -39,6 +39,8 @@ sectorrange(sector_dim::Pair{<:NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{Sec
 ×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
 ×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)
 
+to_gradedrange(g::SectorUnitRange) = mortar_axis([g])
+
 """
     const SectorOneTo{I <: SectorRange} = SectorUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}
 """
@@ -71,14 +73,24 @@ function Base.show(
         io::IO, g::SectorUnitRange{I, RB, R}
     ) where {I <: SectorRange, RB <: AbstractUnitRange{Int}, R <: AbstractUnitRange{Int}}
     a, b = kroneckerfactors(g)
-    return print(io, "sectorrange(", a, " => ", b, ", ", unproduct(g), ")")
+    if b isa Base.OneTo
+        print(io, "sectorrange(", a, ", ", unproduct(g), ")")
+    else
+        print(io, "sectorrange(", a, " => ", b, ", ", unproduct(g), ")")
+    end
+    return nothing
 end
 # ambiguity resolution
 function Base.show(
         io::IO, g::SectorUnitRange{I, RB, Base.OneTo{Int}}
     ) where {I <: SectorRange, RB <: AbstractUnitRange{Int}}
     a, b = kroneckerfactors(g)
-    return print(io, "sectorrange(", a, " => ", b, ")")
+    if b isa Base.OneTo
+        print(io, "sectorrange(", a, ", ", unproduct(g), ")")
+    else
+        print(io, "sectorrange(", a, " => ", b, ", ", unproduct(g), ")")
+    end
+    return nothing
 end
 
 # Array

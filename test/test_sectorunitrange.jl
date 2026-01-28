@@ -1,6 +1,6 @@
 using BlockArrays: Block, BlockBoundsError, BlockRange, blockaxes, blocklasts, blocklength,
     blocklengths, blockisequal, blocks, findblock
-using GradedArrays: U1, SU2, SectorOneTo, SectorUnitRange, SectorVector, dual, flip, isdual,
+using GradedArrays: U1, SU2, SectorOneTo, SectorUnitRange, dual, flip, isdual,
     quantum_dimension, sector, sector_multiplicities, sector_multiplicity, sector_type,
     sectorrange, ungrade, sectors, space_isequal
 using Test: @test, @test_throws, @testset, @test_broken

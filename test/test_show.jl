@@ -38,17 +38,17 @@ end
     @test sprint(show, g1) == "GradedUnitRange[$x => 2, $y => 3, $z => 2]"
     @test sprint(show, MIME("text/plain"), g1) ==
         "GradedUnitRange{$U1}\n" *
-        "sectorrange($x => 1:2)\n" *
-        "sectorrange($y => 3:5)\n" *
-        "sectorrange($z => 6:7)"
+        "sectorrange($x, 1:2)\n" *
+        "sectorrange($y, 3:5)\n" *
+        "sectorrange($z, 6:7)"
 
     g1d = dual(g1)
     @test sprint(show, g1d) == "GradedUnitRange[$x' => 2, $y' => 3, $z' => 2]"
     @test sprint(show, MIME("text/plain"), g1d) ==
         "GradedUnitRange{$U1}\n" *
-        "sectorrange($x' => 1:2)\n" *
-        "sectorrange($y' => 3:5)\n" *
-        "sectorrange($z' => 6:7)"
+        "sectorrange($x', 1:2)\n" *
+        "sectorrange($y', 3:5)\n" *
+        "sectorrange($z', 6:7)"
 end
 
 @testset "show GradedArray" begin
