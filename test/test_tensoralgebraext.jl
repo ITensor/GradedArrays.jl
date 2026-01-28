@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocksize
-using BlockSparseArrays: BlockSparseArray, mortar_axis, blockrange
+using BlockSparseArrays: BlockSparseArray, mortar_axis
 using GradedArrays:
-    GradedArray, GradedMatrix, SU2, U1, dual, flip, sector_type, space_isequal, ×, gradedrange, trivial_gradedrange
+    GradedArray, GradedMatrix, SU2, U1, dual, flip, sector_type, space_isequal, gradedrange, trivial_gradedrange
 using Random: randn!
 using TensorAlgebra: contract, matricize, trivial_axis, unmatricize
 using Test: @test, @testset
@@ -33,14 +33,14 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 # @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
 elt = Float64
     # @testset "matricize" begin
-        d1 = blockrange([U1(0) × 1, U1(1) × 1])
-        d2 = blockrange([U1(0) × 1, U1(1) × 1])
+        d1 = gradedrange([U1(0) => 1, U1(1) => 1])
+        d2 = gradedrange([U1(0) => 1, U1(1) => 1])
         a = randn_blockdiagonal(elt, (d1, d2, dual(d1), dual(d2)))
         m = matricize(a, (1, 2), (3, 4))
         @test m isa GradedMatrix
-        @test space_isequal(axes(m, 1), blockrange([U1(0) × 1, U1(1) × 2, U1(2) × 1]))
+        @test space_isequal(axes(m, 1), gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 1]))
         @test space_isequal(
-            axes(m, 2), flip(blockrange([U1(0) × 1, U1(-1) × 2, U1(-2) × 1]))
+            axes(m, 2), flip(gradedrange([U1(0) => 1, U1(-1) => 2, U1(-2) => 1]))
         )
 
         for I in CartesianIndices(m)
@@ -56,28 +56,28 @@ elt = Float64
         @test a == unmatricize(m, (d1, d2), (dual(d1), dual(d2)))
 
         # check block fusing and splitting
-        d = blockrange([U1(0) => 2, U1(1) => 1])
+        d = gradedrange([U1(0) => 2, U1(1) => 1])
         b = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
         @test unmatricize(
             matricize(b, (1, 2), (3, 4)), (axes(b, 1), axes(b, 2)), (axes(b, 3), axes(b, 4))
         ) == b
 
-        d1234 = blockrange([U1(-2) => 1, U1(-1) => 4, U1(0) => 6, U1(1) => 4, U1(2) => 1])
+        d1234 = gradedrange([U1(-2) => 1, U1(-1) => 4, U1(0) => 6, U1(1) => 4, U1(2) => 1])
         m = matricize(a, (1, 2, 3, 4), ())
         @test m isa GradedMatrix
         @test space_isequal(axes(m, 1), d1234)
-        @test space_isequal(axes(m, 2), flip(blockrange([U1(0) => 1])))
+        @test space_isequal(axes(m, 2), flip(gradedrange([U1(0) => 1])))
         @test a == unmatricize(m, (d1, d2, dual(d1), dual(d2)), ())
 
         m = matricize(a, (), (1, 2, 3, 4))
         @test m isa GradedMatrix
-        @test space_isequal(axes(m, 1), blockrange([U1(0) => 1]))
+        @test space_isequal(axes(m, 1), gradedrange([U1(0) => 1]))
         @test space_isequal(axes(m, 2), dual(d1234))
         @test a == unmatricize(m, (), (d1, d2, dual(d1), dual(d2)))
     end
 
     @testset "contract with U(1)" begin
-        d = blockrange([U1(0) => 2, U1(1) => 3])
+        d = gradedrange([U1(0) => 2, U1(1) => 3])
         a1 = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
         a2 = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
         a3 = randn_blockdiagonal(elt, (d, dual(d)))

@@ -24,7 +24,7 @@ See also [`SectorUnitRange`](@ref) and [`GradedOneTo`](@ref).
 const GradedUnitRange{I, R1, R2} =
     BlockUnitRange{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}, BlockedOneTo{Int, Vector{Int}}}
 
-const GradedOneTo{I} = GradedUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}
+const GradedOneTo{I, R1, R2} = BlockOneTo{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
 
 sectors(r::GradedUnitRange) = sector.(eachblockaxis(r))
 sector_multiplicities(r::GradedUnitRange) = sector_multiplicity.(eachblockaxis(r))
