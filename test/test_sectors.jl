@@ -13,7 +13,7 @@ using GradedArrays:
     quantum_dimension,
     sector_type,
     trivial,
-    zero_odd
+    zero_odd, flip
 using SUNRepresentations: SUNRepresentations
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred

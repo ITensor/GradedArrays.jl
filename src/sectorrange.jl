@@ -59,7 +59,7 @@ Base.axes(r::SectorRange) = (r,)
 
 trivial(x) = trivial(typeof(x))
 function trivial(axis_type::Type{<:AbstractUnitRange})
-    return blockrange([trivial(sector_type(axis_type)) × 1])  # always returns nondual
+    return gradedrange([trivial(sector_type(axis_type)) => 1])  # always returns nondual
 end
 function trivial(type::Type)
     return error("`trivial` not defined for type $(type).")
@@ -131,8 +131,8 @@ function fusion_rule(r1::SectorRange, r2::SectorRange)
     b = label(r2)
     fstyle = TKS.FusionStyle(typeof(r1)) & TKS.FusionStyle(typeof(r2))
     fstyle === TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
-    return blockrange(
-        vec([SectorRange(c) × Int(TKS.Nsymbol(a, b, c)) for c in TKS.otimes(a, b)])
+    return gradedrange(
+        vec([SectorRange(c) => Int(TKS.Nsymbol(a, b, c)) for c in TKS.otimes(a, b)])
     )
 end
 

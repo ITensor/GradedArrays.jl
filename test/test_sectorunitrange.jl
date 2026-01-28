@@ -1,13 +1,7 @@
-using BlockArrays:
-    Block, BlockBoundsError, BlockRange,
-    blockaxes, blocklasts, blocklength, blocklengths,
-    blockisequal, blocks, findblock
-using GradedArrays:
-    U1, SU2,
-    SectorOneTo, SectorUnitRange, SectorVector,
-    dual, flip, isdual,
-    quantum_dimension,
-    sector, sector_multiplicities, sector_multiplicity, sector_type,
+using BlockArrays: Block, BlockBoundsError, BlockRange, blockaxes, blocklasts, blocklength,
+    blocklengths, blockisequal, blocks, findblock
+using GradedArrays: U1, SU2, SectorOneTo, SectorUnitRange, SectorVector, dual, flip, isdual,
+    quantum_dimension, sector, sector_multiplicities, sector_multiplicity, sector_type,
     sectorrange, ungrade, sectors, space_isequal
 using Test: @test, @test_throws, @testset, @test_broken
 using TestExtras: @constinferred
@@ -124,14 +118,6 @@ using TestExtras: @constinferred
     @test_broken (@constinferred getindex(sr, 2:3)) isa UnitRange
     @test sr[Block(1)] ≡ sr
     @test_throws BlockBoundsError sr[Block(2)]
-
-    # TODO: do we want to reinstate this syntax?
-    # sr2 = (@constinferred getindex(sr, (:, 2)))
-    # @test sr2 isa SectorUnitRange
-    # @test space_isequal(sr2, sectorrange(SU2(1 / 2), 3:4))
-    # sr3 = (@constinferred getindex(sr, (:, 1:2)))
-    # @test sr3 isa SectorUnitRange
-    # @test space_isequal(sr3, sectorrange(SU2(1 / 2), 1:4))
 
     # Abelian slicing
     srab = sectorrange(U1(1), 3)

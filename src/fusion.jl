@@ -18,7 +18,7 @@ function tensor_product(
         ::AbelianStyle, sr1::SectorUnitRange, sr2::SectorUnitRange
     )
     s = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
-    return cartesianrange(s, sector_multiplicity(sr1) * sector_multiplicity(sr2))
+    return sectorrange(s, sector_multiplicity(sr1) * sector_multiplicity(sr2))
 end
 
 function tensor_product(
@@ -27,7 +27,7 @@ function tensor_product(
     g = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
     d₁ = sector_multiplicity(sr1)
     d₂ = sector_multiplicity(sr2)
-    return blockrange([c × (d₁ * d₂ * d) for (c, d) in zip(sectors(g), sector_multiplicities(g))])
+    return gradedrange([c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), sector_multiplicities(g))])
 end
 
 # allow to fuse a Sector with a GradedUnitRange
@@ -56,8 +56,8 @@ end
 # it is not aimed for generic use and does not support all tensor_product methods (no dispatch on SymmetryStyle)
 unmerged_tensor_product() = Base.OneTo(1)
 unmerged_tensor_product(a) = a
-function unmerged_tensor_product(a1, a2, as...)
-    return unmerged_tensor_product(unmerged_tensor_product(a1, a2), as...)
+function unmerged_tensor_product(a1, a2, a3, as...)
+    return unmerged_tensor_product(unmerged_tensor_product(a1, a2), a3, as...)
 end
 
 # default to tensor_product
@@ -71,7 +71,6 @@ function unmerged_tensor_product(a1::GradedUnitRange, a2::GradedUnitRange)
     for b in blocks(a2), a in blocks(a1)
         push!(new_axes, a ⊗ b)
     end
-    # new_axes = vec([a ⊗ b for a in blocks(a1), b in blocks(a2)])
     return mortar_axis(new_axes)
 end
 
@@ -108,7 +107,7 @@ function sectormergesort(g::GradedUnitRange)
     end
 
     total = sort!(collect(pairs(dict)); by = first)
-    return blockrange([c × m for (c, m) in total])
+    return gradedrange([c => m for (c, m) in total])
 end
 
 sectormergesort(g::AbstractUnitRange) = g

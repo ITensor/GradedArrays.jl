@@ -6,6 +6,7 @@ GradedArrays = "bc96ca6e-b7c8-4bb6-888e-c93f838762c2"
 KroneckerArrays = "05d0b138-81bc-4ff7-84be-08becefb1ccc"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MatrixAlgebraKit = "6c742aac-3347-4629-af66-fc926824e5e4"
+NamedDimsArrays = "60cbd0c0-df58-4cb7-918c-6f5607b73fde"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
@@ -16,6 +17,9 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestExtras = "5ed8adda-3752-4e41-b88a-e8b09835ee3a"
 
+[sources]
+GradedArrays = {path = ".."}
+
 [compat]
 Aqua = "0.8.11"
 BlockArrays = "1.6"
@@ -24,6 +28,7 @@ GradedArrays = "0.5"
 KroneckerArrays = "0.3"
 LinearAlgebra = "1.10"
 MatrixAlgebraKit = "0.6"
+NamedDimsArrays = "0.13"
 Random = "1.10"
 SUNRepresentations = "0.3"
 SafeTestsets = "0.1"

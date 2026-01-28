@@ -1,17 +1,9 @@
 # TODO: check if we still need all of this
-using BlockArrays:
-    Block, BlockSlice, BlockedOneTo, BlockVector, BlockedUnitRange,
-    blockedrange, blockfirsts, blockisequal, blocklasts, blocklength, blocklengths,
-    blocks,
-    combine_blockaxes,
-    findblock, findblockindex,
-    mortar
-using GradedArrays:
-    GradedOneTo, GradedUnitRange, SectorOneTo, SectorUnitRange,
-    U1, SU2,
-    dual, flip, isdual,
-    gradedrange,
-    mortar_axis, sector_multiplicities, sector_type,
+using BlockArrays: Block, BlockSlice, BlockedOneTo, BlockVector, BlockedUnitRange,
+    blockedrange, blockfirsts, blockisequal, blocklasts, blocklength, blocklengths, blocks,
+    combine_blockaxes, findblock, findblockindex, mortar
+using GradedArrays: GradedOneTo, GradedUnitRange, SectorOneTo, SectorUnitRange, U1, SU2,
+    dual, flip, isdual, gradedrange, mortar_axis, sector_multiplicities, sector_type,
     sectors, sectorrange, space_isequal, to_gradedrange
 using Test: @test, @test_throws, @testset
 

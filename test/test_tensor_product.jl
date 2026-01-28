@@ -1,20 +1,7 @@
 using BlockArrays: blocklength, blocklengths
-using GradedArrays:
-    GradedArrays,
-    GradedOneTo,
-    NotAbelianStyle,
-    SectorUnitRange,
-    SU2,
-    U1,
-    dual,
-    gradedrange,
-    isdual,
-    sectormergesort,
-    sectorrange,
-    sectors,
-    space_isequal,
-    unmerged_tensor_product
-using TensorProducts: ⊗, OneToOne, tensor_product
+using GradedArrays: GradedArrays, GradedOneTo, NotAbelianStyle, SectorUnitRange, SU2, U1, ⊗,
+    dual, gradedrange, isdual, sectormergesort, sectorrange, sectors, space_isequal,
+    tensor_product, unmerged_tensor_product
 using Test: @test, @testset
 using TestExtras: @constinferred
 
@@ -29,8 +16,8 @@ end
 Base.length(s::NotAbelianString) = length(s.str)
 
 @testset "unmerged_tensor_product" begin
-    @test unmerged_tensor_product() isa OneToOne
-    @test unmerged_tensor_product(OneToOne(), OneToOne()) isa OneToOne
+    @test unmerged_tensor_product() ≡ Base.OneTo(1)
+    @test unmerged_tensor_product(Base.OneTo(1), Base.OneTo(1)) ≡ Base.OneTo(1)
     @test unmerged_tensor_product(1:1, 1:1) == 1:1
     @test sectormergesort(1:1) isa UnitRange
 
@@ -79,13 +66,9 @@ Base.length(s::NotAbelianString) = length(s.str)
         ),
     )
     @test space_isequal(unmerged_tensor_product(a), a)
-    @test space_isequal(unmerged_tensor_product(a, OneToOne()), a)
-    @test space_isequal(unmerged_tensor_product(OneToOne(), a), a)
     @test space_isequal(tensor_product(a), gradedrange([U1(1) => 2, U1(2) => 3]))
 
     @test space_isequal(a ⊗ a, gradedrange([U1(2) => 4, U1(3) => 12, U1(4) => 9]))
-    @test space_isequal(a ⊗ OneToOne(), gradedrange([U1(1) => 2, U1(2) => 3]))
-    @test space_isequal(OneToOne() ⊗ a, gradedrange([U1(1) => 2, U1(2) => 3]))
 
     d = tensor_product(a, a, a)
     @test space_isequal(d, gradedrange([U1(3) => 8, U1(4) => 36, U1(5) => 54, U1(6) => 27]))
@@ -98,8 +81,6 @@ end
     b = unmerged_tensor_product(ad)
     @test isdual(b)
     @test space_isequal(b, ad)
-    @test space_isequal(unmerged_tensor_product(ad, OneToOne()), ad)
-    @test space_isequal(unmerged_tensor_product(OneToOne(), ad), ad)
 
     b = tensor_product(ad)
     @test b isa GradedOneTo

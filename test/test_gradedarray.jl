@@ -1,14 +1,9 @@
-using BlockArrays:
-    Block, BlockedOneTo, BlockedUnitRange, blockedrange, blocklengths, blocksize
-using BlockSparseArrays:
-    BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength, blockrange
+using BlockArrays: Block, BlockedOneTo, BlockedUnitRange, blockedrange, blocklengths, blocksize
+using BlockSparseArrays: BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
 using KroneckerArrays: cartesianrange
 using GradedArrays:
-    GradedArray, GradedMatrix, GradedVector,
-    SectorUnitRange, GradedOneTo, GradedUnitRange, gradedrange, ×,
-    UndefinedFlux, U1, checkflux, flux,
-    dual, isdual,
-    space_isequal
+    GradedArray, GradedMatrix, GradedVector, SectorUnitRange, GradedOneTo, GradedUnitRange,
+    gradedrange, UndefinedFlux, U1, checkflux, flux, dual, isdual, space_isequal
 using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!
@@ -28,7 +23,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 @testset "GradedArray (eltype=$elt)" for elt in elts
     elt = Float64
     @testset "definitions" begin
-        r = blockrange([U1(0) × 2, U1(1) × 2])
+        r = gradedrange([U1(0) => 2, U1(1) => 2])
         v = BlockSparseArray{elt}(undef, r)
         @test v isa GradedArray
         @test v isa GradedVector
@@ -75,7 +70,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test flux(v0) == UndefinedFlux()
         @test isnothing(checkflux(v0, UndefinedFlux()))
 
-        r = blockrange([U1(1) × 2, U1(2) × 2])
+        r = gradedrange([U1(1) => 2, U1(2) => 2])
         rd = dual(r)
         @test flux(r) == UndefinedFlux()
         @test flux(r, Block(1)) == U1(1)
@@ -103,8 +98,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     end
 
     @testset "map" begin
-        d1 = blockrange([U1(0) × 2, U1(1) × 2])
-        d2 = blockrange([U1(0) × 2, U1(1) × 2])
+        d1 = gradedrange([U1(0) => 2, U1(1) => 2])
+        d2 = gradedrange([U1(0) => 2, U1(1) => 2])
         a = randn_blockdiagonal(elt, (d1, d2, d1, d2))
         @test a isa GradedArray{elt, 4}
         @test axes(a, 1) isa GradedOneTo
@@ -125,14 +120,14 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             for i in 1:ndims(a)
                 @test axes(b, i) isa GradedOneTo
             end
-            @test axes(b, 1)[Block(1)] == cartesianrange(U1(0) × 2, 1:2)
-            @test axes(b, 1)[Block(2)] == cartesianrange(U1(1) × 2, 3:4)
+            @test axes(b, 1)[Block(1)] == cartesianrange(U1(0) => 2, 1:2)
+            @test axes(b, 1)[Block(2)] == cartesianrange(U1(1) => 2, 3:4)
             @test Array(b) isa Array{elt}
             @test Array(b) == b
             @test 2 * Array(a) == b
         end
 
-        r = blockrange([U1(0) × 2, U1(1) × 2])
+        r = gradedrange([U1(0) => 2, U1(1) => 2])
         a = zeros(r, r, r, r)
         @test a isa BlockSparseArray{Float64}
         @test a isa GradedArray
@@ -141,7 +136,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test iszero(a)
         @test iszero(blockstoredlength(a))
 
-        r = blockrange([U1(0) × 2, U1(1) × 2])
+        r = gradedrange([U1(0) => 2, U1(1) => 2])
         a = zeros(elt, r, r, r, r)
         @test a isa BlockSparseArray{elt}
         @test eltype(a) === elt
@@ -149,21 +144,21 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test iszero(a)
         @test iszero(blockstoredlength(a))
 
-        r = blockrange([U1(0) × 2, U1(1) × 2])
+        r = gradedrange([U1(0) => 2, U1(1) => 2])
         a = randn_blockdiagonal(elt, (r, r, r, r))
         b = similar(a, ComplexF64)
         @test b isa BlockSparseArray{ComplexF64}
         @test eltype(b) === ComplexF64
 
-        a = BlockSparseVector{Float64}(undef, blockrange([U1(0) × 1, U1(1) × 1]))
+        a = BlockSparseVector{Float64}(undef, gradedrange([U1(0) => 1, U1(1) => 1]))
         b = similar(a, Float32)
         @test b isa BlockSparseVector{Float32}
         @test eltype(b) == Float32
 
         # Test mixing graded axes and dense axes
         # in addition/broadcasting.
-        d1 = blockrange([U1(0) × 2, U1(1) × 2])
-        d2 = blockrange([U1(0) × 2, U1(1) × 2])
+        d1 = gradedrange([U1(0) => 2, U1(1) => 2])
+        d2 = gradedrange([U1(0) => 2, U1(1) => 2])
         a = randn_blockdiagonal(elt, (d1, d2, d1, d2))
         # for b in (a + Array(a), Array(a) + a)
         #     @test size(b) == (4, 4, 4, 4)
@@ -179,8 +174,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         #     @test 2 * Array(a) == b
         # end
 
-        d1 = blockrange([U1(0) × 2, U1(1) × 2])
-        d2 = blockrange([U1(0) × 2, U1(1) × 2])
+        d1 = gradedrange([U1(0) => 2, U1(1) => 2])
+        d2 = gradedrange([U1(0) => 2, U1(1) => 2])
         a = randn_blockdiagonal(elt, (d1, d2, d1, d2))
         # b = a[2:3, 2:3, 2:3, 2:3]
         # @test size(b) == (2, 2, 2, 2)
@@ -196,7 +191,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     end
 
     @testset "dual axes" begin
-        r = blockrange([U1(0) × 2, U1(1) × 2])
+        r = gradedrange([U1(0) => 2, U1(1) => 2])
         for ax in ((r, r), (dual(r), r), (r, dual(r)), (dual(r), dual(r)))
             a = BlockSparseArray{elt}(undef, ax...)
             @views for b in [Block(1, 1), Block(2, 2)]
@@ -241,7 +236,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         end
 
         @testset "GradedOneTo" begin
-            r = blockrange([U1(0) × 2, U1(1) × 2])
+            r = gradedrange([U1(0) => 2, U1(1) => 2])
             a = BlockSparseArray{elt}(undef, r, r)
             @views for i in [Block(1, 1), Block(2, 2)]
                 a[i] = randn(elt, size(a[i]))
@@ -264,7 +259,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
         # TODO: slicing ranges
         false && @testset "GradedUnitRange" begin
-            r = blockrange([U1(0) × 2, U1(1) × 2])[1:3]
+            r = gradedrange([U1(0) => 2, U1(1) => 2])[1:3]
             a = BlockSparseArray{elt}(undef, r, r)
             @views for i in [Block(1, 1), Block(2, 2)]
                 a[i] = randn(elt, size(a[i]))
@@ -291,7 +286,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
         # Test case when all axes are dual.
         @testset "dual GradedOneTo" begin
-            r = blockrange([U1(-1) × 2, U1(1) × 2])
+            r = gradedrange([U1(-1) => 2, U1(1) => 2])
             a = BlockSparseArray{elt}(undef, dual(r), dual(r))
             @views for i in [Block(1, 1), Block(2, 2)]
                 a[i] = randn(elt, size(a[i]))
@@ -316,7 +311,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         end
 
         # @testset "dual GradedUnitRange" begin
-        #     r = blockrange([U1(0) × 2, U1(1) × 2])[1:3]
+        #     r = gradedrange([U1(0) => 2, U1(1) => 2])[1:3]
         #     a = BlockSparseArray{elt}(undef, dual(r), dual(r))
         #     @views for i in [Block(1, 1), Block(2, 2)]
         #         a[i] = randn(elt, size(a[i]))
@@ -343,8 +338,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
         # Test case when all axes are dual from taking the adjoint.
         for r in (
-                blockrange([U1(0) × 2, U1(1) × 2]),
-                # blockrange([U1(0) × 2, U1(1) × 2])[begin:end], # TODO: non-graded slices
+                gradedrange([U1(0) => 2, U1(1) => 2]),
+                # gradedrange([U1(0) => 2, U1(1) => 2])[begin:end], # TODO: non-graded slices
             )
             a = BlockSparseArray{elt}(undef, r, r)
             @views for i in [Block(1, 1), Block(2, 2)]
@@ -375,7 +370,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         end
     end
     @testset "Matrix multiplication" begin
-        r = blockrange([U1(0) × 2, U1(1) × 3])
+        r = gradedrange([U1(0) => 2, U1(1) => 3])
         a1 = BlockSparseArray{elt}(undef, dual(r), r)
         a1[Block(1, 2)] = randn(elt, size(@view(a1[Block(1, 2)])))
         a1[Block(2, 1)] = randn(elt, size(@view(a1[Block(2, 1)])))
@@ -390,7 +385,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test_throws DimensionMismatch a1 * permutedims(a2, (2, 1))
     end
     false && @testset "Construct from dense" begin
-        r = blockrange([U1(0) × 2, U1(1) × 3])
+        r = gradedrange([U1(0) => 2, U1(1) => 3])
         a1 = randn(elt, 2, 2)
         a2 = randn(elt, 3, 3)
         a = cat(a1, a2; dims = (1, 2))
@@ -437,7 +432,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 end
 
 @testset "misc indexing" begin
-    g = blockrange([U1(0) × 2, U1(1) × 3])
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
     v = zeros(g)
     v2 = v[g]
     @test space_isequal(only(axes(v2)), g)
@@ -451,7 +446,7 @@ end
 
 @testset "adjoint" begin
     elt = ComplexF64
-    r = blockrange([U1(0) × 2, U1(1) × 3])
+    r = gradedrange([U1(0) => 2, U1(1) => 3])
     a = BlockSparseArray{elt}(undef, r, dual(r))
     a[Block(1, 1)] = randn(elt, 2, 2)
     a[Block(2, 2)] = randn(elt, 3, 3)

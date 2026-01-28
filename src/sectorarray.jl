@@ -230,10 +230,3 @@ function Base.materialize!(dst::SectorArray, src::KroneckerArrays.KroneckerBroad
     Base.materialize!(kroneckerfactors(dst, 2), kroneckerfactors(src, 2))
     return dst
 end
-
-
-# function Base.broadcast_preserving_zero_d(f, As::SectorArray...)
-#     allequal(axes, As) || error()
-#     res = Base.broadcast_preserving_zero_d(f, kroneckerfactors.(As, 2)...)
-#     return SectorArray(first(As).sectors, res)
-# end

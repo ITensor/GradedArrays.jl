@@ -174,9 +174,6 @@ const sectorproduct = ×
 ×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
 ×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
 
-# n-arg implemented as a left fold.
-# ×(r1, r2, r3, r_rest...) = ×(×(r1, r2), r3, r_rest...)
-
 function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
     return SectorProduct(arguments(p1)..., arguments(p2)...)
 end
@@ -211,6 +208,7 @@ function ×(sr1::SectorOneTo, sr2::SectorOneTo)
     )
 end
 
+# TODO: type piracy?
 KroneckerArrays.to_product_indices(nt::NamedTuple) =
     KroneckerArrays.to_product_indices(to_sector(nt))
 
