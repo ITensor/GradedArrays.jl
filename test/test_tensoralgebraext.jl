@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray, mortar_axis, blockrange
 using GradedArrays:
-    GradedArray, GradedMatrix, SU2, U1, dual, flip, sector_type, space_isequal, ×
+    GradedArray, GradedMatrix, SU2, U1, dual, flip, sector_type, space_isequal, ×, gradedrange, trivial_gradedrange
 using Random: randn!
 using TensorAlgebra: contract, matricize, trivial_axis, unmatricize
 using Test: @test, @testset
@@ -16,18 +16,17 @@ function randn_blockdiagonal(elt::Type, axes::Tuple)
     return a
 end
 
-
 @testset "trivial_axis" begin
-    g1 = blockrange([U1(1) × 1, U1(2) × 1])
-    g2 = blockrange([U1(-1) × 2, U1(2) × 1])
-    @test space_isequal(trivial_axis((g1, g2)), blockrange([U1(0) × 1]))
-    @test space_isequal(trivial_axis(sector_type(g1)), blockrange([U1(0) × 1]))
+    g1 = gradedrange([U1(1) => 1, U1(2) => 1])
+    g2 = gradedrange([U1(-1) => 2, U1(2) => 1])
+    @test space_isequal(trivial_gradedrange((g1, g2)), gradedrange([U1(0) => 1]))
+    @test space_isequal(trivial_gradedrange(sector_type(g1)), gradedrange([U1(0) => 1]))
 
-    gN = blockrange([(; N = U1(1)) × 1])
-    gS = blockrange([(; S = SU2(1 // 2)) × 1])
-    gNS = blockrange([(; N = U1(0), S = SU2(0)) × 1])
-    @test space_isequal(trivial_axis(sector_type(gN)), blockrange([(; N = U1(0)) × 1]))
-    @test space_isequal(trivial_axis((gN, gS)), gNS)
+    gN = gradedrange([(; N = U1(1)) => 1])
+    gS = gradedrange([(; S = SU2(1 // 2)) => 1])
+    gNS = gradedrange([(; N = U1(0), S = SU2(0)) => 1])
+    @test space_isequal(trivial_gradedrange(sector_type(gN)), gradedrange([(; N = U1(0)) => 1]))
+    @test space_isequal(trivial_gradedrange((gN, gS)), gNS)
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})

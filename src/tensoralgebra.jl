@@ -6,7 +6,21 @@ using GradedArrays:
     unmerged_tensor_product, ×
 using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockReshapeFusion,
     BlockedTuple, FusionStyle, ReshapeFusion, matricize, matricize_axes,
-    tensor_product_axis, tuplemortar, unmatricize
+    tensor_product_axis, tuplemortar, unmatricize, trivialbiperm
+
+# TODO: do we need SectorDeltaFusion and SectorFusion? Can we write some docstrings to tell what they indicate?
+struct SectorDeltaFusion <: FusionStyle end
+
+TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorDeltaFusion()
+function TensorAlgebra.matricize(
+        style::SectorDeltaFusion, a::AbstractArray, ndims_codomain::Val{Ncodomain}
+    ) where {Ncodomain}
+    biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
+    ax_codomain, ax_domain = blocks(axes(a)[biperm])
+    ax_codomain = tensor_product(ax_codomain...)
+    ax_domain = flip(tensor_product(ax_domain...))
+    return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
+end
 
 struct SectorFusion <: FusionStyle end
 
