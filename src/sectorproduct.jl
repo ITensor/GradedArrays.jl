@@ -160,14 +160,6 @@ end
 
 # =================================  Cartesian Product  ====================================
 
-# """
-#     ×(x, y...)
-#     sectorproduct(x, y...)
-#
-# Convenience constructor for taking the Cartesian product of 2 or more sectors or sector ranges.
-# """
-# function × end
-
 const sectorproduct = ×
 
 ×(c::SectorRange) = SectorRange(SectorProduct(label(c)))

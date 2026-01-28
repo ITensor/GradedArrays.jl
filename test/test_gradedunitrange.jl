@@ -13,7 +13,7 @@ using Test: @test, @test_throws, @testset
     g1 = gradedrange([U1(1) => 2, U1(2) => 3, U1(3) => 2])
     @test g1 isa GradedOneTo
     @test !isdual(g1)
-    # @test to_gradedrange(g1) ≡ g1
+    @test to_gradedrange(g1) ≡ g1
 
     # Base.Slice
     @test axes(Base.Slice(g1)) ≡ (g1,)
@@ -34,8 +34,7 @@ using Test: @test, @test_throws, @testset
     @test Base.axes1(Base.Slice(g1d)) ≡ g1d
     @test Base.unsafe_indices(Base.Slice(g1d)) ≡ (g1d,)
 
-    for g in (g1, g1d) #(g1, g2, g1d)
-        # g = g1
+    for g in (g1, g2, g1d)
         @test g isa GradedUnitRange
         @test sector_type(g) ≡ U1
         @test blockisequal(g, b0)

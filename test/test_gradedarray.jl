@@ -453,7 +453,6 @@ end
     @test isdual.(axes(a)) == (false, true)
     ad = adjoint(a)
     @test Array(ad) == adjoint(Array(a))
-    # TODO: this confuses me a lot, why was this the opposite previously?
     @test isdual.(axes(ad)) == (false, true)
     @test space_isequal(axes(ad, 2), dual(axes(a, 1)))
     @test space_isequal(axes(ad, 2), dual(axes(a, 1)))

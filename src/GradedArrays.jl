@@ -19,7 +19,7 @@ using LinearAlgebra: LinearAlgebra, Adjoint
 using KroneckerArrays
 using KroneckerArrays: AbstractKroneckerArray, CartesianProductUnitRange
 import KroneckerArrays: ×
-using SparseArraysBase: SparseArraysBase, isstored
+using SparseArraysBase: isstored
 using BlockArrays: BlockArrays, Block, blocksize
 using BlockSparseArrays: AbstractBlockSparseArray, BlockOneTo, blockrange, @view!
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters

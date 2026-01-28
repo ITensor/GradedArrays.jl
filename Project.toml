@@ -8,7 +8,6 @@ ArrayLayouts = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
 BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 BlockSparseArrays = "2c9a651f-6452-4ace-a6ac-809f4280fbb4"
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
-DiagonalArrays = "74fd4be6-21e2-4f6f-823a-4360d37c7a77"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 HalfIntegers = "f0d1745a-41c9-11e9-1dd9-e5d34d218721"
 KroneckerArrays = "05d0b138-81bc-4ff7-84be-08becefb1ccc"
@@ -22,9 +21,11 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 TypeParameterAccessors = "7e5a90cf-f82e-492e-a09b-e3e26432c138"
 
 [weakdeps]
+NamedDimsArrays = "60cbd0c0-df58-4cb7-918c-6f5607b73fde"
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 
 [extensions]
+GradedArraysNamedDimsArraysExt = "NamedDimsArrays"
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"
 
 [compat]
@@ -32,7 +33,6 @@ ArrayLayouts = "1"
 BlockArrays = "1.6"
 BlockSparseArrays = "0.10"
 Compat = "4.16"
-DiagonalArrays = "0.3.23"
 FillArrays = "1.13"
 HalfIntegers = "1.6"
 KroneckerArrays = "0.3"
@@ -46,3 +46,6 @@ TensorAlgebra = "0.6"
 TensorKitSectors = "0.3"
 TypeParameterAccessors = "0.4"
 julia = "1.10"
+
+[workspace]
+projects = ["benchmark", "dev", "docs", "examples", "test"]

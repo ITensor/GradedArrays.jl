@@ -1,19 +1,5 @@
-using GradedArrays:
-    Fib,
-    Ising,
-    O2,
-    SU2,
-    SectorRange,
-    TrivialSector,
-    U1,
-    Z,
-    dual,
-    istrivial,
-    modulus,
-    quantum_dimension,
-    sector_type,
-    trivial,
-    zero_odd, flip
+using GradedArrays: Fib, Ising, O2, SU2, SectorRange, TrivialSector, U1, Z, dual, istrivial,
+    modulus, quantum_dimension, sector_type, trivial, zero_odd, flip
 using SUNRepresentations: SUNRepresentations
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred

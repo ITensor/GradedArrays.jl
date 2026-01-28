@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray, mortar_axis
-using GradedArrays:
-    GradedArray, GradedMatrix, SU2, U1, dual, flip, sector_type, space_isequal, gradedrange, trivial_gradedrange
+using GradedArrays: GradedArray, GradedMatrix, SU2, U1, dual, flip, sector_type,
+    space_isequal, gradedrange, trivial_gradedrange
 using Random: randn!
 using TensorAlgebra: contract, matricize, trivial_axis, unmatricize
 using Test: @test, @testset
@@ -30,9 +30,8 @@ end
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
-# @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
-elt = Float64
-    # @testset "matricize" begin
+@testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
+    @testset "matricize" begin
         d1 = gradedrange([U1(0) => 1, U1(1) => 1])
         d2 = gradedrange([U1(0) => 1, U1(1) => 1])
         a = randn_blockdiagonal(elt, (d1, d2, dual(d1), dual(d2)))

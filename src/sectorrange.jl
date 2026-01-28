@@ -15,7 +15,7 @@ end
 SectorRange{I}(label) where {I} = SectorRange{I}(label, false)
 SectorRange(label::TKS.Sector) = SectorRange(label, false)
 
-label(r::SectorRange) = r.label # isdual(r) ? dual(r.label) : r.label
+label(r::SectorRange) = r.label
 isdual(r::SectorRange) = r.isdual
 isdual(x::AbstractUnitRange) = false
 
