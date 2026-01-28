@@ -9,6 +9,8 @@ Type alias for the cartesian product of a sector range of type `I`, and a unit r
 const SectorUnitRange{I <: SectorRange, RB <: AbstractUnitRange{Int}, R <: AbstractUnitRange{Int}} =
     CartesianProductUnitRange{Int, I, RB, R}
 
+const SectorOneTo{I <: SectorRange, R <: AbstractUnitRange{Int}} = SectorUnitRange{I, Base.OneTo{Int}, R}
+
 function SectorUnitRange(sector::SectorRange, range::AbstractUnitRange, isdual::Bool = false)
     return cartesianrange(sector, range)
 end
@@ -53,6 +55,10 @@ function Base.getindex(x::SectorUnitRange, y::AbstractUnitRange{Int})
 end
 
 ungrade(x::SectorUnitRange) = KroneckerArrays.unproduct(x)
+
+function Base.show(io::IO, g::SectorOneTo)
+    return print(io, "sectorrange(", sector(g), " => ", unproduct(g), ")")
+end
 
 # Array
 # -----

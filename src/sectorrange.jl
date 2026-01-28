@@ -216,7 +216,7 @@ function Fib(s::AbstractString)
     s == "τ" && return Fib(:τ)
     throw(ArgumentError("Unrecognized input `$s`"))
 end
-sector_label(c::TKS.FibonacciAnyon) = c.isone ? "1" : "τ"
+sector_label(c::TKS.FibonacciAnyon) = isone(c) ? "1" : "τ"
 
 const Ising = SectorRange{TKS.IsingAnyon}
 function Ising(s::AbstractString)
