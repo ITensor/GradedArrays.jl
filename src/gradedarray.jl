@@ -60,6 +60,13 @@ function gradedrange(xs::AbstractVector{<:Pair{<:_gradedrange_allowed_types, Int
     return isdual ? dual(r) : r
 end
 
+function BlockSparseArrays.mortar_axis(geachblockaxis::AbstractVector{<:SectorUnitRange})
+    allequal(isdual, geachblockaxis) || throw(ArgumentError("Cannot combine sectors with different arrows"))
+    return blockrange(geachblockaxis)
+end
+
+to_gradedrange(g::GradedUnitRange) = g
+
 function Base.show(io::IO, g::GradedUnitRange)
     print(io, "GradedUnitRange[")
     join(io, repr.(sectors(g) .=> sector_multiplicities(g)), ", ")

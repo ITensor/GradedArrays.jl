@@ -1,23 +1,6 @@
-using GradedArrays:
-    GradedArrays,
-    SectorProduct,
-    SU2,
-    TrivialSector,
-    U1,
-    Z,
-    ⊗,
-    ×,
-    arguments,
-    dual,
-    gradedrange,
-    label,
-    quantum_dimension,
-    sector,
-    sector_type,
-    sectorproduct,
-    sectorrange,
-    space_isequal,
-    trivial
+using GradedArrays: GradedArrays, SectorProduct, SU2, TrivialSector, U1, Z, ⊗, ×, arguments,
+    dual, gradedrange, flip, label, quantum_dimension, sector, sector_type, sectorproduct,
+    sectorrange, space_isequal, trivial
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
 using BlockArrays: blocklengths

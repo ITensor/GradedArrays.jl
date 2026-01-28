@@ -138,7 +138,7 @@ end
 
 # =============================  TensorProducts interface  =====--==========================
 
-tensor_product(s::SectorRange) = isdual(s) ? flip(dual(s)) : s
+tensor_product(s::SectorRange) = isdual(s) ? flip(s) : s
 tensor_product(c1::SectorRange, c2::SectorRange) = fusion_rule(c1, c2)
 function tensor_product(c1::TKS.Sector, c2::TKS.Sector)
     return tensor_product(to_sector(c1), to_sector(c2))

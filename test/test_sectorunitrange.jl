@@ -50,14 +50,14 @@ using TestExtras: @constinferred
     @test ungrade(sr) == 1:4
     @test !isdual(sr)
 
-    sr = sectorrange(SU2(1 / 2) => 2, true)
+    sr = sectorrange(SU2(1 / 2) => 2; isdual = true)
     @test sr isa SectorUnitRange
     @test sector(sr) == SU2(1 / 2)'
     @test ungrade(sr) isa Base.OneTo
     @test ungrade(sr) == 1:4
     @test isdual(sr)
 
-    sr = sectorrange(SU2(1 / 2), 4:10, true)
+    sr = sectorrange(SU2(1 / 2), 4:10; isdual = true)
     @test sr isa SectorUnitRange
     @test sector(sr) == SU2(1 / 2)'
     # TODO: what should ungrade return?
@@ -68,8 +68,8 @@ using TestExtras: @constinferred
     sr = sectorrange(SU2(1 / 2), 2)
     @test !space_isequal(sr, sectorrange(SU2(1), 2))
     @test !space_isequal(sr, sectorrange(SU2(1 / 2), 2:7))
-    @test !space_isequal(sr, sectorrange(SU2(1), 2, true))
-    @test !space_isequal(sr, sectorrange(SU2(1 / 2), 2, true))
+    @test !space_isequal(sr, sectorrange(SU2(1), 2; isdual = true))
+    @test !space_isequal(sr, sectorrange(SU2(1 / 2), 2; isdual = true))
 
     sr2 = copy(sr)
     @test sr2 isa SectorUnitRange
@@ -99,7 +99,7 @@ using TestExtras: @constinferred
 
     srd = dual(sr)
     @test sector(srd) == dual(sector(sr))
-    @test space_isequal(srd, sectorrange(SU2(1 / 2), 2, true))
+    @test space_isequal(srd, sectorrange(SU2(1 / 2), 2; isdual = true))
     @test sectors(srd) == dual.(sectors(sr))
 
     srf = flip(sr)
@@ -123,7 +123,7 @@ using TestExtras: @constinferred
     srab = sectorrange(U1(1), 3)
     @test (@constinferred getindex(srab, 2:2)) isa SectorUnitRange
     @test_broken space_isequal(srab[2:2], sectorrange(U1(1), 2:2))
-    @test_broken space_isequal(dual(srab)[2:2], sectorrange(U1(1), 2:2, true))
+    @test_broken space_isequal(dual(srab)[2:2], sectorrange(U1(1), 2:2; isdual = true))
     # TODO: do we need to add SectorVector?
     @test_broken srab[[1, 3]] isa SectorVector{Int}
     @test_broken sector(srab[[1, 3]]) == sector(srab)

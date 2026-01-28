@@ -194,9 +194,8 @@ end
 function ×(sr1::SectorOneTo, sr2::SectorOneTo)
     isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
     return sectorrange(
-        sector(sr1) × sector(sr2),
-        sector_multiplicity(sr1) * sector_multiplicity(sr2),
-        isdual(sr1),
+        sector(sr1) × sector(sr2), sector_multiplicity(sr1) * sector_multiplicity(sr2);
+        isdual = isdual(sr1),
     )
 end
 

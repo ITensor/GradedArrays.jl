@@ -9,27 +9,38 @@ Type alias for the cartesian product of a sector range of type `I`, and a unit r
 const SectorUnitRange{I <: SectorRange, RB <: AbstractUnitRange{Int}, R <: AbstractUnitRange{Int}} =
     CartesianProductUnitRange{Int, I, RB, R}
 
-const SectorOneTo{I <: SectorRange, R <: AbstractUnitRange{Int}} = SectorUnitRange{I, Base.OneTo{Int}, R}
-
-function SectorUnitRange(sector::SectorRange, range::AbstractUnitRange, isdual::Bool = false)
-    return cartesianrange(sector, range)
+function SectorUnitRange(sector::SectorRange, range::AbstractUnitRange, totalrange...)
+    return cartesianrange(sector, range, totalrange...)
 end
 
-sectorrange(sector::SectorRange, range::AbstractUnitRange, isdual::Bool = false) = (isdual ? dual(sector) : sector) × range
-sectorrange(sector::SectorRange, dim::Integer, isdual::Bool = false) = sectorrange(sector, 1:dim, isdual)
-sectorrange(sector_dim::Pair{<:SectorRange}, isdual::Bool = false) = sectorrange(sector_dim..., isdual)
+@doc """
+    sectorrange(sector, range; isdual = false)
+    sectorrange(sector, dim; isdual = false)
+    sectorrange(sector => range; isdual = false)
+    sectorrange(args..., totalrange; isdual = false)
 
-sectorrange(sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}, range::AbstractUnitRange, isdual::Bool = false) =
-    sectorrange(to_sector(sector), range, isdual)
-sectorrange(sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}, dim::Integer, isdual::Bool = false) = sectorrange(sector, 1:dim, isdual)
-sectorrange(sector_dim::Pair{<:NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}}, isdual::Bool = false) = sectorrange(sector_dim..., isdual)
+Construct a [`SectorUnitRange`](@ref) for the given sector and dimension or range.
+The `isdual` flag can be used to immediately construct `dual(sectorrange(...))`.
+Finally, the `totalrange` can be used to create for example ranges that have an offset.
+""" sectorrange
+
+function sectorrange(sector::SectorRange, range::AbstractUnitRange, totalrange...; isdual::Bool = false)
+    return SectorUnitRange(isdual ? dual(sector) : sector, range, totalrange...)
+end
+sectorrange(sector::SectorRange, dim::Integer, args...; kwargs...) =
+    sectorrange(sector, 1:dim, args...; kwargs...)
+sectorrange(sector_dim::Pair{<:SectorRange}, args...; kwargs...) =
+    sectorrange(sector_dim..., args...; kwargs...)
+sectorrange(sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}, args...; kwargs...) =
+    sectorrange(to_sector(sector), args...; kwargs...)
+sectorrange(sector_dim::Pair{<:NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}}, args...; kwargs...) =
+    sectorrange(sector_dim..., args...; kwargs...)
 
 ×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
 ×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)
 
 """
-    const SectorOneTo{I <: SectorRange} =
-        SectorUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}
+    const SectorOneTo{I <: SectorRange} = SectorUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}
 """
 const SectorOneTo{I <: SectorRange} = SectorUnitRange{I, Base.OneTo{Int}, Base.OneTo{Int}}
 
@@ -56,8 +67,18 @@ end
 
 ungrade(x::SectorUnitRange) = KroneckerArrays.unproduct(x)
 
-function Base.show(io::IO, g::SectorOneTo)
-    return print(io, "sectorrange(", sector(g), " => ", unproduct(g), ")")
+function Base.show(
+        io::IO, g::SectorUnitRange{I, RB, R}
+    ) where {I <: SectorRange, RB <: AbstractUnitRange{Int}, R <: AbstractUnitRange{Int}}
+    a, b = kroneckerfactors(g)
+    return print(io, "sectorrange(", a, " => ", b, ", ", unproduct(g), ")")
+end
+# ambiguity resolution
+function Base.show(
+        io::IO, g::SectorUnitRange{I, RB, Base.OneTo{Int}}
+    ) where {I <: SectorRange, RB <: AbstractUnitRange{Int}}
+    a, b = kroneckerfactors(g)
+    return print(io, "sectorrange(", a, " => ", b, ")")
 end
 
 # Array

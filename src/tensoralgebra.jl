@@ -86,7 +86,7 @@ function TensorAlgebra.matricize(
     return sectormergesort(a_reshaped)
 end
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbstractArray, ndims_codomain::Val{Ncodomain}
+        ::SectorFusion, a::SectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
     biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
     ax_codomain, ax_domain = blocks(axes(a)[biperm])

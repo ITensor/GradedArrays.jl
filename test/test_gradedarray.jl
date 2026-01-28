@@ -1,9 +1,9 @@
 using BlockArrays: Block, BlockedOneTo, BlockedUnitRange, blockedrange, blocklengths, blocksize
 using BlockSparseArrays: BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
 using KroneckerArrays: cartesianrange
-using GradedArrays:
-    GradedArray, GradedMatrix, GradedVector, SectorUnitRange, GradedOneTo, GradedUnitRange,
-    gradedrange, UndefinedFlux, U1, checkflux, flux, dual, isdual, space_isequal
+using GradedArrays: GradedArray, GradedMatrix, GradedVector, GradedOneTo, GradedUnitRange,
+    SectorUnitRange, UndefinedFlux, U1, checkflux, dual, flux, gradedrange, isdual,
+    space_isequal, sectorrange
 using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!
@@ -120,8 +120,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             for i in 1:ndims(a)
                 @test axes(b, i) isa GradedOneTo
             end
-            @test axes(b, 1)[Block(1)] == cartesianrange(U1(0) => 2, 1:2)
-            @test axes(b, 1)[Block(2)] == cartesianrange(U1(1) => 2, 3:4)
+            @test axes(b, 1)[Block(1)] == sectorrange(U1(0) => 2, 1:2)
+            @test axes(b, 1)[Block(2)] == sectorrange(U1(1) => 2, 3:4)
             @test Array(b) isa Array{elt}
             @test Array(b) == b
             @test 2 * Array(a) == b
