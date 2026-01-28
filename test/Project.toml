@@ -24,7 +24,7 @@ GradedArrays = {path = ".."}
 Aqua = "0.8.11"
 BlockArrays = "1.6"
 BlockSparseArrays = "0.10"
-GradedArrays = "0.5"
+GradedArrays = "0.6"
 KroneckerArrays = "0.3"
 LinearAlgebra = "1.10"
 MatrixAlgebraKit = "0.6"

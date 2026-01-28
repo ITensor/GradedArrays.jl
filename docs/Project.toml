@@ -8,5 +8,5 @@ GradedArrays = {path = ".."}
 
 [compat]
 Documenter = "1"
-GradedArrays = "0.5"
+GradedArrays = "0.6"
 Literate = "2"
