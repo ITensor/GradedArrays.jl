@@ -18,6 +18,11 @@ See also [`SectorUnitRange`](@ref) and [`GradedOneTo`](@ref).
 """
 const GradedUnitRange{I, R1, R2} = BlockUnitRange{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
 
+"""
+    const GradedOneTo{I, R1, R2} = BlockOneTo{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
+
+See also [`SectorUnitRange`](@ref) and [`GradedUnitRange`](@ref).
+"""
 const GradedOneTo{I, R1, R2} = BlockOneTo{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
 
 sectors(r::GradedUnitRange) = sector.(eachblockaxis(r))
