@@ -14,27 +14,16 @@ function SectorUnitRange(sector::SectorRange, range::AbstractUnitRange, totalran
 end
 
 @doc """
-    sectorrange(sector, range; isdual = false)
-    sectorrange(sector, dim; isdual = false)
-    sectorrange(sector => range; isdual = false)
-    sectorrange(args..., totalrange; isdual = false)
+    sectorrange(sector, range)
+    sectorrange(sector, dim)
 
 Construct a [`SectorUnitRange`](@ref) for the given sector and dimension or range.
-The `isdual` flag can be used to immediately construct `dual(sectorrange(...))`.
-Finally, the `totalrange` can be used to create for example ranges that have an offset.
 """ sectorrange
 
-function sectorrange(sector::SectorRange, range::AbstractUnitRange, totalrange...; isdual::Bool = false)
-    return SectorUnitRange(isdual ? dual(sector) : sector, range, totalrange...)
-end
-sectorrange(sector::SectorRange, dim::Integer, args...; kwargs...) =
-    sectorrange(sector, 1:dim, args...; kwargs...)
-sectorrange(sector_dim::Pair{<:SectorRange}, args...; kwargs...) =
-    sectorrange(sector_dim..., args...; kwargs...)
-sectorrange(sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}, args...; kwargs...) =
-    sectorrange(to_sector(sector), args...; kwargs...)
-sectorrange(sector_dim::Pair{<:NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}}, args...; kwargs...) =
-    sectorrange(sector_dim..., args...; kwargs...)
+sectorrange(sector::SectorRange, range::AbstractUnitRange) = SectorUnitRange(sector, range)
+sectorrange(sector::SectorRange, dim::Integer) = sectorrange(sector, Base.OneTo(dim))
+sectorrange(sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}, args...) =
+    sectorrange(to_sector(sector), args...)
 
 ×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
 ×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)

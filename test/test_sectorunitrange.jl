@@ -43,33 +43,33 @@ using TestExtras: @constinferred
     @test sr == sr
     @test space_isequal(sr, sr)
 
-    sr = sectorrange(SU2(1 / 2) => 2)
+    sr = sectorrange(SU2(1 / 2), 2)
     @test sr isa SectorUnitRange
     @test sector(sr) == SU2(1 / 2)
     @test ungrade(sr) isa Base.OneTo
     @test ungrade(sr) == 1:4
     @test !isdual(sr)
 
-    sr = sectorrange(SU2(1 / 2) => 2; isdual = true)
+    sr = dual(sr)
     @test sr isa SectorUnitRange
     @test sector(sr) == SU2(1 / 2)'
     @test ungrade(sr) isa Base.OneTo
     @test ungrade(sr) == 1:4
     @test isdual(sr)
 
-    sr = sectorrange(SU2(1 / 2), 4:10; isdual = true)
+    sr = sr .+ 3
     @test sr isa SectorUnitRange
     @test sector(sr) == SU2(1 / 2)'
     # TODO: what should ungrade return?
-    @test_broken ungrade(sr) isa UnitRange
+    @test ungrade(sr) isa UnitRange
     @test_broken ungrade(sr) == 4:10
     @test isdual(sr)
 
     sr = sectorrange(SU2(1 / 2), 2)
     @test !space_isequal(sr, sectorrange(SU2(1), 2))
     @test !space_isequal(sr, sectorrange(SU2(1 / 2), 2:7))
-    @test !space_isequal(sr, sectorrange(SU2(1), 2; isdual = true))
-    @test !space_isequal(sr, sectorrange(SU2(1 / 2), 2; isdual = true))
+    @test !space_isequal(sr, dual(sectorrange(SU2(1), 2)))
+    @test !space_isequal(sr, dual(sectorrange(SU2(1 / 2), 2)))
 
     sr2 = copy(sr)
     @test sr2 isa SectorUnitRange
@@ -99,7 +99,7 @@ using TestExtras: @constinferred
 
     srd = dual(sr)
     @test sector(srd) == dual(sector(sr))
-    @test space_isequal(srd, sectorrange(SU2(1 / 2), 2; isdual = true))
+    @test space_isequal(srd, dual(sectorrange(SU2(1 / 2), 2)))
     @test sectors(srd) == dual.(sectors(sr))
 
     srf = flip(sr)
@@ -122,8 +122,8 @@ using TestExtras: @constinferred
     # Abelian slicing
     srab = sectorrange(U1(1), 3)
     @test (@constinferred getindex(srab, 2:2)) isa SectorUnitRange
-    @test_broken space_isequal(srab[2:2], sectorrange(U1(1), 2:2))
-    @test_broken space_isequal(dual(srab)[2:2], sectorrange(U1(1), 2:2; isdual = true))
+    @test space_isequal(srab[2:2], sectorrange(U1(1), 1) .+ 1)
+    @test space_isequal(dual(srab)[2:2], dual(sectorrange(U1(1), 1) .+ 1))
     # TODO: do we need to add SectorVector?
     @test_broken srab[[1, 3]] isa SectorVector{Int}
     @test_broken sector(srab[[1, 3]]) == sector(srab)

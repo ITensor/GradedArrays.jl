@@ -104,7 +104,7 @@ end
 @testset "Abelian mixed axes and sectors" begin
     s1 = U1(1)
     s2 = U1(2)
-    sr1 = sectorrange(s1 => 1)
+    sr1 = sectorrange(s1, 1)
     sr1d = dual(sr1)
     g1 = gradedrange([s1 => 1])
     g1d = dual(g1)
@@ -113,14 +113,14 @@ end
     @test (@constinferred sr1 ⊗ sr1) isa SectorUnitRange
     @test (@constinferred g1 ⊗ g1) isa GradedOneTo
 
-    @test space_isequal(sr1 ⊗ sr1, sectorrange(s2 => 1))
+    @test space_isequal(sr1 ⊗ sr1, sectorrange(s2, 1))
     @test (@constinferred s1 ⊗ sr1) isa SectorUnitRange
-    @test space_isequal(s1 ⊗ sr1, sectorrange(s2 => 1))
+    @test space_isequal(s1 ⊗ sr1, sectorrange(s2, 1))
     @test (@constinferred sr1 ⊗ s1) isa SectorUnitRange
-    @test space_isequal(sr1 ⊗ s1, sectorrange(s2 => 1))
-    @test space_isequal(sr1d ⊗ s1, sectorrange(U1(0) => 1))
-    @test space_isequal(sr1d ⊗ sr1, sectorrange(U1(0) => 1))
-    @test space_isequal(sr1d ⊗ sr1d, sectorrange(U1(-2) => 1))
+    @test space_isequal(sr1 ⊗ s1, sectorrange(s2, 1))
+    @test space_isequal(sr1d ⊗ s1, sectorrange(U1(0), 1))
+    @test space_isequal(sr1d ⊗ sr1, sectorrange(U1(0), 1))
+    @test space_isequal(sr1d ⊗ sr1d, sectorrange(U1(-2), 1))
 
     @test space_isequal(g1 ⊗ g1, gradedrange([s2 => 1]))
     @test (@constinferred g1 ⊗ s1) isa GradedOneTo
@@ -138,7 +138,7 @@ end
 
 @testset "Non-abelian mixed axes and sectors" begin
     s1 = SU2(1 // 2)
-    sr1 = sectorrange(s1 => 1)
+    sr1 = sectorrange(s1, 1)
     sr1d = dual(sr1)
     g1 = gradedrange([s1 => 1])
     g1d = dual(g1)

@@ -198,7 +198,7 @@ end
 
         g = gradedrange([(Nf = U1(0),) => 2, (Nf = U1(1),) => 3])
         @test sector_type(g) <: GradedArrays.SectorRange{<:SectorProduct}
-        sr = sectorrange((; S = SU2(1 // 2)) => 1)
+        sr = sectorrange((; S = SU2(1 // 2)), 1)
         @test length(sr) == 2
         @test space_isequal(sr, sectorrange(×((; S = SU2(1 // 2))), 1))
         @test_broken space_isequal(sr, sectorrange(×((; S = SU2(1 // 2))), 1:2))

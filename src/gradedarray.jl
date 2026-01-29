@@ -54,11 +54,12 @@ function BlockSparseArrays.blockrange(xs::Vector{<:GradedUnitRange})
     return blockrange(baxis) # FIXME this is probably ignoring information somewhere
 end
 
-const _gradedrange_allowed_types = Union{SectorRange, <:NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}}}
-function gradedrange(xs::AbstractVector{<:Pair{<:_gradedrange_allowed_types, Int}}; isdual::Bool = false)
-    r = blockrange(map(splat(cartesianrange), xs))
-    return isdual ? dual(r) : r
-end
+"""
+    gradedrange(xs::AbstractVector{<:Pair})
+
+Construct a graded range from the provided list of `sector => range` pairs.
+"""
+gradedrange(xs::AbstractVector{<:Pair}) = blockrange(map(splat(sectorrange), xs))
 
 function BlockSparseArrays.mortar_axis(geachblockaxis::AbstractVector{<:SectorUnitRange})
     allequal(isdual, geachblockaxis) || throw(ArgumentError("Cannot combine sectors with different arrows"))

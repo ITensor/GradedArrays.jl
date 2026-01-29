@@ -120,8 +120,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             for i in 1:ndims(a)
                 @test axes(b, i) isa GradedOneTo
             end
-            @test axes(b, 1)[Block(1)] == sectorrange(U1(0) => 2, 1:2)
-            @test axes(b, 1)[Block(2)] == sectorrange(U1(1) => 2, 3:4)
+            @test axes(b, 1)[Block(1)] == sectorrange(U1(0), 2)
+            @test axes(b, 1)[Block(2)] == sectorrange(U1(1), 2) .+ 2
             @test Array(b) isa Array{elt}
             @test Array(b) == b
             @test 2 * Array(a) == b
