@@ -50,11 +50,11 @@ TKS.dim(s::SectorProduct) = prod(TKS.dim, arguments(s); init = 1)
 # use map instead of broadcast to support both Tuple and NamedTuple
 TKS.dual(s::SectorProduct) = SectorProduct(map(TKS.dual, arguments(s)))
 
-function Base.one(::Type{SectorProduct{T}}) where {T <: Tuple}
-    return SectorProduct(map(one, fieldtypes(T)))
+function TKS.unit(::Type{SectorProduct{T}}) where {T <: Tuple}
+    return SectorProduct(map(TKS.unit, fieldtypes(T)))
 end
-function Base.one(::Type{SectorProduct{NT}}) where {NT <: NamedTuple}
-    return SectorProduct(NT(map(one, fieldtypes(NT))))
+function TKS.unit(::Type{SectorProduct{NT}}) where {NT <: NamedTuple}
+    return SectorProduct(NT(map(TKS.unit, fieldtypes(NT))))
 end
 Base.isone(s::SectorProduct) = all(isone, arguments(s))
 
@@ -160,21 +160,11 @@ end
 
 # =================================  Cartesian Product  ====================================
 
-"""
-    ×(x, y...)
-    sectorproduct(x, y...)
-
-Convenience constructor for taking the Cartesian product of 2 or more sectors or sector ranges.
-"""
-function × end
 const sectorproduct = ×
 
 ×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
 ×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
 ×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
-
-# n-arg implemented as a left fold.
-×(r1, r2, r3, r_rest...) = ×(×(r1, r2), r3, r_rest...)
 
 function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
     return SectorProduct(arguments(p1)..., arguments(p2)...)
@@ -190,11 +180,6 @@ function ×(a::SectorProduct, b::SectorProduct)
     throw(MethodError(×, typeof.((a, b))))
 end
 
-×(a, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
-×(g::AbstractUnitRange, b) = ×(g, to_gradedrange(b))
-×(a::SectorRange, g::AbstractUnitRange) = ×(to_gradedrange(a), g)
-×(g::AbstractUnitRange, b::SectorRange) = ×(g, to_gradedrange(b))
-
 ×(nt1::NamedTuple) = to_sector(nt1)
 ×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))
 ×(c1::NamedTuple, c2::SectorRange) = ×(to_sector(c1), c2)
@@ -208,19 +193,13 @@ end
 
 function ×(sr1::SectorOneTo, sr2::SectorOneTo)
     isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
-    return sectorrange(
-        sector(sr1) × sector(sr2),
-        sector_multiplicity(sr1) * sector_multiplicity(sr2),
-        isdual(sr1),
-    )
+    sr = sectorrange(sector(sr1) × sector(sr2), sector_multiplicity(sr1) * sector_multiplicity(sr2))
+    return isdual(sr1) ? dual(sr) : sr
 end
 
-function ×(g1::GradedOneTo, g2::GradedOneTo)
-    v = map(
-        splat(×), Iterators.flatten((Iterators.product(eachblockaxis(g1), eachblockaxis(g2)),))
-    )
-    return mortar_axis(v)
-end
+# TODO: type piracy?
+KroneckerArrays.to_product_indices(nt::NamedTuple) =
+    KroneckerArrays.to_product_indices(to_sector(nt))
 
 # ===========================  Canonicalize arguments  =====================================
 
@@ -325,4 +304,8 @@ function arguments_canonicalize(
     )
     s1′, s2′, s3′ = arguments_canonicalize(label(s1), label(s2), label(s3))
     return SectorRange(s1′), SectorRange(s2′), SectorRange(s3′)
+end
+
+@generated function sort_keys(nt::NamedTuple{N}) where {N}
+    return :(NamedTuple{$(Tuple(sort(collect(N))))}(nt))
 end

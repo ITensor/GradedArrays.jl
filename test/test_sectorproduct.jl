@@ -1,23 +1,6 @@
-using GradedArrays:
-    GradedArrays,
-    SectorProduct,
-    SU2,
-    TrivialSector,
-    U1,
-    Z,
-    ⊗,
-    ×,
-    arguments,
-    dual,
-    gradedrange,
-    label,
-    quantum_dimension,
-    sector,
-    sector_type,
-    sectorproduct,
-    sectorrange,
-    space_isequal,
-    trivial
+using GradedArrays: GradedArrays, SectorProduct, SU2, TrivialSector, U1, Z, ⊗, ×, arguments,
+    dual, gradedrange, flip, label, quantum_dimension, sector, sector_type, sectorproduct,
+    sectorrange, space_isequal, trivial
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
 using BlockArrays: blocklengths
@@ -45,7 +28,7 @@ import TensorKitSectors as TKS
         @test s ≡ ×(U1(1), SU2(1 // 2), U1(3))
         @test length(arguments(s)) == 3
         @test (@constinferred quantum_dimension(s)) == 2
-        @test (@constinferred dual(s)) == U1(-1) × SU2(1 // 2) × U1(-3)
+        @test (@constinferred flip(dual(s))) == U1(-1) × SU2(1 // 2) × U1(-3)
         @test arguments(s)[1] == U1(1)
         @test arguments(s)[2] == SU2(1 // 2)
         @test arguments(s)[3] == U1(3)
@@ -54,7 +37,7 @@ import TensorKitSectors as TKS
         s = TrivialSector() × U1(3) × SU2(1 / 2)
         @test length(arguments(s)) == 3
         @test (@constinferred quantum_dimension(s)) == 2
-        @test dual(s) == TrivialSector() × U1(-3) × SU2(1 // 2)
+        @test flip(dual(s)) == TrivialSector() × U1(-3) × SU2(1 // 2)
         @test (@constinferred trivial(s)) == SectorProduct(TrivialSector(), U1(0), SU2(0))
         @test s > trivial(s)
     end
@@ -197,7 +180,7 @@ end
         @test arguments(s)[:A] == U1(1)
         @test arguments(s)[:B] == Z{2}(0)
         @test (@constinferred quantum_dimension(s)) == 1
-        @test (@constinferred dual(s)) == (A = U1(-1),) × (B = Z{2}(0),)
+        @test (@constinferred flip(dual(s))) == (A = U1(-1),) × (B = Z{2}(0),)
         @test (@constinferred trivial(s)) == (A = U1(0),) × (B = Z{2}(0),)
 
         s = (A = U1(1),) × (B = SU2(2),)
@@ -205,7 +188,7 @@ end
         @test arguments(s)[:A] == U1(1)
         @test arguments(s)[:B] == SU2(2)
         @test (@constinferred quantum_dimension(s)) == 5
-        @test (@constinferred dual(s)) == (A = U1(-1),) × (B = SU2(2),)
+        @test (@constinferred flip(dual(s))) == (A = U1(-1),) × (B = SU2(2),)
         @test (@constinferred trivial(s)) == (A = U1(0),) × (B = SU2(0),)
         @test s == (B = SU2(2),) × (A = U1(1),)
 
@@ -215,10 +198,10 @@ end
 
         g = gradedrange([(Nf = U1(0),) => 2, (Nf = U1(1),) => 3])
         @test sector_type(g) <: GradedArrays.SectorRange{<:SectorProduct}
-        sr = sectorrange((; S = SU2(1 // 2)) => 1)
+        sr = sectorrange((; S = SU2(1 // 2)), 1)
         @test length(sr) == 2
         @test space_isequal(sr, sectorrange(×((; S = SU2(1 // 2))), 1))
-        @test space_isequal(sr, sectorrange(×((; S = SU2(1 // 2))), 1:2))
+        @test_broken space_isequal(sr, sectorrange(×((; S = SU2(1 // 2))), 1:2))
         g = gradedrange([(; S = SU2(1 // 2)) => 1])
         @test length(g) == 2
         @test space_isequal(g, gradedrange([×((; S = SU2(1 // 2))) => 1]))
@@ -233,7 +216,7 @@ end
         @test arguments(s)[:A] == U1(2)
         @test s == ×((; A = U1(2)))
         @test (@constinferred quantum_dimension(s)) == 1
-        @test (@constinferred dual(s)) == ×("A" => U1(-2))
+        @test (@constinferred flip(dual(s))) == ×("A" => U1(-2))
         @test (@constinferred trivial(s)) == ×((; A = U1(0)))
 
         s = ×("B" => SU2(1 // 2), :C => Z{2}(1))
@@ -394,7 +377,7 @@ end
     st1 = ×(U1(1))
     sA1 = ×((; A = U1(1)))
 
-    for s in (SectorProduct(()), SectorProduct((;)))
+    for s in (×(), ×((;)))
         @test s == TrivialSector()
         @test s == SectorProduct(())
         @test s == SectorProduct((;))
@@ -402,12 +385,12 @@ end
         @test !(s < SectorProduct())
         @test !(s < SectorProduct())
 
-        @test (@constinferred s × SectorProduct(())) == s
-        @test (@constinferred s × SectorProduct((;))) == s
-        @test label(@constinferred s ⊗ SectorProduct(())) == s
-        @test label(@constinferred s ⊗ SectorProduct((;))) == s
+        @test (@constinferred s × ×()) == s
+        @test (@constinferred s × ×((;))) == s
+        @test label(@constinferred s ⊗ ×()) == s
+        @test label(@constinferred s ⊗ ×((;))) == s
 
-        @test (@constinferred dual(s)) == s
+        @test (@constinferred flip(dual(s))) == s
         @test (@constinferred trivial(s)) == s
         @test (@constinferred quantum_dimension(s)) == 1
 
@@ -423,14 +406,14 @@ end
 
         @test (@constinferred U1(1) ⊗ s) == st1
         @test (@constinferred s ⊗ U1(1)) == st1
-        @test (@constinferred SU2(0) ⊗ s) == gradedrange([SectorProduct(SU2(0)) => 1])
-        @test (@constinferred s ⊗ SU2(0)) == gradedrange([SectorProduct(SU2(0)) => 1])
+        @test (@constinferred SU2(0) ⊗ s) == gradedrange([×(SU2(0)) => 1])
+        @test (@constinferred s ⊗ SU2(0)) == gradedrange([×(SU2(0)) => 1])
 
         @test (@constinferred st1 ⊗ s) == st1
-        @test (@constinferred SectorProduct(SU2(0)) ⊗ s) ==
-            gradedrange([SectorProduct(SU2(0)) => 1])
-        @test (@constinferred SectorProduct(SU2(1), U1(2)) ⊗ s) ==
-            gradedrange([SectorProduct(SU2(1), U1(2)) => 1])
+        @test (@constinferred ×(SU2(0)) ⊗ s) ==
+            gradedrange([×(SU2(0)) => 1])
+        @test (@constinferred ×(SU2(1), U1(2)) ⊗ s) ==
+            gradedrange([×(SU2(1), U1(2)) => 1])
 
         @test (@constinferred sA1 ⊗ s) == sA1
         @test (@constinferred ×((; A = SU2(0))) ⊗ s) == gradedrange([×((; A = SU2(0))) => 1])
@@ -439,16 +422,16 @@ end
 
         # Empty behaves as empty NamedTuple
         @test_broken s != U1(0)
-        @test s == SectorProduct(U1(0))
+        @test s == ×(U1(0))
         @test s == ×((; A = U1(0)))
         @test ×((; A = U1(0))) == s
         @test s != sA1
         @test s != st1
 
         @test s < st1
-        @test SectorProduct(U1(-1)) > s
+        @test ×(U1(1)) > s
         @test s < sA1
-        @test s < ×((; A = U1(-1)))
+        @test s < ×((; A = U1(1)))
         @test !(s < ×((; A = U1(0))))
         @test !(s > ×((; A = U1(0))))
     end

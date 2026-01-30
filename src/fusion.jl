@@ -1,7 +1,14 @@
-using BlockArrays: Block, blocks
+using BlockArrays: Block, blocks, BlockVector
 using SplitApplyCombine: groupcount
+using BlockSparseArrays: mortar_axis
 
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
+
+function tensor_product(
+        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange, rs::AbstractUnitRange...,
+    )
+    return tensor_product(tensor_product(r1, r2), r3, rs...)
+end
 
 function tensor_product(sr1::SectorUnitRange, sr2::SectorUnitRange)
     return tensor_product(combine_styles(SymmetryStyle(sr1), SymmetryStyle(sr2)), sr1, sr2)
@@ -17,22 +24,21 @@ end
 function tensor_product(
         ::NotAbelianStyle, sr1::SectorUnitRange, sr2::SectorUnitRange
     )
-    g0 = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
-    return gradedrange(
-        sectors(g0) .=>
-            sector_multiplicity(sr1) * sector_multiplicity(sr2) .* sector_multiplicities(g0),
-    )
+    g = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
+    d₁ = sector_multiplicity(sr1)
+    d₂ = sector_multiplicity(sr2)
+    return gradedrange([c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), sector_multiplicities(g))])
 end
 
 # allow to fuse a Sector with a GradedUnitRange
 function tensor_product(
-        s::Union{SectorRange, SectorUnitRange}, g::AbstractGradedUnitRange
+        s::Union{SectorRange, SectorUnitRange}, g::GradedUnitRange
     )
     return to_gradedrange(s) ⊗ g
 end
 
 function tensor_product(
-        g::AbstractGradedUnitRange, s::Union{SectorRange, SectorUnitRange}
+        g::GradedUnitRange, s::Union{SectorRange, SectorUnitRange}
     )
     return g ⊗ to_gradedrange(s)
 end
@@ -43,19 +49,6 @@ end
 
 function tensor_product(s::SectorRange, sr::SectorUnitRange)
     return sectorrange(s, 1) ⊗ sr
-end
-
-function tensor_product(r1::AbstractUnitRange, r2::AbstractUnitRange)
-    (isone(first(r1)) && isone(first(r2))) ||
-        throw(ArgumentError("Only one-based axes are supported"))
-    return Base.OneTo(length(r1) * length(r2))
-end
-
-function tensor_product(
-        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange,
-        rs::AbstractUnitRange...,
-    )
-    return tensor_product(tensor_product(r1, r2), r3, rs...)
 end
 
 # unmerged_tensor_product is a private function needed in GradedArraysTensorAlgebraExt
@@ -70,9 +63,14 @@ end
 # default to tensor_product
 unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
-using BlockSparseArrays: mortar_axis
-function unmerged_tensor_product(a1::AbstractGradedUnitRange, a2::AbstractGradedUnitRange)
-    new_axes = map(splat(⊗), Iterators.flatten((Iterators.product(blocks(a1), blocks(a2)),)))
+function unmerged_tensor_product(a1::GradedUnitRange, a2::GradedUnitRange)
+    # TODO: eltype(blocks(a1)) loses information
+    T1 = eltype(a1.eachblockaxis)
+    T2 = eltype(a2.eachblockaxis)
+    new_axes = Base.promote_op(⊗, T1, T2)[]
+    for b in blocks(a2), a in blocks(a1)
+        push!(new_axes, a ⊗ b)
+    end
     return mortar_axis(new_axes)
 end
 
@@ -100,22 +98,23 @@ end
 # Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
 invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
-function sectormergesort(g::AbstractGradedUnitRange)
+function sectormergesort(g::GradedUnitRange)
     glabels = sectors(g)
     multiplicities = sector_multiplicities(g)
-    new_blocklengths = map(sort(unique(glabels))) do la
-        return la => sum(multiplicities[findall(==(la), glabels)]; init = 0)
+    dict = Dict{eltype(glabels), eltype(multiplicities)}()
+    for (l, m) in zip(glabels, multiplicities)
+        dict[l] = get(dict, l, 0) + m
     end
-    return gradedrange(new_blocklengths)
+
+    total = sort!(collect(pairs(dict)); by = first)
+    return gradedrange([c => m for (c, m) in total])
 end
 
 sectormergesort(g::AbstractUnitRange) = g
 
 # tensor_product produces a sorted, non-dual GradedUnitRange
-tensor_product(g::AbstractGradedUnitRange) = sectormergesort(flip_dual(g))
+tensor_product(g::GradedUnitRange) = sectormergesort(flip_dual(g))
 
-function tensor_product(
-        g1::AbstractGradedUnitRange, g2::AbstractGradedUnitRange
-    )
+function tensor_product(g1::GradedUnitRange, g2::GradedUnitRange)
     return sectormergesort(unmerged_tensor_product(g1, g2))
 end

@@ -1,6 +1,6 @@
 using BlockArrays: BlockedOneTo, BlockedUnitRange
 using GradedArrays: GradedArrays, Fib, GradedUnitRange, Ising, O2, SU2, SectorUnitRange,
-    TrivialSector, U1, ×, gradedrange, sectorrange
+    TrivialSector, U1, ×, dual, gradedrange, sectorrange
 using Test: @test, @testset
 
 @testset "show SymmetrySector" begin
@@ -31,35 +31,24 @@ using Test: @test, @testset
 end
 
 @testset "show GradedUnitRange" begin
-    g1 = gradedrange(["x" => 2, "y" => 3, "z" => 2])
-    @test sprint(show, g1) == "GradedUnitRange[\"x\" => 2, \"y\" => 3, \"z\" => 2]"
+    x = U1(0)
+    y = U1(1)
+    z = U1(2)
+    g1 = gradedrange([x => 2, y => 3, z => 2])
+    @test sprint(show, g1) == "GradedUnitRange[$x => 2, $y => 3, $z => 2]"
     @test sprint(show, MIME("text/plain"), g1) ==
-        "$GradedUnitRange{Int64, " *
-        "$SectorUnitRange{Int64, String, Base.OneTo{Int64}}, " *
-        "$BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\n" *
-        "SectorUnitRange x => 1:2\n" *
-        "SectorUnitRange y => 3:5\n" *
-        "SectorUnitRange z => 6:7"
+        "GradedUnitRange{$U1}\n" *
+        "sectorrange($x, 1:2)\n" *
+        "sectorrange($y, 3:5)\n" *
+        "sectorrange($z, 6:7)"
 
-    g2 = gradedrange(1, ["x" => 2, "y" => 3, "z" => 2])
-    @test sprint(show, g2) == "GradedUnitRange[\"x\" => 2, \"y\" => 3, \"z\" => 2]"
-    @test sprint(show, MIME("text/plain"), g2) ==
-        "$GradedUnitRange{Int64, " *
-        "$SectorUnitRange{Int64, String, Base.OneTo{Int64}}, " *
-        "$BlockedUnitRange{Int64, Vector{Int64}}, Vector{Int64}}\n" *
-        "SectorUnitRange x => 1:2\n" *
-        "SectorUnitRange y => 3:5\n" *
-        "SectorUnitRange z => 6:7"
-
-    g1d = gradedrange(["x" => 2, "y" => 3, "z" => 2]; isdual = true)
-    @test sprint(show, g1d) == "GradedUnitRange dual [\"x\" => 2, \"y\" => 3, \"z\" => 2]"
+    g1d = dual(g1)
+    @test sprint(show, g1d) == "GradedUnitRange[$x' => 2, $y' => 3, $z' => 2]"
     @test sprint(show, MIME("text/plain"), g1d) ==
-        "$GradedUnitRange{Int64, " *
-        "$SectorUnitRange{Int64, String, Base.OneTo{Int64}}, " *
-        "$BlockedOneTo{Int64, Vector{Int64}}, Vector{Int64}}\n" *
-        "SectorUnitRange dual(x) => 1:2\n" *
-        "SectorUnitRange dual(y) => 3:5\n" *
-        "SectorUnitRange dual(z) => 6:7"
+        "GradedUnitRange{$U1}\n" *
+        "sectorrange($x', 1:2)\n" *
+        "sectorrange($y', 3:5)\n" *
+        "sectorrange($z', 6:7)"
 end
 
 @testset "show GradedArray" begin
@@ -69,13 +58,13 @@ end
     a = zeros(elt, r)
     a[1] = one(elt)
     @test sprint(show, "text/plain", a) ==
-        "2-blocked 4-element GradedVector{$(elt), Vector{$(elt)}, …, …}:\n" *
+        "2-blocked 4-element GradedVector{$(elt), …, …, …}:\n" *
         " $(one(elt))\n $(zero(elt))\n ───\n  ⋅ \n  ⋅ "
 
     a = zeros(elt, r, r)
     a[1, 1] = one(elt)
     @test sprint(show, "text/plain", a) ==
-        "2×2-blocked 4×4 GradedMatrix{$(elt), Matrix{$(elt)}, …, …}:\n" *
+        "2×2-blocked 4×4 GradedMatrix{$(elt), …, …, …}:\n" *
         " $(one(elt))  $(zero(elt))  │   ⋅    ⋅ \n" *
         " $(zero(elt))  $(zero(elt))  │   ⋅    ⋅ \n" *
         " ──────────┼──────────\n  ⋅    ⋅   │   ⋅    ⋅ \n  ⋅    ⋅   │   ⋅    ⋅ "
@@ -83,7 +72,7 @@ end
     a = zeros(elt, r, r, r)
     a[1, 1, 1] = one(elt)
     @test sprint(show, "text/plain", a) ==
-        "2×2×2-blocked 4×4×4 GradedArray{$(elt), 3, Array{$(elt), 3}, …, …}:\n" *
+        "2×2×2-blocked 4×4×4 GradedArray{$(elt), 3, …, …, …}:\n" *
         "[:, :, 1] =\n $(one(elt))  $(zero(elt))   ⋅    ⋅ \n" *
         " $(zero(elt))  $(zero(elt))   ⋅    ⋅ \n" *
         "  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n" *

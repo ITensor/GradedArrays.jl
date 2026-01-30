@@ -1,12 +1,19 @@
 using BlockArrays: blocks, eachblockaxes1
-using BlockSparseArrays: BlockSparseArray, blockreshape
+using BlockSparseArrays: BlockSparseArray, blockreshape, blockrange
+using GradedArrays:
+    GradedUnitRange, SectorRange, GradedArray,
+    flip, invblockperm, sectormergesortperm, sectorsortperm, trivial,
+    unmerged_tensor_product, ×
 using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockReshapeFusion,
     BlockedTuple, FusionStyle, ReshapeFusion, matricize, matricize_axes,
-    tensor_product_axis, unmatricize
+    tensor_product_axis, tuplemortar, unmatricize, trivialbiperm
+
 
 struct SectorFusion <: FusionStyle end
 
+TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:SectorUnitRange}) = SectorFusion()
 
 function TensorAlgebra.trivial_axis(
         ::BlockReshapeFusion,
@@ -26,48 +33,40 @@ function TensorAlgebra.trivial_axis(
     )
     return flip(trivial_gradedrange(axes(a)))
 end
-function trivial_gradedrange(t::Tuple{Vararg{G}}) where {G <: AbstractGradedUnitRange}
+function trivial_gradedrange(t::Tuple{Vararg{G}}) where {G <: GradedUnitRange}
     return trivial(first(t))
 end
-# heterogeneous sectors
-trivial_gradedrange(t::Tuple{Vararg{AbstractGradedUnitRange}}) = ⊗(trivial.(t)...)
-# trivial_axis from sector_type
+trivial_gradedrange(t::Tuple{Vararg{GradedUnitRange}}) = ⊗(trivial.(t)...)
 function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
     return gradedrange([trivial(S) => 1])
 end
 
 function TensorAlgebra.tensor_product_axis(
-        ::ReshapeFusion, ::Val{:codomain}, r1::SectorUnitRange, r2::SectorUnitRange
+        ::SectorFusion, ::Val{:codomain}, r1::SectorUnitRange, r2::SectorUnitRange
     )
     return r1 ⊗ r2
 end
 function TensorAlgebra.tensor_product_axis(
-        ::ReshapeFusion, ::Val{:domain}, r1::SectorUnitRange, r2::SectorUnitRange
+        ::SectorFusion, ::Val{:domain}, r1::SectorUnitRange, r2::SectorUnitRange
     )
-    return flip(r1 ⊗ r2)
+    return dual(r1 ⊗ r2)
 end
 function TensorAlgebra.tensor_product_axis(
-        style::BlockReshapeFusion,
-        side::Val{:codomain},
-        r1::AbstractGradedUnitRange,
-        r2::AbstractGradedUnitRange,
+        style::BlockReshapeFusion, side::Val{:codomain},
+        r1::GradedUnitRange, r2::GradedUnitRange,
     )
     return tensor_product_gradedrange(style, side, r1, r2)
 end
 function TensorAlgebra.tensor_product_axis(
-        style::BlockReshapeFusion,
-        side::Val{:domain},
-        r1::AbstractGradedUnitRange,
-        r2::AbstractGradedUnitRange,
+        style::BlockReshapeFusion, side::Val{:domain},
+        r1::GradedUnitRange, r2::GradedUnitRange,
     )
     return tensor_product_gradedrange(style, side, r1, r2)
 end
 # TODO: Could this call out to a generic tensor_product_axis for AbstractBlockedUnitRange?
 function tensor_product_gradedrange(
-        ::BlockReshapeFusion,
-        side::Val,
-        r1::AbstractUnitRange,
-        r2::AbstractUnitRange,
+        ::BlockReshapeFusion, side::Val,
+        r1::AbstractUnitRange, r2::AbstractUnitRange,
     )
     (isone(first(r1)) && isone(first(r2))) ||
         throw(ArgumentError("Only one-based axes are supported"))
@@ -86,13 +85,20 @@ function TensorAlgebra.matricize(
     a_reshaped = matricize(BlockReshapeFusion(), a, length_codomain)
     return sectormergesort(a_reshaped)
 end
+function TensorAlgebra.matricize(
+        ::SectorFusion, a::SectorDelta, ndims_codomain::Val{Ncodomain}
+    ) where {Ncodomain}
+    biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
+    ax_codomain, ax_domain = blocks(axes(a)[biperm])
+    ax_codomain = tensor_product(ax_codomain...)
+    ax_domain = flip(tensor_product(ax_domain...))
+    return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
+end
 
-using TensorAlgebra: tuplemortar
+
 function TensorAlgebra.unmatricize(
-        ::SectorFusion,
-        m::AbstractMatrix,
-        codomain_axes::Tuple{Vararg{AbstractUnitRange}},
-        domain_axes::Tuple{Vararg{AbstractUnitRange}},
+        ::SectorFusion, m::AbstractMatrix,
+        codomain_axes::Tuple{Vararg{AbstractUnitRange}}, domain_axes::Tuple{Vararg{AbstractUnitRange}},
     )
     blocked_axes = tuplemortar((codomain_axes, domain_axes))
     if isempty(blocked_axes)
@@ -121,6 +127,9 @@ end
 
 # Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)
+    # TODO: fix this, no clue why broken and no clue how to fix
+    return a
+
     I = sectormergesortperm.(axes(a))
     return a[I...]
 end

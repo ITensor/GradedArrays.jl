@@ -1,19 +1,5 @@
-using GradedArrays:
-    Fib,
-    Ising,
-    O2,
-    SU2,
-    SectorRange,
-    TrivialSector,
-    U1,
-    Z,
-    dual,
-    istrivial,
-    modulus,
-    quantum_dimension,
-    sector_type,
-    trivial,
-    zero_odd
+using GradedArrays: Fib, Ising, O2, SU2, SectorRange, TrivialSector, U1, Z, dual, istrivial,
+    modulus, quantum_dimension, sector_type, trivial, zero_odd, flip
 using SUNRepresentations: SUNRepresentations
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
@@ -51,7 +37,7 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test trivial(U1) == U1(0)
         @test istrivial(U1(0))
 
-        @test dual(U1(2)) == U1(-2)
+        @test flip(dual(U1(2))) == U1(-2)
         @test isless(U1(1), U1(2))
         @test !isless(U1(2), U1(1))
         @test U1(Int8(1)) == U1(1)
@@ -75,11 +61,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test quantum_dimension(z1) == 1
         @test (@constinferred quantum_dimension(z0)) == 1
 
-        @test dual(z0) == z0
-        @test dual(z1) == z1
+        @test flip(dual(z0)) == z0
+        @test flip(dual(z1)) == z1
         @test modulus(z1) == 2
 
-        @test dual(Z{2}(1)) == Z{2}(1)
         @test isless(Z{2}(0), Z{2}(1))
         @test !isless(Z{2}(1), Z{2}(0))
         @test Z{2}(0) == z0
@@ -108,10 +93,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test (@constinferred quantum_dimension(s12)) == 2
         @test (@constinferred quantum_dimension(s1)) == 2
 
-        @test (@constinferred dual(s0e)) == s0e
-        @test (@constinferred dual(s0o)) == s0o
-        @test (@constinferred dual(s12)) == s12
-        @test (@constinferred dual(s1)) == s1
+        @test (@constinferred flip(dual(s0e))) == s0e
+        @test (@constinferred flip(dual(s0o))) == s0o
+        @test (@constinferred flip(dual(s12))) == s12
+        @test (@constinferred flip(dual(s1))) == s1
 
         @test s0e < s0o < s12 < s1
         @test s0e == TrivialSector()
@@ -138,10 +123,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test quantum_dimension(j4) == 4
         @test (@constinferred quantum_dimension(j1)) == 1
 
-        @test dual(j1) == j1
-        @test dual(j2) == j2
-        @test dual(j3) == j3
-        @test dual(j4) == j4
+        @test flip(dual(j1)) == j1
+        @test flip(dual(j2)) == j2
+        @test flip(dual(j3)) == j3
+        @test flip(dual(j4)) == j4
 
         @test j1 < j2 < j3 < j4
         @test SU2(0) == TrivialSector()
@@ -165,10 +150,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test fundamental(SU{3}) == f3
         @test fundamental(SU{4}) == f4
 
-        @test dual(f3) == SU{3}((1, 1))
-        @test dual(f4) == SU{4}((1, 1, 1))
-        @test dual(ad3) == ad3
-        @test dual(ad4) == ad4
+        @test flip(dual(f3)) == SU{3}((1, 1))
+        @test flip(dual(f4)) == SU{4}((1, 1, 1))
+        @test flip(dual(ad3)) == ad3
+        @test flip(dual(ad4)) == ad4
 
         @test quantum_dimension(f3) == 3
         @test quantum_dimension(f4) == 4
@@ -189,8 +174,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test istrivial(ı)
         @test ı == TrivialSector()
 
-        @test dual(ı) == ı
-        @test dual(τ) == τ
+        @test flip(dual(ı)) == ı
+        @test flip(dual(τ)) == τ
 
         @test (@constinferred quantum_dimension(ı)) == 1.0
         @test (@constinferred quantum_dimension(τ)) == ((1 + √5) / 2)
@@ -207,9 +192,9 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test istrivial(ı)
         @test ı == TrivialSector()
 
-        @test dual(ı) == ı
-        @test dual(σ) == σ
-        @test dual(ψ) == ψ
+        @test flip(dual(ı)) == ı
+        @test flip(dual(σ)) == σ
+        @test flip(dual(ψ)) == ψ
 
         @test (@constinferred quantum_dimension(ı)) == 1.0
         @test (@constinferred quantum_dimension(σ)) == √2

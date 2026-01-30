@@ -1,20 +1,6 @@
 using BlockArrays: blocklengths
-using GradedArrays:
-    GradedArrays,
-    O2,
-    SU2,
-    TrivialSector,
-    U1,
-    Z,
-    ⊗,
-    dual,
-    flip,
-    gradedrange,
-    nsymbol,
-    quantum_dimension,
-    space_isequal,
-    tensor_product,
-    trivial,
+using GradedArrays: GradedArrays, O2, SU2, TrivialSector, U1, Z, ⊗, dual, flip, gradedrange,
+    nsymbol, quantum_dimension, space_isequal, tensor_product, trivial,
     unmerged_tensor_product
 using SUNRepresentations: SUNIrrep
 using Test: @test, @test_throws, @testset
