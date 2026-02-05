@@ -1,12 +1,10 @@
 using BlockArrays: blocks, eachblockaxes1
 using BlockSparseArrays: BlockSparseArray, blockreshape, blockrange
-using GradedArrays:
-    GradedUnitRange, SectorRange, GradedArray,
-    flip, invblockperm, sectormergesortperm, sectorsortperm, trivial,
-    unmerged_tensor_product, ×
-using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockReshapeFusion,
-    BlockedTuple, FusionStyle, ReshapeFusion, matricize, matricize_axes,
-    tensor_product_axis, tuplemortar, unmatricize, trivialbiperm
+using GradedArrays: GradedUnitRange, SectorRange, GradedArray, flip, invblockperm,
+    sectormergesortperm, sectorsortperm, trivial, unmerged_tensor_product, ×
+using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
+    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, tuplemortar, unmatricize,
+    trivialbiperm
 
 
 struct SectorFusion <: FusionStyle end
@@ -14,6 +12,9 @@ struct SectorFusion <: FusionStyle end
 TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorUnitRange}) = SectorFusion()
+
+using BlockArrays: AbstractBlockArray
+const BlockReshapeFusion = typeof(FusionStyle(AbstractBlockArray))
 
 function TensorAlgebra.trivial_axis(
         ::BlockReshapeFusion,
