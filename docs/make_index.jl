@@ -1,5 +1,5 @@
-using Literate: Literate
 using GradedArrays: GradedArrays
+using Literate: Literate
 
 function ccq_logo(content)
     include_ccq_logo = """

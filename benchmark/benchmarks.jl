@@ -1,5 +1,5 @@
-using GradedArrays
 using BenchmarkTools
+using GradedArrays
 
 SUITE = BenchmarkGroup()
 SUITE["rand"] = @benchmarkable rand(10)

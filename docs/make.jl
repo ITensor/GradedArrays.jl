@@ -1,5 +1,5 @@
-using GradedArrays: GradedArrays
 using Documenter: Documenter, DocMeta, deploydocs, makedocs
+using GradedArrays: GradedArrays
 
 DocMeta.setdocmeta!(GradedArrays, :DocTestSetup, :(using GradedArrays); recursive = true)
 
