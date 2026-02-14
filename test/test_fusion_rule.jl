@@ -1,7 +1,7 @@
 using BlockArrays: blocklengths
-using GradedArrays: GradedArrays, O2, SU2, TrivialSector, U1, Z, ⊗, dual, flip, gradedrange,
+using GradedArrays: GradedArrays, O2, SU2, TrivialSector, U1, Z, dual, flip, gradedrange,
     nsymbol, quantum_dimension, space_isequal, tensor_product, trivial,
-    unmerged_tensor_product
+    unmerged_tensor_product, ⊗
 using SUNRepresentations: SUNIrrep
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
@@ -63,7 +63,10 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         @test space_isequal((@constinferred s0o ⊗ s12), gradedrange([s12 => 1]))
         @test space_isequal((@constinferred s12 ⊗ s0e), gradedrange([s12 => 1]))
         @test space_isequal((@constinferred s12 ⊗ s0o), gradedrange([s12 => 1]))
-        @test space_isequal((@constinferred s12 ⊗ s1), gradedrange([s12 => 1, O2(3 // 2) => 1]))
+        @test space_isequal(
+            (@constinferred s12 ⊗ s1),
+            gradedrange([s12 => 1, O2(3 // 2) => 1])
+        )
         @test space_isequal(
             (@constinferred s12 ⊗ s12), gradedrange([s0e => 1, s0o => 1, s1 => 1])
         )
@@ -103,7 +106,10 @@ end
         g1 = gradedrange([U1(-1) => 1, U1(0) => 1, U1(1) => 2])
         g2 = gradedrange([U1(-2) => 2, U1(0) => 1, U1(1) => 2])
 
-        @test space_isequal(flip(dual(g1)), gradedrange([U1(1) => 1, U1(0) => 1, U1(-1) => 2]))
+        @test space_isequal(
+            flip(dual(g1)),
+            gradedrange([U1(1) => 1, U1(0) => 1, U1(-1) => 2])
+        )
         @test (@constinferred blocklengths(g1)) == [1, 1, 2]
 
         gt = gradedrange(
@@ -187,7 +193,10 @@ end
                 U1(-2) => 4, U1(-1) => 4, U1(0) => 3, U1(1) => 5, U1(2) => 2, U1(3) => 2,
             ]
         )
-        @test space_isequal((@constinferred unmerged_tensor_product(dual(g1), dual(g2))), gtd)
+        @test space_isequal(
+            (@constinferred unmerged_tensor_product(dual(g1), dual(g2))),
+            gtd
+        )
         @test space_isequal((@constinferred tensor_product(dual(g1), dual(g2))), gfd)
 
         # test different (non-product) sectors cannot be fused
@@ -219,7 +228,15 @@ end
         @test space_isequal(dual(flip(g3)), g3)  # trivial for SU(2)
         @test space_isequal(
             (@constinferred tensor_product(g3, g4)),
-            gradedrange([SU2(0) => 4, SU2(1 // 2) => 6, SU2(1) => 6, SU2(3 // 2) => 5, SU2(2) => 2]),
+            gradedrange(
+                [
+                    SU2(0) => 4,
+                    SU2(1 // 2) => 6,
+                    SU2(1) => 6,
+                    SU2(3 // 2) => 5,
+                    SU2(2) => 2,
+                ]
+            )
         )
         @test (@constinferred blocklengths(g3)) == [1, 4, 3]
 
@@ -237,14 +254,15 @@ end
         )
         @test space_isequal(
             tensor_product(dual(g5), g6),
-            gradedrange([s1 => 1, c3 => 2, f3 => 1, SU{3}((2, 2)) => 1]),
+            gradedrange([s1 => 1, c3 => 2, f3 => 1, SU{3}((2, 2)) => 1])
         )
         @test space_isequal(
             tensor_product(g5, dual(g6)),
-            gradedrange([s1 => 1, c3 => 1, f3 => 2, SU{3}((2, 0)) => 1]),
+            gradedrange([s1 => 1, c3 => 1, f3 => 2, SU{3}((2, 0)) => 1])
         )
         @test space_isequal(
-            tensor_product(dual(g5), dual(g6)), gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
+            tensor_product(dual(g5), dual(g6)),
+            gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
         )
 
         @test nsymbol(ad8, ad8, ad8) == 2

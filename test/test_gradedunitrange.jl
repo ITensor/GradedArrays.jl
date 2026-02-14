@@ -1,10 +1,10 @@
 # TODO: check if we still need all of this
-using BlockArrays: Block, BlockSlice, BlockedOneTo, BlockVector, BlockedUnitRange,
+using BlockArrays: Block, BlockSlice, BlockVector, BlockedOneTo, BlockedUnitRange,
     blockedrange, blockfirsts, blockisequal, blocklasts, blocklength, blocklengths, blocks,
     combine_blockaxes, findblock, findblockindex, mortar
-using GradedArrays: GradedOneTo, GradedUnitRange, SectorOneTo, SectorUnitRange, U1, SU2,
-    dual, flip, isdual, gradedrange, mortar_axis, sector_multiplicities, sector_type,
-    sectors, sectorrange, space_isequal, to_gradedrange
+using GradedArrays: GradedOneTo, GradedUnitRange, SU2, SectorOneTo, SectorUnitRange, U1,
+    dual, flip, gradedrange, isdual, mortar_axis, sector_multiplicities, sector_type,
+    sectorrange, sectors, space_isequal, to_gradedrange
 using Test: @test, @test_throws, @testset
 
 @testset "GradedUnitRanges basics" begin
@@ -98,8 +98,14 @@ using Test: @test, @test_throws, @testset
         @test !(a isa GradedOneTo)
         @test_broken sectors(a) == ["x", "y"]
         @test_broken blocklength(a) == 2
-        @test_broken space_isequal(first(blocks(a)), sectorrange("x", 2:2; isdual = isdual(g)))
-        @test_broken space_isequal(last(blocks(a)), sectorrange("y", 3:4; isdual = isdual(g)))
+        @test_broken space_isequal(
+            first(blocks(a)),
+            sectorrange("x", 2:2; isdual = isdual(g))
+        )
+        @test_broken space_isequal(
+            last(blocks(a)),
+            sectorrange("y", 3:4; isdual = isdual(g))
+        )
         @test g[[2, 4]] == [2, 4]
 
         # Regression test for ambiguity errors.
@@ -120,11 +126,20 @@ using Test: @test, @test_throws, @testset
         @test a isa GradedUnitRange
         @test !(a isa GradedOneTo)
         @test blocklength(a) == 2
-        @test_broken space_isequal(a[Block(1)], (isdual(g) ? dual : identity)(sectorrange(U1(2), 3) .+ 2))
-        @test_broken space_isequal(a[Block(2)], (isdual(g) ? dual : identity)(sectorrange(U1(3), 2) .+ 5))
+        @test_broken space_isequal(
+            a[Block(1)],
+            (isdual(g) ? dual : identity)(sectorrange(U1(2), 3) .+ 2)
+        )
+        @test_broken space_isequal(
+            a[Block(2)],
+            (isdual(g) ? dual : identity)(sectorrange(U1(3), 2) .+ 5)
+        )
         ax = only(axes(a))
         @test ax isa GradedOneTo
-        @test space_isequal(ax, (isdual(g) ? dual : identity)(gradedrange([U1(2) => 3, U1(3) => 2])))
+        @test space_isequal(
+            ax,
+            (isdual(g) ? dual : identity)(gradedrange([U1(2) => 3, U1(3) => 2]))
+        )
         @test ax == 1:length(a)
         @test length(ax) == length(a)
         @test blocklengths(ax) == blocklengths(a)
@@ -145,7 +160,10 @@ using Test: @test, @test_throws, @testset
         @test a[Block(2)] == 3:5
         ax = only(axes(a))
         @test ax isa GradedOneTo
-        @test space_isequal(ax, (isdual(g) ? dual : identity)(gradedrange([U1(3) => 2, U1(2) => 3])))
+        @test space_isequal(
+            ax,
+            (isdual(g) ? dual : identity)(gradedrange([U1(3) => 2, U1(2) => 3]))
+        )
 
         # slice with one multiplicity
         # TODO use dedicated Kroneckrange
@@ -174,7 +192,10 @@ using Test: @test, @test_throws, @testset
         @test a[Block(2)] == 4:5
         ax = only(axes(a))
         @test ax isa GradedOneTo
-        @test space_isequal(ax, (isdual(g) ? dual : identity)(gradedrange([U1(3) => 1, U1(2) => 2])))
+        @test space_isequal(
+            ax,
+            (isdual(g) ? dual : identity)(gradedrange([U1(3) => 1, U1(2) => 2]))
+        )
 
         I = mortar([Block(1)[1:1], Block(1)[1:2], Block(2)[1:2]])
         a = g[I]
@@ -183,13 +204,21 @@ using Test: @test, @test_throws, @testset
         @test blocklength(a) == 3
         ax = only(axes(a))
         @test_broken ax isa GradedOneTo
-        @test_broken space_isequal(ax, (isdual(g) ? dual : identity)(gradedrange([U1(1) => 1, U1(2) => 2, U1(3) => 2])))
+        @test_broken space_isequal(
+            ax,
+            (isdual(g) ? dual : identity)(
+                gradedrange([U1(1) => 1, U1(2) => 2, U1(3) => 2])
+            )
+        )
 
         v = mortar([[Block(2), Block(2)], [Block(1)]])
         a = g[v]
         @test a isa BlockVector
         @test_broken only(axes(a)) isa GradedOneTo
-        @test_broken space_isequal(only(axes(a)), gradedrange(["y" => 6, "x" => 2]; isdual = isdual(g)))
+        @test_broken space_isequal(
+            only(axes(a)),
+            gradedrange(["y" => 6, "x" => 2]; isdual = isdual(g))
+        )
     end
 
     @test_broken checkspaces(Bool, (g1, g1d), (g1, g1d))
@@ -227,7 +256,10 @@ using Test: @test, @test_throws, @testset
 
     g3 = gradedrange([U1(1) => 1, U1(1) => 1, U1(2) => 2, U1(3) => 2])
     g4 = gradedrange([U1(1) => 2, U1(2) => 1, U1(2) => 1, U1(3) => 2])
-    @test_broken space_isequal(combine_blockaxes(g3, g4), gradedrange(["x" => 1, "x" => 1, "y" => 1, "y" => 1, "z" => 2]))
+    @test_broken space_isequal(
+        combine_blockaxes(g3, g4),
+        gradedrange(["x" => 1, "x" => 1, "y" => 1, "y" => 1, "z" => 2])
+    )
 
     sr1 = sectorrange(U1(1), 2)
     sr2 = sectorrange(U1(2), 3)

@@ -1,10 +1,10 @@
-using GradedArrays: GradedArrays, SectorProduct, SU2, TrivialSector, U1, Z, ⊗, ×, arguments,
-    dual, gradedrange, flip, label, quantum_dimension, sector, sector_type, sectorproduct,
-    sectorrange, space_isequal, trivial
+import TensorKitSectors as TKS
+using BlockArrays: blocklengths
+using GradedArrays: GradedArrays, SU2, SectorProduct, TrivialSector, U1, Z, arguments, dual,
+    flip, gradedrange, label, quantum_dimension, sector, sector_type, sectorproduct,
+    sectorrange, space_isequal, trivial, ×, ⊗
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
-using BlockArrays: blocklengths
-import TensorKitSectors as TKS
 
 @testset "Test Ordered Products" begin
     @testset "Ordered Constructor" begin
@@ -53,7 +53,8 @@ import TensorKitSectors as TKS
         @test sectorproduct(U1(0), SU2(0)) == label(TrivialSector())
         @test sectorproduct(U1(0), SU2(0)) == sectorproduct(TrivialSector(), SU2(0))
         @test sectorproduct(U1(0), SU2(0)) == sectorproduct(U1(0), TrivialSector())
-        @test sectorproduct(U1(0), SU2(0)) == sectorproduct(TrivialSector(), TrivialSector())
+        @test sectorproduct(U1(0), SU2(0)) ==
+            sectorproduct(TrivialSector(), TrivialSector())
 
         @test sectorproduct(U1(0)) < sectorproduct((U1(1)))
         @test sectorproduct(U1(0), U1(2)) < sectorproduct((U1(1)), U1(0))
@@ -87,7 +88,12 @@ import TensorKitSectors as TKS
         g = gradedrange([(U1(2) × SU2(0) × Z{2}(0)) => 1, (U1(2) × SU2(1) × Z{2}(0)) => 1])
         @test (@constinferred quantum_dimension(g)) == 4
         @test (@constinferred blocklengths(g)) == [1, 3]
-        g = gradedrange([(SU2(0) × U1(0) × SU2(1 // 2)) => 1, (SU2(0) × U1(1) × SU2(1 // 2)) => 1])
+        g = gradedrange(
+            [
+                (SU2(0) × U1(0) × SU2(1 // 2)) => 1,
+                (SU2(0) × U1(1) × SU2(1 // 2)) => 1,
+            ]
+        )
         @test (@constinferred quantum_dimension(g)) == 4
         @test (@constinferred blocklengths(g)) == [2, 2]
     end
@@ -114,10 +120,15 @@ import TensorKitSectors as TKS
         p0 = ×(SU2(0))
         ph = ×(SU2(1 // 2))
         @test space_isequal(
-            (@constinferred p0 ⊗ TrivialSector()), gradedrange([sectorproduct(SU2(0)) => 1])
+            (@constinferred p0 ⊗ TrivialSector()), gradedrange(
+                [
+                    sectorproduct(SU2(0)) => 1,
+                ]
+            )
         )
         @test space_isequal(
-            (@constinferred TrivialSector() ⊗ ph), gradedrange([sectorproduct(SU2(1 // 2)) => 1])
+            (@constinferred TrivialSector() ⊗ ph),
+            gradedrange([sectorproduct(SU2(1 // 2)) => 1])
         )
 
         phh = SU2(1 // 2) × SU2(1 // 2)
@@ -130,7 +141,7 @@ import TensorKitSectors as TKS
                     (SU2(0) × SU2(1)) => 1,
                     (SU2(1) × SU2(1)) => 1,
                 ]
-            ),
+            )
         )
         @test space_isequal(
             phh ⊗ phh,
@@ -141,18 +152,20 @@ import TensorKitSectors as TKS
                     (SU2(0) × SU2(1)) => 1,
                     (SU2(1) × SU2(1)) => 1,
                 ]
-            ),
+            )
         )
     end
 
     @testset "Fusion of different length Categories" begin
         @test (U1(1) × U1(0)) ⊗ ×(U1(1)) == U1(2) × U1(0)
         @test space_isequal(
-            (@constinferred (SU2(0) × SU2(0)) ⊗ ×(SU2(1))), gradedrange([(SU2(1) × SU2(0)) => 1])
+            (@constinferred (SU2(0) × SU2(0)) ⊗ ×(SU2(1))),
+            gradedrange([(SU2(1) × SU2(0)) => 1])
         )
 
         @test space_isequal(
-            (@constinferred (SU2(1) × U1(1)) ⊗ ×(SU2(0))), gradedrange([SU2(1) × U1(1) => 1])
+            (@constinferred (SU2(1) × U1(1)) ⊗ ×(SU2(0))),
+            gradedrange([SU2(1) × U1(1) => 1])
         )
         @test space_isequal(
             (@constinferred U1(1) × SU2(1) ⊗ ×(U1(2))), gradedrange([U1(3) × SU2(1) => 1])
@@ -169,7 +182,10 @@ import TensorKitSectors as TKS
         s2 = U1(0) × SU2(1 // 2)
         g1 = gradedrange([s1 => 2])
         g2 = gradedrange([s2 => 1])
-        @test space_isequal(g1 ⊗ g2, gradedrange([U1(1) × SU2(0) => 2, U1(1) × SU2(1) => 2]))
+        @test space_isequal(
+            g1 ⊗ g2,
+            gradedrange([U1(1) × SU2(0) => 2, U1(1) × SU2(1) => 2])
+        )
     end
 end
 
@@ -248,7 +264,12 @@ end
     end
 
     @testset "Quantum dimension and GradedUnitRange" begin
-        g = gradedrange([(; A = U1(0)) × (; B = Z{2}(0)) => 1, (; A = U1(1)) × (; B = Z{2}(0)) => 2])  # abelian
+        g = gradedrange(
+            [
+                (; A = U1(0)) × (; B = Z{2}(0)) => 1,
+                (; A = U1(1)) × (; B = Z{2}(0)) => 2,
+            ]
+        )  # abelian
         @test (@constinferred quantum_dimension(g)) == 3
 
         g = gradedrange(
@@ -306,7 +327,8 @@ end
         phab = (; A = SU2(1 // 2)) × (; B = SU2(1 // 2))
 
         @test space_isequal(
-            (@constinferred pha ⊗ pha), gradedrange([×((; A = SU2(0))) => 1, ×((; A = SU2(1))) => 1])
+            (@constinferred pha ⊗ pha),
+            gradedrange([×((; A = SU2(0))) => 1, ×((; A = SU2(1))) => 1])
         )
         @test space_isequal((@constinferred pha ⊗ p0), gradedrange([pha => 1]))
         @test space_isequal((@constinferred p0 ⊗ phb), gradedrange([phb => 1]))
@@ -321,7 +343,7 @@ end
                     (; A = SU2(0)) × (; B = SU2(1)) => 1,
                     (; A = SU2(1)) × (; B = SU2(1)) => 1,
                 ]
-            ),
+            )
         )
     end
 
@@ -416,7 +438,8 @@ end
             gradedrange([×(SU2(1), U1(2)) => 1])
 
         @test (@constinferred sA1 ⊗ s) == sA1
-        @test (@constinferred ×((; A = SU2(0))) ⊗ s) == gradedrange([×((; A = SU2(0))) => 1])
+        @test (@constinferred ×((; A = SU2(0))) ⊗ s) ==
+            gradedrange([×((; A = SU2(0))) => 1])
         @test (@constinferred (; B = SU2(1)) × (; C = U1(2)) ⊗ s) ==
             gradedrange([(; B = SU2(1)) × (; C = U1(2)) => 1])
 

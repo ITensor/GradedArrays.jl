@@ -1,5 +1,5 @@
-using Literate: Literate
 using GradedArrays: GradedArrays
+using Literate: Literate
 
 function ccq_logo(content)
     include_ccq_logo = """
@@ -17,5 +17,5 @@ Literate.markdown(
     joinpath(pkgdir(GradedArrays), "docs", "src");
     flavor = Literate.DocumenterFlavor(),
     name = "index",
-    postprocess = ccq_logo,
+    postprocess = ccq_logo
 )

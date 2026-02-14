@@ -1,5 +1,4 @@
 using GradedArrays: GradedArrays
-
 using Test: @test, @testset
 @testset "Test exports" begin
     exports = [

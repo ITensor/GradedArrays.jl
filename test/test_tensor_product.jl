@@ -1,8 +1,8 @@
 using BlockArrays: blocklength, blocklengths
-using GradedArrays: GradedArrays, GradedOneTo, NotAbelianStyle, SectorUnitRange, SU2, U1, ⊗,
+using GradedArrays: GradedArrays, GradedOneTo, NotAbelianStyle, SU2, SectorUnitRange, U1,
     dual, gradedrange, isdual, sectormergesort, sectorrange, sectors, space_isequal,
-    tensor_product, unmerged_tensor_product
-using Test: @test, @testset, @test_broken
+    tensor_product, unmerged_tensor_product, ⊗
+using Test: @test, @test_broken, @testset
 using TestExtras: @constinferred
 
 struct NotAbelianString
@@ -63,7 +63,7 @@ Base.length(s::NotAbelianString) = length(s.str)
                 U1(3) => 3,
                 U1(2) => 1,
             ]
-        ),
+        )
     )
     @test space_isequal(unmerged_tensor_product(a), a)
     @test space_isequal(tensor_product(a), gradedrange([U1(1) => 2, U1(2) => 3]))

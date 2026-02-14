@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray, mortar_axis
-using GradedArrays: GradedArray, GradedMatrix, SU2, U1, dual, flip, sector_type,
-    space_isequal, gradedrange, trivial_gradedrange
+using GradedArrays: GradedArray, GradedMatrix, SU2, U1, dual, flip, gradedrange,
+    sector_type, space_isequal, trivial_gradedrange
 using Random: randn!
 using TensorAlgebra: contract, matricize, trivial_axis, unmatricize
 using Test: @test, @testset
@@ -25,7 +25,10 @@ end
     gN = gradedrange([(; N = U1(1)) => 1])
     gS = gradedrange([(; S = SU2(1 // 2)) => 1])
     gNS = gradedrange([(; N = U1(0), S = SU2(0)) => 1])
-    @test space_isequal(trivial_gradedrange(sector_type(gN)), gradedrange([(; N = U1(0)) => 1]))
+    @test space_isequal(
+        trivial_gradedrange(sector_type(gN)),
+        gradedrange([(; N = U1(0)) => 1])
+    )
     @test space_isequal(trivial_gradedrange((gN, gS)), gNS)
 end
 
@@ -60,10 +63,12 @@ broken || @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
         d = gradedrange([U1(0) => 2, U1(1) => 1])
         b = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
         @test unmatricize(
-            matricize(b, (1, 2), (3, 4)), (axes(b, 1), axes(b, 2)), (axes(b, 3), axes(b, 4))
+            matricize(b, (1, 2), (3, 4)), (axes(b, 1), axes(b, 2)),
+            (axes(b, 3), axes(b, 4))
         ) == b
 
-        d1234 = gradedrange([U1(-2) => 1, U1(-1) => 4, U1(0) => 6, U1(1) => 4, U1(2) => 1])
+        d1234 =
+            gradedrange([U1(-2) => 1, U1(-1) => 4, U1(0) => 6, U1(1) => 4, U1(2) => 1])
         m = matricize(a, (1, 2, 3, 4), ())
         @test m isa GradedMatrix
         @test space_isequal(axes(m, 1), d1234)
@@ -98,7 +103,8 @@ broken || @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
 
         # matrix vector
         a_dest, dimnames_dest = contract(a1, (2, -1, -2, 1), a3, (1, 2))
-        a_dest_dense, dimnames_dest_dense = contract(a1_dense, (2, -1, -2, 1), a3_dense, (1, 2))
+        a_dest_dense, dimnames_dest_dense =
+            contract(a1_dense, (2, -1, -2, 1), a3_dense, (1, 2))
         @test dimnames_dest == dimnames_dest_dense
         @test size(a_dest) == size(a_dest_dense)
         @test a_dest isa GradedArray
@@ -106,7 +112,8 @@ broken || @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
 
         # vector matrix
         a_dest, dimnames_dest = contract(a3, (1, 2), a1, (2, -1, -2, 1))
-        a_dest_dense, dimnames_dest_dense = contract(a3_dense, (1, 2), a1_dense, (2, -1, -2, 1))
+        a_dest_dense, dimnames_dest_dense =
+            contract(a3_dense, (1, 2), a1_dense, (2, -1, -2, 1))
         @test dimnames_dest == dimnames_dest_dense
         @test size(a_dest) == size(a_dest_dense)
         @test a_dest isa GradedArray

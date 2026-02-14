@@ -1,9 +1,9 @@
-using BlockArrays: AbstractBlockedUnitRange, BlockedOneTo, blockisequal
-using BlockSparseArrays:
-    BlockSparseArrays, AbstractBlockSparseMatrix, AnyAbstractBlockSparseArray, BlockSparseArray,
-    BlockUnitRange, blocktype, eachblockstoredindex, sparsemortar
-using TypeParameterAccessors: similartype, unwrap_array_type
 using ArrayLayouts: ArrayLayouts
+using BlockArrays: AbstractBlockedUnitRange, BlockedOneTo, blockisequal
+using BlockSparseArrays: BlockSparseArrays, AbstractBlockSparseMatrix,
+    AnyAbstractBlockSparseArray, BlockSparseArray, BlockUnitRange, blocktype,
+    eachblockstoredindex, sparsemortar
+using TypeParameterAccessors: similartype, unwrap_array_type
 
 # Axes
 # ----
@@ -16,14 +16,16 @@ where each block is a `SectorUnitRange` with sector labels of type `I` and under
 
 See also [`SectorUnitRange`](@ref) and [`GradedOneTo`](@ref).
 """
-const GradedUnitRange{I, R1, R2} = BlockUnitRange{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
+const GradedUnitRange{I, R1, R2} =
+    BlockUnitRange{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
 
 """
     const GradedOneTo{I, R1, R2} = BlockOneTo{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
 
 See also [`SectorUnitRange`](@ref) and [`GradedUnitRange`](@ref).
 """
-const GradedOneTo{I, R1, R2} = BlockOneTo{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
+const GradedOneTo{I, R1, R2} =
+    BlockOneTo{Int, Vector{SectorUnitRange{I, R1, R2}}, Vector{Int}}
 
 sectors(r::GradedUnitRange) = sector.(eachblockaxis(r))
 sector_multiplicities(r::GradedUnitRange) = sector_multiplicity.(eachblockaxis(r))
@@ -67,7 +69,8 @@ Construct a graded range from the provided list of `sector => range` pairs.
 gradedrange(xs::AbstractVector{<:Pair}) = blockrange(map(splat(sectorrange), xs))
 
 function BlockSparseArrays.mortar_axis(geachblockaxis::AbstractVector{<:SectorUnitRange})
-    allequal(isdual, geachblockaxis) || throw(ArgumentError("Cannot combine sectors with different arrows"))
+    allequal(isdual, geachblockaxis) ||
+        throw(ArgumentError("Cannot combine sectors with different arrows"))
     return blockrange(geachblockaxis)
 end
 
@@ -93,11 +96,14 @@ const GradedArray{T, N, I, A, Blocks, Axes <: NTuple{N, GradedUnitRange{I}}} =
 const GradedMatrix{T, I, A, Blocks, Axes} = GradedArray{T, 2, A, Blocks, Axes}
 const GradedVector{T, I, A, Blocks, Axes} = GradedArray{T, 1, A, Blocks, Axes}
 
-
 # Specific overloads
 # ------------------
 # convert Array to SectorArray upon insertion
-function Base.setindex!(A::GradedArray{T, N}, value::AbstractArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
+function Base.setindex!(
+        A::GradedArray{T, N},
+        value::AbstractArray{T, N},
+        I::Vararg{Block{1}, N}
+    ) where {T, N}
     # TODO: refactor into a function
     sectors = ntuple(dim -> kroneckerfactors(axes(A, dim)[I[dim]], 1), N)
     sarray = SectorArray(sectors, value)
@@ -105,7 +111,11 @@ function Base.setindex!(A::GradedArray{T, N}, value::AbstractArray{T, N}, I::Var
     return A
 end
 # this is a copy of the BlockSparseArrays implementation to ensure that is more specific
-function Base.setindex!(A::GradedArray{T, N}, value::SectorArray{<:Any, N}, I::Vararg{Block{1}, N}) where {T, N}
+function Base.setindex!(
+        A::GradedArray{T, N},
+        value::SectorArray{<:Any, N},
+        I::Vararg{Block{1}, N}
+    ) where {T, N}
     if isstored(A, I...)
         # This writes into existing blocks, or constructs blocks
         # using the axes.
@@ -124,10 +134,15 @@ end
 
 # constructor utilities
 # ---------------------
-Base.zeros(elt::Type, axes::NTuple{N, R}) where {N, R <: GradedUnitRange} =
-    BlockSparseArrays.blocksparsezeros(elt, axes...)
+function Base.zeros(elt::Type, axes::NTuple{N, R}) where {N, R <: GradedUnitRange}
+    return BlockSparseArrays.blocksparsezeros(elt, axes...)
+end
 
-function BlockSparseArrays.blocksparsezeros(elt::Type, ax1::R, axs::R...) where {R <: GradedUnitRange}
+function BlockSparseArrays.blocksparsezeros(
+        elt::Type,
+        ax1::R,
+        axs::R...
+    ) where {R <: GradedUnitRange}
     N = length(axs) + 1
     blocktype = SectorArray{elt, N, sector_type(R), Array{elt, N}}
     return BlockSparseArrays.blocksparsezeros(BlockType(blocktype), ax1, axs...)
@@ -164,8 +179,9 @@ function flux(a::GradedArray)
     return sect
 end
 
-checkflux(::AbstractArray, sect) =
-    sect == UndefinedFlux() ? nothing : throw(ArgumentError("Inconsistent flux."))
+function checkflux(::AbstractArray, sect)
+    return sect == UndefinedFlux() ? nothing : throw(ArgumentError("Inconsistent flux."))
+end
 function checkflux(a::GradedArray, sect)
     for I in eachblockstoredindex(a)
         flux(a, I) == sect || throw(ArgumentError("Inconsistent flux."))
@@ -173,14 +189,12 @@ function checkflux(a::GradedArray, sect)
     return nothing
 end
 
-
 # TODO: Handle this through some kind of trait dispatch, maybe
 # a `SymmetryStyle`-like trait to check if the block sparse
 # matrix has graded axes.
 function Base.axes(a::LinearAlgebra.Adjoint{<:Any, <:GradedArray})
     return dual.(reverse(axes(a')))
 end
-
 
 # show
 # ----
@@ -223,7 +237,10 @@ end
 # This accounts for the fact that the GradedArray alias is not defined in
 # BlockSparseArrays so for the sake of printing, Julia doesn't show it as
 # an alias: https://github.com/JuliaLang/julia/issues/40448
-function concretetype_to_string_truncated(type::Type; param_truncation_length = typemax(Int))
+function concretetype_to_string_truncated(
+        type::Type;
+        param_truncation_length = typemax(Int)
+    )
     isconcretetype(type) || throw(ArgumentError("Type must be concrete."))
     base_type, params = base_type_and_params(type)
     str = string(base_type)

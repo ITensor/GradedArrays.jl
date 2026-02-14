@@ -1,5 +1,4 @@
 using BlockArrays: BlockedOneTo, blockedrange, blockisequal
-
 using GradedArrays: dual, flip, isdual, sectors, space_isequal, ungrade
 using Test: @test, @testset
 

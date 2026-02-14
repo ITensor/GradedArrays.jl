@@ -1,5 +1,5 @@
-using GradedArrays: GradedArrays
 using Documenter: Documenter, DocMeta, deploydocs, makedocs
+using GradedArrays: GradedArrays
 
 DocMeta.setdocmeta!(GradedArrays, :DocTestSetup, :(using GradedArrays); recursive = true)
 
@@ -12,9 +12,13 @@ makedocs(;
     format = Documenter.HTML(;
         canonical = "https://itensor.github.io/GradedArrays.jl",
         edit_link = "main",
-        assets = ["assets/favicon.ico", "assets/extras.css"],
+        assets = ["assets/favicon.ico", "assets/extras.css"]
     ),
-    pages = ["Home" => "index.md", "Reference" => "reference.md"],
+    pages = ["Home" => "index.md", "Reference" => "reference.md"]
 )
 
-deploydocs(; repo = "github.com/ITensor/GradedArrays.jl", devbranch = "main", push_preview = true)
+deploydocs(;
+    repo = "github.com/ITensor/GradedArrays.jl",
+    devbranch = "main",
+    push_preview = true
+)

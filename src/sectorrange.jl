@@ -23,7 +23,6 @@ sector_type(x) = sector_type(typeof(x))
 sector_type(I::Type{<:SectorRange}) = I
 sector_type(T::Type) = throw(MethodError(sector_type, T))
 
-
 # ===================================  Base interface  =====================================
 
 Base.length(r::SectorRange) = quantum_dimension(r)
@@ -32,8 +31,12 @@ Base.isless(r1::SectorRange, r2::SectorRange) = isless(label(r1), label(r2))
 Base.isless(r1::SectorRange, r2::TKS.Sector) = isless(label(r1), r2)
 Base.isless(r1::TKS.Sector, r2::SectorRange) = isless(r1, label(r2))
 
-Base.isequal(r1::SectorRange, r2::SectorRange) = isequal(label(r1), label(r2)) && isequal(isdual(r1), isdual(r2))
-Base.:(==)(r1::SectorRange, r2::SectorRange) = label(r1) == label(r2) && isdual(r1) == isdual(r2)
+function Base.isequal(r1::SectorRange, r2::SectorRange)
+    return isequal(label(r1), label(r2)) && isequal(isdual(r1), isdual(r2))
+end
+function Base.:(==)(r1::SectorRange, r2::SectorRange)
+    return label(r1) == label(r2) && isdual(r1) == isdual(r2)
+end
 Base.:(==)(r1::SectorRange, r2::TKS.Sector) = label(r1) == r2
 Base.:(==)(r1::TKS.Sector, r2::SectorRange) = r2 == r1
 

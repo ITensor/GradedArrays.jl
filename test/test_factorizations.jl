@@ -1,18 +1,8 @@
 using BlockArrays: Block, blocksizes
 using GradedArrays: U1, dual, flux, gradedrange, trivial
 using LinearAlgebra: I, diag, svdvals
-using MatrixAlgebraKit:
-    left_orth,
-    left_polar,
-    lq_compact,
-    lq_full,
-    qr_compact,
-    qr_full,
-    right_orth,
-    right_polar,
-    svd_compact,
-    svd_full,
-    svd_trunc
+using MatrixAlgebraKit: left_orth, left_polar, lq_compact, lq_full, qr_compact, qr_full,
+    right_orth, right_polar, svd_compact, svd_full, svd_trunc
 using Test: @test, @test_broken, @testset
 
 broken = true
