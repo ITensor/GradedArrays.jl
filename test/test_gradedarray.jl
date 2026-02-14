@@ -1,13 +1,15 @@
-using BlockArrays: Block, BlockedOneTo, BlockedUnitRange, blockedrange, blocklengths, blocksize
-using BlockSparseArrays: BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
+using BlockArrays:
+    Block, BlockedOneTo, BlockedUnitRange, blockedrange, blocklengths, blocksize
+using BlockSparseArrays:
+    BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
+using GradedArrays: GradedArray, GradedMatrix, GradedOneTo, GradedUnitRange, GradedVector,
+    SectorUnitRange, U1, UndefinedFlux, checkflux, dual, flux, gradedrange, isdual,
+    sectorrange, space_isequal
 using KroneckerArrays: cartesianrange
-using GradedArrays: GradedArray, GradedMatrix, GradedVector, GradedOneTo, GradedUnitRange,
-    SectorUnitRange, UndefinedFlux, U1, checkflux, dual, flux, gradedrange, isdual,
-    space_isequal, sectorrange
-using SparseArraysBase: storedlength
 using LinearAlgebra: adjoint
 using Random: randn!
-using Test: @test, @testset, @test_throws, @test_broken
+using SparseArraysBase: storedlength
+using Test: @test, @test_broken, @test_throws, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
     a = BlockSparseArray{elt}(undef, axes)

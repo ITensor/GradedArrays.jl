@@ -1,9 +1,9 @@
-using BlockArrays: Block, BlockBoundsError, BlockRange, blockaxes, blocklasts, blocklength,
-    blocklengths, blockisequal, blocks, findblock
-using GradedArrays: U1, SU2, SectorOneTo, SectorUnitRange, dual, flip, isdual,
+using BlockArrays: Block, BlockBoundsError, BlockRange, blockaxes, blockisequal, blocklasts,
+    blocklength, blocklengths, blocks, findblock
+using GradedArrays: SU2, SectorOneTo, SectorUnitRange, U1, dual, flip, isdual,
     quantum_dimension, sector, sector_multiplicities, sector_multiplicity, sector_type,
-    sectorrange, ungrade, sectors, space_isequal
-using Test: @test, @test_throws, @testset, @test_broken
+    sectorrange, sectors, space_isequal, ungrade
+using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
 
 @testset "SectorUnitRange" begin

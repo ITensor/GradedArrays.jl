@@ -1,11 +1,10 @@
 using BlockArrays: blocks, eachblockaxes1
-using BlockSparseArrays: BlockSparseArray, blockreshape, blockrange
-using GradedArrays: GradedUnitRange, SectorRange, GradedArray, flip, invblockperm,
+using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape
+using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, invblockperm,
     sectormergesortperm, sectorsortperm, trivial, unmerged_tensor_product, ×
 using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
-    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, tuplemortar, unmatricize,
-    trivialbiperm
-
+    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
+    tuplemortar, unmatricize
 
 struct SectorFusion <: FusionStyle end
 
@@ -21,7 +20,7 @@ function TensorAlgebra.trivial_axis(
         ::Val{:codomain},
         a::GradedArray,
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
-        axes_domain::Tuple{Vararg{AbstractUnitRange}},
+        axes_domain::Tuple{Vararg{AbstractUnitRange}}
     )
     return trivial_gradedrange(axes(a))
 end
@@ -30,7 +29,7 @@ function TensorAlgebra.trivial_axis(
         ::Val{:domain},
         a::GradedArray,
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
-        axes_domain::Tuple{Vararg{AbstractUnitRange}},
+        axes_domain::Tuple{Vararg{AbstractUnitRange}}
     )
     return flip(trivial_gradedrange(axes(a)))
 end
@@ -54,20 +53,20 @@ function TensorAlgebra.tensor_product_axis(
 end
 function TensorAlgebra.tensor_product_axis(
         style::BlockReshapeFusion, side::Val{:codomain},
-        r1::GradedUnitRange, r2::GradedUnitRange,
+        r1::GradedUnitRange, r2::GradedUnitRange
     )
     return tensor_product_gradedrange(style, side, r1, r2)
 end
 function TensorAlgebra.tensor_product_axis(
         style::BlockReshapeFusion, side::Val{:domain},
-        r1::GradedUnitRange, r2::GradedUnitRange,
+        r1::GradedUnitRange, r2::GradedUnitRange
     )
     return tensor_product_gradedrange(style, side, r1, r2)
 end
 # TODO: Could this call out to a generic tensor_product_axis for AbstractBlockedUnitRange?
 function tensor_product_gradedrange(
         ::BlockReshapeFusion, side::Val,
-        r1::AbstractUnitRange, r2::AbstractUnitRange,
+        r1::AbstractUnitRange, r2::AbstractUnitRange
     )
     (isone(first(r1)) && isone(first(r2))) ||
         throw(ArgumentError("Only one-based axes are supported"))
@@ -96,10 +95,10 @@ function TensorAlgebra.matricize(
     return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
 end
 
-
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::AbstractMatrix,
-        codomain_axes::Tuple{Vararg{AbstractUnitRange}}, domain_axes::Tuple{Vararg{AbstractUnitRange}},
+        codomain_axes::Tuple{Vararg{AbstractUnitRange}},
+        domain_axes::Tuple{Vararg{AbstractUnitRange}}
     )
     blocked_axes = tuplemortar((codomain_axes, domain_axes))
     if isempty(blocked_axes)

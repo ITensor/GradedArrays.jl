@@ -1,6 +1,6 @@
 using BlockArrays: BlockedOneTo, BlockedUnitRange
 using GradedArrays: GradedArrays, Fib, GradedUnitRange, Ising, O2, SU2, SectorUnitRange,
-    TrivialSector, U1, ×, dual, gradedrange, sectorrange
+    TrivialSector, U1, dual, gradedrange, sectorrange, ×
 using Test: @test, @testset
 
 @testset "show SymmetrySector" begin

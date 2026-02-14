@@ -1,11 +1,12 @@
-using BlockArrays: Block, blocks, BlockVector
-using SplitApplyCombine: groupcount
+using BlockArrays: Block, BlockVector, blocks
 using BlockSparseArrays: mortar_axis
+using SplitApplyCombine: groupcount
 
 flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
 
 function tensor_product(
-        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange, rs::AbstractUnitRange...,
+        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange,
+        rs::AbstractUnitRange...
     )
     return tensor_product(tensor_product(r1, r2), r3, rs...)
 end
@@ -27,7 +28,11 @@ function tensor_product(
     g = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
     d₁ = sector_multiplicity(sr1)
     d₂ = sector_multiplicity(sr2)
-    return gradedrange([c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), sector_multiplicities(g))])
+    return gradedrange(
+        [
+            c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), sector_multiplicities(g))
+        ]
+    )
 end
 
 # allow to fuse a Sector with a GradedUnitRange

@@ -15,13 +15,13 @@ export dual, flip, gradedrange, isdual,
 
 # imports
 # -------
-using LinearAlgebra: LinearAlgebra, Adjoint
+import KroneckerArrays: ×
+using BlockArrays: BlockArrays, Block, blocksize
+using BlockSparseArrays: @view!, AbstractBlockSparseArray, BlockOneTo, blockrange
 using KroneckerArrays
 using KroneckerArrays: AbstractKroneckerArray, CartesianProductUnitRange
-import KroneckerArrays: ×
+using LinearAlgebra: LinearAlgebra, Adjoint
 using SparseArraysBase: isstored
-using BlockArrays: BlockArrays, Block, blocksize
-using BlockSparseArrays: AbstractBlockSparseArray, BlockOneTo, blockrange, @view!
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
 include("sectorrange.jl")
@@ -33,6 +33,5 @@ include("sectorproduct.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
 include("factorizations.jl")
-
 
 end

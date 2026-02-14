@@ -1,29 +1,11 @@
 using BlockArrays: blocks
-using BlockSparseArrays:
-    BlockSparseArrays,
-    eachblockaxis,
-    mortar_axis,
-    infimum,
-    output_type,
-    BlockType,
-    blockstoredlength,
-    BlockPermutedDiagonalAlgorithm,
-    BlockDiagonalAlgorithm,
-    BlockDiagonalTruncationStrategy
+using BlockSparseArrays: BlockSparseArrays, BlockDiagonalAlgorithm,
+    BlockDiagonalTruncationStrategy, BlockPermutedDiagonalAlgorithm, BlockType,
+    blockstoredlength, eachblockaxis, infimum, mortar_axis, output_type
 using LinearAlgebra: Diagonal
-using MatrixAlgebraKit:
-    MatrixAlgebraKit,
-    lq_compact!,
-    lq_full!,
-    qr_compact!,
-    qr_full!,
-    svd_compact!,
-    svd_full!,
-    svd_trunc!,
-    left_polar!,
-    right_polar!,
-    TruncatedAlgorithm,
-    PolarViaSVD
+using MatrixAlgebraKit: MatrixAlgebraKit, PolarViaSVD, TruncatedAlgorithm, left_polar!,
+    lq_compact!, lq_full!, qr_compact!, qr_full!, right_polar!, svd_compact!, svd_full!,
+    svd_trunc!
 using TensorAlgebra: TensorAlgebra
 
 # flux but assume zero if it cannot be obtained
@@ -58,9 +40,17 @@ function fluxify(A, Aaxes, charge; side::Symbol = :domain)
     istrivial(charge) && return TensorAlgebra.unmatricize(A, (Aaxes[1],), (Aaxes[2],))
 
     if side === :domain
-        A′ = TensorAlgebra.unmatricize(A, (Aaxes[1],), (Aaxes[2], to_gradedrange(dual(charge))))
+        A′ = TensorAlgebra.unmatricize(
+            A,
+            (Aaxes[1],),
+            (Aaxes[2], to_gradedrange(dual(charge)))
+        )
     else
-        A′ = TensorAlgebra.unmatricize(A, (to_gradedrange(dual(charge)), Aaxes[1]), (Aaxes[2],))
+        A′ = TensorAlgebra.unmatricize(
+            A,
+            (to_gradedrange(dual(charge)), Aaxes[1]),
+            (Aaxes[2],)
+        )
     end
 
     A″ = similar(A′, Aaxes)
@@ -86,7 +76,7 @@ function BlockSparseArrays.blockdiagonalize(A::GradedMatrix)
         map(allsectors1, p1) do s, i
             return s => isnothing(i) ? 0 : length(ax1[Block(i)])
         end;
-        isdual = isdual(ax1),
+        isdual = isdual(ax1)
     )
 
     p2 = indexin(allsectors2, s2)
@@ -94,7 +84,7 @@ function BlockSparseArrays.blockdiagonalize(A::GradedMatrix)
         map(allsectors2, p2) do s, i
             return s => isnothing(i) ? 0 : length(ax2[Block(i)])
         end;
-        isdual = isdual(ax2),
+        isdual = isdual(ax2)
     )
 
     Ad = similar(A, ax1′, ax2′)
