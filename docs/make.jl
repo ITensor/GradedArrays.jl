@@ -1,9 +1,10 @@
 using Documenter: Documenter, DocMeta, deploydocs, makedocs
 using GradedArrays: GradedArrays
+using ITensorFormatter: ITensorFormatter
 
 DocMeta.setdocmeta!(GradedArrays, :DocTestSetup, :(using GradedArrays); recursive = true)
 
-include("make_index.jl")
+ITensorFormatter.make_index!(pkgdir(GradedArrays))
 
 makedocs(;
     modules = [GradedArrays],
