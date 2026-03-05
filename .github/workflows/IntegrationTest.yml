@@ -23,6 +23,7 @@ jobs:
         pkg:
           - "FusionTensors"
     uses: "ITensor/ITensorActions/.github/workflows/IntegrationTest.yml@main"
+    secrets: "inherit"
     with:
       localregistry: "https://github.com/ITensor/ITensorRegistry.git"
       pkg: "${{ matrix.pkg }}"
