@@ -329,6 +329,17 @@ function Base.copy!(C::SectorArray, A::SectorArray)
     copy!(arg2(C), arg2(A))
     return C
 end
+function Base.copyto!(dst::SectorArray, src::BlockSparseArrays.UnblockedSubArray)
+    @invoke copyto!(dst.data::AbstractArray, src::AbstractArray)
+    return dst
+end
+function Base.copyto!(
+        dst::SectorArray,
+        src::SubArray{<:Any, <:Any, <:BlockSparseArrays.AbstractBlockSparseArray}
+    )
+    @invoke copyto!(dst.data::AbstractArray, src::AbstractArray)
+    return dst
+end
 
 function Base.convert(
         ::Type{SectorArray{T₁, N, I, A}},
