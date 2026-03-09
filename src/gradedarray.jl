@@ -79,7 +79,8 @@ function BlockSparseArrays.blockedunitrange_getindices(
         g::GradedUnitRange, indices::Vector{<:BlockArrays.Block{1}}
     )
     gblocks = map(index -> g[index], indices)
-    new_axis = mortar_axis(sectorrange.(sector.(gblocks), Base.OneTo.(length.(gblocks))))
+    new_multiplicities = sector_multiplicity.(gblocks)
+    new_axis = mortar_axis(sectorrange.(sector.(gblocks), Base.OneTo.(new_multiplicities)))
     return BlockArrays.mortar(gblocks, (new_axis,))
 end
 
@@ -89,8 +90,12 @@ function BlockSparseArrays.blockedunitrange_getindices(
     blks = map(bs -> BlockArrays.mortar(map(b -> g[b], bs)), BlockArrays.blocks(indices))
     new_sectors = map(bs -> sectors(g)[Int.(bs)], BlockArrays.blocks(indices))
     @assert all(allequal.(new_sectors))
-    new_lengths = length.(blks)
-    new_axis = mortar_axis(sectorrange.(first.(new_sectors), Base.OneTo.(new_lengths)))
+    new_multiplicities = map(BlockArrays.blocks(indices)) do bs
+        return sum(b -> sector_multiplicity(g[b]), bs; init = 0)
+    end
+    new_axis = mortar_axis(
+        sectorrange.(first.(new_sectors), Base.OneTo.(new_multiplicities))
+    )
     return BlockArrays.mortar(blks, (new_axis,))
 end
 function Base.getindex(g::GradedUnitRange, indices::Vector{<:BlockArrays.Block{1}})

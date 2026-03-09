@@ -297,6 +297,22 @@ function Base.similar(
         similar(A, elt, kroneckerfactors.(axs, 2))
     )
 end
+# disambiguate for unblocked views of BlockSparseArrays with graded axes
+function Base.similar(
+        A::BlockSparseArrays.UnblockedSubArray,
+        elt::Type,
+        axs::Tuple{SectorUnitRange, Vararg{SectorUnitRange}}
+    )
+    data_axes = kroneckerfactors.(axs, 2)
+    data = similar(Array{elt, length(axs)}, data_axes)
+    for I in CartesianIndices(data)
+        @inbounds data[I] = A[I]
+    end
+    return SectorArray(
+        kroneckerfactors.(axs, 1),
+        data
+    )
+end
 function Base.similar(
         ::Type{A},
         axs::Tuple{SectorUnitRange, Vararg{SectorUnitRange}}

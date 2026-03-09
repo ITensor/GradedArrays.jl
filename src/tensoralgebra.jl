@@ -1,7 +1,9 @@
-using BlockArrays: blocks, eachblockaxes1
+using ArrayLayouts: ArrayLayouts
+using BlockArrays: Block, BlockLayout, blocks, eachblockaxes1
 using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape
 using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, invblockperm,
     sectormergesortperm, sectorsortperm, trivial, unmerged_tensor_product, ×
+using SparseArraysBase: SparseLayout
 using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
     ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
     tuplemortar, unmatricize
@@ -11,6 +13,31 @@ struct SectorFusion <: FusionStyle end
 TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorUnitRange}) = SectorFusion()
+
+function ArrayLayouts.sub_materialize(
+        layout::BlockLayout{<:SparseLayout},
+        a::SubArray{
+            <:Any,
+            <:Any,
+            <:BlockSparseArrays.BlockSparseArray{<:Any, <:Any, <:SectorArray},
+        },
+        axes
+    )
+    blocktype_a = BlockSparseArrays.blocktype(parent(a))
+    a_dest = BlockSparseArray{eltype(a), length(axes), blocktype_a}(undef, axes)
+    for I in CartesianIndices(blocks(a_dest))
+        b = Block(Tuple(I))
+        block_a = @view a[b]
+        if !iszero(block_a)
+            block_dest = similar(a_dest[b])
+            for J in CartesianIndices(block_dest)
+                @inbounds block_dest[J] = block_a[J]
+            end
+            a_dest[b] = block_dest
+        end
+    end
+    return a_dest
+end
 
 using BlockArrays: AbstractBlockArray
 const BlockReshapeFusion = typeof(FusionStyle(AbstractBlockArray))
