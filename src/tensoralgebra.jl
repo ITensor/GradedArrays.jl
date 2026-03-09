@@ -1,4 +1,4 @@
-using BlockArrays: blocks, eachblockaxes1
+using BlockArrays: Block, BlockVector, blocks, eachblockaxes1
 using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape, eachblockstoredindex
 using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, invblockperm,
     sectormergesortperm, sectorsortperm, trivial, unmerged_tensor_product, ×
@@ -127,6 +127,9 @@ function TensorAlgebra.unmatricize(
 end
 
 # Split merged blocks back to unmerged block structure (inverse of sectormergesort for arrays).
+_asblock(i::Block{1}) = i
+_asblock(i::Integer) = Block(i)
+
 function unsectormergesort(m::AbstractArray, original_axes)
     N = ndims(m)
     perms = sectormergesortperm.(original_axes)
@@ -144,8 +147,9 @@ function unsectormergesort(m::AbstractArray, original_axes)
             cumoff = 0
             map(eachindex(grp)) do k
                 off = cumoff
-                cumoff += length(original_axes[dim][grp[k]])
-                return (grp[k], off)
+                src_block = _asblock(grp[k])
+                cumoff += length(original_axes[dim][src_block])
+                return (src_block, off)
             end
         end
 
@@ -166,30 +170,27 @@ function unsectormergesort(m::AbstractArray, original_axes)
     return result
 end
 
-# Sort the blocks by sector and then merge the common sectors.
-function sectormergesort(a::AbstractArray)
+# Materialize grouped block indexing used by `sectormergesort`.
+function Base.getindex(
+        a::BlockSparseArray,
+        perms::Vararg{<:BlockVector{<:Union{Int, Block{1}}}, N}
+    ) where {N}
     axs = axes(a)
-    perms = sectormergesortperm.(axs)
     merged_axes = sectormergesort.(axs)
-
     result = zeros(eltype(a), merged_axes)
 
-    N = ndims(a)
-
-    function find_dest_and_pos(perm, src_block::Block{1})
+    function find_dest_and_pos(perm::BlockVector, src_block::Block{1})
         for (igroup, grp) in enumerate(blocks(perm))
-            pos = findfirst(==(src_block), grp)
+            pos = findfirst(i -> _asblock(i) == src_block, grp)
             isnothing(pos) || return (igroup, pos)
         end
         return error("Block $src_block not found in permutation")
     end
 
-    # Group stored source blocks by their destination block
+    # Group stored source blocks by destination grouped block and local offsets.
     dest_groups = Dict{NTuple{N, Int}, Vector{Tuple{Block{N, Int}, NTuple{N, Int}}}}()
-
     for I in eachblockstoredindex(a)
         src_block_indices = Tuple(I)
-
         dest_and_pos = ntuple(N) do dim
             return find_dest_and_pos(perms[dim], src_block_indices[dim])
         end
@@ -198,13 +199,12 @@ function sectormergesort(a::AbstractArray)
         offsets = ntuple(N) do dim
             igroup, pos = dest_and_pos[dim]
             grp = blocks(perms[dim])[igroup]
-            return sum(length(axs[dim][grp[k]]) for k in 1:(pos - 1); init = 0)
+            return sum(length(axs[dim][_asblock(grp[k])]) for k in 1:(pos - 1); init = 0)
         end
 
         push!(get!(dest_groups, dest_idx, []), (I, offsets))
     end
 
-    # Build each destination block from its contributing source blocks
     for (dest_idx, src_list) in dest_groups
         dest_size = ntuple(dim -> length(merged_axes[dim][Block(dest_idx[dim])]), N)
         dest_data = zeros(eltype(a), dest_size)
@@ -221,4 +221,9 @@ function sectormergesort(a::AbstractArray)
     end
 
     return result
+end
+
+function sectormergesort(a::AbstractArray)
+    I = sectormergesortperm.(axes(a))
+    return a[I...]
 end
