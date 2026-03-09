@@ -32,10 +32,8 @@ end
     @test space_isequal(trivial_gradedrange((gN, gS)), gNS)
 end
 
-broken = true
-
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
-broken || @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
+@testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
     @testset "matricize" begin
         d1 = gradedrange([U1(0) => 1, U1(1) => 1])
         d2 = gradedrange([U1(0) => 1, U1(1) => 1])
@@ -82,7 +80,8 @@ broken || @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
         @test a == unmatricize(m, (), (d1, d2, dual(d1), dual(d2)))
     end
 
-    @testset "contract with U(1)" begin
+    contract_broken = true
+    contract_broken || @testset "contract with U(1)" begin
         d = gradedrange([U1(0) => 2, U1(1) => 3])
         a1 = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
         a2 = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))

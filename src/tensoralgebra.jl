@@ -1,5 +1,5 @@
 using BlockArrays: blocks, eachblockaxes1
-using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape
+using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape, eachblockstoredindex
 using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, invblockperm,
     sectormergesortperm, sectorsortperm, trivial, unmerged_tensor_product, ×
 using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
@@ -49,7 +49,7 @@ end
 function TensorAlgebra.tensor_product_axis(
         ::SectorFusion, ::Val{:domain}, r1::SectorUnitRange, r2::SectorUnitRange
     )
-    return dual(r1 ⊗ r2)
+    return flip(r1 ⊗ r2)
 end
 function TensorAlgebra.tensor_product_axis(
         style::BlockReshapeFusion, side::Val{:codomain},
@@ -90,11 +90,20 @@ function TensorAlgebra.matricize(
     ) where {Ncodomain}
     biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
     ax_codomain, ax_domain = blocks(axes(a)[biperm])
-    ax_codomain = tensor_product(ax_codomain...)
-    ax_domain = flip(tensor_product(ax_domain...))
+    ax_codomain =
+        isempty(ax_codomain) ? trivial(sector_type(a)) : tensor_product(ax_codomain...)
+    ax_domain =
+        isempty(ax_domain) ? trivial(sector_type(a)) : flip(tensor_product(ax_domain...))
     return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
 end
 
+function TensorAlgebra.unmatricize(
+        ::SectorFusion, m::SectorDelta,
+        codomain_axes::Tuple{Vararg{SectorRange}},
+        domain_axes::Tuple{Vararg{SectorRange}}
+    )
+    return SectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
+end
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::AbstractMatrix,
         codomain_axes::Tuple{Vararg{AbstractUnitRange}},
@@ -109,27 +118,107 @@ function TensorAlgebra.unmatricize(
         return a
     end
 
-    # First, fuse axes to get `sectormergesortperm`.
-    # Then unpermute the blocks.
+    # Compute the unmerged fused axes (block structure before sectormergesort).
     fused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
 
-    blockperms = sectorsortperm.(fused_axes)
-    sorted_axes = map((r, I) -> only(axes(r[I])), fused_axes, blockperms)
+    # Split merged blocks back to unmerged block structure, then unmatricize.
+    m_unmerged = unsectormergesort(m, fused_axes)
+    return unmatricize(FusionStyle(BlockSparseArray), m_unmerged, blocked_axes)
+end
 
-    # TODO: This is doing extra copies of the blocks,
-    # use `@view a[axes_prod...]` instead.
-    # That will require implementing some reindexing logic
-    # for this combination of slicing.
-    m_unblocked = m[sorted_axes...]
-    m_blockpermed = m_unblocked[invblockperm.(blockperms)...]
-    return unmatricize(FusionStyle(BlockSparseArray), m_blockpermed, blocked_axes)
+# Split merged blocks back to unmerged block structure (inverse of sectormergesort for arrays).
+function unsectormergesort(m::AbstractArray, original_axes)
+    N = ndims(m)
+    perms = sectormergesortperm.(original_axes)
+
+    result = zeros(eltype(m), original_axes)
+
+    for I in eachblockstoredindex(m)
+        dest_idx = map(Int, Tuple(I))
+        merged_block_data = m[I]
+
+        # For each dimension, find which source blocks map to this merged block
+        # and their offsets within it.
+        src_groups = ntuple(N) do dim
+            grp = blocks(perms[dim])[dest_idx[dim]]
+            cumoff = 0
+            map(eachindex(grp)) do k
+                off = cumoff
+                cumoff += length(original_axes[dim][grp[k]])
+                return (grp[k], off)
+            end
+        end
+
+        # Iterate over all combinations of source blocks.
+        for src_combo in Iterators.product(src_groups...)
+            src_blocks = ntuple(dim -> src_combo[dim][1], N)  # Block{1, Int64}
+            src_offsets = ntuple(dim -> src_combo[dim][2], N)
+            src_sizes = ntuple(dim -> length(original_axes[dim][src_blocks[dim]]), N)
+            src_region =
+                ntuple(dim -> (src_offsets[dim] + 1):(src_offsets[dim] + src_sizes[dim]), N)
+            src_data = merged_block_data[src_region...]
+            if !all(iszero, src_data)
+                result[src_blocks...] = src_data
+            end
+        end
+    end
+
+    return result
 end
 
 # Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)
-    # TODO: fix this, no clue why broken and no clue how to fix
-    return a
+    axs = axes(a)
+    perms = sectormergesortperm.(axs)
+    merged_axes = sectormergesort.(axs)
 
-    I = sectormergesortperm.(axes(a))
-    return a[I...]
+    result = zeros(eltype(a), merged_axes)
+
+    N = ndims(a)
+
+    function find_dest_and_pos(perm, src_block::Block{1})
+        for (igroup, grp) in enumerate(blocks(perm))
+            pos = findfirst(==(src_block), grp)
+            isnothing(pos) || return (igroup, pos)
+        end
+        return error("Block $src_block not found in permutation")
+    end
+
+    # Group stored source blocks by their destination block
+    dest_groups = Dict{NTuple{N, Int}, Vector{Tuple{Block{N, Int}, NTuple{N, Int}}}}()
+
+    for I in eachblockstoredindex(a)
+        src_block_indices = Tuple(I)
+
+        dest_and_pos = ntuple(N) do dim
+            return find_dest_and_pos(perms[dim], src_block_indices[dim])
+        end
+        dest_idx = ntuple(dim -> dest_and_pos[dim][1], N)
+
+        offsets = ntuple(N) do dim
+            igroup, pos = dest_and_pos[dim]
+            grp = blocks(perms[dim])[igroup]
+            return sum(length(axs[dim][grp[k]]) for k in 1:(pos - 1); init = 0)
+        end
+
+        push!(get!(dest_groups, dest_idx, []), (I, offsets))
+    end
+
+    # Build each destination block from its contributing source blocks
+    for (dest_idx, src_list) in dest_groups
+        dest_size = ntuple(dim -> length(merged_axes[dim][Block(dest_idx[dim])]), N)
+        dest_data = zeros(eltype(a), dest_size)
+
+        for (I, offsets) in src_list
+            src_data = a[I]
+            src_sizes = size(src_data)
+            dest_region =
+                ntuple(dim -> (offsets[dim] + 1):(offsets[dim] + src_sizes[dim]), N)
+            dest_data[dest_region...] = src_data
+        end
+
+        result[Block.(dest_idx)...] = dest_data
+    end
+
+    return result
 end
