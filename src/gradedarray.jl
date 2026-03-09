@@ -74,6 +74,35 @@ function BlockSparseArrays.mortar_axis(geachblockaxis::AbstractVector{<:SectorUn
     return blockrange(geachblockaxis)
 end
 
+# Keep graded labels when slicing by block vectors.
+function BlockSparseArrays.blockedunitrange_getindices(
+        g::GradedUnitRange, indices::Vector{<:BlockArrays.Block{1}}
+    )
+    gblocks = map(index -> g[index], indices)
+    new_axis = mortar_axis(sectorrange.(sector.(gblocks), Base.OneTo.(length.(gblocks))))
+    return BlockArrays.mortar(gblocks, (new_axis,))
+end
+
+function BlockSparseArrays.blockedunitrange_getindices(
+        g::GradedUnitRange, indices::BlockArrays.AbstractBlockVector{<:BlockArrays.Block{1}}
+    )
+    blks = map(bs -> BlockArrays.mortar(map(b -> g[b], bs)), BlockArrays.blocks(indices))
+    new_sectors = map(bs -> sectors(g)[Int.(bs)], BlockArrays.blocks(indices))
+    @assert all(allequal.(new_sectors))
+    new_lengths = length.(blks)
+    new_axis = mortar_axis(sectorrange.(first.(new_sectors), Base.OneTo.(new_lengths)))
+    return BlockArrays.mortar(blks, (new_axis,))
+end
+function Base.getindex(g::GradedUnitRange, indices::Vector{<:BlockArrays.Block{1}})
+    return BlockSparseArrays.blockedunitrange_getindices(g, indices)
+end
+function Base.getindex(
+        g::GradedUnitRange,
+        indices::BlockArrays.AbstractBlockVector{<:BlockArrays.Block{1}}
+    )
+    return BlockSparseArrays.blockedunitrange_getindices(g, indices)
+end
+
 to_gradedrange(g::GradedUnitRange) = g
 
 function Base.show(io::IO, g::GradedUnitRange)
