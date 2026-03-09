@@ -33,8 +33,8 @@ function sectorrange(
     return sectorrange(to_sector(sector), args...)
 end
 
-×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
-×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)
+KroneckerArrays.:×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
+KroneckerArrays.:×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)
 
 to_gradedrange(g::SectorUnitRange) = mortar_axis([g])
 

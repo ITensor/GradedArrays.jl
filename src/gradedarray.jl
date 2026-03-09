@@ -38,16 +38,16 @@ isdual(g::GradedUnitRange) = isdual(first(eachblockaxis(g)))  # crash for empty.
 
 flux(a::AbstractBlockedUnitRange, I::Block{1}) = flux(a[I])
 
-function ×(g1::GradedOneTo, g2::GradedOneTo)
+function KroneckerArrays.:×(g1::GradedOneTo, g2::GradedOneTo)
     v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
     return mortar_axis(v)
 end
 
-×(g::GradedUnitRange, a::AbstractUnitRange) = ×(g, to_gradedrange(a))
-×(a::AbstractUnitRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
-×(g::GradedUnitRange, a::SectorRange) = ×(g, to_gradedrange(a))
-×(a::SectorRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
-function ×(g1::GradedUnitRange, g2::GradedUnitRange)
+KroneckerArrays.:×(g::GradedUnitRange, a::AbstractUnitRange) = ×(g, to_gradedrange(a))
+KroneckerArrays.:×(a::AbstractUnitRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
+KroneckerArrays.:×(g::GradedUnitRange, a::SectorRange) = ×(g, to_gradedrange(a))
+KroneckerArrays.:×(a::SectorRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
+function KroneckerArrays.:×(g1::GradedUnitRange, g2::GradedUnitRange)
     v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
     return mortar_axis(v)
 end
