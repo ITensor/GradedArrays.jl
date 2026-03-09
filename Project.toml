@@ -34,7 +34,7 @@ GradedArraysSUNRepresentationsExt = "SUNRepresentations"
 [compat]
 ArrayLayouts = "1"
 BlockArrays = "1.6"
-BlockSparseArrays = "0.10.35"
+BlockSparseArrays = "0.10.36"
 Compat = "4.16"
 FillArrays = "1.13"
 HalfIntegers = "1.6"
