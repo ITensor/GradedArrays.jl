@@ -136,9 +136,49 @@ end
 
 # Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)
-    # TODO: fix this, no clue why broken and no clue how to fix
-    return a
-
     I = sectormergesortperm.(axes(a))
     return a[I...]
+end
+
+using BlockArrays: AbstractBlockVector, Block
+function Base.getindex(
+        a::GradedArray{<:Any, N},
+        I::Vararg{AbstractBlockVector{<:Block{1}}, N}
+    ) where {N}
+    axes_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), N)
+    a_dest = BlockSparseArray{eltype(a)}(undef, axes_dest)
+
+    grouped_blocks = ntuple(N) do d
+        return map(blocks(I[d])) do bI
+            return map(k -> I[d][k], only(bI.indices))
+        end
+    end
+    grouped_ranges = ntuple(N) do d
+        return map(grouped_blocks[d]) do bs
+            lengths = map(b -> length(axes(a, d)[b]), bs)
+            starts = cumsum(vcat(1, lengths[1:(end - 1)]))
+            return map((s, n) -> s:(s + n - 1), starts, lengths)
+        end
+    end
+
+    for I_dest in CartesianIndices(map(gs -> Base.OneTo(length(gs)), grouped_blocks))
+        src_blocks = ntuple(d -> grouped_blocks[d][I_dest[d]], N)
+        src_ranges = ntuple(d -> grouped_ranges[d][I_dest[d]], N)
+        block_dims = ntuple(d -> sum(length.(src_ranges[d])), N)
+        block_data = zeros(eltype(a), block_dims)
+        block_stored = false
+
+        src_group_indices = Iterators.product(map(Base.OneTo ∘ length, src_blocks)...)
+        for I_src in src_group_indices
+            bI_src = Block(ntuple(d -> src_blocks[d][I_src[d]], N))
+            !isstored(a, bI_src) && continue
+            block_stored = true
+            rI_dest = ntuple(d -> src_ranges[d][I_src[d]], N)
+            block_data[rI_dest...] = a[bI_src]
+        end
+
+        block_stored || continue
+        a_dest[Block(Tuple(I_dest))] = block_data
+    end
+    return a_dest
 end
