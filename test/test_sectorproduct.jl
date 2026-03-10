@@ -1,8 +1,8 @@
-import TensorKitSectors as TKS
 using BlockArrays: blocklengths
 using GradedArrays: GradedArrays, SU2, SectorProduct, TrivialSector, U1, Z, arguments, dual,
     flip, gradedrange, label, quantum_dimension, sector, sector_type, sectorproduct,
     sectorrange, space_isequal, trivial, ×, ⊗
+using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
 

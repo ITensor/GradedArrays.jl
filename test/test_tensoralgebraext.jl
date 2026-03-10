@@ -1,9 +1,11 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray, mortar_axis
-using GradedArrays: GradedArray, GradedMatrix, SU2, U1, dual, flip, gradedrange,
-    sector_type, space_isequal, trivial_gradedrange
+using GradedArrays: GradedArray, GradedMatrix, SU2, SectorDelta, U1, dual, flip,
+    gradedrange, isdual, sector, sector_type, sectorrange, space_isequal, trivial,
+    trivial_gradedrange, ⊗
 using Random: randn!
-using TensorAlgebra: contract, matricize, trivial_axis, unmatricize
+using TensorAlgebra:
+    FusionStyle, contract, matricize, tensor_product_axis, trivial_axis, unmatricize
 using Test: @test, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
@@ -30,6 +32,37 @@ end
         gradedrange([(; N = U1(0)) => 1])
     )
     @test space_isequal(trivial_gradedrange((gN, gS)), gNS)
+end
+
+@testset "SectorDelta domain axis tensor product uses flip" begin
+    r1 = sectorrange(U1(1), 2)
+    r2 = sectorrange(U1(2), 3)
+    rdomain = tensor_product_axis(FusionStyle(SectorDelta), Val(:domain), r1, r2)
+    @test space_isequal(rdomain, flip(r1 ⊗ r2))
+    @test isdual(rdomain)
+    @test sector(rdomain) == flip(U1(3))
+end
+
+@testset "SectorDelta matricize handles empty codomain/domain" begin
+    s1 = U1(1)
+    s2 = U1(2)
+    s3 = U1(-1)
+    d = SectorDelta{Float64}((s1, s2, s3))
+
+    m_left_empty = matricize(d, (), (1, 2, 3))
+    @test axes(m_left_empty, 1) == trivial(sector_type(d))
+    @test axes(m_left_empty, 2) == flip(s1 ⊗ s2 ⊗ s3)
+
+    m_right_empty = matricize(d, (1, 2, 3), ())
+    @test axes(m_right_empty, 1) == s1 ⊗ s2 ⊗ s3
+    @test axes(m_right_empty, 2) == trivial(sector_type(d))
+end
+
+@testset "SectorDelta unmatricize preserves provided axes" begin
+    m = SectorDelta{Float64}((U1(3), flip(U1(3))))
+    @test unmatricize(m, (U1(1), U1(2)), (U1(-2), U1(-1))) ==
+        SectorDelta{Float64}((U1(1), U1(2), U1(-2), U1(-1)))
+    @test unmatricize(m, (U1(1), U1(1)), (U1(-2), U1(-1))) isa SectorDelta
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
