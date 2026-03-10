@@ -146,39 +146,68 @@ function Base.getindex(
         I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {N}
     axes_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), N)
-    a_dest = BlockSparseArray{eltype(a)}(undef, axes_dest)
+    # Preserve `blocktype(a)` (for example GPU blocks) by using `similar`.
+    a_dest = similar(a, eltype(a), axes_dest)
 
+    # Group selected source blocks per destination block index along each dimension.
     grouped_blocks = ntuple(N) do d
-        return map(blocks(I[d])) do bI
-            return map(k -> I[d][k], only(bI.indices))
-        end
-    end
-    grouped_ranges = ntuple(N) do d
-        return map(grouped_blocks[d]) do bs
-            lengths = map(b -> length(axes(a, d)[b]), bs)
-            starts = cumsum(vcat(1, lengths[1:(end - 1)]))
-            return map((s, n) -> s:(s + n - 1), starts, lengths)
+        map(blocks(I[d])) do bI
+            return collect(bI)
         end
     end
 
-    for I_dest in CartesianIndices(map(gs -> Base.OneTo(length(gs)), grouped_blocks))
-        src_blocks = ntuple(d -> grouped_blocks[d][I_dest[d]], N)
-        src_ranges = ntuple(d -> grouped_ranges[d][I_dest[d]], N)
-        block_dims = ntuple(d -> sum(length.(src_ranges[d])), N)
-        block_data = zeros(eltype(a), block_dims)
-        block_stored = false
-
-        src_group_indices = Iterators.product(map(Base.OneTo ∘ length, src_blocks)...)
-        for I_src in src_group_indices
-            bI_src = Block(ntuple(d -> src_blocks[d][I_src[d]], N))
-            !isstored(a, bI_src) && continue
-            block_stored = true
-            rI_dest = ntuple(d -> src_ranges[d][I_src[d]], N)
-            block_data[rI_dest...] = a[bI_src]
+    # Map source block index -> destination block indices containing it.
+    source_to_dest = ntuple(N) do d
+        block_map = Dict{Int, Vector{Int}}()
+        for j in eachindex(grouped_blocks[d]), b in grouped_blocks[d][j]
+            push!(get!(block_map, Int(b), Int[]), j)
         end
+        return block_map
+    end
 
-        block_stored || continue
-        a_dest[Block(Tuple(I_dest))] = block_data
+    # Only process destination blocks that can receive data from stored source blocks.
+    dest_blocks = Set{NTuple{N, Int}}()
+    for bI_src in eachblockstoredindex(a)
+        dest_choices = map(1:N) do d
+            return get(source_to_dest[d], Int(Tuple(bI_src)[d]), Int[])
+        end
+        any(isempty, dest_choices) && continue
+        for bI_dest in Iterators.product(dest_choices...)
+            push!(dest_blocks, ntuple(d -> bI_dest[d], N))
+        end
+    end
+
+    for bI_dest in dest_blocks
+        b = Block(bI_dest)
+        bs = ntuple(d -> grouped_blocks[d][bI_dest[d]], N)
+        view(a_dest, b) .= view(a, bs...)
     end
     return a_dest
+end
+
+function Base.copyto!(C::SectorArray, A::SectorArray)
+    axes(C) == axes(A) || throw(DimensionMismatch())
+    copyto!(C.data, A.data)
+    return C
+end
+function Base.copyto!(
+        C::SectorArray,
+        A::SubArray{<:Any, <:Any, <:BlockSparseArrays.AbstractBlockSparseArray}
+    )
+    size(C) == size(A) || throw(DimensionMismatch())
+    copyto!(C.data, Array(A))
+    return C
+end
+function Base.copyto!(C::SectorArray, A::AbstractArray)
+    size(C) == size(A) || throw(DimensionMismatch())
+    copyto!(C.data, A)
+    return C
+end
+
+# Resolve ambiguity for copying from block-sliced GradedArray views into a block view.
+function Base.copyto!(
+        a_dest::BlockSparseArrays.BlockView{<:Any, <:Any, <:GradedArray},
+        a_src::SubArray{<:Any, <:Any, <:GradedArray}
+    )
+    return copyto!(a_dest, Array(a_src))
 end
