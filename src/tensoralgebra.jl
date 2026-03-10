@@ -147,55 +147,25 @@ function Base.getindex(
     ) where {N}
     axes_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
     a_dest = similar(a, axes_dest)
-
-    # Group selected source blocks per destination block index along each dimension.
-    grouped_blocks = ntuple(N) do d
-        map(blocks(I[d])) do bI
-            return collect(bI)
-        end
-    end
-
-    # Map source block index -> (destination block index, destination subrange).
-    source_to_dest = ntuple(N) do d
-        block_map = Dict{Int, Tuple{Int, UnitRange{Int}}}()
-        for (j, src_blocks) in pairs(grouped_blocks[d])
-            offset = 1
-            for b in src_blocks
-                b_int = Int(b)
-                haskey(block_map, b_int) &&
-                    throw(
-                    ArgumentError(
-                        "Source block appears in multiple destination groups."
-                    )
-                )
-                len_b = length(axes(a, d)[b])
-                block_map[b_int] = (j, offset:(offset + len_b - 1))
-                offset += len_b
+    ax = axes(a)
+    # Map source block index -> (dest block index, subrange); 0 means not selected.
+    src_to_dest = ntuple(N) do d
+        result = fill((0, 0:0), length(blocks(ax[d])))
+        for j in 1:length(blocks(I[d]))
+            grp = I[d][Block(j)]
+            grp_start = first(ax[d][first(grp)])
+            for b in grp
+                result[Int(b)] = (j, ax[d][b] .- (grp_start - 1))
             end
         end
-        return block_map
+        return result
     end
-
-    # Populate destination blocks by placing each stored source block into the
-    # corresponding destination subblock.
     for bI_src in eachblockstoredindex(a)
-        bI_dest = Vector{Int}(undef, N)
-        rI_dest = Vector{UnitRange{Int}}(undef, N)
-        valid_dest = true
-        for d in 1:N
-            dst = get(source_to_dest[d], Int(Tuple(bI_src)[d]), nothing)
-            if isnothing(dst)
-                valid_dest = false
-                break
-            end
-            j, r = dst
-            bI_dest[d] = j
-            rI_dest[d] = r
-        end
-        valid_dest || continue
-        b_dest = Block(Tuple(bI_dest))
-        a_dest_b = @view!(a_dest[b_dest])
-        copyto!(@view(a_dest_b[Tuple(rI_dest)...]), a[bI_src])
+        src_tuple = Tuple(bI_src)
+        info = ntuple(d -> src_to_dest[d][Int(src_tuple[d])], Val(N))
+        any(iszero ∘ first, info) && continue
+        a_dest_b = @view!(a_dest[Block(map(first, info))])
+        copyto!(@view(a_dest_b[map(last, info)...]), a[bI_src])
     end
     return a_dest
 end
