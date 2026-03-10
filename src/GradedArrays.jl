@@ -15,7 +15,6 @@ export dual, flip, gradedrange, isdual,
 
 # imports
 # -------
-import KroneckerArrays: ×
 using BlockArrays: BlockArrays, Block, blocksize
 using BlockSparseArrays: @view!, AbstractBlockSparseArray, BlockOneTo, blockrange
 using KroneckerArrays

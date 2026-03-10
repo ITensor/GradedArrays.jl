@@ -1,6 +1,6 @@
 # This file defines the interface for type Sector
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of Sector
-import TensorKitSectors as TKS
+using TensorKitSectors: TensorKitSectors as TKS
 
 """
     SectorRange(sector::TKS.Sector, isdual::Bool)

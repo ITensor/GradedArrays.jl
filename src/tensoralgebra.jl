@@ -49,7 +49,7 @@ end
 function TensorAlgebra.tensor_product_axis(
         ::SectorFusion, ::Val{:domain}, r1::SectorUnitRange, r2::SectorUnitRange
     )
-    return dual(r1 ⊗ r2)
+    return flip(r1 ⊗ r2)
 end
 function TensorAlgebra.tensor_product_axis(
         style::BlockReshapeFusion, side::Val{:codomain},
@@ -90,11 +90,20 @@ function TensorAlgebra.matricize(
     ) where {Ncodomain}
     biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
     ax_codomain, ax_domain = blocks(axes(a)[biperm])
-    ax_codomain = tensor_product(ax_codomain...)
-    ax_domain = flip(tensor_product(ax_domain...))
+    ax_codomain =
+        isempty(ax_codomain) ? trivial(sector_type(a)) : tensor_product(ax_codomain...)
+    ax_domain =
+        isempty(ax_domain) ? trivial(sector_type(a)) : flip(tensor_product(ax_domain...))
     return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
 end
 
+function TensorAlgebra.unmatricize(
+        ::SectorFusion, m::SectorDelta,
+        codomain_axes::Tuple{Vararg{SectorRange}},
+        domain_axes::Tuple{Vararg{SectorRange}}
+    )
+    return SectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
+end
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::AbstractMatrix,
         codomain_axes::Tuple{Vararg{AbstractUnitRange}},
