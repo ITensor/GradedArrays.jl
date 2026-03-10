@@ -134,6 +134,7 @@ function TensorAlgebra.unmatricize(
     return unmatricize(FusionStyle(BlockSparseArray), m_blockpermed, blocked_axes)
 end
 
+# Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)
     I = sectormergesortperm.(axes(a))
     return a[I...]
