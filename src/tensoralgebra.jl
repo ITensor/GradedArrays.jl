@@ -140,7 +140,7 @@ function sectormergesort(a::AbstractArray)
     return a[I...]
 end
 
-using BlockArrays: AbstractBlockVector, Block, BlockIndexRange
+using BlockArrays: AbstractBlockVector, Block
 function Base.getindex(
         a::GradedArray{<:Any, N},
         I::Vararg{AbstractBlockVector{<:Block{1}}, N}
@@ -150,12 +150,17 @@ function Base.getindex(
     ax = axes(a)
     # Map source Block -> BlockIndexRange encoding dest block + subrange within it
     src_to_dest = ntuple(Val(N)) do d
-        dict = Dict{Block{1}, BlockIndexRange{1}}()
+        key_T = eltype(I[d])
+        range_T = typeof(firstindex(ax[d]):lastindex(ax[d]))
+        bix_T = Base.promote_op(getindex, key_T, range_T)
+        dict = Dict{key_T, bix_T}()
         for j in 1:length(blocks(I[d]))
             grp = I[d][Block(j)]
-            grp_start = first(ax[d][first(grp)])
+            offset = 1
             for b in grp
-                dict[b] = Block(j)[ax[d][b] .- (grp_start - 1)]
+                len = length(ax[d][b])
+                dict[b] = Block(j)[offset:(offset + len - 1)]
+                offset += len
             end
         end
         return dict
