@@ -150,24 +150,23 @@ function Base.getindex(
     ax = axes(a)
     # Map source Block -> BlockIndexRange encoding dest block + subrange within it
     src_to_dest = ntuple(Val(N)) do d
-        key_T = eltype(I[d])
-        range_T = typeof(firstindex(ax[d]):lastindex(ax[d]))
-        bix_T = Base.promote_op(getindex, key_T, range_T)
-        dict = Dict{key_T, bix_T}()
-        for j in 1:length(blocks(I[d]))
-            grp = I[d][Block(j)]
+        key_type = eltype(I[d])
+        range_type = UnitRange{Int}
+        val_type = Base.promote_op(getindex, key_type, range_type)
+        dict = Dict{key_type, val_type}()
+        for j in eachindex(blocks(I[d]))
+            sub_blocks = I[d][Block(j)]
             offset = 1
-            for b in grp
-                len = length(ax[d][b])
-                dict[b] = Block(j)[offset:(offset + len - 1)]
-                offset += len
+            for b in sub_blocks
+                r = Base.OneTo(length(ax[d][b])) .+ (offset - 1)
+                dict[b] = Block(j)[r]
+                offset += length(r)
             end
         end
         return dict
     end
     for bI_src in eachblockstoredindex(a)
         src_tuple = Tuple(bI_src)
-        all(d -> haskey(src_to_dest[d], src_tuple[d]), 1:N) || continue
         dest_info = ntuple(d -> src_to_dest[d][src_tuple[d]], Val(N))
         dest_b = Block(map(di -> only(Tuple(di.block)), dest_info))
         a_dest_b = @view!(a_dest[dest_b])

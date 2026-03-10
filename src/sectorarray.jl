@@ -86,10 +86,9 @@ function Base.show(
         io::IO, g::SectorUnitRange{I, RB, R}
     ) where {I <: SectorRange, RB <: AbstractUnitRange{Int}, R <: AbstractUnitRange{Int}}
     a, b = kroneckerfactors(g)
-    if b isa Base.OneTo
-        print(io, "sectorrange(", a, ", ", unproduct(g), ")")
-    else
-        print(io, "sectorrange(", a, " => ", b, ", ", unproduct(g), ")")
+    print(io, "sectorrange(", a, ", ", b, ")")
+    if !isone(first(g))
+        print(io, " .+ ", first(g) - 1)
     end
     return nothing
 end
