@@ -214,7 +214,7 @@ using Test: @test, @test_throws, @testset
         v = mortar([[Block(2), Block(2)], [Block(1)]])
         a = g[v]
         @test a isa BlockVector
-        @test_broken only(axes(a)) isa GradedOneTo
+        @test only(axes(a)) isa GradedOneTo
         @test_broken space_isequal(
             only(axes(a)),
             gradedrange(["y" => 6, "x" => 2]; isdual = isdual(g))

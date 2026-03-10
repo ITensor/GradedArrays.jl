@@ -161,38 +161,41 @@ end
 
 # =================================  Cartesian Product  ====================================
 
-const sectorproduct = ×
+const sectorproduct = KroneckerArrays.:×
 
-×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
-×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
-×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
+KroneckerArrays.:×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
+KroneckerArrays.:×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
+KroneckerArrays.:×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
 
-function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
+function KroneckerArrays.:×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
     return SectorProduct(arguments(p1)..., arguments(p2)...)
 end
-function ×(p1::SectorProduct{<:NamedTuple}, p2::SectorProduct{<:NamedTuple})
+function KroneckerArrays.:×(
+        p1::SectorProduct{<:NamedTuple},
+        p2::SectorProduct{<:NamedTuple}
+    )
     isdisjoint(keys(arguments(p1)), keys(arguments(p2))) ||
         throw(ArgumentError("keys of SectorProducts must be distinct"))
     return SectorProduct(merge(arguments(p1), arguments(p2)))
 end
-function ×(a::SectorProduct, b::SectorProduct)
+function KroneckerArrays.:×(a::SectorProduct, b::SectorProduct)
     isempty(arguments(a)) && return b
     isempty(arguments(b)) && return a
     throw(MethodError(×, typeof.((a, b))))
 end
 
-×(nt1::NamedTuple) = to_sector(nt1)
-×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))
-×(c1::NamedTuple, c2::SectorRange) = ×(to_sector(c1), c2)
-×(c1::SectorRange, c2::NamedTuple) = ×(c1, to_sector(c2))
+KroneckerArrays.:×(nt1::NamedTuple) = to_sector(nt1)
+KroneckerArrays.:×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))
+KroneckerArrays.:×(c1::NamedTuple, c2::SectorRange) = ×(to_sector(c1), c2)
+KroneckerArrays.:×(c1::SectorRange, c2::NamedTuple) = ×(c1, to_sector(c2))
 
-function ×(pairs::Pair...)
+function KroneckerArrays.:×(pairs::Pair...)
     keys = Symbol.(first.(pairs))
     vals = last.(pairs)
     return ×(NamedTuple{keys}(vals))
 end
 
-function ×(sr1::SectorOneTo, sr2::SectorOneTo)
+function KroneckerArrays.:×(sr1::SectorOneTo, sr2::SectorOneTo)
     isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
     sr = sectorrange(
         sector(sr1) × sector(sr2),

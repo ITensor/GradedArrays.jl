@@ -38,16 +38,16 @@ isdual(g::GradedUnitRange) = isdual(first(eachblockaxis(g)))  # crash for empty.
 
 flux(a::AbstractBlockedUnitRange, I::Block{1}) = flux(a[I])
 
-function ×(g1::GradedOneTo, g2::GradedOneTo)
+function KroneckerArrays.:×(g1::GradedOneTo, g2::GradedOneTo)
     v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
     return mortar_axis(v)
 end
 
-×(g::GradedUnitRange, a::AbstractUnitRange) = ×(g, to_gradedrange(a))
-×(a::AbstractUnitRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
-×(g::GradedUnitRange, a::SectorRange) = ×(g, to_gradedrange(a))
-×(a::SectorRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
-function ×(g1::GradedUnitRange, g2::GradedUnitRange)
+KroneckerArrays.:×(g::GradedUnitRange, a::AbstractUnitRange) = ×(g, to_gradedrange(a))
+KroneckerArrays.:×(a::AbstractUnitRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
+KroneckerArrays.:×(g::GradedUnitRange, a::SectorRange) = ×(g, to_gradedrange(a))
+KroneckerArrays.:×(a::SectorRange, g::GradedUnitRange) = ×(to_gradedrange(a), g)
+function KroneckerArrays.:×(g1::GradedUnitRange, g2::GradedUnitRange)
     v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
     return mortar_axis(v)
 end
@@ -72,6 +72,40 @@ function BlockSparseArrays.mortar_axis(geachblockaxis::AbstractVector{<:SectorUn
     allequal(isdual, geachblockaxis) ||
         throw(ArgumentError("Cannot combine sectors with different arrows"))
     return blockrange(geachblockaxis)
+end
+
+# Keep graded labels when slicing by block vectors.
+function BlockSparseArrays.blockedunitrange_getindices(
+        g::GradedUnitRange, indices::Vector{<:BlockArrays.Block{1}}
+    )
+    gblocks = map(index -> g[index], indices)
+    new_multiplicities = sector_multiplicity.(gblocks)
+    new_axis = mortar_axis(sectorrange.(sector.(gblocks), Base.OneTo.(new_multiplicities)))
+    return BlockArrays.mortar(gblocks, (new_axis,))
+end
+
+function BlockSparseArrays.blockedunitrange_getindices(
+        g::GradedUnitRange, indices::BlockArrays.AbstractBlockVector{<:BlockArrays.Block{1}}
+    )
+    blks = map(bs -> BlockArrays.mortar(map(b -> g[b], bs)), BlockArrays.blocks(indices))
+    new_sectors = map(bs -> sectors(g)[Int.(bs)], BlockArrays.blocks(indices))
+    @assert all(allequal.(new_sectors))
+    new_multiplicities = map(BlockArrays.blocks(indices)) do bs
+        return sum(b -> sector_multiplicity(g[b]), bs; init = 0)
+    end
+    new_axis = mortar_axis(
+        sectorrange.(first.(new_sectors), Base.OneTo.(new_multiplicities))
+    )
+    return BlockArrays.mortar(blks, (new_axis,))
+end
+function Base.getindex(g::GradedUnitRange, indices::Vector{<:BlockArrays.Block{1}})
+    return BlockSparseArrays.blockedunitrange_getindices(g, indices)
+end
+function Base.getindex(
+        g::GradedUnitRange,
+        indices::BlockArrays.AbstractBlockVector{<:BlockArrays.Block{1}}
+    )
+    return BlockSparseArrays.blockedunitrange_getindices(g, indices)
 end
 
 to_gradedrange(g::GradedUnitRange) = g
