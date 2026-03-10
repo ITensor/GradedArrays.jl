@@ -18,7 +18,8 @@ export dual, flip, gradedrange, isdual,
 using BlockArrays: BlockArrays, Block, blocksize
 using BlockSparseArrays:
     BlockSparseArrays, @view!, AbstractBlockSparseArray, BlockOneTo, blockrange
-using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange
+using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange,
+    cartesianrange, kroneckerfactors, unproduct
 using LinearAlgebra: LinearAlgebra, Adjoint
 using SparseArraysBase: isstored
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
