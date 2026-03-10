@@ -215,6 +215,8 @@ using Test: @test, @test_throws, @testset
         a = g[v]
         @test a isa BlockVector
         @test only(axes(a)) isa GradedOneTo
+        @test sector_multiplicities(only(axes(a))) == [6, 2]
+        @test sectors(only(axes(a))) == sectors(g)[[2, 1]]
         @test_broken space_isequal(
             only(axes(a)),
             gradedrange(["y" => 6, "x" => 2]; isdual = isdual(g))
