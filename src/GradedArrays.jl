@@ -16,9 +16,9 @@ export dual, flip, gradedrange, isdual,
 # imports
 # -------
 using BlockArrays: BlockArrays, Block, blocksize
-using BlockSparseArrays: @view!, AbstractBlockSparseArray, BlockOneTo, blockrange
-using KroneckerArrays
-using KroneckerArrays: AbstractKroneckerArray, CartesianProductUnitRange
+using BlockSparseArrays:
+    BlockSparseArrays, @view!, AbstractBlockSparseArray, BlockOneTo, blockrange
+using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange
 using LinearAlgebra: LinearAlgebra, Adjoint
 using SparseArraysBase: isstored
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
