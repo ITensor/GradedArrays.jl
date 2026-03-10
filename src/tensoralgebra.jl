@@ -121,8 +121,14 @@ function TensorAlgebra.unmatricize(
     # First, fuse axes to get `sectormergesortperm`.
     # Then unpermute the blocks.
     fused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
+
     blockperms = sectorsortperm.(fused_axes)
     sorted_axes = map((r, I) -> only(axes(r[I])), fused_axes, blockperms)
+
+    # TODO: This is doing extra copies of the blocks,
+    # use `@view a[axes_prod...]` instead.
+    # That will require implementing some reindexing logic
+    # for this combination of slicing.
     m_unblocked = m[sorted_axes...]
     m_blockpermed = m_unblocked[invblockperm.(blockperms)...]
     return unmatricize(FusionStyle(BlockSparseArray), m_blockpermed, blocked_axes)
