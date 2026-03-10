@@ -140,32 +140,34 @@ function sectormergesort(a::AbstractArray)
     return a[I...]
 end
 
-using BlockArrays: AbstractBlockVector, Block
+using BlockArrays: AbstractBlockVector, Block, BlockIndexRange
 function Base.getindex(
         a::GradedArray{<:Any, N},
         I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {N}
-    axes_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
-    a_dest = similar(a, axes_dest)
+    ax_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
+    a_dest = similar(a, ax_dest)
     ax = axes(a)
-    # Map source block index -> (dest block index, subrange); 0 means not selected.
-    src_to_dest = ntuple(N) do d
-        result = fill((0, 0:0), length(blocks(ax[d])))
+    # Map source Block -> BlockIndexRange encoding dest block + subrange within it
+    src_to_dest = ntuple(Val(N)) do d
+        dict = Dict{Block{1}, BlockIndexRange{1}}()
         for j in 1:length(blocks(I[d]))
             grp = I[d][Block(j)]
             grp_start = first(ax[d][first(grp)])
             for b in grp
-                result[Int(b)] = (j, ax[d][b] .- (grp_start - 1))
+                dict[b] = Block(j)[ax[d][b] .- (grp_start - 1)]
             end
         end
-        return result
+        return dict
     end
     for bI_src in eachblockstoredindex(a)
         src_tuple = Tuple(bI_src)
-        info = ntuple(d -> src_to_dest[d][Int(src_tuple[d])], Val(N))
-        any(iszero ∘ first, info) && continue
-        a_dest_b = @view!(a_dest[Block(map(first, info))])
-        copyto!(@view(a_dest_b[map(last, info)...]), a[bI_src])
+        all(d -> haskey(src_to_dest[d], src_tuple[d]), 1:N) || continue
+        dest_info = ntuple(d -> src_to_dest[d][src_tuple[d]], Val(N))
+        dest_b = Block(map(di -> only(Tuple(di.block)), dest_info))
+        a_dest_b = @view!(a_dest[dest_b])
+        dest_r = map(di -> only(di.indices), dest_info)
+        copyto!(@view(a_dest_b[dest_r...]), a[bI_src])
     end
     return a_dest
 end
