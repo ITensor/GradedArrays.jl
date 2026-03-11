@@ -137,27 +137,24 @@ end
 # in unmatricize, since fused_ax is derived from the block-reshape of m's axes).
 function sectorunmatricize_index(fused_ax, blockperm, m_ax)
     n = length(blockperm)
-    scan = Vector{Tuple{Int, UnitRange{Int}}}(undef, n)
+    bir_type = Base.promote_op(getindex, Block{1, Int}, UnitRange{Int})
+    J = Vector{bir_type}(undef, n)
     j = 1
     offset = 0
     for k′ in 1:n
-        size_k′ = length(fused_ax[blockperm[k′]])
+        k = Int(blockperm[k′])
+        size_k = length(fused_ax[Block(k)])
         m_block_size = length(m_ax[Block(j)])
-        offset + size_k′ ≤ m_block_size ||
+        offset + size_k ≤ m_block_size ||
             throw(ArgumentError("fused_ax blocks do not subdivide m_ax blocks"))
-        scan[k′] = (j, (offset + 1):(offset + size_k′))
-        offset += size_k′
+        J[k] = Block(j)[(offset + 1):(offset + size_k)]
+        offset += size_k
         if offset == m_block_size
             j += 1
             offset = 0
         end
     end
-    iperm = invblockperm(blockperm)
-    return [
-        let (j_k, r_k) = scan[Int(iperm[k])]
-                Block(j_k)[r_k]
-        end for k in 1:n
-    ]
+    return J
 end
 
 using BlockArrays: AbstractBlockVector, Block
@@ -186,7 +183,7 @@ function Base.getindex(
     # Map source block b → list of (dest BlockIndexRange, src subrange).
     # Stored blocks of a not referenced by I are skipped (partial block selection).
     src_to_dests = ntuple(Val(N)) do d
-        key_type = typeof(Block(1))
+        key_type = Block{1, Int}
         dest_bir_type = Base.promote_op(getindex, key_type, Base.OneTo{Int})
         val_type = Tuple{dest_bir_type, UnitRange{Int}}
         dict = Dict{key_type, Vector{val_type}}()
