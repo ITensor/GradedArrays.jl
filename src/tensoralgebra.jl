@@ -119,20 +119,41 @@ function TensorAlgebra.unmatricize(
         return a
     end
 
-    # First, fuse axes to get `sectormergesortperm`.
-    # Then unpermute the blocks.
     fused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
-
     blockperms = sectorsortperm.(fused_axes)
-    sorted_axes = map((r, I) -> only(axes(r[I])), fused_axes, blockperms)
 
-    # TODO: This is doing extra copies of the blocks,
-    # use `@view a[axes_prod...]` instead.
-    # That will require implementing some reindexing logic
-    # for this combination of slicing.
-    m_unblocked = m[sorted_axes...]
-    m_blockpermed = m_unblocked[invblockperm.(blockperms)...]
-    return unmatricize(FusionStyle(BlockSparseArray), m_blockpermed, blocked_axes)
+    # Build a BlockIndexRange index for each axis that composes the inverse block
+    # permutation with the splitting of m's merged blocks into fused sub-blocks.
+    # Each J[d][k] = Block(j)[r] means: dest block k comes from block j of m at subrange r.
+    J = map(fused_axes, blockperms, axes(m)) do fused_ax, blockperm, m_ax
+        n = length(blockperm)
+        # Linear scan: map sorted block k' (= fused block blockperm[k']) to (j, r) in m_ax.
+        # Requires that blocks of fused_ax subdivide blocks of m_ax (commensurate).
+        scan = Vector{Tuple{Int, UnitRange{Int}}}(undef, n)
+        j = 1
+        offset = 0
+        for k′ in 1:n
+            size_k′ = length(fused_ax[blockperm[k′]])
+            m_block_size = length(m_ax[Block(j)])
+            offset + size_k′ ≤ m_block_size ||
+                throw(ArgumentError("fused_ax blocks do not subdivide m_ax blocks"))
+            scan[k′] = (j, (offset + 1):(offset + size_k′))
+            offset += size_k′
+            if offset == m_block_size
+                j += 1
+                offset = 0
+            end
+        end
+        # Compose with inverse permutation: dest block k comes from scan[iperm[k]].
+        iperm = invblockperm(blockperm)
+        return [
+            let (j_k, r_k) = scan[Int(iperm[k])]
+                    Block(j_k)[r_k]
+            end for k in 1:n
+        ]
+    end
+
+    return unmatricize(FusionStyle(BlockSparseArray), m[J...], blocked_axes)
 end
 
 # Sort the blocks by sector and then merge the common sectors.
@@ -141,7 +162,7 @@ function sectormergesort(a::AbstractArray)
     return a[I...]
 end
 
-using BlockArrays: AbstractBlockVector, Block, BlockVector
+using BlockArrays: AbstractBlockVector, Block
 
 # Splitting: each I[d][k] = Block(b)[r] means dest block k comes from source block b
 # at subrange r. This is the inverse of the merging getindex below.
@@ -186,42 +207,6 @@ function Base.getindex(
         end
     end
     return a_dest
-end
-
-# GradedUnitRange index: compute BlockIndexRange per block by linear scan,
-# then delegate to the splitting getindex above.
-# Assumes blocks of each I[d] subdivide blocks of the corresponding axis of a
-# (as is the case in unmatricize, where I[d] is derived from the unmerged fused axis).
-function Base.getindex(
-        a::GradedArray{<:Any, N},
-        I::Vararg{GradedUnitRange, N}
-    ) where {N}
-    J = map(axes(a), I) do src_ax, tgt_ax
-        n = length(sectors(tgt_ax))
-        J_d = Vector{BlockIndexRange{1}}(undef, n)
-        j = 1
-        offset = 0
-        for k in 1:n
-            size_k = length(tgt_ax[Block(k)])
-            J_d[k] = Block(j)[(offset + 1):(offset + size_k)]
-            offset += size_k
-            if offset == length(src_ax[Block(j)])
-                j += 1
-                offset = 0
-            end
-        end
-        return J_d
-    end
-    return a[J...]
-end
-
-# Vector{Block{1}} index: block permutation with no merging.
-# Wraps as a singleton-group BlockVector and delegates to the merging getindex below.
-function Base.getindex(
-        a::GradedArray{<:Any, N},
-        I::Vararg{Vector{<:Block{1}}, N}
-    ) where {N}
-    return a[map(v -> BlockVector(v, fill(1, length(v))), I)...]
 end
 
 # Merging: each I[d] groups source blocks into destination blocks.
