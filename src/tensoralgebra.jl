@@ -156,11 +156,11 @@ function Base.getindex(
         dict = Dict{key_type, val_type}()
         for j in eachindex(blocks(I[d]))
             sub_blocks = I[d][Block(j)]
-            offset = 1
+            start = 1
             for b in sub_blocks
-                r = Base.OneTo(length(ax[d][b])) .+ (offset - 1)
+                r = Base.OneTo(length(ax[d][b])) .+ (start - 1)
                 dict[b] = Block(j)[r]
-                offset += length(r)
+                start += length(r)
             end
         end
         return dict
