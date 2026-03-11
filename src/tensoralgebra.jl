@@ -191,10 +191,7 @@ function Base.getindex(
             bir = I[d][k]
             b = Block(Int(bir.block))
             r = only(bir.indices)
-            push!(
-                get!(dict, b, val_type[]),
-                (Block(k)[Base.OneTo(length(r))], r)
-            )
+            push!(get!(dict, b, val_type[]), (Block(k)[Base.axes1(r)], r))
         end
         return dict
     end
@@ -219,7 +216,7 @@ end
 function Base.getindex(
         a::GradedArray{<:Any, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {N}
-    ax_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
+    ax_dest = ntuple(d -> Base.axes1(axes(a, d)[I[d]]), Val(N))
     a_dest = similar(a, ax_dest)
     ax = axes(a)
     # Map source Block -> BlockIndexRange encoding dest block + subrange within it
