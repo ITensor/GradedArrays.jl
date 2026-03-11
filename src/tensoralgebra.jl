@@ -121,38 +121,7 @@ function TensorAlgebra.unmatricize(
 
     fused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
     blockperms = sectorsortperm.(fused_axes)
-
-    # Build a BlockIndexRange index for each axis that composes the inverse block
-    # permutation with the splitting of m's merged blocks into fused sub-blocks.
-    # Each J[d][k] = Block(j)[r] means: dest block k comes from block j of m at subrange r.
-    J = map(fused_axes, blockperms, axes(m)) do fused_ax, blockperm, m_ax
-        n = length(blockperm)
-        # Linear scan: map sorted block k' (= fused block blockperm[k']) to (j, r) in m_ax.
-        # Requires that blocks of fused_ax subdivide blocks of m_ax (commensurate).
-        scan = Vector{Tuple{Int, UnitRange{Int}}}(undef, n)
-        j = 1
-        offset = 0
-        for k′ in 1:n
-            size_k′ = length(fused_ax[blockperm[k′]])
-            m_block_size = length(m_ax[Block(j)])
-            offset + size_k′ ≤ m_block_size ||
-                throw(ArgumentError("fused_ax blocks do not subdivide m_ax blocks"))
-            scan[k′] = (j, (offset + 1):(offset + size_k′))
-            offset += size_k′
-            if offset == m_block_size
-                j += 1
-                offset = 0
-            end
-        end
-        # Compose with inverse permutation: dest block k comes from scan[iperm[k]].
-        iperm = invblockperm(blockperm)
-        return [
-            let (j_k, r_k) = scan[Int(iperm[k])]
-                    Block(j_k)[r_k]
-            end for k in 1:n
-        ]
-    end
-
+    J = map(sectorunmatricize_index, fused_axes, blockperms, axes(m))
     return unmatricize(FusionStyle(BlockSparseArray), m[J...], blocked_axes)
 end
 
@@ -160,6 +129,31 @@ end
 function sectormergesort(a::AbstractArray)
     I = sectormergesortperm.(axes(a))
     return a[I...]
+end
+
+# Build a Vector{BlockIndexRange{1}} for one axis of unmatricize, composing the inverse
+# block permutation with the splitting of m_ax's merged blocks into fused sub-blocks.
+# Requires that blocks of fused_ax subdivide blocks of m_ax (commensurate by construction
+# in unmatricize, since fused_ax is derived from the block-reshape of m's axes).
+function sectorunmatricize_index(fused_ax, blockperm, m_ax)
+    n = length(blockperm)
+    scan = Vector{Tuple{Int, UnitRange{Int}}}(undef, n)
+    j = 1
+    offset = 0
+    for k′ in 1:n
+        size_k′ = length(fused_ax[blockperm[k′]])
+        m_block_size = length(m_ax[Block(j)])
+        offset + size_k′ ≤ m_block_size ||
+            throw(ArgumentError("fused_ax blocks do not subdivide m_ax blocks"))
+        scan[k′] = (j, (offset + 1):(offset + size_k′))
+        offset += size_k′
+        if offset == m_block_size
+            j += 1
+            offset = 0
+        end
+    end
+    iperm = invblockperm(blockperm)
+    return [let (j_k, r_k) = scan[Int(iperm[k])]; Block(j_k)[r_k]; end for k in 1:n]
 end
 
 using BlockArrays: AbstractBlockVector, Block
@@ -170,15 +164,7 @@ function Base.getindex(
         a::GradedArray{<:Any, N},
         I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {N}
-    ax = axes(a)
-    ax_dest = ntuple(Val(N)) do d
-        return gradedrange(
-            [
-                sectors(ax[d])[Int(I[d][k].block)] => length(only(I[d][k].indices))
-                    for k in eachindex(I[d])
-            ]
-        )
-    end
+    ax_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
     a_dest = similar(a, ax_dest)
     # Map source block b → list of (dest block k, src subrange r, dest subrange 1:length(r))
     src_to_dests = ntuple(Val(N)) do d
