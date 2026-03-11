@@ -1,7 +1,8 @@
-using BlockArrays: blocks, eachblockaxes1
+using BlockArrays: BlockIndexRange, blocks, eachblockaxes1
 using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape
-using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, invblockperm,
-    sectormergesortperm, sectorsortperm, trivial, unmerged_tensor_product, ×
+using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, gradedrange,
+    invblockperm, sectormergesortperm, sectors, sectorsortperm, trivial,
+    unmerged_tensor_product, ×
 using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
     ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
     tuplemortar, unmatricize
@@ -140,7 +141,90 @@ function sectormergesort(a::AbstractArray)
     return a[I...]
 end
 
-using BlockArrays: AbstractBlockVector, Block
+using BlockArrays: AbstractBlockVector, Block, BlockVector
+
+# Splitting: each I[d][k] = Block(b)[r] means dest block k comes from source block b
+# at subrange r. This is the inverse of the merging getindex below.
+function Base.getindex(
+        a::GradedArray{<:Any, N},
+        I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
+    ) where {N}
+    ax = axes(a)
+    ax_dest = ntuple(Val(N)) do d
+        return gradedrange(
+            [
+                sectors(ax[d])[only(Tuple(I[d][k].block))] => length(only(I[d][k].indices))
+                    for k in eachindex(I[d])
+            ]
+        )
+    end
+    a_dest = similar(a, ax_dest)
+    # Map source block b → list of (dest block k, src subrange r, dest subrange 1:length(r))
+    src_to_dests = ntuple(Val(N)) do d
+        dict = Dict{Block{1}, Vector{Tuple{Int, UnitRange{Int}, Base.OneTo{Int}}}}()
+        for k in eachindex(I[d])
+            bir = I[d][k]
+            b = Block(only(Tuple(bir.block)))
+            r = only(bir.indices)
+            push!(
+                get!(dict, b, Tuple{Int, UnitRange{Int}, Base.OneTo{Int}}[]),
+                (k, r, Base.OneTo(length(r)))
+            )
+        end
+        return dict
+    end
+    for bI_src in eachblockstoredindex(a)
+        src_tuple = Tuple(bI_src)
+        all(d -> haskey(src_to_dests[d], src_tuple[d]), 1:N) || continue
+        dest_refs = ntuple(d -> src_to_dests[d][src_tuple[d]], Val(N))
+        for combo in Iterators.product(dest_refs...)
+            dest_b = Block(ntuple(d -> combo[d][1], Val(N)))
+            a_dest_b = @view!(a_dest[dest_b])
+            src_r = ntuple(d -> combo[d][2], Val(N))
+            dest_r = ntuple(d -> combo[d][3], Val(N))
+            copyto!(@view(a_dest_b[dest_r...]), @view(a[bI_src][src_r...]))
+        end
+    end
+    return a_dest
+end
+
+# GradedUnitRange index: compute BlockIndexRange per block by linear scan,
+# then delegate to the splitting getindex above.
+# Assumes blocks of each I[d] subdivide blocks of the corresponding axis of a
+# (as is the case in unmatricize, where I[d] is derived from the unmerged fused axis).
+function Base.getindex(
+        a::GradedArray{<:Any, N},
+        I::Vararg{GradedUnitRange, N}
+    ) where {N}
+    J = map(axes(a), I) do src_ax, tgt_ax
+        n = length(sectors(tgt_ax))
+        J_d = Vector{BlockIndexRange{1}}(undef, n)
+        j = 1
+        offset = 0
+        for k in 1:n
+            size_k = length(tgt_ax[Block(k)])
+            J_d[k] = Block(j)[(offset + 1):(offset + size_k)]
+            offset += size_k
+            if offset == length(src_ax[Block(j)])
+                j += 1
+                offset = 0
+            end
+        end
+        return J_d
+    end
+    return a[J...]
+end
+
+# Vector{Block{1}} index: block permutation with no merging.
+# Wraps as a singleton-group BlockVector and delegates to the merging getindex below.
+function Base.getindex(
+        a::GradedArray{<:Any, N},
+        I::Vararg{Vector{<:Block{1}}, N}
+    ) where {N}
+    return a[map(v -> BlockVector(v, fill(1, length(v))), I)...]
+end
+
+# Merging: each I[d] groups source blocks into destination blocks.
 function Base.getindex(
         a::GradedArray{<:Any, N},
         I::Vararg{AbstractBlockVector{<:Block{1}}, N}
