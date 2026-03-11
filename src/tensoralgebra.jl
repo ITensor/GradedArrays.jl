@@ -121,7 +121,7 @@ function TensorAlgebra.unmatricize(
 
     fused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
     blockperms = sectorsortperm.(fused_axes)
-    J = map(sectorunmatricize_index, fused_axes, blockperms, axes(m))
+    J = map(invblockmergeperm, fused_axes, blockperms, axes(m))
     return unmatricize(FusionStyle(BlockSparseArray), m[J...], blocked_axes)
 end
 
@@ -131,11 +131,11 @@ function sectormergesort(a::AbstractArray)
     return a[I...]
 end
 
-# Build a Vector{BlockIndexRange{1}} for one axis of unmatricize, composing the inverse
-# block permutation with the splitting of m_ax's merged blocks into fused sub-blocks.
-# Requires that blocks of fused_ax subdivide blocks of m_ax (commensurate by construction
-# in unmatricize, since fused_ax is derived from the block-reshape of m's axes).
-function sectorunmatricize_index(fused_ax, blockperm, m_ax)
+# Returns a Vector{BlockIndexRange{1}} mapping each block of fine_ax (in original order)
+# to its position (block + subrange) within the merged axis merged_ax, given the block
+# permutation blockperm used to sort and merge fine_ax into merged_ax.
+# Requires that blocks of fine_ax subdivide blocks of merged_ax.
+function invblockmergeperm(fine_ax, blockperm, merged_ax)
     n = length(blockperm)
     bir_type = Base.promote_op(getindex, Block{1, Int}, UnitRange{Int})
     J = Vector{bir_type}(undef, n)
@@ -143,13 +143,13 @@ function sectorunmatricize_index(fused_ax, blockperm, m_ax)
     offset = 0
     for k′ in 1:n
         k = Int(blockperm[k′])
-        size_k = length(fused_ax[Block(k)])
-        m_block_size = length(m_ax[Block(j)])
-        offset + size_k ≤ m_block_size ||
-            throw(ArgumentError("fused_ax blocks do not subdivide m_ax blocks"))
+        size_k = length(fine_ax[Block(k)])
+        merged_block_size = length(merged_ax[Block(j)])
+        offset + size_k ≤ merged_block_size ||
+            throw(ArgumentError("fine_ax blocks do not subdivide merged_ax blocks"))
         J[k] = Block(j)[(offset + 1):(offset + size_k)]
         offset += size_k
-        if offset == m_block_size
+        if offset == merged_block_size
             j += 1
             offset = 0
         end
