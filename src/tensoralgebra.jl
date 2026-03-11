@@ -158,24 +158,42 @@ end
 
 using BlockArrays: AbstractBlockVector, Block
 
+function checkindices(
+        a::GradedArray{<:Any, N},
+        I::NTuple{N, AbstractVector{<:BlockIndexRange{1}}}
+    ) where {N}
+    for d in 1:N
+        nblocks_d = length(axes(a, d))
+        for bir in I[d]
+            Int(bir.block) ≤ nblocks_d ||
+                throw(BlockBoundsError(a, ntuple(i -> i == d ? bir : I[i][1], Val(N))))
+        end
+    end
+end
+
 # Splitting: each I[d][k] = Block(b)[r] means dest block k comes from source block b
 # at subrange r. This is the inverse of the merging getindex below.
 function Base.getindex(
         a::GradedArray{<:Any, N},
         I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {N}
+    checkindices(a, I)
     ax_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
     a_dest = similar(a, ax_dest)
-    # Map source block b → list of (dest block k, src subrange r, dest subrange 1:length(r))
+    # Map source block b → list of (dest BlockIndexRange, src subrange).
+    # Stored blocks of a not referenced by I are skipped (partial block selection).
     src_to_dests = ntuple(Val(N)) do d
-        dict = Dict{Block{1}, Vector{Tuple{Int, UnitRange{Int}, Base.OneTo{Int}}}}()
+        key_type = typeof(Block(1))
+        dest_bir_type = Base.promote_op(getindex, key_type, Base.OneTo{Int})
+        val_type = Tuple{dest_bir_type, UnitRange{Int}}
+        dict = Dict{key_type, Vector{val_type}}()
         for k in eachindex(I[d])
             bir = I[d][k]
             b = Block(Int(bir.block))
             r = only(bir.indices)
             push!(
-                get!(dict, b, Tuple{Int, UnitRange{Int}, Base.OneTo{Int}}[]),
-                (k, r, Base.OneTo(length(r)))
+                get!(dict, b, val_type[]),
+                (Block(k)[Base.OneTo(length(r))], r)
             )
         end
         return dict
@@ -185,10 +203,10 @@ function Base.getindex(
         all(d -> haskey(src_to_dests[d], src_tuple[d]), 1:N) || continue
         dest_refs = ntuple(d -> src_to_dests[d][src_tuple[d]], Val(N))
         for combo in Iterators.product(dest_refs...)
-            dest_b = Block(ntuple(d -> combo[d][1], Val(N)))
+            dest_b = Block(ntuple(d -> only(Tuple(combo[d][1].block)), Val(N)))
             a_dest_b = @view!(a_dest[dest_b])
             src_r = ntuple(d -> combo[d][2], Val(N))
-            dest_r = ntuple(d -> combo[d][3], Val(N))
+            dest_r = ntuple(d -> only(combo[d][1].indices), Val(N))
             copyto!(@view(a_dest_b[dest_r...]), @view(a[bI_src][src_r...]))
         end
     end
