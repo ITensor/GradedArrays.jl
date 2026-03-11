@@ -153,14 +153,17 @@ function sectorunmatricize_index(fused_ax, blockperm, m_ax)
         end
     end
     iperm = invblockperm(blockperm)
-    return [let (j_k, r_k) = scan[Int(iperm[k])]; Block(j_k)[r_k]; end for k in 1:n]
+    return [
+        let (j_k, r_k) = scan[Int(iperm[k])]
+                Block(j_k)[r_k]
+        end for k in 1:n
+    ]
 end
 
 using BlockArrays: AbstractBlockVector, Block
 
 function checkindices(
-        a::GradedArray{<:Any, N},
-        I::NTuple{N, AbstractVector{<:BlockIndexRange{1}}}
+        a::GradedArray{<:Any, N}, I::NTuple{N, AbstractVector{<:BlockIndexRange{1}}}
     ) where {N}
     for d in 1:N
         nblocks_d = length(axes(a, d))
@@ -169,13 +172,13 @@ function checkindices(
                 throw(BlockBoundsError(a, ntuple(i -> i == d ? bir : I[i][1], Val(N))))
         end
     end
+    return nothing
 end
 
 # Splitting: each I[d][k] = Block(b)[r] means dest block k comes from source block b
 # at subrange r. This is the inverse of the merging getindex below.
 function Base.getindex(
-        a::GradedArray{<:Any, N},
-        I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
+        a::GradedArray{<:Any, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {N}
     checkindices(a, I)
     ax_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
@@ -203,11 +206,13 @@ function Base.getindex(
         all(d -> haskey(src_to_dests[d], src_tuple[d]), 1:N) || continue
         dest_refs = ntuple(d -> src_to_dests[d][src_tuple[d]], Val(N))
         for combo in Iterators.product(dest_refs...)
+            src_r = ntuple(d -> combo[d][2], Val(N))
+            src_data = @view(a[bI_src][src_r...])
+            iszero(src_data) && continue
             dest_b = Block(ntuple(d -> only(Tuple(combo[d][1].block)), Val(N)))
             a_dest_b = @view!(a_dest[dest_b])
-            src_r = ntuple(d -> combo[d][2], Val(N))
             dest_r = ntuple(d -> only(combo[d][1].indices), Val(N))
-            copyto!(@view(a_dest_b[dest_r...]), @view(a[bI_src][src_r...]))
+            copyto!(@view(a_dest_b[dest_r...]), src_data)
         end
     end
     return a_dest
@@ -215,8 +220,7 @@ end
 
 # Merging: each I[d] groups source blocks into destination blocks.
 function Base.getindex(
-        a::GradedArray{<:Any, N},
-        I::Vararg{AbstractBlockVector{<:Block{1}}, N}
+        a::GradedArray{<:Any, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {N}
     ax_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
     a_dest = similar(a, ax_dest)
