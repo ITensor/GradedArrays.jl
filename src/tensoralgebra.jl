@@ -153,7 +153,7 @@ function Base.getindex(
     ax_dest = ntuple(Val(N)) do d
         return gradedrange(
             [
-                sectors(ax[d])[only(Tuple(I[d][k].block))] => length(only(I[d][k].indices))
+                sectors(ax[d])[Int(I[d][k].block)] => length(only(I[d][k].indices))
                     for k in eachindex(I[d])
             ]
         )
@@ -164,7 +164,7 @@ function Base.getindex(
         dict = Dict{Block{1}, Vector{Tuple{Int, UnitRange{Int}, Base.OneTo{Int}}}}()
         for k in eachindex(I[d])
             bir = I[d][k]
-            b = Block(only(Tuple(bir.block)))
+            b = Block(Int(bir.block))
             r = only(bir.indices)
             push!(
                 get!(dict, b, Tuple{Int, UnitRange{Int}, Base.OneTo{Int}}[]),
