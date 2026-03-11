@@ -368,7 +368,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             I = [Block(1)[1:1]]
             @test_broken size(b[I, :]) == (1, 4)
             @test_broken size(b[:, I]) == (4, 1)
-            @test_broken size(b[I, I]) == (1, 1)
+            @test size(b[I, I]) == (1, 1)
         end
     end
     @testset "Matrix multiplication" begin
