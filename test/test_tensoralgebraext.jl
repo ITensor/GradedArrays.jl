@@ -6,7 +6,7 @@ using GradedArrays: GradedArray, GradedMatrix, SU2, SectorDelta, U1, dual, flip,
 using Random: randn!
 using TensorAlgebra:
     FusionStyle, contract, matricize, tensor_product_axis, trivial_axis, unmatricize
-using Test: @test, @test_broken, @testset
+using Test: @test, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
     a = BlockSparseArray{elt}(undef, axes)
@@ -65,8 +65,6 @@ end
     @test unmatricize(m, (U1(1), U1(1)), (U1(-2), U1(-1))) isa SectorDelta
 end
 
-const contract_broken = true
-
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 @testset "`contract` `GradedArray` (eltype=$elt)" for elt in elts
     @testset "matricize" begin
@@ -115,7 +113,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test a == unmatricize(m, (), (d1, d2, dual(d1), dual(d2)))
     end
 
-    contract_broken || @testset "contract with U(1)" begin
+    @testset "contract with U(1)" begin
         d = gradedrange([U1(0) => 2, U1(1) => 3])
         a1 = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
         a2 = randn_blockdiagonal(elt, (d, d, dual(d), dual(d)))
