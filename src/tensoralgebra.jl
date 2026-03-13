@@ -115,6 +115,18 @@ function TensorAlgebra.unmatricize(
     return unmatricize(FusionStyle(BlockSparseArray), m[J...], blocked_axes)
 end
 
+function TensorAlgebra.permutedimsadd!(
+        y::SectorArray, x::SectorArray, perm,
+        α::Number, β::Number
+    )
+    ysectors, ydata = kroneckerfactors(y)
+    xsectors, xdata = kroneckerfactors(x)
+    ysectors == permutedims(xsectors, perm) || throw(DimensionMismatch())
+    phase = permutation_phase(xsectors, perm)
+    TensorAlgebra.permutedimsadd!(ydata, xdata, perm, phase * α, β)
+    return y
+end
+
 # Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)
     I = sectormergesortperm.(axes(a))

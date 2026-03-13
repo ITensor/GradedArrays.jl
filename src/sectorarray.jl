@@ -327,6 +327,55 @@ function Base.adjoint(a::SectorArray)
     return SectorArray(axes(sectors_adjoint), adjoint(kroneckerfactors(a, 2)))
 end
 
+# Fermionic specializations
+# -------------------------
+function permutation_phase(x::SectorDelta{<:Any, N}, perm::NTuple{N, Int}) where {N}
+    require_unique_fusion(x)
+    BS = TKS.BraidingStyle(sector_type(x))
+    BS isa TKS.Bosonic && return true
+    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
+
+    mask = map(TKS.fermionparity, sectors(x))
+    return masked_inversion_parity(mask, perm)
+end
+
+"""
+Compute the parity of the number of inversions of a masked permutation
+"""
+function masked_inversion_parity(mask::NTuple{N, Bool}, perm::NTuple{N, Int}) where {N}
+    parity = false
+    @inbounds for i in 1:N
+        mask[i] || continue
+        for j in (i + 1):N
+            parity ⊻= mask[j] & (perm[i] > perm[j]) # branchless is important here
+        end
+    end
+    return ifelse(parity, -1, 1)
+end
+
+function Base.permutedims(x::SectorArray, perm)
+    delta, data = permutedims.(kroneckerfactors(x), Ref(perm))
+    phase = permutation_phase(kroneckerfactors(x, 1), perm)
+    return isone(phase) ? delta ⊗ data : delta ⊗ (phase * data)
+end
+function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
+    return TensorAlgebra.permutedimsadd!(y, x, perm, true, false)
+end
+# no lazy view of fermionic permuted dims to avoid recomputing phases with scalar index
+function KroneckerArrays.FunctionImplementations.permuteddims(x::SectorArray, perm)
+    return if TKS.BraidingStyle(sector_type(x)) isa TKS.Bosonic
+        delta = KroneckerArrays.FunctionImplementations.permuteddims(
+            kroneckerfactors(x, 1), perm
+        )
+        data = KroneckerArrays.FunctionImplementations.permuteddims(
+            kroneckerfactors(x, 2), perm
+        )
+        SectorArray(delta.sectors, data)
+    else
+        permutedims(x, perm)
+    end
+end
+
 # Other
 # -----
 function KroneckerArrays.:(⊗)(A::SectorDelta{T, N}, data::AbstractArray{T, N}) where {T, N}
