@@ -248,6 +248,7 @@ function KroneckerArrays.kroneckerfactortypes(
 end
 
 sectors(A::SectorArray) = A.sectors
+sectors(A::SectorArray, i) = A.sectors[i]
 
 sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = I
 data_type(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
