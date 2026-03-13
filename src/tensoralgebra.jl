@@ -1,19 +1,9 @@
-using BlockArrays: BlockIndexRange, blocks, eachblockaxes1
-using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape
-using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, gradedrange,
-    invblockperm, sectormergesortperm, sectors, sectorsortperm, trivial,
-    unmerged_tensor_product, ×
-using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
-    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
-    tuplemortar, unmatricize
-
 struct SectorFusion <: FusionStyle end
 
 TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorUnitRange}) = SectorFusion()
 
-using BlockArrays: AbstractBlockArray
 const BlockReshapeFusion = typeof(FusionStyle(AbstractBlockArray))
 
 function TensorAlgebra.trivial_axis(
@@ -156,8 +146,6 @@ function invblockmergeperm(fine_ax, blockperm, merged_ax)
     end
     return J
 end
-
-using BlockArrays: AbstractBlockVector, Block
 
 function checkindices(
         a::GradedArray{<:Any, N}, I::NTuple{N, AbstractVector{<:BlockIndexRange{1}}}
