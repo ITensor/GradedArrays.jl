@@ -1,6 +1,7 @@
 struct SectorFusion <: FusionStyle end
 
 TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:SectorArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorUnitRange}) = SectorFusion()
 
@@ -87,6 +88,23 @@ function TensorAlgebra.matricize(
         isempty(ax_domain) ? trivial(sector_type(a)) : flip(tensor_product(ax_domain...))
     return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
 end
+function TensorAlgebra.matricize(
+        ::SectorFusion, a::SectorArray, length_codomain::Val
+    )
+    asectors, adata = kroneckerfactors(a)
+    asectors_reshaped = matricize(asectors, length_codomain)
+    adata_reshaped = matricize(adata, length_codomain)
+
+    T = TKS.sectorscalartype(sector_type(a))
+    phase = prod(
+        ntuple(length_codomain) do i
+            return ifelse(isdual(axes(a, i)), twist(sectors(a, i)), one(T))
+        end
+    )
+    isone(phase) || (adata_reshaped .*= phase)
+
+    return SectorArray(asectors_reshaped.sectors, adata_reshaped)
+end
 
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::SectorDelta,
@@ -113,6 +131,34 @@ function TensorAlgebra.unmatricize(
     blockperms = sectorsortperm.(fused_axes)
     J = map(invblockmergeperm, fused_axes, blockperms, axes(m))
     return unmatricize(FusionStyle(BlockSparseArray), m[J...], blocked_axes)
+end
+function TensorAlgebra.unmatricize(
+        ::SectorFusion, m::SectorMatrix,
+        codomain_axes::Tuple{Vararg{AbstractUnitRange}},
+        domain_axes::Tuple{Vararg{AbstractUnitRange}}
+    )
+    msectors, mdata = kroneckerfactors(m)
+    msectors = unmatricize(
+        kroneckerfactors(m, 1),
+        kroneckerfactors.(codomain_axes, 1),
+        kroneckerfactors.(domain_axes, 1)
+    )
+    mdata = unmatricize(
+        kroneckerfactors(m, 2),
+        kroneckerfactors.(codomain_axes, 2),
+        kroneckerfactors.(domain_axes, 2)
+    )
+
+    T = TKS.sectorscalartype(sector_type(m))
+    phase = prod(
+        ntuple(length(codomain_axes)) do i
+            ax = kroneckerfactors(codomain_axes[i], 1)
+            return ifelse(isdual(ax), twist(ax), one(T))
+        end
+    )
+    isone(phase) || (mdata .*= phase)
+
+    return SectorArray(msectors.sectors, mdata)
 end
 
 function TensorAlgebra.permutedimsadd!(
