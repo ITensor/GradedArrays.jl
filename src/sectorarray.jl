@@ -187,13 +187,23 @@ function Base.:(*)(a::SectorDelta{T₁, 2, I}, b::SectorDelta{T₂, 2, I}) where
     return SectorDelta{T}((axes(a, 1), axes(b, 2)))
 end
 
-# want to add something to opt out of the broadcasting kronecker thingies
-# so need something to dispatch on...
-# struct SectorStyle{I, N} <: Broadcast.AbstractArrayStyle{N} end
-# SectorStyle{I, N}(::Val{M}) where {I, N, M} = SectorStyle{I, M}()
-#
-# Base.BroadcastStyle(::Type{T}) where {T <: SectorDelta} = SectorStyle{sector_type(T), ndims(T)}
-#
+using Base.Broadcast: Broadcast as BC
+using TensorAlgebra: TensorAlgebra, *ₗ, +ₗ, -ₗ, /ₗ, conjed
+
+struct SectorStyle{I, N} <: BC.AbstractArrayStyle{N} end
+SectorStyle{I, N}(::Val{M}) where {I, N, M} = SectorStyle{I, M}()
+
+function BC.BroadcastStyle(::Type{T}) where {T <: SectorDelta}
+    return SectorStyle{sector_type(T), ndims(T)}()
+end
+BC.BroadcastStyle(style::SectorStyle{I, N}, ::BC.DefaultArrayStyle{0}) where {I, N} = style
+BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{I, N}) where {I, N} = style
+function BC.BroadcastStyle(
+        style1::SectorStyle{I, N},
+        style2::SectorStyle{I, N}
+    ) where {I, N}
+    return style1
+end
 
 """
     SectorArray(sectors, data) <: AbstractKroneckerArray
@@ -232,6 +242,10 @@ function SectorArray{T}(
 end
 function SectorArray(sectors::NTuple{N, I}, data::AbstractArray{T, N}) where {T, I, N}
     return SectorArray{T, N, I, typeof(data)}(sectors, data)
+end
+
+function BC.BroadcastStyle(::Type{T}) where {T <: SectorArray}
+    return SectorStyle{sector_type(T), ndims(T)}()
 end
 
 const SectorMatrix{T, I, A <: AbstractMatrix{T}} = SectorArray{T, 2, I, A}
@@ -346,3 +360,84 @@ function Base.materialize!(dst::SectorArray, src::KroneckerArrays.KroneckerBroad
     Base.materialize!(kroneckerfactors(dst, 2), kroneckerfactors(src, 2))
     return dst
 end
+
+function set_data(a::SectorArray, data::AbstractArray)
+    axes(data) == axes(a.data) ||
+        throw(ArgumentError("linear broadcasting must preserve SectorArray axes"))
+    return SectorArray(sectors(a), data)
+end
+
+function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
+    axes(a) == axes(b) ||
+        throw(ArgumentError("SectorArray linear broadcasting requires matching axes"))
+    return nothing
+end
+
+function sector_broadcast_error(f)
+    throw(
+        ArgumentError(
+            "Only linear broadcast operations are supported for SectorArray, got `$f`."
+        )
+    )
+end
+
+function sector_linear_broadcast_apply(::typeof(+), a::SectorArray, b::SectorArray)
+    return a +ₗ b
+end
+function sector_linear_broadcast_apply(::typeof(-), a::SectorArray, b::SectorArray)
+    return a -ₗ b
+end
+function sector_linear_broadcast_apply(::typeof(-), a::SectorArray)
+    return -ₗ(a)
+end
+sector_linear_broadcast_apply(::typeof(*), α::Number, a::SectorArray) = α *ₗ a
+sector_linear_broadcast_apply(::typeof(*), a::SectorArray, α::Number) = a *ₗ α
+function sector_linear_broadcast_apply(::typeof(/), a::SectorArray, α::Number)
+    return a /ₗ α
+end
+function sector_linear_broadcast_apply(::typeof(conj), a::SectorArray)
+    return TensorAlgebra.conjed(a)
+end
+sector_linear_broadcast_apply(::typeof(*), α::Number, β::Number) = α * β
+sector_linear_broadcast_apply(f, args...) = sector_broadcast_error(f)
+
+function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
+    check_sector_broadcast_axes(a, b)
+    return set_data(a, TensorAlgebra.:+ₗ(a.data, b.data))
+end
+
+function TensorAlgebra.:*ₗ(α::Number, a::SectorArray)
+    return set_data(a, TensorAlgebra.:*ₗ(α, a.data))
+end
+TensorAlgebra.:*ₗ(a::SectorArray, α::Number) = TensorAlgebra.:*ₗ(α, a)
+TensorAlgebra.conjed(a::SectorArray) = set_data(a, TensorAlgebra.conjed(a.data))
+
+function BC.broadcasted(::SectorStyle, ::typeof(+), a::SectorArray, b::SectorArray)
+    return a +ₗ b
+end
+function BC.broadcasted(::SectorStyle, ::typeof(-), a::SectorArray, b::SectorArray)
+    return a -ₗ b
+end
+function BC.broadcasted(::SectorStyle, ::typeof(-), a::SectorArray)
+    return -ₗ(a)
+end
+BC.broadcasted(::SectorStyle, ::typeof(*), α::Number, a::SectorArray) = α *ₗ a
+BC.broadcasted(::SectorStyle, ::typeof(*), a::SectorArray, α::Number) = a *ₗ α
+function BC.broadcasted(::SectorStyle, ::typeof(/), a::SectorArray, α::Number)
+    return a /ₗ α
+end
+function BC.broadcasted(::SectorStyle, ::typeof(conj), a::SectorArray)
+    return TensorAlgebra.conjed(a)
+end
+BC.broadcasted(::SectorStyle, ::typeof(identity), a::SectorArray) = a
+BC.broadcasted(::SectorStyle, ::typeof(+), a::SectorArray) = a
+function BC.broadcasted(::SectorStyle, f::Base.Fix1{typeof(*), <:Number}, a::SectorArray)
+    return f.x *ₗ a
+end
+function BC.broadcasted(::SectorStyle, f::Base.Fix2{typeof(*), <:Number}, a::SectorArray)
+    return a *ₗ f.x
+end
+function BC.broadcasted(::SectorStyle, f::Base.Fix2{typeof(/), <:Number}, a::SectorArray)
+    return a /ₗ f.x
+end
+BC.broadcasted(::SectorStyle, f, args...) = sector_broadcast_error(f)
