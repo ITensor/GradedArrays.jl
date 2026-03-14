@@ -1,12 +1,12 @@
 using BlockArrays: Block, blocksize
 using BlockSparseArrays: BlockSparseArray, mortar_axis
-using GradedArrays: GradedArray, GradedMatrix, SU2, SectorDelta, U1, dual, flip,
-    gradedrange, isdual, sector, sector_type, sectorrange, space_isequal, trivial,
+using GradedArrays: GradedArray, GradedMatrix, SU2, SectorArray, SectorDelta, U1, dual,
+    flip, gradedrange, isdual, sector, sector_type, sectorrange, space_isequal, trivial,
     trivial_gradedrange, ⊗
 using Random: randn!
-using TensorAlgebra:
-    FusionStyle, contract, matricize, tensor_product_axis, trivial_axis, unmatricize
-using Test: @test, @testset
+using TensorAlgebra: *ₗ, +ₗ, -ₗ, /ₗ, FusionStyle, conjed, contract, matricize,
+    tensor_product_axis, trivial_axis, unmatricize
+using Test: @test, @test_throws, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
     a = BlockSparseArray{elt}(undef, axes)
@@ -63,6 +63,31 @@ end
     @test unmatricize(m, (U1(1), U1(2)), (U1(-2), U1(-1))) ==
         SectorDelta{Float64}((U1(1), U1(2), U1(-2), U1(-1)))
     @test unmatricize(m, (U1(1), U1(1)), (U1(-2), U1(-1))) isa SectorDelta
+end
+
+@testset "SectorArray linear broadcasting" begin
+    s = SectorArray((U1(0), dual(U1(0))), randn!(Matrix{ComplexF64}(undef, 2, 2)))
+    t = SectorArray((U1(0), dual(U1(0))), randn!(Matrix{ComplexF64}(undef, 2, 2)))
+    @test s isa SectorArray
+    @test t isa SectorArray
+
+    α = 2.0
+    β = -3.0
+
+    st = α .* s .+ β .* t
+    @test Array(st) ≈ α .* Array(s) .+ β .* Array(t)
+    @test axes(st) == axes(s)
+    @test Array(α *ₗ s +ₗ β *ₗ t) ≈ α .* Array(s) .+ β .* Array(t)
+    @test axes(α *ₗ s +ₗ β *ₗ t) == axes(s)
+
+    conjdiff = conj.(s) .- t ./ β
+    @test Array(conjdiff) ≈ conj.(Array(s)) .- Array(t) ./ β
+    @test axes(conjdiff) == axes(s)
+    @test Array(conjed(s) -ₗ (t /ₗ β)) ≈ conj.(Array(s)) .- Array(t) ./ β
+    @test axes(conjed(s) -ₗ (t /ₗ β)) == axes(s)
+
+    @test_throws ArgumentError s .* t
+    @test_throws ArgumentError exp.(s)
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})

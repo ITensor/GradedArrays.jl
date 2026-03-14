@@ -1,8 +1,11 @@
 using ArrayLayouts: ArrayLayouts
+using Base.Broadcast: Broadcast as BC
 using BlockArrays: AbstractBlockedUnitRange, BlockedOneTo, blockisequal
 using BlockSparseArrays: BlockSparseArrays, AbstractBlockSparseMatrix,
     AnyAbstractBlockSparseArray, BlockSparseArray, BlockUnitRange, blocktype,
     eachblockstoredindex, sparsemortar
+using FillArrays: Zeros, fillsimilar
+using TensorAlgebra: TensorAlgebra, *ₗ, +ₗ, -ₗ, /ₗ, conjed
 using TypeParameterAccessors: similartype, unwrap_array_type
 
 # Axes
@@ -130,6 +133,27 @@ const GradedArray{T, N, I, A, Blocks, Axes <: NTuple{N, GradedUnitRange{I}}} =
 const GradedMatrix{T, I, A, Blocks, Axes} = GradedArray{T, 2, A, Blocks, Axes}
 const GradedVector{T, I, A, Blocks, Axes} = GradedArray{T, 1, A, Blocks, Axes}
 
+struct GradedStyle{I, N} <: BC.AbstractArrayStyle{N} end
+GradedStyle{I, N}(::Val{M}) where {I, N, M} = GradedStyle{I, M}()
+
+function BC.BroadcastStyle(::Type{<:GradedArray{<:Any, N, I}}) where {N, I}
+    return GradedStyle{I, N}()
+end
+BC.BroadcastStyle(style::GradedStyle{I, N}, ::BC.DefaultArrayStyle{0}) where {I, N} = style
+BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::GradedStyle{I, N}) where {I, N} = style
+function BC.BroadcastStyle(::GradedStyle{I, N}, ::BC.DefaultArrayStyle{N}) where {I, N}
+    return BC.DefaultArrayStyle{N}()
+end
+function BC.BroadcastStyle(::BC.DefaultArrayStyle{N}, ::GradedStyle{I, N}) where {I, N}
+    return BC.DefaultArrayStyle{N}()
+end
+function BC.BroadcastStyle(
+        style1::GradedStyle{I, N},
+        style2::GradedStyle{I, N}
+    ) where {I, N}
+    return style1
+end
+
 # Specific overloads
 # ------------------
 # convert Array to SectorArray upon insertion
@@ -165,6 +189,143 @@ function Base.setindex!(
     end
     return A
 end
+
+function check_graded_broadcast_axes(a::GradedArray, b::GradedArray)
+    all(dim -> space_isequal(axes(a, dim), axes(b, dim)), 1:ndims(a)) ||
+        throw(
+        ArgumentError("GradedArray linear broadcasting requires matching graded axes")
+    )
+    return nothing
+end
+
+function graded_broadcast_error(f)
+    throw(
+        ArgumentError(
+            "Only linear broadcast operations are supported for GradedArray, got `$f`."
+        )
+    )
+end
+
+function graded_broadcast_arg(x, I::Block)
+    return x
+end
+function graded_viewblock_or_zeros(
+        a::GradedArray{<:Any, N},
+        I::Vararg{Block{1}, N}
+    ) where {N}
+    if isstored(a, I...)
+        return blocks(a)[Int.(I)...]
+    else
+        block_ax = map((ax, i) -> eachblockaxis(ax)[Int(i)], axes(a), I)
+        return fillsimilar(Zeros{eltype(a)}(block_ax), block_ax)
+    end
+end
+function graded_viewblock_or_zeros(a::GradedArray{<:Any, N}, I::Block{N}) where {N}
+    return graded_viewblock_or_zeros(a, Tuple(I)...)
+end
+function graded_broadcast_arg(a::GradedArray, I::Block)
+    return graded_viewblock_or_zeros(a, I)
+end
+
+function graded_broadcast_apply(::typeof(+), a::GradedArray, b::GradedArray)
+    check_graded_broadcast_axes(a, b)
+    T = Base.promote_op(+, eltype(a), eltype(b))
+    c = zeros(T, axes(a)...)
+    for I in BlockSparseArrays.union_eachblockstoredindex(a, b)
+        block = graded_broadcast_arg(a, I) .+ graded_broadcast_arg(b, I)
+        c[I] = block
+    end
+    return c
+end
+function graded_broadcast_apply(::typeof(-), a::GradedArray, b::GradedArray)
+    check_graded_broadcast_axes(a, b)
+    T = Base.promote_op(-, eltype(a), eltype(b))
+    c = zeros(T, axes(a)...)
+    for I in BlockSparseArrays.union_eachblockstoredindex(a, b)
+        block = graded_broadcast_arg(a, I) .- graded_broadcast_arg(b, I)
+        c[I] = block
+    end
+    return c
+end
+function graded_broadcast_apply(::typeof(-), a::GradedArray)
+    T = Base.promote_op(-, eltype(a))
+    c = zeros(T, axes(a)...)
+    for I in eachblockstoredindex(a)
+        block = -graded_broadcast_arg(a, I)
+        c[I] = block
+    end
+    return c
+end
+function graded_broadcast_apply(::typeof(*), α::Number, a::GradedArray)
+    T = Base.promote_op(*, typeof(α), eltype(a))
+    c = zeros(T, axes(a)...)
+    for I in eachblockstoredindex(a)
+        block = α .* graded_broadcast_arg(a, I)
+        c[I] = block
+    end
+    return c
+end
+function graded_broadcast_apply(::typeof(*), a::GradedArray, α::Number)
+    return graded_broadcast_apply(*, α, a)
+end
+function graded_broadcast_apply(::typeof(/), a::GradedArray, α::Number)
+    T = Base.promote_op(/, eltype(a), typeof(α))
+    c = zeros(T, axes(a)...)
+    for I in eachblockstoredindex(a)
+        block = graded_broadcast_arg(a, I) ./ α
+        c[I] = block
+    end
+    return c
+end
+function graded_broadcast_apply(::typeof(conj), a::GradedArray)
+    T = Base.promote_op(conj, eltype(a))
+    c = zeros(T, axes(a)...)
+    for I in eachblockstoredindex(a)
+        block = conj.(graded_broadcast_arg(a, I))
+        c[I] = block
+    end
+    return c
+end
+graded_broadcast_apply(f, args...) = graded_broadcast_error(f)
+
+TensorAlgebra.:+ₗ(a::GradedArray, b::GradedArray) = graded_broadcast_apply(+, a, b)
+TensorAlgebra.:*ₗ(α::Number, a::GradedArray) = graded_broadcast_apply(*, α, a)
+TensorAlgebra.:*ₗ(a::GradedArray, α::Number) = graded_broadcast_apply(*, a, α)
+TensorAlgebra.conjed(a::GradedArray) = graded_broadcast_apply(conj, a)
+
+function BC.broadcasted(::GradedStyle, ::typeof(+), a::GradedArray, b::GradedArray)
+    return a +ₗ b
+end
+function BC.broadcasted(::GradedStyle, ::typeof(-), a::GradedArray, b::GradedArray)
+    return a -ₗ b
+end
+function BC.broadcasted(::GradedStyle, ::typeof(-), a::GradedArray)
+    return -ₗ(a)
+end
+function BC.broadcasted(::GradedStyle, ::typeof(*), α::Number, a::GradedArray)
+    return α *ₗ a
+end
+function BC.broadcasted(::GradedStyle, ::typeof(*), a::GradedArray, α::Number)
+    return a *ₗ α
+end
+function BC.broadcasted(::GradedStyle, ::typeof(/), a::GradedArray, α::Number)
+    return a /ₗ α
+end
+function BC.broadcasted(::GradedStyle, ::typeof(conj), a::GradedArray)
+    return TensorAlgebra.conjed(a)
+end
+BC.broadcasted(::GradedStyle, ::typeof(identity), a::GradedArray) = a
+BC.broadcasted(::GradedStyle, ::typeof(+), a::GradedArray) = a
+function BC.broadcasted(::GradedStyle, f::Base.Fix1{typeof(*), <:Number}, a::GradedArray)
+    return f.x *ₗ a
+end
+function BC.broadcasted(::GradedStyle, f::Base.Fix2{typeof(*), <:Number}, a::GradedArray)
+    return a *ₗ f.x
+end
+function BC.broadcasted(::GradedStyle, f::Base.Fix2{typeof(/), <:Number}, a::GradedArray)
+    return a /ₗ f.x
+end
+BC.broadcasted(::GradedStyle, f, args...) = graded_broadcast_error(f)
 
 # constructor utilities
 # ---------------------

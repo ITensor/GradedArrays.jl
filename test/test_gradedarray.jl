@@ -2,13 +2,14 @@ using BlockArrays:
     Block, BlockedOneTo, BlockedUnitRange, blockedrange, blocklengths, blocksize
 using BlockSparseArrays:
     BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
-using GradedArrays: GradedArray, GradedMatrix, GradedOneTo, GradedUnitRange, GradedVector,
-    SectorUnitRange, U1, UndefinedFlux, checkflux, dual, flux, gradedrange, isdual,
-    sectorrange, space_isequal
+using GradedArrays: GradedArray, GradedMatrix, GradedOneTo, GradedStyle, GradedUnitRange,
+    GradedVector, SectorUnitRange, U1, UndefinedFlux, checkflux, dual, flux, gradedrange,
+    isdual, sectorrange, space_isequal
 using KroneckerArrays: cartesianrange
 using LinearAlgebra: adjoint
 using Random: randn!
 using SparseArraysBase: storedlength
+using TensorAlgebra: *ₗ, +ₗ, -ₗ, /ₗ, conjed
 using Test: @test, @test_broken, @test_throws, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
@@ -385,6 +386,34 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test_broken Array(a1 * a2') ≈ Array(a1) * Array(a2')
 
         @test_throws DimensionMismatch a1 * permutedims(a2, (2, 1))
+    end
+    @testset "linear broadcasting" begin
+        r = gradedrange([U1(0) => 2, U1(1) => 2])
+        A = randn_blockdiagonal(elt, (r, dual(r)))
+        B = randn_blockdiagonal(elt, (r, dual(r)))
+        @test Base.Broadcast.BroadcastStyle(typeof(A)) isa GradedStyle
+
+        α = 2.0
+        β = -3.0
+
+        C = α .* A .+ β .* B
+        @test Array(C) ≈ α .* Array(A) .+ β .* Array(B)
+        @test axes(C) == axes(A)
+        @test all(dim -> isdual(axes(C, dim)) == isdual(axes(A, dim)), 1:ndims(A))
+        @test Array(α *ₗ A +ₗ β *ₗ B) ≈ α .* Array(A) .+ β .* Array(B)
+        @test axes(α *ₗ A +ₗ β *ₗ B) == axes(A)
+
+        D = conj.(A) .- B ./ β
+        @test Array(D) ≈ conj.(Array(A)) .- Array(B) ./ β
+        @test axes(D) == axes(A)
+        @test Array(conjed(A) -ₗ (B /ₗ β)) ≈ conj.(Array(A)) .- Array(B) ./ β
+        @test axes(conjed(A) -ₗ (B /ₗ β)) == axes(A)
+
+        @test_throws ArgumentError A .* B
+
+        r_bad = gradedrange([U1(0) => 1, U1(1) => 3])
+        B_bad = randn_blockdiagonal(elt, (r_bad, dual(r_bad)))
+        @test_throws ArgumentError A .+ B_bad
     end
     false && @testset "Construct from dense" begin
         r = gradedrange([U1(0) => 2, U1(1) => 3])
