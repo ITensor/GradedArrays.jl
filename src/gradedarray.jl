@@ -215,14 +215,6 @@ function check_graded_broadcast_axes(a::AbstractArray, b::AbstractArray)
     return nothing
 end
 
-function graded_broadcast_error(f)
-    throw(
-        ArgumentError(
-            "Only linear broadcast operations are supported for GradedArray, got `$f`."
-        )
-    )
-end
-
 function lazyblock(a::GradedArray{<:Any, N}, I::Vararg{Block{1}, N}) where {N}
     if isstored(a, I...)
         return blocks(a)[Int.(I)...]
@@ -337,17 +329,7 @@ Base.Array(a::ScaledGradedArray) = Array(copy(a))
 Base.Array(a::ConjGradedArray) = Array(copy(a))
 Base.Array(a::AddGradedArray) = Array(copy(a))
 
-graded_broadcasted_linear(::typeof(identity), a::GradedArray) = a
-graded_broadcasted_linear(::typeof(+), a::GradedArray) = a
-graded_broadcasted_linear(f::Base.Fix1{typeof(*), <:Number}, a::GradedArray) = f.x *ₗ a
-graded_broadcasted_linear(f::Base.Fix2{typeof(*), <:Number}, a::GradedArray) = a *ₗ f.x
-graded_broadcasted_linear(f::Base.Fix2{typeof(/), <:Number}, a::GradedArray) = a /ₗ f.x
-function graded_broadcasted_linear(f, args...)
-    bc = BC.Broadcasted(f, args)
-    TensorAlgebra.is_linear(bc) || graded_broadcast_error(f)
-    return TensorAlgebra.to_linear(bc)
-end
-BC.broadcasted(::GradedStyle, f, args...) = graded_broadcasted_linear(f, args...)
+BC.broadcasted(style::GradedStyle, f, args...) = broadcasted_linear(style, f, args...)
 
 # constructor utilities
 # ---------------------

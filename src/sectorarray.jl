@@ -406,39 +406,13 @@ function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
     return nothing
 end
 
-function sector_broadcast_error(f)
+function broadcast_error(style, f)
     throw(
         ArgumentError(
-            "Only linear broadcast operations are supported for SectorArray, got `$f`."
+            "Only linear broadcast operations are supported for `$style`, got `$f`."
         )
     )
 end
-
-function sector_linear_broadcast_apply(::typeof(+), a::SectorArray, b::SectorArray)
-    return a +ₗ b
-end
-sector_linear_broadcast_apply(::typeof(identity), a::SectorArray) = a
-sector_linear_broadcast_apply(::typeof(+), a::SectorArray) = a
-function sector_linear_broadcast_apply(::typeof(-), a::SectorArray, b::SectorArray)
-    return a -ₗ b
-end
-function sector_linear_broadcast_apply(::typeof(-), a::SectorArray)
-    return -ₗ(a)
-end
-sector_linear_broadcast_apply(::typeof(*), α::Number, a::SectorArray) = α *ₗ a
-sector_linear_broadcast_apply(::typeof(*), a::SectorArray, α::Number) = a *ₗ α
-sector_linear_broadcast_apply(f::Base.Fix1{typeof(*), <:Number}, a::SectorArray) = f.x *ₗ a
-sector_linear_broadcast_apply(f::Base.Fix2{typeof(*), <:Number}, a::SectorArray) = a *ₗ f.x
-sector_linear_broadcast_apply(f::Base.Fix2{typeof(/), <:Number}, a::SectorArray) = a /ₗ f.x
-function sector_linear_broadcast_apply(::typeof(/), a::SectorArray, α::Number)
-    return a /ₗ α
-end
-function sector_linear_broadcast_apply(::typeof(conj), a::SectorArray)
-    return TensorAlgebra.conjed(a)
-end
-sector_linear_broadcast_apply(::typeof(*), α::Number, β::Number) = α * β
-sector_linear_broadcast_apply(f, args...) = sector_broadcast_error(f)
-sector_broadcasted_linear(f, args...) = sector_linear_broadcast_apply(f, args...)
 
 function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
     check_sector_broadcast_axes(a, b)
@@ -465,4 +439,39 @@ function TensorAlgebra.conjed(a::SectorArray)
     return set_data(a, TensorAlgebra.conjed(a.data))
 end
 
-BC.broadcasted(::SectorStyle, f, args...) = sector_broadcasted_linear(f, args...)
+# Generic linear broadcast lowering shared with `GradedArray`.
+# TODO: Move to TensorAlgebra.jl.
+TensorAlgebra.lazy_function(::typeof(identity)) = identity
+TensorAlgebra.lazy_function(f::Base.Fix1{typeof(*), <:Number}) = Base.Fix1(*ₗ, f.x)
+TensorAlgebra.lazy_function(f::Base.Fix2{typeof(*), <:Number}) = Base.Fix2(*ₗ, f.x)
+TensorAlgebra.lazy_function(f::Base.Fix2{typeof(/), <:Number}) = Base.Fix2(/ₗ, f.x)
+
+function TensorAlgebra.broadcast_is_linear(
+        ::typeof(identity),
+        ::Base.AbstractArrayOrBroadcasted
+    )
+    return true
+end
+function TensorAlgebra.broadcast_is_linear(
+        ::Base.Fix1{typeof(*), <:Number}, ::Base.AbstractArrayOrBroadcasted
+    )
+    return true
+end
+function TensorAlgebra.broadcast_is_linear(
+        ::Base.Fix2{typeof(*), <:Number}, ::Base.AbstractArrayOrBroadcasted
+    )
+    return true
+end
+function TensorAlgebra.broadcast_is_linear(
+        ::Base.Fix2{typeof(/), <:Number}, ::Base.AbstractArrayOrBroadcasted
+    )
+    return true
+end
+
+function broadcasted_linear(style, f, args...)
+    bc = BC.Broadcasted(style, f, args)
+    TensorAlgebra.is_linear(bc) || broadcast_error(style, f)
+    return TensorAlgebra.to_linear(bc)
+end
+
+BC.broadcasted(style::SectorStyle, f, args...) = broadcasted_linear(style, f, args...)
