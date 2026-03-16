@@ -167,7 +167,7 @@ end
 
 function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type, ax)
     bc′ = BC.flatten(bc)
-    arg = bc′.args[findfirst(arg -> arg isa LazyGradedArray, bc′.args)]
+    arg = bc′.args[findfirst(arg -> arg isa AbstractArray, bc′.args)]
     return graded_similar(arg, elt, ax)
 end
 
@@ -253,46 +253,6 @@ end
 function TensorAlgebra.BroadcastStyle_add(arrayt::Type{<:AddGradedArray})
     args_type = TensorAlgebra.addends_type(arrayt)
     return Base.promote_op(BC.combine_styles, fieldtypes(args_type)...)()
-end
-
-TensorAlgebra.similar_scaled(a::ScaledGradedArray) = graded_similar(a, eltype(a), axes(a))
-function TensorAlgebra.similar_scaled(a::ScaledGradedArray, elt::Type)
-    return graded_similar(a, elt, axes(a))
-end
-function TensorAlgebra.similar_scaled(
-        a::ScaledGradedArray, elt::Type, ax::NTuple{N, <:GradedUnitRange}
-    ) where {N}
-    return graded_similar(a, elt, ax)
-end
-function TensorAlgebra.similar_scaled(
-        a::ScaledGradedArray, ax::NTuple{N, <:GradedUnitRange}
-    ) where {N}
-    return graded_similar(a, eltype(a), ax)
-end
-
-TensorAlgebra.similar_conj(a::ConjGradedArray, elt::Type) = graded_similar(a, elt, axes(a))
-function TensorAlgebra.similar_conj(
-        a::ConjGradedArray, elt::Type, ax::NTuple{N, <:GradedUnitRange}
-    ) where {N}
-    return graded_similar(a, elt, ax)
-end
-function TensorAlgebra.similar_conj(
-        a::ConjGradedArray, ax::NTuple{N, <:GradedUnitRange}
-    ) where {N}
-    return graded_similar(a, eltype(a), ax)
-end
-
-TensorAlgebra.similar_add(a::AddGradedArray) = graded_similar(a, eltype(a), axes(a))
-TensorAlgebra.similar_add(a::AddGradedArray, elt::Type) = graded_similar(a, elt, axes(a))
-function TensorAlgebra.similar_add(
-        a::AddGradedArray, elt::Type, ax::NTuple{N, <:GradedUnitRange}
-    ) where {N}
-    return graded_similar(a, elt, ax)
-end
-function TensorAlgebra.similar_add(
-        a::AddGradedArray, ax::NTuple{N, <:GradedUnitRange}
-    ) where {N}
-    return graded_similar(a, eltype(a), ax)
 end
 
 function lazyblock(a::ScaledGradedArray, I::Block)
