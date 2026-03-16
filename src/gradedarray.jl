@@ -344,7 +344,7 @@ function graded_similar(
         elt::Type,
         ax::NTuple{N, <:GradedUnitRange}
     ) where {N}
-    style = BC.BroadcastStyle(typeof(a))
+    style = BC.combine_styles(TensorAlgebra.addends(a)...)
     rep = findfirst(
         addend -> BC.BroadcastStyle(typeof(addend)) == style,
         TensorAlgebra.addends(a)
@@ -375,29 +375,17 @@ Base.Array(a::ScaledGradedArray) = Array(copy(a))
 Base.Array(a::ConjGradedArray) = Array(copy(a))
 Base.Array(a::AddGradedArray) = Array(copy(a))
 
-broadcasted_linear(::typeof(identity), a::GradedArray) = a
-broadcasted_linear(::typeof(+), a::GradedArray) = a
-broadcasted_linear(f::Base.Fix1{typeof(*), <:Number}, a::GradedArray) = f.x *ₗ a
-broadcasted_linear(f::Base.Fix2{typeof(*), <:Number}, a::GradedArray) = a *ₗ f.x
-broadcasted_linear(f::Base.Fix2{typeof(/), <:Number}, a::GradedArray) = a /ₗ f.x
-function BC.broadcasted(::GradedStyle, ::typeof(identity), a::GradedArray)
-    return broadcasted_linear(identity, a)
-end
-BC.broadcasted(::GradedStyle, ::typeof(+), a::GradedArray) = broadcasted_linear(+, a)
-function BC.broadcasted(::GradedStyle, f::Base.Fix1{typeof(*), <:Number}, a::GradedArray)
-    return broadcasted_linear(f, a)
-end
-function BC.broadcasted(::GradedStyle, f::Base.Fix2{typeof(*), <:Number}, a::GradedArray)
-    return broadcasted_linear(f, a)
-end
-function BC.broadcasted(::GradedStyle, f::Base.Fix2{typeof(/), <:Number}, a::GradedArray)
-    return broadcasted_linear(f, a)
-end
-function BC.broadcasted(::GradedStyle, f, args...)
+graded_broadcasted_linear(::typeof(identity), a::GradedArray) = a
+graded_broadcasted_linear(::typeof(+), a::GradedArray) = a
+graded_broadcasted_linear(f::Base.Fix1{typeof(*), <:Number}, a::GradedArray) = f.x *ₗ a
+graded_broadcasted_linear(f::Base.Fix2{typeof(*), <:Number}, a::GradedArray) = a *ₗ f.x
+graded_broadcasted_linear(f::Base.Fix2{typeof(/), <:Number}, a::GradedArray) = a /ₗ f.x
+function graded_broadcasted_linear(f, args...)
     bc = BC.Broadcasted(f, args)
     TensorAlgebra.is_linear(bc) || graded_broadcast_error(f)
     return TensorAlgebra.to_linear(bc)
 end
+BC.broadcasted(::GradedStyle, f, args...) = graded_broadcasted_linear(f, args...)
 
 # constructor utilities
 # ---------------------

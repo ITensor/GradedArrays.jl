@@ -417,6 +417,8 @@ end
 function sector_linear_broadcast_apply(::typeof(+), a::SectorArray, b::SectorArray)
     return a +ₗ b
 end
+sector_linear_broadcast_apply(::typeof(identity), a::SectorArray) = a
+sector_linear_broadcast_apply(::typeof(+), a::SectorArray) = a
 function sector_linear_broadcast_apply(::typeof(-), a::SectorArray, b::SectorArray)
     return a -ₗ b
 end
@@ -425,6 +427,9 @@ function sector_linear_broadcast_apply(::typeof(-), a::SectorArray)
 end
 sector_linear_broadcast_apply(::typeof(*), α::Number, a::SectorArray) = α *ₗ a
 sector_linear_broadcast_apply(::typeof(*), a::SectorArray, α::Number) = a *ₗ α
+sector_linear_broadcast_apply(f::Base.Fix1{typeof(*), <:Number}, a::SectorArray) = f.x *ₗ a
+sector_linear_broadcast_apply(f::Base.Fix2{typeof(*), <:Number}, a::SectorArray) = a *ₗ f.x
+sector_linear_broadcast_apply(f::Base.Fix2{typeof(/), <:Number}, a::SectorArray) = a /ₗ f.x
 function sector_linear_broadcast_apply(::typeof(/), a::SectorArray, α::Number)
     return a /ₗ α
 end
@@ -433,7 +438,7 @@ function sector_linear_broadcast_apply(::typeof(conj), a::SectorArray)
 end
 sector_linear_broadcast_apply(::typeof(*), α::Number, β::Number) = α * β
 sector_linear_broadcast_apply(f, args...) = sector_broadcast_error(f)
-broadcasted_linear(f, args...) = sector_linear_broadcast_apply(f, args...)
+sector_broadcasted_linear(f, args...) = sector_linear_broadcast_apply(f, args...)
 
 function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
     check_sector_broadcast_axes(a, b)
@@ -460,36 +465,4 @@ function TensorAlgebra.conjed(a::SectorArray)
     return set_data(a, TensorAlgebra.conjed(a.data))
 end
 
-function BC.broadcasted(::SectorStyle, ::typeof(+), a::SectorArray, b::SectorArray)
-    return broadcasted_linear(+, a, b)
-end
-function BC.broadcasted(::SectorStyle, ::typeof(-), a::SectorArray, b::SectorArray)
-    return broadcasted_linear(-, a, b)
-end
-function BC.broadcasted(::SectorStyle, ::typeof(-), a::SectorArray)
-    return broadcasted_linear(-, a)
-end
-function BC.broadcasted(::SectorStyle, ::typeof(*), α::Number, a::SectorArray)
-    return broadcasted_linear(*, α, a)
-end
-function BC.broadcasted(::SectorStyle, ::typeof(*), a::SectorArray, α::Number)
-    return broadcasted_linear(*, a, α)
-end
-function BC.broadcasted(::SectorStyle, ::typeof(/), a::SectorArray, α::Number)
-    return broadcasted_linear(/, a, α)
-end
-function BC.broadcasted(::SectorStyle, ::typeof(conj), a::SectorArray)
-    return broadcasted_linear(conj, a)
-end
-BC.broadcasted(::SectorStyle, ::typeof(identity), a::SectorArray) = a
-BC.broadcasted(::SectorStyle, ::typeof(+), a::SectorArray) = a
-function BC.broadcasted(::SectorStyle, f::Base.Fix1{typeof(*), <:Number}, a::SectorArray)
-    return broadcasted_linear(*, f.x, a)
-end
-function BC.broadcasted(::SectorStyle, f::Base.Fix2{typeof(*), <:Number}, a::SectorArray)
-    return broadcasted_linear(*, a, f.x)
-end
-function BC.broadcasted(::SectorStyle, f::Base.Fix2{typeof(/), <:Number}, a::SectorArray)
-    return broadcasted_linear(/, a, f.x)
-end
-BC.broadcasted(::SectorStyle, f, args...) = sector_broadcast_error(f)
+BC.broadcasted(::SectorStyle, f, args...) = sector_broadcasted_linear(f, args...)
