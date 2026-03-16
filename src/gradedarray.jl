@@ -133,14 +133,24 @@ const GradedArray{T, N, I, A, Blocks, Axes <: NTuple{N, GradedUnitRange{I}}} =
 const GradedMatrix{T, I, A, Blocks, Axes} = GradedArray{T, 2, A, Blocks, Axes}
 const GradedVector{T, I, A, Blocks, Axes} = GradedArray{T, 1, A, Blocks, Axes}
 
-struct GradedStyle{I, N} <: BC.AbstractArrayStyle{N} end
-GradedStyle{I, N}(::Val{M}) where {I, N, M} = GradedStyle{I, M}()
-
-function BC.BroadcastStyle(::Type{<:GradedArray{<:Any, N, I}}) where {N, I}
-    return GradedStyle{I, N}()
+struct GradedStyle{I, N, B <: BC.AbstractArrayStyle{N}} <: BC.AbstractArrayStyle{N}
+    blockstyle::B
 end
-BC.BroadcastStyle(style::GradedStyle{I, N}, ::BC.DefaultArrayStyle{0}) where {I, N} = style
-BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::GradedStyle{I, N}) where {I, N} = style
+function GradedStyle{I, N}(blockstyle::BC.AbstractArrayStyle{N}) where {I, N}
+    return GradedStyle{I, N, typeof(blockstyle)}(blockstyle)
+end
+function GradedStyle{I, N, B}() where {I, N, B <: BC.AbstractArrayStyle{N}}
+    return GradedStyle{I, N}(B())
+end
+GradedStyle{I, N}(::Val{M}) where {I, N, M} = GradedStyle{I, M}(BC.DefaultArrayStyle{M}())
+
+blockstyle(style::GradedStyle) = style.blockstyle
+
+function BC.BroadcastStyle(arraytype::Type{<:GradedArray{<:Any, N, I}}) where {N, I}
+    return GradedStyle{I, N}(BC.BroadcastStyle(blocktype(arraytype)))
+end
+BC.BroadcastStyle(style::GradedStyle, ::BC.DefaultArrayStyle{0}) = style
+BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::GradedStyle) = style
 function BC.BroadcastStyle(::GradedStyle{I, N}, ::BC.DefaultArrayStyle{N}) where {I, N}
     return BC.DefaultArrayStyle{N}()
 end
@@ -151,7 +161,14 @@ function BC.BroadcastStyle(
         style1::GradedStyle{I, N},
         style2::GradedStyle{I, N}
     ) where {I, N}
-    return style1
+    style = BC.result_style(blockstyle(style1), blockstyle(style2))
+    return GradedStyle{I, N}(style)
+end
+
+function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type, ax)
+    bc′ = BC.flatten(bc)
+    arg = bc′.args[findfirst(arg -> arg isa LazyGradedArray, bc′.args)]
+    return graded_similar(arg, elt, ax)
 end
 
 # Specific overloads
@@ -334,12 +351,8 @@ function graded_similar(
         ax::NTuple{N, <:GradedUnitRange}
     ) where {N}
     style = BC.combine_styles(TensorAlgebra.addends(a)...)
-    rep = findfirst(
-        addend -> BC.BroadcastStyle(typeof(addend)) == style,
-        TensorAlgebra.addends(a)
-    )
-    rep === nothing && return graded_similar(first(TensorAlgebra.addends(a)), elt, ax)
-    return graded_similar(TensorAlgebra.addends(a)[rep], elt, ax)
+    bc = BC.Broadcasted(style, +, TensorAlgebra.addends(a))
+    return similar(bc, elt, ax)
 end
 
 function copy_lazygraded(a::LazyGradedArray)
