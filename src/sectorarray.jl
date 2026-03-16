@@ -292,27 +292,6 @@ end
 const LazySectorData =
     Union{TensorAlgebra.ScaledArray, TensorAlgebra.ConjArray, TensorAlgebra.AddArray}
 
-Base.@propagate_inbounds function Base.getindex(
-        A::SectorArray{T, N, I, <:TensorAlgebra.ScaledArray},
-        inds::Vararg{Int, N}
-    ) where {T, N, I}
-    @boundscheck checkbounds(A, inds...)
-    return TensorAlgebra.coeff(A.data) * TensorAlgebra.unscaled(A.data)[inds...]
-end
-Base.@propagate_inbounds function Base.getindex(
-        A::SectorArray{T, N, I, <:TensorAlgebra.ConjArray},
-        inds::Vararg{Int, N}
-    ) where {T, N, I}
-    @boundscheck checkbounds(A, inds...)
-    return conj(TensorAlgebra.conjed(A.data)[inds...])
-end
-Base.@propagate_inbounds function Base.getindex(
-        A::SectorArray{T, N, I, <:TensorAlgebra.AddArray},
-        inds::Vararg{Int, N}
-    ) where {T, N, I}
-    @boundscheck checkbounds(A, inds...)
-    return sum(addend -> addend[inds...], TensorAlgebra.addends(A.data))
-end
 function Base.isassigned(
         A::SectorArray{<:Any, N, <:Any, <:LazySectorData},
         inds::Vararg{Int, N}
@@ -419,6 +398,7 @@ function set_data(a::SectorArray, data::AbstractArray)
         throw(ArgumentError("linear broadcasting must preserve SectorArray axes"))
     return SectorArray(sectors(a), data)
 end
+ofsector(data, a::SectorArray) = set_data(a, data)
 
 function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
     axes(a) == axes(b) ||
@@ -453,6 +433,7 @@ function sector_linear_broadcast_apply(::typeof(conj), a::SectorArray)
 end
 sector_linear_broadcast_apply(::typeof(*), α::Number, β::Number) = α * β
 sector_linear_broadcast_apply(f, args...) = sector_broadcast_error(f)
+broadcasted_linear(f, args...) = sector_linear_broadcast_apply(f, args...)
 
 function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
     check_sector_broadcast_axes(a, b)
@@ -460,6 +441,7 @@ function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
 end
 
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
+    require_unique_fusion(src)
     TensorAlgebra.add!(dest, src.data, α, β)
     return dest
 end
@@ -479,31 +461,35 @@ function TensorAlgebra.conjed(a::SectorArray)
 end
 
 function BC.broadcasted(::SectorStyle, ::typeof(+), a::SectorArray, b::SectorArray)
-    return a +ₗ b
+    return broadcasted_linear(+, a, b)
 end
 function BC.broadcasted(::SectorStyle, ::typeof(-), a::SectorArray, b::SectorArray)
-    return a -ₗ b
+    return broadcasted_linear(-, a, b)
 end
 function BC.broadcasted(::SectorStyle, ::typeof(-), a::SectorArray)
-    return -ₗ(a)
+    return broadcasted_linear(-, a)
 end
-BC.broadcasted(::SectorStyle, ::typeof(*), α::Number, a::SectorArray) = α *ₗ a
-BC.broadcasted(::SectorStyle, ::typeof(*), a::SectorArray, α::Number) = a *ₗ α
+function BC.broadcasted(::SectorStyle, ::typeof(*), α::Number, a::SectorArray)
+    return broadcasted_linear(*, α, a)
+end
+function BC.broadcasted(::SectorStyle, ::typeof(*), a::SectorArray, α::Number)
+    return broadcasted_linear(*, a, α)
+end
 function BC.broadcasted(::SectorStyle, ::typeof(/), a::SectorArray, α::Number)
-    return a /ₗ α
+    return broadcasted_linear(/, a, α)
 end
 function BC.broadcasted(::SectorStyle, ::typeof(conj), a::SectorArray)
-    return TensorAlgebra.conjed(a)
+    return broadcasted_linear(conj, a)
 end
 BC.broadcasted(::SectorStyle, ::typeof(identity), a::SectorArray) = a
 BC.broadcasted(::SectorStyle, ::typeof(+), a::SectorArray) = a
 function BC.broadcasted(::SectorStyle, f::Base.Fix1{typeof(*), <:Number}, a::SectorArray)
-    return f.x *ₗ a
+    return broadcasted_linear(*, f.x, a)
 end
 function BC.broadcasted(::SectorStyle, f::Base.Fix2{typeof(*), <:Number}, a::SectorArray)
-    return a *ₗ f.x
+    return broadcasted_linear(*, a, f.x)
 end
 function BC.broadcasted(::SectorStyle, f::Base.Fix2{typeof(/), <:Number}, a::SectorArray)
-    return a /ₗ f.x
+    return broadcasted_linear(/, a, f.x)
 end
 BC.broadcasted(::SectorStyle, f, args...) = sector_broadcast_error(f)
