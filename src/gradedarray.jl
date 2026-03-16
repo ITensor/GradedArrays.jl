@@ -206,13 +206,7 @@ function graded_broadcast_error(f)
     )
 end
 
-function graded_broadcast_arg(x, I::Block)
-    return x
-end
-function graded_viewblock_or_zeros(
-        a::GradedArray{<:Any, N},
-        I::Vararg{Block{1}, N}
-    ) where {N}
+function lazyblock(a::GradedArray{<:Any, N}, I::Vararg{Block{1}, N}) where {N}
     if isstored(a, I...)
         return blocks(a)[Int.(I)...]
     else
@@ -220,12 +214,7 @@ function graded_viewblock_or_zeros(
         return fillsimilar(Zeros{eltype(a)}(block_ax), block_ax)
     end
 end
-function graded_viewblock_or_zeros(a::GradedArray{<:Any, N}, I::Block{N}) where {N}
-    return graded_viewblock_or_zeros(a, Tuple(I)...)
-end
-function graded_broadcast_arg(a::GradedArray, I::Block)
-    return graded_viewblock_or_zeros(a, I)
-end
+lazyblock(a::GradedArray, I::Block) = lazyblock(a, Tuple(I)...)
 
 TensorAlgebra.@scaledarray_type ScaledGradedArray
 TensorAlgebra.@scaledarray ScaledGradedArray
@@ -289,14 +278,14 @@ function TensorAlgebra.similar_add(
     return graded_similar(a, eltype(a), ax)
 end
 
-function graded_broadcast_arg(a::ScaledGradedArray, I::Block)
-    return TensorAlgebra.coeff(a) *ₗ graded_broadcast_arg(TensorAlgebra.unscaled(a), I)
+function lazyblock(a::ScaledGradedArray, I::Block)
+    return TensorAlgebra.coeff(a) *ₗ lazyblock(TensorAlgebra.unscaled(a), I)
 end
-function graded_broadcast_arg(a::ConjGradedArray, I::Block)
-    return conjed(graded_broadcast_arg(conjed(a), I))
+function lazyblock(a::ConjGradedArray, I::Block)
+    return conjed(lazyblock(conjed(a), I))
 end
-function graded_broadcast_arg(a::AddGradedArray, I::Block)
-    return +ₗ(map(Base.Fix2(graded_broadcast_arg, I), TensorAlgebra.addends(a))...)
+function lazyblock(a::AddGradedArray, I::Block)
+    return +ₗ(map(Base.Fix2(lazyblock, I), TensorAlgebra.addends(a))...)
 end
 
 Base.@propagate_inbounds function Base.getindex(a::ScaledGradedArray, I...)
@@ -356,7 +345,7 @@ end
 function copy_lazygraded(a::LazyGradedArray)
     c = graded_similar(a, eltype(a), axes(a))
     for I in graded_eachblockstoredindex(a)
-        c[I] = graded_broadcast_arg(a, I)
+        c[I] = lazyblock(a, I)
     end
     return c
 end
