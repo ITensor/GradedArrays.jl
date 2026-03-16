@@ -269,24 +269,55 @@ data_type(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
 # AbstractArray interface
 # -----------------------
 Base.@propagate_inbounds function Base.getindex(
-        A::SectorArray{T, N},
+        A::SectorArray{T, N, Isector, Adata},
         I::Vararg{Int, N}
-    ) where {T, N}
+    ) where {T, N, Isector, Adata}
     TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
         error("not implemented for non-abelian tensors")
     @boundscheck checkbounds(A, I...)
     return @inbounds A.data[I...]
 end
 Base.@propagate_inbounds function Base.setindex!(
-        A::SectorArray{T, N},
+        A::SectorArray{T, N, Isector, Adata},
         v,
         I::Vararg{Int, N}
-    ) where {T, N}
+    ) where {T, N, Isector, Adata}
     TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
         error("not implemented for non-abelian tensors")
     @boundscheck checkbounds(A, I...)
     @inbounds A.data[I...] = v
     return A
+end
+
+const LazySectorData =
+    Union{TensorAlgebra.ScaledArray, TensorAlgebra.ConjArray, TensorAlgebra.AddArray}
+
+Base.@propagate_inbounds function Base.getindex(
+        A::SectorArray{T, N, I, <:TensorAlgebra.ScaledArray},
+        inds::Vararg{Int, N}
+    ) where {T, N, I}
+    @boundscheck checkbounds(A, inds...)
+    return TensorAlgebra.coeff(A.data) * TensorAlgebra.unscaled(A.data)[inds...]
+end
+Base.@propagate_inbounds function Base.getindex(
+        A::SectorArray{T, N, I, <:TensorAlgebra.ConjArray},
+        inds::Vararg{Int, N}
+    ) where {T, N, I}
+    @boundscheck checkbounds(A, inds...)
+    return conj(TensorAlgebra.conjed(A.data)[inds...])
+end
+Base.@propagate_inbounds function Base.getindex(
+        A::SectorArray{T, N, I, <:TensorAlgebra.AddArray},
+        inds::Vararg{Int, N}
+    ) where {T, N, I}
+    @boundscheck checkbounds(A, inds...)
+    return sum(addend -> addend[inds...], TensorAlgebra.addends(A.data))
+end
+function Base.isassigned(
+        A::SectorArray{<:Any, N, <:Any, <:LazySectorData},
+        inds::Vararg{Int, N}
+    ) where {N}
+    return checkbounds(Bool, A, inds...)
 end
 
 function Base.similar(
@@ -321,6 +352,7 @@ function Base.similar(
 end
 
 Base.copy(A::SectorArray) = SectorArray(sectors(A), copy(A.data))
+Base.Broadcast.materialize(A::SectorArray{<:Any, <:Any, <:Any, <:LazySectorData}) = copy(A)
 function Base.copy!(C::SectorArray, A::SectorArray)
     axes(C) == axes(A) || throw(DimensionMismatch()) # TODO: sector error?
     copy!(arg2(C), arg2(A))
@@ -339,6 +371,27 @@ end
 function Base.adjoint(a::SectorArray)
     sectors_adjoint = adjoint(kroneckerfactors(a, 1))
     return SectorArray(axes(sectors_adjoint), adjoint(kroneckerfactors(a, 2)))
+end
+
+function Base.print_array(io::IO, A::SectorArray)
+    sectors_part, data_part = kroneckerfactors(A)
+    Base.print_array(io, sectors_part)
+    println(io, "\n ⊗")
+    show(io, data_part)
+    return nothing
+end
+function Base.show(io::IO, A::SectorArray)
+    sectors_part, data_part = kroneckerfactors(A)
+    show(io, sectors_part)
+    print(io, " ⊗ ")
+    show(io, data_part)
+    return nothing
+end
+function Base.show(io::IO, ::MIME"text/plain", A::SectorArray)
+    summary(io, A)
+    println(io, ":")
+    Base.print_array(io, A)
+    return nothing
 end
 
 # Other
@@ -406,11 +459,24 @@ function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
     return set_data(a, TensorAlgebra.:+ₗ(a.data, b.data))
 end
 
+function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
+    TensorAlgebra.add!(dest, src.data, α, β)
+    return dest
+end
+
+function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β::Number)
+    check_sector_broadcast_axes(dest, src)
+    TensorAlgebra.add!(dest.data, src.data, α, β)
+    return dest
+end
+
 function TensorAlgebra.:*ₗ(α::Number, a::SectorArray)
     return set_data(a, TensorAlgebra.:*ₗ(α, a.data))
 end
 TensorAlgebra.:*ₗ(a::SectorArray, α::Number) = TensorAlgebra.:*ₗ(α, a)
-TensorAlgebra.conjed(a::SectorArray) = set_data(a, TensorAlgebra.conjed(a.data))
+function TensorAlgebra.conjed(a::SectorArray)
+    return set_data(a, TensorAlgebra.conjed(a.data))
+end
 
 function BC.broadcasted(::SectorStyle, ::typeof(+), a::SectorArray, b::SectorArray)
     return a +ₗ b

@@ -190,7 +190,7 @@ function Base.setindex!(
     return A
 end
 
-function check_graded_broadcast_axes(a::GradedArray, b::GradedArray)
+function check_graded_broadcast_axes(a::AbstractArray, b::AbstractArray)
     all(dim -> space_isequal(axes(a, dim), axes(b, dim)), 1:ndims(a)) ||
         throw(
         ArgumentError("GradedArray linear broadcasting requires matching graded axes")
@@ -227,93 +227,150 @@ function graded_broadcast_arg(a::GradedArray, I::Block)
     return graded_viewblock_or_zeros(a, I)
 end
 
-function graded_broadcast_apply(::typeof(+), a::GradedArray, b::GradedArray)
-    check_graded_broadcast_axes(a, b)
-    T = Base.promote_op(+, eltype(a), eltype(b))
-    c = zeros(T, axes(a)...)
-    for I in BlockSparseArrays.union_eachblockstoredindex(a, b)
-        block = graded_broadcast_arg(a, I) .+ graded_broadcast_arg(b, I)
-        c[I] = block
-    end
-    return c
-end
-function graded_broadcast_apply(::typeof(-), a::GradedArray, b::GradedArray)
-    check_graded_broadcast_axes(a, b)
-    T = Base.promote_op(-, eltype(a), eltype(b))
-    c = zeros(T, axes(a)...)
-    for I in BlockSparseArrays.union_eachblockstoredindex(a, b)
-        block = graded_broadcast_arg(a, I) .- graded_broadcast_arg(b, I)
-        c[I] = block
-    end
-    return c
-end
-function graded_broadcast_apply(::typeof(-), a::GradedArray)
-    T = Base.promote_op(-, eltype(a))
-    c = zeros(T, axes(a)...)
-    for I in eachblockstoredindex(a)
-        block = -graded_broadcast_arg(a, I)
-        c[I] = block
-    end
-    return c
-end
-function graded_broadcast_apply(::typeof(*), α::Number, a::GradedArray)
-    T = Base.promote_op(*, typeof(α), eltype(a))
-    c = zeros(T, axes(a)...)
-    for I in eachblockstoredindex(a)
-        block = α .* graded_broadcast_arg(a, I)
-        c[I] = block
-    end
-    return c
-end
-function graded_broadcast_apply(::typeof(*), a::GradedArray, α::Number)
-    return graded_broadcast_apply(*, α, a)
-end
-function graded_broadcast_apply(::typeof(/), a::GradedArray, α::Number)
-    T = Base.promote_op(/, eltype(a), typeof(α))
-    c = zeros(T, axes(a)...)
-    for I in eachblockstoredindex(a)
-        block = graded_broadcast_arg(a, I) ./ α
-        c[I] = block
-    end
-    return c
-end
-function graded_broadcast_apply(::typeof(conj), a::GradedArray)
-    T = Base.promote_op(conj, eltype(a))
-    c = zeros(T, axes(a)...)
-    for I in eachblockstoredindex(a)
-        block = conj.(graded_broadcast_arg(a, I))
-        c[I] = block
-    end
-    return c
-end
-graded_broadcast_apply(f, args...) = graded_broadcast_error(f)
+TensorAlgebra.@scaledarray_type ScaledGradedArray
+TensorAlgebra.@scaledarray ScaledGradedArray
+TensorAlgebra.@conjarray_type ConjGradedArray
+TensorAlgebra.@conjarray ConjGradedArray
+TensorAlgebra.@addarray_type AddGradedArray
+TensorAlgebra.@addarray AddGradedArray
 
-TensorAlgebra.:+ₗ(a::GradedArray, b::GradedArray) = graded_broadcast_apply(+, a, b)
-TensorAlgebra.:*ₗ(α::Number, a::GradedArray) = graded_broadcast_apply(*, α, a)
-TensorAlgebra.:*ₗ(a::GradedArray, α::Number) = graded_broadcast_apply(*, a, α)
-TensorAlgebra.conjed(a::GradedArray) = graded_broadcast_apply(conj, a)
+const LazyGradedArray = Union{
+    GradedArray, ScaledGradedArray, ConjGradedArray, AddGradedArray,
+}
 
-function BC.broadcasted(::GradedStyle, ::typeof(+), a::GradedArray, b::GradedArray)
-    return a +ₗ b
+function TensorAlgebra.BroadcastStyle_scaled(arrayt::Type{<:ScaledGradedArray})
+    return BC.BroadcastStyle(TensorAlgebra.unscaled_type(arrayt))
 end
-function BC.broadcasted(::GradedStyle, ::typeof(-), a::GradedArray, b::GradedArray)
-    return a -ₗ b
+function TensorAlgebra.BroadcastStyle_conj(arrayt::Type{<:ConjGradedArray})
+    return BC.BroadcastStyle(TensorAlgebra.conjed_type(arrayt))
 end
-function BC.broadcasted(::GradedStyle, ::typeof(-), a::GradedArray)
-    return -ₗ(a)
+function TensorAlgebra.BroadcastStyle_add(arrayt::Type{<:AddGradedArray})
+    args_type = TensorAlgebra.addends_type(arrayt)
+    return Base.promote_op(BC.combine_styles, fieldtypes(args_type)...)()
 end
-function BC.broadcasted(::GradedStyle, ::typeof(*), α::Number, a::GradedArray)
-    return α *ₗ a
+
+function graded_similar(::Type{T}, ax::NTuple{N, <:GradedUnitRange}) where {T, N}
+    return zeros(T, ax...)
 end
-function BC.broadcasted(::GradedStyle, ::typeof(*), a::GradedArray, α::Number)
-    return a *ₗ α
+
+TensorAlgebra.similar_scaled(a::ScaledGradedArray) = graded_similar(eltype(a), axes(a))
+TensorAlgebra.similar_scaled(a::ScaledGradedArray, elt::Type) = graded_similar(elt, axes(a))
+function TensorAlgebra.similar_scaled(
+        a::ScaledGradedArray, elt::Type, ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(elt, ax)
 end
-function BC.broadcasted(::GradedStyle, ::typeof(/), a::GradedArray, α::Number)
-    return a /ₗ α
+function TensorAlgebra.similar_scaled(
+        a::ScaledGradedArray, ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(eltype(a), ax)
 end
-function BC.broadcasted(::GradedStyle, ::typeof(conj), a::GradedArray)
-    return TensorAlgebra.conjed(a)
+
+TensorAlgebra.similar_conj(a::ConjGradedArray, elt::Type) = graded_similar(elt, axes(a))
+function TensorAlgebra.similar_conj(
+        a::ConjGradedArray, elt::Type, ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(elt, ax)
 end
+function TensorAlgebra.similar_conj(
+        a::ConjGradedArray, ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(eltype(a), ax)
+end
+
+TensorAlgebra.similar_add(a::AddGradedArray) = graded_similar(eltype(a), axes(a))
+TensorAlgebra.similar_add(a::AddGradedArray, elt::Type) = graded_similar(elt, axes(a))
+function TensorAlgebra.similar_add(
+        a::AddGradedArray, elt::Type, ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(elt, ax)
+end
+function TensorAlgebra.similar_add(
+        a::AddGradedArray, ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(eltype(a), ax)
+end
+
+function graded_broadcast_arg(a::ScaledGradedArray, I::Block)
+    return TensorAlgebra.coeff(a) *ₗ graded_broadcast_arg(TensorAlgebra.unscaled(a), I)
+end
+function graded_broadcast_arg(a::ConjGradedArray, I::Block)
+    return conjed(graded_broadcast_arg(conjed(a), I))
+end
+function graded_broadcast_arg(a::AddGradedArray, I::Block)
+    return +ₗ(map(Base.Fix2(graded_broadcast_arg, I), TensorAlgebra.addends(a))...)
+end
+
+Base.@propagate_inbounds function Base.getindex(a::ScaledGradedArray, I...)
+    return TensorAlgebra.coeff(a) * getindex(TensorAlgebra.unscaled(a), I...)
+end
+Base.@propagate_inbounds function Base.getindex(a::ConjGradedArray, I...)
+    return conj(getindex(conjed(a), I...))
+end
+Base.@propagate_inbounds function Base.getindex(a::AddGradedArray, I...)
+    return sum(addend -> getindex(addend, I...), TensorAlgebra.addends(a))
+end
+
+graded_eachblockstoredindex(a::GradedArray) = collect(eachblockstoredindex(a))
+function graded_eachblockstoredindex(a::ScaledGradedArray)
+    return graded_eachblockstoredindex(TensorAlgebra.unscaled(a))
+end
+graded_eachblockstoredindex(a::ConjGradedArray) = graded_eachblockstoredindex(conjed(a))
+function graded_eachblockstoredindex(a::AddGradedArray)
+    return unique!(vcat(map(graded_eachblockstoredindex, TensorAlgebra.addends(a))...))
+end
+
+function graded_similar(
+        a::GradedArray,
+        elt::Type,
+        ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return similar(a, elt, ax)
+end
+function graded_similar(
+        a::ScaledGradedArray,
+        elt::Type,
+        ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(TensorAlgebra.unscaled(a), elt, ax)
+end
+function graded_similar(
+        a::ConjGradedArray,
+        elt::Type,
+        ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(conjed(a), elt, ax)
+end
+function graded_similar(
+        a::AddGradedArray,
+        elt::Type,
+        ax::NTuple{N, <:GradedUnitRange}
+    ) where {N}
+    return graded_similar(first(TensorAlgebra.addends(a)), elt, ax)
+end
+
+function copy_lazygraded(a::LazyGradedArray)
+    c = graded_similar(a, eltype(a), axes(a))
+    for I in graded_eachblockstoredindex(a)
+        c[I] = graded_broadcast_arg(a, I)
+    end
+    return c
+end
+
+function TensorAlgebra.:+ₗ(a::LazyGradedArray, b::LazyGradedArray)
+    check_graded_broadcast_axes(a, b)
+    return AddGradedArray(a, b)
+end
+TensorAlgebra.:*ₗ(α::Number, a::GradedArray) = ScaledGradedArray(α, a)
+TensorAlgebra.conjed(a::GradedArray) = ConjGradedArray(a)
+
+Base.copy(a::ScaledGradedArray) = copy_lazygraded(a)
+Base.copy(a::ConjGradedArray) = copy_lazygraded(a)
+Base.copy(a::AddGradedArray) = copy_lazygraded(a)
+Base.Array(a::ScaledGradedArray) = Array(copy(a))
+Base.Array(a::ConjGradedArray) = Array(copy(a))
+Base.Array(a::AddGradedArray) = Array(copy(a))
+
 BC.broadcasted(::GradedStyle, ::typeof(identity), a::GradedArray) = a
 BC.broadcasted(::GradedStyle, ::typeof(+), a::GradedArray) = a
 function BC.broadcasted(::GradedStyle, f::Base.Fix1{typeof(*), <:Number}, a::GradedArray)
@@ -325,7 +382,11 @@ end
 function BC.broadcasted(::GradedStyle, f::Base.Fix2{typeof(/), <:Number}, a::GradedArray)
     return a /ₗ f.x
 end
-BC.broadcasted(::GradedStyle, f, args...) = graded_broadcast_error(f)
+function BC.broadcasted(::GradedStyle, f, args...)
+    bc = BC.Broadcasted(f, args)
+    TensorAlgebra.is_linear(bc) || graded_broadcast_error(f)
+    return TensorAlgebra.to_linear(bc)
+end
 
 # constructor utilities
 # ---------------------
