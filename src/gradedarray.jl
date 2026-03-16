@@ -166,6 +166,24 @@ function Base.setindex!(
     return A
 end
 
+function Base.permutedims(a::GradedArray{<:Any, N}, perm) where {N}
+    a_dest = similar(FunctionImplementations.permuteddims(a, perm))
+    return permutedims!(a_dest, a, perm)
+end
+function Base.permutedims!(
+        a_dest::GradedArray{<:Any, N},
+        a::GradedArray{<:Any, N},
+        perm
+    ) where {N}
+    FunctionImplementations.zero!(a_dest)
+    for bI in eachblockstoredindex(a)
+        b = Tuple(bI)
+        b_dest = ntuple(i -> b[perm[i]], N)
+        a_dest[Block(b_dest)] = permutedims(a[bI], perm)
+    end
+    return a_dest
+end
+
 # constructor utilities
 # ---------------------
 function Base.zeros(elt::Type, axes::NTuple{N, R}) where {N, R <: GradedUnitRange}
