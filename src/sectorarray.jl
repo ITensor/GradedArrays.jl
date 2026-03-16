@@ -155,7 +155,7 @@ sector_type(::Type{SectorDelta{T, N, I}}) where {T, N, I} = I
 function Base.permutedims(x::SectorDelta, perm)
     return SectorDelta{eltype(x)}(Base.Fix1(getindex, sectors(x)).(perm))
 end
-function KroneckerArrays.FunctionImplementations.permuteddims(x::SectorDelta, perm)
+function FunctionImplementations.permuteddims(x::SectorDelta, perm)
     return permutedims(x, perm)
 end
 
@@ -355,12 +355,12 @@ function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
     return TensorAlgebra.permutedimsadd!(y, x, perm, true, false)
 end
 # no lazy view of fermionic permuted dims to avoid recomputing phases with scalar index
-function KroneckerArrays.FunctionImplementations.permuteddims(x::SectorArray, perm)
+function FunctionImplementations.permuteddims(x::SectorArray, perm)
     return if TKS.BraidingStyle(sector_type(x)) isa TKS.Bosonic
-        delta = KroneckerArrays.FunctionImplementations.permuteddims(
+        delta = FunctionImplementations.permuteddims(
             kroneckerfactors(x, 1), perm
         )
-        data = KroneckerArrays.FunctionImplementations.permuteddims(
+        data = FunctionImplementations.permuteddims(
             kroneckerfactors(x, 2), perm
         )
         SectorArray(delta.sectors, data)

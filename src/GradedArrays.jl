@@ -19,6 +19,7 @@ using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector, Block,
     BlockIndexRange, blocks, blocksize, eachblockaxes1
 using BlockSparseArrays: BlockSparseArrays, @view!, AbstractBlockSparseArray, BlockOneTo,
     BlockSparseArray, blockrange, blockreshape
+using FunctionImplementations: FunctionImplementations
 using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange,
     cartesianrange, kroneckerfactors, unproduct, ×
 using LinearAlgebra: LinearAlgebra, Adjoint
