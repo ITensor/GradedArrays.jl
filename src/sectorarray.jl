@@ -301,7 +301,7 @@ end
 Base.copy(A::SectorArray) = SectorArray(sectors(A), copy(A.data))
 function Base.copy!(C::SectorArray, A::SectorArray)
     axes(C) == axes(A) || throw(DimensionMismatch()) # TODO: sector error?
-    copy!(C.data, A.data)
+    copy!(arg2(C), arg2(A))
     return C
 end
 
