@@ -187,24 +187,6 @@ function Base.:(*)(a::SectorDelta{T₁, 2, I}, b::SectorDelta{T₂, 2, I}) where
     return SectorDelta{T}((axes(a, 1), axes(b, 2)))
 end
 
-using Base.Broadcast: Broadcast as BC
-using TensorAlgebra: TensorAlgebra, *ₗ, +ₗ, -ₗ, /ₗ, conjed
-
-struct SectorStyle{I, N} <: BC.AbstractArrayStyle{N} end
-SectorStyle{I, N}(::Val{M}) where {I, N, M} = SectorStyle{I, M}()
-
-function BC.BroadcastStyle(::Type{T}) where {T <: SectorDelta}
-    return SectorStyle{sector_type(T), ndims(T)}()
-end
-BC.BroadcastStyle(style::SectorStyle{I, N}, ::BC.DefaultArrayStyle{0}) where {I, N} = style
-BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{I, N}) where {I, N} = style
-function BC.BroadcastStyle(
-        style1::SectorStyle{I, N},
-        style2::SectorStyle{I, N}
-    ) where {I, N}
-    return style1
-end
-
 """
     SectorArray(sectors, data) <: AbstractKroneckerArray
 
@@ -242,10 +224,6 @@ function SectorArray{T}(
 end
 function SectorArray(sectors::NTuple{N, I}, data::AbstractArray{T, N}) where {T, I, N}
     return SectorArray{T, N, I, typeof(data)}(sectors, data)
-end
-
-function BC.BroadcastStyle(::Type{T}) where {T <: SectorArray}
-    return SectorStyle{sector_type(T), ndims(T)}()
 end
 
 const SectorMatrix{T, I, A <: AbstractMatrix{T}} = SectorArray{T, 2, I, A}
@@ -321,9 +299,6 @@ function Base.similar(
 end
 
 Base.copy(a::SectorArray) = SectorArray(sectors(a), copy(a.data))
-function Base.Broadcast.materialize(a::SectorArray)
-    return ofsector(a, Base.Broadcast.materialize(a.data))
-end
 function Base.copy!(C::SectorArray, A::SectorArray)
     axes(C) == axes(A) || throw(DimensionMismatch()) # TODO: sector error?
     copy!(C.data, A.data)
@@ -362,46 +337,4 @@ function Base.materialize!(dst::SectorArray, src::KroneckerArrays.KroneckerBroad
     Base.materialize!(kroneckerfactors(dst, 1), kroneckerfactors(src, 1))
     Base.materialize!(kroneckerfactors(dst, 2), kroneckerfactors(src, 2))
     return dst
-end
-
-function set_data(a::SectorArray, data::AbstractArray)
-    axes(data) == axes(a.data) ||
-        throw(ArgumentError("linear broadcasting must preserve SectorArray axes"))
-    return SectorArray(sectors(a), data)
-end
-ofsector(a::SectorArray, data) = set_data(a, data)
-
-function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
-    axes(a) == axes(b) ||
-        throw(ArgumentError("SectorArray linear broadcasting requires matching axes"))
-    return nothing
-end
-
-function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
-    check_sector_broadcast_axes(a, b)
-    return ofsector(a, a.data +ₗ b.data)
-end
-
-function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
-    require_unique_fusion(src)
-    TensorAlgebra.add!(dest, src.data, α, β)
-    return dest
-end
-
-function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β::Number)
-    check_sector_broadcast_axes(dest, src)
-    TensorAlgebra.add!(dest.data, src.data, α, β)
-    return dest
-end
-
-function TensorAlgebra.:*ₗ(α::Number, a::SectorArray)
-    return ofsector(a, α *ₗ a.data)
-end
-TensorAlgebra.:*ₗ(a::SectorArray, α::Number) = α *ₗ a
-function TensorAlgebra.conjed(a::SectorArray)
-    return ofsector(a, TensorAlgebra.conjed(a.data))
-end
-
-function BC.broadcasted(style::SectorStyle, f, args...)
-    return TensorAlgebra.broadcasted_linear(style, f, args...)
 end
