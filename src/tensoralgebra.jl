@@ -149,13 +149,7 @@ function TensorAlgebra.unmatricize(
         kroneckerfactors.(domain_axes, 2)
     )
 
-    T = TKS.sectorscalartype(sector_type(m))
-    phase = prod(
-        ntuple(length(codomain_axes)) do i
-            ax = kroneckerfactors(codomain_axes[i], 1)
-            return ifelse(isdual(ax), twist(ax), one(T))
-        end
-    )
+    phase = fermion_contraction_phase(msectors, length(codomain_axes))
     isone(phase) || (mdata .*= phase)
 
     return SectorArray(msectors.sectors, mdata)
@@ -168,7 +162,7 @@ function TensorAlgebra.permutedimsadd!(
     ysectors, ydata = kroneckerfactors(y)
     xsectors, xdata = kroneckerfactors(x)
     ysectors == permutedims(xsectors, perm) || throw(DimensionMismatch())
-    phase = permutation_phase(xsectors, perm)
+    phase = fermion_permutation_phase(xsectors, perm)
     TensorAlgebra.permutedimsadd!(ydata, xdata, perm, phase * α, β)
     return y
 end

@@ -66,7 +66,7 @@ end
 end
 
 @testset "permutation_phase" begin
-    pp = GradedArrays.permutation_phase
+    pp = GradedArrays.fermion_permutation_phase
 
     # Bosonic sector (U1): always +1 regardless of permutation
     u0 = SectorRange(TKS.U1Irrep(0))

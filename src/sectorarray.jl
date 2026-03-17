@@ -322,16 +322,6 @@ end
 
 # Fermionic specializations
 # -------------------------
-function permutation_phase(x::SectorDelta{<:Any, N}, perm::NTuple{N, Int}) where {N}
-    require_unique_fusion(x)
-    BS = TKS.BraidingStyle(sector_type(x))
-    BS isa TKS.Bosonic && return true
-    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
-
-    mask = map(fermionparity, sectors(x))
-    return masked_inversion_parity(mask, perm)
-end
-
 """
 Compute the parity of the number of inversions of a masked permutation
 """
@@ -346,9 +336,33 @@ function masked_inversion_parity(mask::NTuple{N, Bool}, perm::NTuple{N, Int}) wh
     return ifelse(parity, -1, 1)
 end
 
+function fermion_permutation_phase(x::SectorDelta{<:Any, N}, perm::NTuple{N, Int}) where {N}
+    require_unique_fusion(x)
+    BS = TKS.BraidingStyle(sector_type(x))
+    BS isa TKS.Bosonic && return true
+    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
+
+    mask = map(fermionparity, sectors(x))
+    return masked_inversion_parity(mask, perm)
+end
+
+function fermion_contraction_phase(x::SectorDelta{<:Any, N}, length_codomain::Int) where {N}
+    require_unique_fusion(x)
+    BS = TKS.BraidingStyle(sector_type(x))
+    BS isa TKS.Bosonic && return true
+    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
+    N <= ndims(x) ||
+        throw(ArgumentError(lazy"Cannot contract more than ndim legs ($N > $(ndims(x))"))
+
+    parity = mapreduce(⊻, enumerate(axes(x))) do (n, ax)
+        return n <= length_codomain & isdual(ax) & fermionparity(ax)
+    end
+    return ifelse(parity, -1, 1)
+end
+
 function Base.permutedims(x::SectorArray, perm)
     delta, data = permutedims.(kroneckerfactors(x), Ref(perm))
-    phase = permutation_phase(kroneckerfactors(x, 1), perm)
+    phase = fermion_permutation_phase(kroneckerfactors(x, 1), perm)
     return SectorArray(delta.sectors, isone(phase) ? data : phase * data)
 end
 function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
