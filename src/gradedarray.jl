@@ -165,6 +165,10 @@ function BC.BroadcastStyle(
     return GradedStyle{I, N}(style)
 end
 
+# TODO: Revisit `similar(::Broadcasted{<:GradedStyle}, ...)`.
+# The current implementation still allocates based on a selected broadcast argument.
+# Follow-up work should make this style-driven, deriving the block type from the
+# graded/block style and allocating a default `BlockSparseArray` directly.
 function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type, ax)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbstractArray, bc′.args)]
@@ -257,6 +261,8 @@ function lazyblock(a::AddGradedArray, I::Block)
     return +ₗ(map(Base.Fix2(lazyblock, I), TensorAlgebra.addends(a))...)
 end
 
+# TODO: Use `eachblockstoredindex` directly for lazy graded wrappers and delete the
+# `graded_eachblockstoredindex` helper once that refactor is split into its own PR.
 graded_eachblockstoredindex(a::GradedArray) = collect(eachblockstoredindex(a))
 function graded_eachblockstoredindex(a::ScaledGradedArray)
     return graded_eachblockstoredindex(TensorAlgebra.unscaled(a))
@@ -266,6 +272,8 @@ function graded_eachblockstoredindex(a::AddGradedArray)
     return unique!(vcat(map(graded_eachblockstoredindex, TensorAlgebra.addends(a))...))
 end
 
+# TODO: Rename `graded_similar` to `similar_graded` or fold it into `similar`
+# entirely once the follow-up allocator cleanup is ready.
 function graded_similar(
         a::GradedArray,
         elt::Type,
