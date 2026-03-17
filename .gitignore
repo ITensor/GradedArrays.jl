@@ -10,6 +10,5 @@ LocalPreferences.toml
 Manifest*.toml
 benchmark/*.json
 dev/
-.worktrees/
 docs/build/
 docs/src/index.md
