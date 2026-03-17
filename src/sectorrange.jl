@@ -127,7 +127,7 @@ SymmetryStyle(x) = SymmetryStyle(typeof(x))
 # and preserve labels in any slicing operation
 SymmetryStyle(T::Type) = AbelianStyle()
 function SymmetryStyle(::Type{T}) where {T <: SectorRange}
-    if TKS.FusionStyle(T) === TKS.UniqueFusion() && TKS.BraidingStyle(T) === TKS.Bosonic()
+    if TKS.FusionStyle(T) === TKS.UniqueFusion()
         return AbelianStyle()
     else
         return NotAbelianStyle()
