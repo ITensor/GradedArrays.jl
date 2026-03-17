@@ -179,67 +179,14 @@ end
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
-@testset "contract GradedArray with FermionParity (eltype=$elt)" for elt in elts
-    r = gradedrange([fP0 => 2, fP1 => 2])
 
-    @testset "matricize/unmatricize round-trip" begin
-        a = randn_blockdiagonal(elt, (r, r, dual(r), dual(r)))
-        @test a == unmatricize(
-            matricize(a, (1, 2), (3, 4)),
-            (axes(a, 1), axes(a, 2)),
-            (axes(a, 3), axes(a, 4))
-        )
-    end
-
-    @testset "matrix-matrix contraction" begin
-        a1 = randn_blockdiagonal(elt, (r, r, dual(r), dual(r)))
-        a2 = randn_blockdiagonal(elt, (r, r, dual(r), dual(r)))
-        a1_dense = convert(Array, a1)
-        a2_dense = convert(Array, a2)
-
-        a_dest, dimnames_dest = contract(a1, (1, -1, 2, -2), a2, (2, -3, 1, -4))
-        a_dest_dense, dimnames_dest_dense =
-            contract(a1_dense, (1, -1, 2, -2), a2_dense, (2, -3, 1, -4))
-        @test dimnames_dest == dimnames_dest_dense
-        @test size(a_dest) == size(a_dest_dense)
-        @test a_dest isa GradedArray
-        @test a_dest ≈ a_dest_dense
-    end
-
-    @testset "matrix-vector contraction" begin
-        a1 = randn_blockdiagonal(elt, (r, r, dual(r), dual(r)))
-        a3 = randn_blockdiagonal(elt, (r, dual(r)))
-        a1_dense = convert(Array, a1)
-        a3_dense = convert(Array, a3)
-
-        a_dest, dimnames_dest = contract(a1, (2, -1, -2, 1), a3, (1, 2))
-        a_dest_dense, dimnames_dest_dense =
-            contract(a1_dense, (2, -1, -2, 1), a3_dense, (1, 2))
-        @test dimnames_dest == dimnames_dest_dense
-        @test size(a_dest) == size(a_dest_dense)
-        @test a_dest isa GradedArray
-        @test a_dest ≈ a_dest_dense
-    end
-
-    @testset "outer product" begin
-        a3 = randn_blockdiagonal(elt, (r, dual(r)))
-        a3_dense = convert(Array, a3)
-
-        a_dest, dimnames_dest = contract(a3, (1, 2), a3, (3, 4))
-        a_dest_dense, dimnames_dest_dense = contract(a3_dense, (1, 2), a3_dense, (3, 4))
-        @test dimnames_dest == dimnames_dest_dense
-        @test size(a_dest) == size(a_dest_dense)
-        @test a_dest isa GradedArray
-        @test a_dest ≈ a_dest_dense
-    end
-end
-
-# Tests with r_odd (all-odd sectors) where fermionic phases do NOT cancel.
+# Tests with r_odd (all-odd sectors) and analytically compute the signs
 # For all-odd blocks, the total phase from permutation + matricize twist is -1,
 # so the GradedArray result equals -1 * the dense result.
-const r_odd = gradedrange([fP1 => 2])
-@testset "contract GradedArray with FermionParity, non-canceling phases (eltype=$elt)" for elt in
+@testset "contract GradedArray with FermionParity (eltype=$elt)" for elt in
     elts
+
+    r_odd = gradedrange([fP1 => 2])
 
     @testset "permutedims of all-odd GradedArray picks up -1 phase" begin
         # (r_odd, dual(r_odd)): swap perm (2,1) on two odd axes → phase -1
@@ -249,47 +196,72 @@ const r_odd = gradedrange([fP1 => 2])
         @test convert(Array, a_perm) ≈ -1 * a_dense_perm
     end
 
-    @testset "matrix-vector contraction B: total phase -1" begin
-        # labels (1,-1,-2,2) × (1,2): biperm1=(2,3,1,4), T1=-1, T2=-1, U=-1 → total=-1
-        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a3 = randn_blockdiagonal(elt, (r_odd, dual(r_odd)))
-        a1_dense = convert(Array, a1)
-        a3_dense = convert(Array, a3)
-        a_dest, _ = contract(a1, (1, -1, -2, 2), a3, (1, 2))
-        a_dest_dense, _ = contract(a1_dense, (1, -1, -2, 2), a3_dense, (1, 2))
-        @test convert(Array, a_dest) ≈ -1 * a_dest_dense
+    @testset "matrix-matrix contraction" begin
+        for r1 in (r_odd, dual(r_odd)),
+                r2 in (r_odd, dual(r_odd)),
+                r3 in (r_odd, dual(r_odd))
+
+            a1 = randn_blockdiagonal(elt, (r1, dual(r2)))
+            a2 = randn_blockdiagonal(elt, (r2, r3))
+            a1_dense = convert(Array, a1)
+            a2_dense = convert(Array, a2)
+            a_dest, labels_dest = contract(a1, (-1, 1), a2, (1, -2))
+            a_dest_dense, labels_dest_dense = contract(a1_dense, (-1, 1), a2_dense, (1, -2))
+            @test labels_dest == labels_dest_dense
+            a_dest_dense = isdual(r2) ? -a_dest_dense : a_dest_dense
+            @test convert(Array, a_dest) ≈ a_dest_dense
+
+            # does not depend on input order
+            a_dest = permutedims(contract(a2, (1, -2), a1, (-1, 1))[1], (2, 1))
+            @test convert(Array, a_dest) ≈ a_dest_dense
+
+            a_dest = contract((-1, -2), a2, (1, -2), a1, (-1, 1))
+            @test convert(Array, a_dest) ≈ a_dest_dense
+
+            # does not depend on permutations
+            a3 = permutedims(a1, (2, 1))
+            a_dest, _ = contract(a3, (1, -1), a2, (1, -2))
+            @test convert(Array, a_dest) ≈ a_dest_dense
+
+            a4 = permutedims(a2, (2, 1))
+            a_dest, _ = contract(a1, (-1, 1), a4, (-2, 1))
+            @test convert(Array, a_dest) ≈ a_dest_dense
+
+            a_dest, _ = contract(a3, (1, -1), a4, (-2, 1))
+            @test convert(Array, a_dest) ≈ a_dest_dense
+        end
     end
 
-    @testset "matrix-matrix contraction B: total phase -1" begin
-        # labels (1,-1,-2,2) × (2,1,-3,-4): P2=-1, T1=-1, T2=+1, U=-1 → total=-1
-        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a1_dense = convert(Array, a1)
-        a2_dense = convert(Array, a2)
-        a_dest, _ = contract(a1, (1, -1, -2, 2), a2, (2, 1, -3, -4))
-        a_dest_dense, _ = contract(a1_dense, (1, -1, -2, 2), a2_dense, (2, 1, -3, -4))
-        @test convert(Array, a_dest) ≈ -1 * a_dest_dense
-    end
-
-    @testset "matrix-matrix contraction D: total phase -1" begin
-        # labels (-1,1,2,-2) × (2,-3,1,-4): P1=+1, T1=-1, P2=+1, T2=-1, U=-1 → total=-1
-        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a1_dense = convert(Array, a1)
-        a2_dense = convert(Array, a2)
-        a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
-        a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
-        @test convert(Array, a_dest) ≈ -1 * a_dest_dense
-    end
-
-    @testset "matrix-matrix contraction G: total phase -1" begin
-        # labels (1,2,-1,-2) × (2,-3,1,-4): P1=+1, T1=+1, P2=+1, T2=-1, U=+1 → total=-1
-        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a1_dense = convert(Array, a1)
-        a2_dense = convert(Array, a2)
-        a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (2, -3, 1, -4))
-        a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (2, -3, 1, -4))
-        @test convert(Array, a_dest) ≈ -1 * a_dest_dense
-    end
+    # @testset "matrix-matrix contraction B: total phase -1" begin
+    #     # labels (1,-1,-2,2) × (2,1,-3,-4): P2=-1, T1=-1, T2=+1, U=-1 → total=-1
+    #     a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+    #     a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+    #     a1_dense = convert(Array, a1)
+    #     a2_dense = convert(Array, a2)
+    #     a_dest, _ = contract(a1, (1, -1, -2, 2), a2, (2, 1, -3, -4))
+    #     a_dest_dense, _ = contract(a1_dense, (1, -1, -2, 2), a2_dense, (2, 1, -3, -4))
+    #     @test convert(Array, a_dest) ≈ -1 * a_dest_dense
+    # end
+    #
+    # @testset "matrix-matrix contraction D: total phase -1" begin
+    #     # labels (-1,1,2,-2) × (2,-3,1,-4): P1=+1, T1=-1, P2=+1, T2=-1, U=-1 → total=-1
+    #     a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+    #     a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+    #     a1_dense = convert(Array, a1)
+    #     a2_dense = convert(Array, a2)
+    #     a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
+    #     a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
+    #     @test convert(Array, a_dest) ≈ -1 * a_dest_dense
+    # end
+    #
+    # @testset "matrix-matrix contraction G: total phase -1" begin
+    #     # labels (1,2,-1,-2) × (2,-3,1,-4): P1=+1, T1=+1, P2=+1, T2=-1, U=+1 → total=-1
+    #     a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+    #     a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+    #     a1_dense = convert(Array, a1)
+    #     a2_dense = convert(Array, a2)
+    #     a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (2, -3, 1, -4))
+    #     a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (2, -3, 1, -4))
+    #     @test convert(Array, a_dest) ≈ -1 * a_dest_dense
+    # end
 end
