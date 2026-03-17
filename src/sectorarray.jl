@@ -269,19 +269,19 @@ data_type(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
 # AbstractArray interface
 # -----------------------
 Base.@propagate_inbounds function Base.getindex(
-        A::SectorArray{T, N, Isector, Adata},
+        A::SectorArray{T, N},
         I::Vararg{Int, N}
-    ) where {T, N, Isector, Adata}
+    ) where {T, N}
     TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
         error("not implemented for non-abelian tensors")
     @boundscheck checkbounds(A, I...)
     return @inbounds A.data[I...]
 end
 Base.@propagate_inbounds function Base.setindex!(
-        A::SectorArray{T, N, Isector, Adata},
+        A::SectorArray{T, N},
         v,
         I::Vararg{Int, N}
-    ) where {T, N, Isector, Adata}
+    ) where {T, N}
     TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
         error("not implemented for non-abelian tensors")
     @boundscheck checkbounds(A, I...)
@@ -330,11 +330,13 @@ function Base.similar(
     )
 end
 
-Base.copy(A::SectorArray) = SectorArray(sectors(A), copy(A.data))
-Base.Broadcast.materialize(A::SectorArray{<:Any, <:Any, <:Any, <:LazySectorData}) = copy(A)
+Base.copy(a::SectorArray) = SectorArray(sectors(a), copy(a.data))
+function Base.Broadcast.materialize(a::SectorArray)
+    return SectorArray(sectors(a), Base.Broadcast.materialize(a.data))
+end
 function Base.copy!(C::SectorArray, A::SectorArray)
     axes(C) == axes(A) || throw(DimensionMismatch()) # TODO: sector error?
-    copy!(arg2(C), arg2(A))
+    copy!(C.data, A.data)
     return C
 end
 
@@ -398,7 +400,7 @@ function set_data(a::SectorArray, data::AbstractArray)
         throw(ArgumentError("linear broadcasting must preserve SectorArray axes"))
     return SectorArray(sectors(a), data)
 end
-ofsector(data, a::SectorArray) = set_data(a, data)
+ofsector(a::SectorArray, data) = set_data(a, data)
 
 function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
     axes(a) == axes(b) ||
@@ -416,7 +418,7 @@ end
 
 function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
     check_sector_broadcast_axes(a, b)
-    return set_data(a, TensorAlgebra.:+ₗ(a.data, b.data))
+    return ofsector(a, a.data +ₗ b.data)
 end
 
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
@@ -432,12 +434,14 @@ function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β:
 end
 
 function TensorAlgebra.:*ₗ(α::Number, a::SectorArray)
-    return set_data(a, TensorAlgebra.:*ₗ(α, a.data))
+    return ofsector(a, α *ₗ a.data)
 end
-TensorAlgebra.:*ₗ(a::SectorArray, α::Number) = TensorAlgebra.:*ₗ(α, a)
+TensorAlgebra.:*ₗ(a::SectorArray, α::Number) = α *ₗ a
 function TensorAlgebra.conjed(a::SectorArray)
-    return set_data(a, TensorAlgebra.conjed(a.data))
+    return ofsector(a, TensorAlgebra.conjed(a.data))
 end
+
+BC.broadcasted(style::SectorStyle, f, args...) = broadcasted_linear(style, f, args...)
 
 # Generic linear broadcast lowering shared with `GradedArray`.
 # TODO: Move to TensorAlgebra.jl.
@@ -446,6 +450,7 @@ TensorAlgebra.lazy_function(f::Base.Fix1{typeof(*), <:Number}) = Base.Fix1(*ₗ,
 TensorAlgebra.lazy_function(f::Base.Fix2{typeof(*), <:Number}) = Base.Fix2(*ₗ, f.x)
 TensorAlgebra.lazy_function(f::Base.Fix2{typeof(/), <:Number}) = Base.Fix2(/ₗ, f.x)
 
+# TODO: Move to TensorAlgebra.jl.
 function TensorAlgebra.broadcast_is_linear(
         ::typeof(identity),
         ::Base.AbstractArrayOrBroadcasted
@@ -468,10 +473,9 @@ function TensorAlgebra.broadcast_is_linear(
     return true
 end
 
+# TODO: Move to TensorAlgebra.jl.
 function broadcasted_linear(style, f, args...)
     bc = BC.Broadcasted(style, f, args)
     TensorAlgebra.is_linear(bc) || broadcast_error(style, f)
     return TensorAlgebra.to_linear(bc)
 end
-
-BC.broadcasted(style::SectorStyle, f, args...) = broadcasted_linear(style, f, args...)
