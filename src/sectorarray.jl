@@ -187,14 +187,6 @@ function Base.:(*)(a::SectorDelta{T₁, 2, I}, b::SectorDelta{T₂, 2, I}) where
     return SectorDelta{T}((axes(a, 1), axes(b, 2)))
 end
 
-# want to add something to opt out of the broadcasting kronecker thingies
-# so need something to dispatch on...
-# struct SectorStyle{I, N} <: Broadcast.AbstractArrayStyle{N} end
-# SectorStyle{I, N}(::Val{M}) where {I, N, M} = SectorStyle{I, M}()
-#
-# Base.BroadcastStyle(::Type{T}) where {T <: SectorDelta} = SectorStyle{sector_type(T), ndims(T)}
-#
-
 """
     SectorArray(sectors, data) <: AbstractKroneckerArray
 

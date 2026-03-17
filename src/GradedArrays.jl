@@ -27,6 +27,7 @@ using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 include("sectorrange.jl")
 include("sectorarray.jl")
 include("gradedarray.jl")
+include("broadcast.jl")
 
 include("sectorproduct.jl")
 
