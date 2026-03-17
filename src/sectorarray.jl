@@ -298,7 +298,7 @@ function Base.similar(
     )
 end
 
-Base.copy(a::SectorArray) = SectorArray(sectors(a), copy(a.data))
+Base.copy(A::SectorArray) = SectorArray(sectors(A), copy(A.data))
 function Base.copy!(C::SectorArray, A::SectorArray)
     axes(C) == axes(A) || throw(DimensionMismatch()) # TODO: sector error?
     copy!(C.data, A.data)
