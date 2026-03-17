@@ -166,6 +166,19 @@ function TensorAlgebra.permutedimsadd!(
     TensorAlgebra.permutedimsadd!(ydata, xdata, perm, phase * α, β)
     return y
 end
+function TensorAlgebra.permutedimsadd!(
+        y::GradedArray{<:Any, N}, x::GradedArray{<:Any, N}, perm,
+        α::Number, β::Number
+    ) where {N}
+    y .*= β
+    for bI in eachblockstoredindex(x)
+        b = Tuple(bI)
+        b_dest = ntuple(i -> b[perm[i]], N)
+        y[Block(b_dest)] =
+            TensorAlgebra.permutedimsadd!(y[Block(b_dest)], x[bI], perm, α, true)
+    end
+    return y
+end
 
 # Sort the blocks by sector and then merge the common sectors.
 function sectormergesort(a::AbstractArray)

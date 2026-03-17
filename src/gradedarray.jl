@@ -164,17 +164,9 @@ function Base.permutedims(a::GradedArray{<:Any, N}, perm) where {N}
     return permutedims!(a_dest, a, perm)
 end
 function Base.permutedims!(
-        a_dest::GradedArray{<:Any, N},
-        a::GradedArray{<:Any, N},
-        perm
+        y::GradedArray{<:Any, N}, x::GradedArray{<:Any, N}, perm
     ) where {N}
-    FI.zero!(a_dest)
-    for bI in eachblockstoredindex(a)
-        b = Tuple(bI)
-        b_dest = ntuple(i -> b[perm[i]], N)
-        a_dest[Block(b_dest)] = permutedims(a[bI], perm)
-    end
-    return a_dest
+    return TensorAlgebra.permutedimsadd!(y, x, perm, true, false)
 end
 
 # constructor utilities
