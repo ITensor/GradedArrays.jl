@@ -1,10 +1,3 @@
-using ArrayLayouts: ArrayLayouts
-using BlockArrays: AbstractBlockedUnitRange, BlockedOneTo, blockisequal
-using BlockSparseArrays: BlockSparseArrays, AbstractBlockSparseMatrix,
-    AnyAbstractBlockSparseArray, BlockSparseArray, BlockUnitRange, blocktype,
-    eachblockstoredindex, sparsemortar
-using TypeParameterAccessors: similartype, unwrap_array_type
-
 # Axes
 # ----
 """
@@ -167,7 +160,7 @@ function Base.setindex!(
 end
 
 function Base.permutedims(a::GradedArray{<:Any, N}, perm) where {N}
-    a_dest = similar(FunctionImplementations.permuteddims(a, perm))
+    a_dest = similar(FI.permuteddims(a, perm))
     return permutedims!(a_dest, a, perm)
 end
 function Base.permutedims!(
@@ -175,7 +168,7 @@ function Base.permutedims!(
         a::GradedArray{<:Any, N},
         perm
     ) where {N}
-    FunctionImplementations.zero!(a_dest)
+    FI.zero!(a_dest)
     for bI in eachblockstoredindex(a)
         b = Tuple(bI)
         b_dest = ntuple(i -> b[perm[i]], N)
