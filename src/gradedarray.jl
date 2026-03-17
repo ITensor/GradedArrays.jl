@@ -257,16 +257,6 @@ function lazyblock(a::AddGradedArray, I::Block)
     return +ₗ(map(Base.Fix2(lazyblock, I), TensorAlgebra.addends(a))...)
 end
 
-Base.@propagate_inbounds function Base.getindex(a::ScaledGradedArray, I...)
-    return TensorAlgebra.coeff(a) * getindex(TensorAlgebra.unscaled(a), I...)
-end
-Base.@propagate_inbounds function Base.getindex(a::ConjGradedArray, I...)
-    return conj(getindex(conjed(a), I...))
-end
-Base.@propagate_inbounds function Base.getindex(a::AddGradedArray, I...)
-    return sum(addend -> getindex(addend, I...), TensorAlgebra.addends(a))
-end
-
 graded_eachblockstoredindex(a::GradedArray) = collect(eachblockstoredindex(a))
 function graded_eachblockstoredindex(a::ScaledGradedArray)
     return graded_eachblockstoredindex(TensorAlgebra.unscaled(a))
@@ -329,7 +319,9 @@ Base.Array(a::ScaledGradedArray) = Array(copy(a))
 Base.Array(a::ConjGradedArray) = Array(copy(a))
 Base.Array(a::AddGradedArray) = Array(copy(a))
 
-BC.broadcasted(style::GradedStyle, f, args...) = broadcasted_linear(style, f, args...)
+function BC.broadcasted(style::GradedStyle, f, args...)
+    return TensorAlgebra.broadcasted_linear(style, f, args...)
+end
 
 # constructor utilities
 # ---------------------
