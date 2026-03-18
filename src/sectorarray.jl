@@ -351,7 +351,7 @@ function fermion_contraction_phase(x::SectorDelta{<:Any, N}, length_codomain::In
     BS = TKS.BraidingStyle(sector_type(x))
     BS isa TKS.Bosonic && return true
     @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
-    N <= ndims(x) ||
+    length_codomain <= ndims(x) ||
         throw(ArgumentError(lazy"Cannot contract more than ndim legs ($N > $(ndims(x))"))
 
     parity = mapreduce(⊻, enumerate(axes(x))) do (n, ax)
