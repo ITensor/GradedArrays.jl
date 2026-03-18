@@ -1,19 +1,10 @@
-using BlockArrays: BlockIndexRange, blocks, eachblockaxes1
-using BlockSparseArrays: BlockSparseArray, blockrange, blockreshape
-using GradedArrays: GradedArray, GradedUnitRange, SectorRange, flip, gradedrange,
-    invblockperm, sectormergesortperm, sectors, sectorsortperm, trivial,
-    unmerged_tensor_product, ×
-using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
-    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
-    tuplemortar, unmatricize
-
 struct SectorFusion <: FusionStyle end
 
 TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:SectorArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorUnitRange}) = SectorFusion()
 
-using BlockArrays: AbstractBlockArray
 const BlockReshapeFusion = typeof(FusionStyle(AbstractBlockArray))
 
 function TensorAlgebra.trivial_axis(
@@ -97,6 +88,23 @@ function TensorAlgebra.matricize(
         isempty(ax_domain) ? trivial(sector_type(a)) : flip(tensor_product(ax_domain...))
     return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
 end
+function TensorAlgebra.matricize(
+        ::SectorFusion, a::SectorArray, length_codomain::Val
+    )
+    asectors, adata = kroneckerfactors(a)
+    asectors_reshaped = matricize(asectors, length_codomain)
+    adata_reshaped = matricize(adata, length_codomain)
+
+    T = TKS.sectorscalartype(sector_type(a))
+    phase = prod(
+        ntuple(length_codomain) do i
+            return ifelse(isdual(axes(a, i)), twist(sectors(a, i)), one(T))
+        end
+    )
+    isone(phase) || (adata_reshaped .*= phase)
+
+    return SectorArray(asectors_reshaped.sectors, adata_reshaped)
+end
 
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::SectorDelta,
@@ -123,6 +131,53 @@ function TensorAlgebra.unmatricize(
     blockperms = sectorsortperm.(fused_axes)
     J = map(invblockmergeperm, fused_axes, blockperms, axes(m))
     return unmatricize(FusionStyle(BlockSparseArray), m[J...], blocked_axes)
+end
+function TensorAlgebra.unmatricize(
+        ::SectorFusion, m::SectorMatrix,
+        codomain_axes::Tuple{Vararg{AbstractUnitRange}},
+        domain_axes::Tuple{Vararg{AbstractUnitRange}}
+    )
+    msectors, mdata = kroneckerfactors(m)
+    msectors = unmatricize(
+        kroneckerfactors(m, 1),
+        kroneckerfactors.(codomain_axes, 1),
+        kroneckerfactors.(domain_axes, 1)
+    )
+    mdata = unmatricize(
+        kroneckerfactors(m, 2),
+        kroneckerfactors.(codomain_axes, 2),
+        kroneckerfactors.(domain_axes, 2)
+    )
+
+    phase = fermion_contraction_phase(msectors, length(codomain_axes))
+    isone(phase) || (mdata .*= phase)
+
+    return SectorArray(msectors.sectors, mdata)
+end
+
+function TensorAlgebra.permutedimsadd!(
+        y::SectorArray, x::SectorArray, perm,
+        α::Number, β::Number
+    )
+    ysectors, ydata = kroneckerfactors(y)
+    xsectors, xdata = kroneckerfactors(x)
+    ysectors == permutedims(xsectors, perm) || throw(DimensionMismatch())
+    phase = fermion_permutation_phase(xsectors, perm)
+    TensorAlgebra.permutedimsadd!(ydata, xdata, perm, phase * α, β)
+    return y
+end
+function TensorAlgebra.permutedimsadd!(
+        y::GradedArray{<:Any, N}, x::GradedArray{<:Any, N}, perm,
+        α::Number, β::Number
+    ) where {N}
+    y .*= β
+    for bI in eachblockstoredindex(x)
+        b = Tuple(bI)
+        b_dest = ntuple(i -> b[perm[i]], N)
+        y[Block(b_dest)] =
+            TensorAlgebra.permutedimsadd!(y[Block(b_dest)], x[bI], perm, α, true)
+    end
+    return y
 end
 
 # Sort the blocks by sector and then merge the common sectors.
@@ -156,8 +211,6 @@ function invblockmergeperm(fine_ax, blockperm, merged_ax)
     end
     return J
 end
-
-using BlockArrays: AbstractBlockVector, Block
 
 function checkindices(
         a::GradedArray{<:Any, N}, I::NTuple{N, AbstractVector{<:BlockIndexRange{1}}}

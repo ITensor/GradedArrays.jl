@@ -1,10 +1,3 @@
-using ArrayLayouts: ArrayLayouts
-using BlockArrays: AbstractBlockedUnitRange, BlockedOneTo, blockisequal
-using BlockSparseArrays: BlockSparseArrays, AbstractBlockSparseMatrix,
-    AnyAbstractBlockSparseArray, BlockSparseArray, BlockUnitRange, blocktype,
-    eachblockstoredindex, sparsemortar
-using TypeParameterAccessors: similartype, unwrap_array_type
-
 # Axes
 # ----
 """
@@ -164,6 +157,16 @@ function Base.setindex!(
         blocks(A)[Int.(I)...] = BlockSparseArrays._convert(blocktype(A), value)
     end
     return A
+end
+
+function Base.permutedims(a::GradedArray{<:Any, N}, perm) where {N}
+    a_dest = similar(FI.permuteddims(a, perm))
+    return permutedims!(a_dest, a, perm)
+end
+function Base.permutedims!(
+        y::GradedArray{<:Any, N}, x::GradedArray{<:Any, N}, perm
+    ) where {N}
+    return TensorAlgebra.permutedimsadd!(y, x, perm, true, false)
 end
 
 # constructor utilities

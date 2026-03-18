@@ -155,7 +155,7 @@ sector_type(::Type{SectorDelta{T, N, I}}) where {T, N, I} = I
 function Base.permutedims(x::SectorDelta, perm)
     return SectorDelta{eltype(x)}(Base.Fix1(getindex, sectors(x)).(perm))
 end
-function KroneckerArrays.FunctionImplementations.permuteddims(x::SectorDelta, perm)
+function FI.permuteddims(x::SectorDelta, perm)
     return permutedims(x, perm)
 end
 
@@ -240,6 +240,7 @@ function KroneckerArrays.kroneckerfactortypes(
 end
 
 sectors(A::SectorArray) = A.sectors
+sectors(A::SectorArray, i) = A.sectors[i]
 
 sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = I
 data_type(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
@@ -317,6 +318,86 @@ end
 function Base.adjoint(a::SectorArray)
     sectors_adjoint = adjoint(kroneckerfactors(a, 1))
     return SectorArray(axes(sectors_adjoint), adjoint(kroneckerfactors(a, 2)))
+end
+
+# Fermionic specializations
+# -------------------------
+"""
+Compute the parity of the number of inversions of a masked permutation
+"""
+function masked_inversion_parity(mask::NTuple{N, Bool}, perm::NTuple{N, Int}) where {N}
+    parity = false
+    @inbounds for i in 1:N
+        mask[i] || continue
+        for j in (i + 1):N
+            parity ⊻= mask[j] & (perm[i] > perm[j]) # branchless is important here
+        end
+    end
+    return ifelse(parity, -1, 1)
+end
+
+function fermion_permutation_phase(x::SectorDelta{<:Any, N}, perm::NTuple{N, Int}) where {N}
+    require_unique_fusion(x)
+    BS = TKS.BraidingStyle(sector_type(x))
+    BS isa TKS.Bosonic && return true
+    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
+
+    mask = map(fermionparity, sectors(x))
+    return masked_inversion_parity(mask, perm)
+end
+
+function fermion_contraction_phase(x::SectorDelta{<:Any, N}, length_codomain::Int) where {N}
+    require_unique_fusion(x)
+    BS = TKS.BraidingStyle(sector_type(x))
+    BS isa TKS.Bosonic && return true
+    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
+    length_codomain <= ndims(x) ||
+        throw(ArgumentError(lazy"Cannot contract more than ndim legs ($N > $(ndims(x))"))
+
+    parity = mapreduce(⊻, enumerate(axes(x))) do (n, ax)
+        return n <= length_codomain & isdual(ax) & fermionparity(ax)
+    end
+    return ifelse(parity, -1, 1)
+end
+
+function Base.permutedims(x::SectorArray, perm)
+    y = similar(x, ntuple(n -> axes(x, perm[n]), ndims(x)))
+    return permutedims!(y, x, perm)
+end
+function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
+    return TensorAlgebra.permutedimsadd!(y, x, perm, true, false)
+end
+# no lazy view of fermionic permuted dims to avoid recomputing phases with scalar index
+function FI.permuteddims(x::SectorArray, perm)
+    return if TKS.BraidingStyle(sector_type(x)) isa TKS.Bosonic
+        delta = FI.permuteddims(
+            kroneckerfactors(x, 1), perm
+        )
+        data = FI.permuteddims(
+            kroneckerfactors(x, 2), perm
+        )
+        SectorArray(delta.sectors, data)
+    else
+        permutedims(x, perm)
+    end
+end
+
+# TODO: Define this as part of:
+# `check_input(::typeof(mul!), ::SectorMatrix, ::SectorMatrix, ::SectorMatrix)`
+function check_mul_axes(c::SectorMatrix, a::SectorMatrix, b::SectorMatrix)
+    space_isequal(axes(a, 2), dual(axes(b, 1))) ||
+        throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
+    space_isequal(axes(c, 1), axes(a, 1)) || throw(DimensionMismatch())
+    space_isequal(axes(c, 2), axes(b, 2)) || throw(DimensionMismatch())
+    return nothing
+end
+
+function LinearAlgebra.mul!(
+        c::SectorMatrix, a::SectorMatrix, b::SectorMatrix, α::Number, β::Number
+    )
+    check_mul_axes(c, a, b)
+    mul!(c.data, a.data, b.data, α, β)
+    return c
 end
 
 # Other

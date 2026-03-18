@@ -15,14 +15,24 @@ export dual, flip, gradedrange, isdual,
 
 # imports
 # -------
-using BlockArrays: BlockArrays, Block, blocksize
-using BlockSparseArrays:
-    BlockSparseArrays, @view!, AbstractBlockSparseArray, BlockOneTo, blockrange
+import FunctionImplementations as FI
+using ArrayLayouts: ArrayLayouts
+using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
+    AbstractBlockedUnitRange, Block, BlockIndexRange, BlockedOneTo, blockisequal, blocks,
+    blocksize, eachblockaxes1
+using BlockSparseArrays: BlockSparseArrays, @view!, AbstractBlockSparseArray,
+    AnyAbstractBlockSparseArray, BlockOneTo, BlockSparseArray, BlockUnitRange, blockrange,
+    blockreshape, blocktype, eachblockstoredindex, sparsemortar
 using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange,
     cartesianrange, kroneckerfactors, unproduct, ×
-using LinearAlgebra: LinearAlgebra, Adjoint
+using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using SparseArraysBase: isstored
-using TypeParameterAccessors: type_parameters, unspecify_type_parameters
+using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
+    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
+    tuplemortar, unmatricize
+using TensorKitSectors: TensorKitSectors as TKS
+using TypeParameterAccessors:
+    similartype, type_parameters, unspecify_type_parameters, unwrap_array_type
 
 include("sectorrange.jl")
 include("sectorarray.jl")

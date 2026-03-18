@@ -1,6 +1,5 @@
 # This file defines the interface for type Sector
 # all fusion categories (Z{2}, SU2, Ising...) are subtypes of Sector
-using TensorKitSectors: TensorKitSectors as TKS
 
 """
     SectorRange(sector::TKS.Sector, isdual::Bool)
@@ -99,12 +98,22 @@ dual(c::TKS.Sector) = TKS.dual(c)
 dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
 flip(r1::SectorRange) = typeof(r1)(dual(r1.label), !isdual(r1))
 
+fermionparity(c::SectorRange) = TKS.fermionparity(c.label)
+twist(c::SectorRange) = TKS.twist(c.label)
+
 Base.adjoint(r1::SectorRange) = dual(r1)
 
 # ===============================  Fusion rule interface  ==================================
 
-TKS.FusionStyle(::Type{SectorRange{I}}) where {I} = TKS.FusionStyle(I)
-TKS.BraidingStyle(::Type{SectorRange{I}}) where {I} = TKS.BraidingStyle(I)
+for trait in (
+        :FusionStyle,
+        :BraidingStyle,
+        :sectorscalartype,
+        :fusionscalartype,
+        :braidingscalartype,
+    )
+    @eval TKS.$trait(::Type{SectorRange{I}}) where {I} = TKS.$trait(I)
+end
 
 abstract type SymmetryStyle end
 
@@ -118,7 +127,7 @@ SymmetryStyle(x) = SymmetryStyle(typeof(x))
 # and preserve labels in any slicing operation
 SymmetryStyle(T::Type) = AbelianStyle()
 function SymmetryStyle(::Type{T}) where {T <: SectorRange}
-    if TKS.FusionStyle(T) === TKS.UniqueFusion() && TKS.BraidingStyle(T) === TKS.Bosonic()
+    if TKS.FusionStyle(T) === TKS.UniqueFusion()
         return AbelianStyle()
     else
         return NotAbelianStyle()
