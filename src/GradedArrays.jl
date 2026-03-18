@@ -25,7 +25,7 @@ using BlockSparseArrays: BlockSparseArrays, @view!, AbstractBlockSparseArray,
     blockreshape, blocktype, eachblockstoredindex, sparsemortar
 using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange,
     cartesianrange, kroneckerfactors, unproduct, ×
-using LinearAlgebra: LinearAlgebra, Adjoint
+using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using SparseArraysBase: isstored
 using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
     ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
