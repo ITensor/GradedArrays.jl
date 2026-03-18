@@ -394,8 +394,8 @@ function check_mul_axes(c::SectorMatrix, a::SectorMatrix, b::SectorMatrix)
 end
 
 function LinearAlgebra.mul!(
-    c::SectorMatrix, a::SectorMatrix, b::SectorMatrix, α::Number, β::Number
-)
+        c::SectorMatrix, a::SectorMatrix, b::SectorMatrix, α::Number, β::Number
+    )
     check_mul_axes(c, a, b)
     mul!(c.data, a.data, b.data, α, β)
     return c
