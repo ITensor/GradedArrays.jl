@@ -361,9 +361,8 @@ function fermion_contraction_phase(x::SectorDelta{<:Any, N}, length_codomain::In
 end
 
 function Base.permutedims(x::SectorArray, perm)
-    delta, data = permutedims.(kroneckerfactors(x), Ref(perm))
-    phase = fermion_permutation_phase(kroneckerfactors(x, 1), perm)
-    return SectorArray(delta.sectors, isone(phase) ? data : phase * data)
+    y = similar(x, ntuple(n -> axes(x, perm[n]), ndims(x)))
+    return permutedims!(y, x, perm)
 end
 function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
     return TensorAlgebra.permutedimsadd!(y, x, perm, true, false)
