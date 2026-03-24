@@ -413,6 +413,24 @@ function KroneckerArrays.:(⊗)(
     return SectorArray(A.sectors, collect(T, data))
 end
 
+function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
+    axes(a) == axes(b) ||
+        throw(ArgumentError("SectorArray linear broadcasting requires matching axes"))
+    return nothing
+end
+
+function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
+    require_unique_fusion(src)
+    TensorAlgebra.add!(dest, src.data, α, β)
+    return dest
+end
+
+function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β::Number)
+    check_sector_broadcast_axes(dest, src)
+    TensorAlgebra.add!(dest.data, src.data, α, β)
+    return dest
+end
+
 # TODO: can we avoid this?
 function Base.materialize!(dst::SectorArray, src::KroneckerArrays.KroneckerBroadcasted)
     Base.materialize!(kroneckerfactors(dst, 1), kroneckerfactors(src, 1))
