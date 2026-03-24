@@ -225,6 +225,9 @@ using Test: @test, @test_throws, @testset
 
     @test_broken checkspaces(Bool, (g1, g1d), (g1, g1d))
 
+    @test g1 != g1d
+    @test g1 != dual(g1)
+    @test g1d != dual(g1d)
     @test space_isequal(g1d, dual(g1))
     @test space_isequal(dual(g1d), g1)
     @test_broken checkspaces((g1, g1d), (g1, g1d))
@@ -285,6 +288,8 @@ end
     @test sector_type(g) ≡ SU2
     @test space_isequal(g, g)
     @test g == 1:8
+    @test g != dual(g)
+    @test g != flip(g)
     @test !space_isequal(dual(g), g)
     @test !space_isequal(flip(g), g)
     @test space_isequal(dual(flip(g)), g)

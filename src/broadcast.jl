@@ -91,7 +91,7 @@ function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type, ax)
 end
 
 function check_graded_broadcast_axes(a::AbstractArray, b::AbstractArray)
-    all(dim -> space_isequal(axes(a, dim), axes(b, dim)), 1:ndims(a)) ||
+    axes(a) == axes(b) ||
         throw(
         ArgumentError("GradedArray linear broadcasting requires matching graded axes")
     )

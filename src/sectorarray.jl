@@ -36,6 +36,13 @@ end
 KroneckerArrays.:×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
 KroneckerArrays.:×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)
 
+function Base.:(==)(a::SectorUnitRange, b::SectorUnitRange)
+    return kroneckerfactors(a) == kroneckerfactors(b)
+end
+function Base.isequal(a::SectorUnitRange, b::SectorUnitRange)
+    return isequal(kroneckerfactors(a), kroneckerfactors(b))
+end
+
 to_gradedrange(g::SectorUnitRange) = mortar_axis([g])
 
 """

@@ -41,6 +41,7 @@ using TestExtras: @constinferred
 
     @test sr == 1:4
     @test sr == sr
+    @test sr != dual(sr)
     @test space_isequal(sr, sr)
 
     sr = sectorrange(SU2(1 / 2), 2)
