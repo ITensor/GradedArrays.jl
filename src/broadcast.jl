@@ -32,7 +32,7 @@ function Base.Broadcast.materialize(a::SectorArray)
 end
 
 function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
-    check_sector_broadcast_axes(a, b)
+    _check_add_axes(a, b)
     return ofsector(a, a.data +ₗ b.data)
 end
 
@@ -90,10 +90,10 @@ function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type, ax)
     return graded_similar(arg, elt, ax)
 end
 
-function check_graded_broadcast_axes(a::AbstractArray, b::AbstractArray)
+function _check_add_axes(a::AbstractArray, b::AbstractArray)
     axes(a) == axes(b) ||
         throw(
-        ArgumentError("GradedArray linear broadcasting requires matching graded axes")
+        ArgumentError("linear broadcasting requires matching axes")
     )
     return nothing
 end
@@ -193,7 +193,7 @@ function copy_lazygraded(a::LazyGradedArray)
 end
 
 function TensorAlgebra.:+ₗ(a::LazyGradedArray, b::LazyGradedArray)
-    check_graded_broadcast_axes(a, b)
+    _check_add_axes(a, b)
     return AddGradedArray(a, b)
 end
 TensorAlgebra.:*ₗ(α::Number, a::GradedArray) = ScaledGradedArray(α, a)

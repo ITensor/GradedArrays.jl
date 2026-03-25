@@ -36,11 +36,11 @@ end
 KroneckerArrays.:×(a::SectorRange, g::AbstractUnitRange) = cartesianrange(a, g)
 KroneckerArrays.:×(g::AbstractUnitRange, a::SectorRange) = cartesianrange(a, g)
 
-function Base.:(==)(a::SectorUnitRange, b::SectorUnitRange)
-    return kroneckerfactors(a) == kroneckerfactors(b)
-end
 function Base.isequal(a::SectorUnitRange, b::SectorUnitRange)
     return isequal(kroneckerfactors(a), kroneckerfactors(b))
+end
+function Base.:(==)(a::SectorUnitRange, b::SectorUnitRange)
+    return isequal(a, b)
 end
 
 to_gradedrange(g::SectorUnitRange) = mortar_axis([g])
@@ -392,10 +392,10 @@ end
 # TODO: Define this as part of:
 # `check_input(::typeof(mul!), ::SectorMatrix, ::SectorMatrix, ::SectorMatrix)`
 function check_mul_axes(c::SectorMatrix, a::SectorMatrix, b::SectorMatrix)
-    space_isequal(axes(a, 2), dual(axes(b, 1))) ||
+    axes(a, 2) == dual(axes(b, 1)) ||
         throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
-    space_isequal(axes(c, 1), axes(a, 1)) || throw(DimensionMismatch())
-    space_isequal(axes(c, 2), axes(b, 2)) || throw(DimensionMismatch())
+    axes(c, 1) == axes(a, 1) || throw(DimensionMismatch())
+    axes(c, 2) == axes(b, 2) || throw(DimensionMismatch())
     return nothing
 end
 
@@ -420,11 +420,6 @@ function KroneckerArrays.:(⊗)(
     return SectorArray(A.sectors, collect(T, data))
 end
 
-function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
-    axes(a) == axes(b) ||
-        throw(ArgumentError("SectorArray linear broadcasting requires matching axes"))
-    return nothing
-end
 
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
     require_unique_fusion(src)
@@ -433,7 +428,7 @@ function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, �
 end
 
 function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β::Number)
-    check_sector_broadcast_axes(dest, src)
+    _check_add_axes(dest, src)
     TensorAlgebra.add!(dest.data, src.data, α, β)
     return dest
 end
