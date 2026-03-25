@@ -9,7 +9,7 @@ using KroneckerArrays: cartesianrange
 using LinearAlgebra: adjoint
 using Random: randn!
 using SparseArraysBase: storedlength
-using TensorAlgebra: TensorAlgebra, *ₗ, +ₗ, -ₗ, /ₗ, conjed
+using TensorAlgebra: TensorAlgebra, linearbroadcasted
 using Test: @test, @test_broken, @test_throws, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
@@ -403,17 +403,17 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test Array(C) ≈ α .* Array(A) .+ β .* Array(B)
         @test axes(C) == axes(A)
         @test all(dim -> isdual(axes(C, dim)) == isdual(axes(A, dim)), 1:ndims(A))
-        Cₗ = α *ₗ A +ₗ β *ₗ B
+        Cₗ = linearbroadcasted(+, linearbroadcasted(*, α, A), linearbroadcasted(*, β, B))
         @test TensorAlgebra.iscall(Cₗ)
-        @test Array(Cₗ) ≈ α .* Array(A) .+ β .* Array(B)
+        @test Array(copy(Cₗ)) ≈ α .* Array(A) .+ β .* Array(B)
         @test axes(Cₗ) == axes(A)
 
         D = conj.(A) .- B ./ β
         @test Array(D) ≈ conj.(Array(A)) .- Array(B) ./ β
         @test axes(D) == axes(A)
-        Dₗ = conjed(A) -ₗ (B /ₗ β)
+        Dₗ = linearbroadcasted(+, linearbroadcasted(conj, A), linearbroadcasted(*, -1/β, B))
         @test TensorAlgebra.iscall(Dₗ)
-        @test Array(Dₗ) ≈ conj.(Array(A)) .- Array(B) ./ β
+        @test Array(copy(Dₗ)) ≈ conj.(Array(A)) .- Array(B) ./ β
         @test axes(Dₗ) == axes(A)
 
         @test_throws ArgumentError A .* B

@@ -155,27 +155,32 @@ function TensorAlgebra.unmatricize(
     return SectorArray(msectors.sectors, mdata)
 end
 
-function TensorAlgebra.permutedimsadd!(
-        y::SectorArray, x::SectorArray, perm,
+function TensorAlgebra.permutedimsopadd!(
+        y::SectorArray, op, x::SectorArray, perm,
         α::Number, β::Number
     )
     ysectors, ydata = kroneckerfactors(y)
     xsectors, xdata = kroneckerfactors(x)
     ysectors == permutedims(xsectors, perm) || throw(DimensionMismatch())
     phase = fermion_permutation_phase(xsectors, perm)
-    TensorAlgebra.permutedimsadd!(ydata, xdata, perm, phase * α, β)
+    TensorAlgebra.permutedimsopadd!(ydata, op, xdata, perm, phase * α, β)
     return y
 end
-function TensorAlgebra.permutedimsadd!(
-        y::GradedArray{<:Any, N}, x::GradedArray{<:Any, N}, perm,
+function TensorAlgebra.permutedimsopadd!(
+        y::GradedArray{<:Any, N}, op, x::GradedArray{<:Any, N}, perm,
         α::Number, β::Number
     ) where {N}
-    y .*= β
+    if !iszero(β)
+        for bI in eachblockstoredindex(y)
+            block = blocks(y)[Int.(Tuple(bI))...]
+            idperm = ntuple(identity, ndims(block))
+            TensorAlgebra.permutedimsopadd!(block, identity, block, idperm, β, false)
+        end
+    end
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
         b_dest = ntuple(i -> b[perm[i]], N)
-        y[Block(b_dest)] =
-            TensorAlgebra.permutedimsadd!(y[Block(b_dest)], x[bI], perm, α, true)
+        TensorAlgebra.permutedimsopadd!(y[Block(b_dest)], op, x[bI], perm, α, true)
     end
     return y
 end
