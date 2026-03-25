@@ -30,7 +30,6 @@ using Test: @test, @testset
         :sectorrange,
         :sectors,
         :sector_type,
-        :space_isequal,
         :ungrade,
     ]
     @test issetequal(names(GradedArrays), exports)

@@ -31,27 +31,9 @@ function Base.Broadcast.materialize(a::SectorArray)
     return ofsector(a, Base.Broadcast.materialize(a.data))
 end
 
-function check_sector_broadcast_axes(a::SectorArray, b::SectorArray)
-    axes(a) == axes(b) ||
-        throw(ArgumentError("SectorArray linear broadcasting requires matching axes"))
-    return nothing
-end
-
 function TensorAlgebra.:+ₗ(a::SectorArray, b::SectorArray)
-    check_sector_broadcast_axes(a, b)
+    _check_add_axes(a, b)
     return ofsector(a, a.data +ₗ b.data)
-end
-
-function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
-    require_unique_fusion(src)
-    TensorAlgebra.add!(dest, src.data, α, β)
-    return dest
-end
-
-function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β::Number)
-    check_sector_broadcast_axes(dest, src)
-    TensorAlgebra.add!(dest.data, src.data, α, β)
-    return dest
 end
 
 function TensorAlgebra.:*ₗ(α::Number, a::SectorArray)
@@ -108,10 +90,10 @@ function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type, ax)
     return graded_similar(arg, elt, ax)
 end
 
-function check_graded_broadcast_axes(a::AbstractArray, b::AbstractArray)
-    all(dim -> space_isequal(axes(a, dim), axes(b, dim)), 1:ndims(a)) ||
+function _check_add_axes(a::AbstractArray, b::AbstractArray)
+    axes(a) == axes(b) ||
         throw(
-        ArgumentError("GradedArray linear broadcasting requires matching graded axes")
+        ArgumentError("linear broadcasting requires matching axes")
     )
     return nothing
 end
@@ -211,7 +193,7 @@ function copy_lazygraded(a::LazyGradedArray)
 end
 
 function TensorAlgebra.:+ₗ(a::LazyGradedArray, b::LazyGradedArray)
-    check_graded_broadcast_axes(a, b)
+    _check_add_axes(a, b)
     return AddGradedArray(a, b)
 end
 TensorAlgebra.:*ₗ(α::Number, a::GradedArray) = ScaledGradedArray(α, a)

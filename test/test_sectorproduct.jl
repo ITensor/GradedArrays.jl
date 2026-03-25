@@ -1,7 +1,7 @@
 using BlockArrays: blocklengths
 using GradedArrays: GradedArrays, SU2, SectorProduct, TrivialSector, U1, Z, arguments, dual,
     flip, gradedrange, label, quantum_dimension, sector, sector_type, sectorproduct,
-    sectorrange, space_isequal, trivial, ×, ⊗
+    sectorrange, trivial, ×, ⊗
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
@@ -77,12 +77,8 @@ using TestExtras: @constinferred
         @test (@constinferred quantum_dimension(g)) == 16
         @test (@constinferred blocklengths(g)) == [1, 3, 3, 9]
 
-        @test space_isequal(
-            gradedrange([U1(1) => 2]) × SU2(1), gradedrange([U1(1) × SU2(1) => 2])
-        )
-        @test space_isequal(
-            SU2(1) × gradedrange([U1(1) => 2]), gradedrange([SU2(1) × U1(1) => 2])
-        )
+        @test gradedrange([U1(1) => 2]) × SU2(1) == gradedrange([U1(1) × SU2(1) => 2])
+        @test SU2(1) × gradedrange([U1(1) => 2]) == gradedrange([SU2(1) × U1(1) => 2])
 
         # mixed group
         g = gradedrange([(U1(2) × SU2(0) × Z{2}(0)) => 1, (U1(2) × SU2(1) × Z{2}(0)) => 1])
@@ -119,57 +115,42 @@ using TestExtras: @constinferred
     @testset "Fusion of NonAbelian products" begin
         p0 = ×(SU2(0))
         ph = ×(SU2(1 // 2))
-        @test space_isequal(
-            (@constinferred p0 ⊗ TrivialSector()), gradedrange(
-                [
-                    sectorproduct(SU2(0)) => 1,
-                ]
-            )
+        @test (@constinferred p0 ⊗ TrivialSector()) == gradedrange(
+            [
+                sectorproduct(SU2(0)) => 1,
+            ]
         )
-        @test space_isequal(
-            (@constinferred TrivialSector() ⊗ ph),
+        @test (@constinferred TrivialSector() ⊗ ph) ==
             gradedrange([sectorproduct(SU2(1 // 2)) => 1])
-        )
 
         phh = SU2(1 // 2) × SU2(1 // 2)
-        @test space_isequal(
-            phh ⊗ phh,
-            gradedrange(
-                [
-                    (SU2(0) × SU2(0)) => 1,
-                    (SU2(1) × SU2(0)) => 1,
-                    (SU2(0) × SU2(1)) => 1,
-                    (SU2(1) × SU2(1)) => 1,
-                ]
-            )
+        @test phh ⊗ phh == gradedrange(
+            [
+                (SU2(0) × SU2(0)) => 1,
+                (SU2(1) × SU2(0)) => 1,
+                (SU2(0) × SU2(1)) => 1,
+                (SU2(1) × SU2(1)) => 1,
+            ]
         )
-        @test space_isequal(
-            phh ⊗ phh,
-            gradedrange(
-                [
-                    (SU2(0) × SU2(0)) => 1,
-                    (SU2(1) × SU2(0)) => 1,
-                    (SU2(0) × SU2(1)) => 1,
-                    (SU2(1) × SU2(1)) => 1,
-                ]
-            )
+        @test phh ⊗ phh == gradedrange(
+            [
+                (SU2(0) × SU2(0)) => 1,
+                (SU2(1) × SU2(0)) => 1,
+                (SU2(0) × SU2(1)) => 1,
+                (SU2(1) × SU2(1)) => 1,
+            ]
         )
     end
 
     @testset "Fusion of different length Categories" begin
         @test (U1(1) × U1(0)) ⊗ ×(U1(1)) == U1(2) × U1(0)
-        @test space_isequal(
-            (@constinferred (SU2(0) × SU2(0)) ⊗ ×(SU2(1))),
+        @test (@constinferred (SU2(0) × SU2(0)) ⊗ ×(SU2(1))) ==
             gradedrange([(SU2(1) × SU2(0)) => 1])
-        )
 
-        @test space_isequal(
-            (@constinferred (SU2(1) × U1(1)) ⊗ ×(SU2(0))),
+        @test (@constinferred (SU2(1) × U1(1)) ⊗ ×(SU2(0))) ==
             gradedrange([SU2(1) × U1(1) => 1])
-        )
-        @test space_isequal(
-            (@constinferred U1(1) × SU2(1) ⊗ ×(U1(2))), gradedrange([U1(3) × SU2(1) => 1])
-        )
+        @test (@constinferred U1(1) × SU2(1) ⊗ ×(U1(2))) ==
+            gradedrange([U1(3) × SU2(1) => 1])
 
         # check incompatible sectors
         p12 = Z{2}(1) × U1(2)
@@ -182,10 +163,7 @@ using TestExtras: @constinferred
         s2 = U1(0) × SU2(1 // 2)
         g1 = gradedrange([s1 => 2])
         g2 = gradedrange([s2 => 1])
-        @test space_isequal(
-            g1 ⊗ g2,
-            gradedrange([U1(1) × SU2(0) => 2, U1(1) × SU2(1) => 2])
-        )
+        @test g1 ⊗ g2 == gradedrange([U1(1) × SU2(0) => 2, U1(1) × SU2(1) => 2])
     end
 end
 
@@ -216,11 +194,11 @@ end
         @test sector_type(g) <: GradedArrays.SectorRange{<:SectorProduct}
         sr = sectorrange((; S = SU2(1 // 2)), 1)
         @test length(sr) == 2
-        @test space_isequal(sr, sectorrange(×((; S = SU2(1 // 2))), 1))
-        @test_broken space_isequal(sr, sectorrange(×((; S = SU2(1 // 2))), 1:2))
+        @test sr == sectorrange(×((; S = SU2(1 // 2))), 1)
+        @test_broken sr == sectorrange(×((; S = SU2(1 // 2))), 1:2)
         g = gradedrange([(; S = SU2(1 // 2)) => 1])
         @test length(g) == 2
-        @test space_isequal(g, gradedrange([×((; S = SU2(1 // 2))) => 1]))
+        @test g == gradedrange([×((; S = SU2(1 // 2))) => 1])
 
         @test (A = U1(1),) × ((B = SU2(2),) × (C = U1(1),)) isa
             typeof((A = U1(1),) × (B = SU2(2),) × (C = U1(1),))
@@ -326,24 +304,19 @@ end
         phb = ×((; B = SU2(1 // 2)))
         phab = (; A = SU2(1 // 2)) × (; B = SU2(1 // 2))
 
-        @test space_isequal(
-            (@constinferred pha ⊗ pha),
+        @test (@constinferred pha ⊗ pha) ==
             gradedrange([×((; A = SU2(0))) => 1, ×((; A = SU2(1))) => 1])
-        )
-        @test space_isequal((@constinferred pha ⊗ p0), gradedrange([pha => 1]))
-        @test space_isequal((@constinferred p0 ⊗ phb), gradedrange([phb => 1]))
-        @test space_isequal((@constinferred pha ⊗ phb), gradedrange([phab => 1]))
+        @test (@constinferred pha ⊗ p0) == gradedrange([pha => 1])
+        @test (@constinferred p0 ⊗ phb) == gradedrange([phb => 1])
+        @test (@constinferred pha ⊗ phb) == gradedrange([phab => 1])
 
-        @test space_isequal(
-            phab ⊗ phab,
-            gradedrange(
-                [
-                    (; A = SU2(0)) × (; B = SU2(0)) => 1,
-                    (; A = SU2(1)) × (; B = SU2(0)) => 1,
-                    (; A = SU2(0)) × (; B = SU2(1)) => 1,
-                    (; A = SU2(1)) × (; B = SU2(1)) => 1,
-                ]
-            )
+        @test phab ⊗ phab == gradedrange(
+            [
+                (; A = SU2(0)) × (; B = SU2(0)) => 1,
+                (; A = SU2(1)) × (; B = SU2(0)) => 1,
+                (; A = SU2(0)) × (; B = SU2(1)) => 1,
+                (; A = SU2(1)) × (; B = SU2(1)) => 1,
+            ]
         )
     end
 
@@ -358,10 +331,10 @@ end
         q21 = (N = U1(2),) × (J = SU2(1),)
         q22 = (N = U1(2),) × (J = SU2(2),)
 
-        @test space_isequal(q1h ⊗ q1h, gradedrange([q20 => 1, q21 => 1]))
-        @test space_isequal(q10 ⊗ q1h, gradedrange([q2h => 1]))
-        @test space_isequal((@constinferred q0h ⊗ q1h), gradedrange([q10 => 1, q11 => 1]))
-        @test space_isequal(q11 ⊗ q11, gradedrange([q20 => 1, q21 => 1, q22 => 1]))
+        @test q1h ⊗ q1h == gradedrange([q20 => 1, q21 => 1])
+        @test q10 ⊗ q1h == gradedrange([q2h => 1])
+        @test (@constinferred q0h ⊗ q1h) == gradedrange([q10 => 1, q11 => 1])
+        @test q11 ⊗ q11 == gradedrange([q20 => 1, q21 => 1, q22 => 1])
     end
 
     @testset "GradedUnitRange fusion rules" begin
@@ -371,14 +344,14 @@ end
         g2 = gradedrange([s2 => 1])
         s3 = (; A = U1(1)) × (; B = SU2(0))
         s4 = (; A = U1(1)) × (; B = SU2(1))
-        @test space_isequal(g1 ⊗ g2, gradedrange([s3 => 2, s4 => 2]))
+        @test g1 ⊗ g2 == gradedrange([s3 => 2, s4 => 2])
 
         sA = ×((; A = U1(1)))
         sB = ×((; B = SU2(1 // 2)))
         sAB = (; A = U1(1)) × (; B = SU2(1 // 2))
         gA = gradedrange([sA => 2])
         gB = gradedrange([sB => 1])
-        @test space_isequal(gA ⊗ gB, gradedrange([sAB => 2]))
+        @test gA ⊗ gB == gradedrange([sAB => 2])
     end
 end
 
@@ -417,7 +390,7 @@ end
         @test (@constinferred quantum_dimension(s)) == 1
 
         g0 = gradedrange([s => 2])
-        @test space_isequal((@constinferred ⊗(g0, g0)), gradedrange([s => 4]))
+        @test (@constinferred ⊗(g0, g0)) == gradedrange([s => 4])
 
         @test (@constinferred s × U1(1)) == st1
         @test (@constinferred U1(1) × s) == st1

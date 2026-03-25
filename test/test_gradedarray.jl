@@ -4,7 +4,7 @@ using BlockSparseArrays:
     BlockSparseArray, BlockSparseMatrix, BlockSparseVector, blockstoredlength
 using GradedArrays: GradedArray, GradedMatrix, GradedOneTo, GradedStyle, GradedUnitRange,
     GradedVector, SectorUnitRange, U1, UndefinedFlux, checkflux, dual, flux, gradedrange,
-    isdual, sectorrange, space_isequal
+    isdual, sectorrange
 using KroneckerArrays: cartesianrange
 using LinearAlgebra: adjoint
 using Random: randn!
@@ -126,8 +126,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             @test axes(b, 1)[Block(1)] == sectorrange(U1(0), 2)
             @test axes(b, 1)[Block(2)] == sectorrange(U1(1), 2) .+ 2
             @test Array(b) isa Array{elt}
-            @test Array(b) == b
-            @test 2 * Array(a) == b
+            @test Array(b) != b
+            @test Array(b) ≈ Array(b)
+            @test 2 * Array(a) != b
+            @test 2 * Array(a) ≈ Array(b)
         end
 
         r = gradedrange([U1(0) => 2, U1(1) => 2])
@@ -188,7 +190,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         # for i in 1:ndims(a)
         #     @test axes(b, i) isa GradedOneTo
         # end
-        # @test space_isequal(axes(b, 1), gradedrange([U1(0) => 1, U1(1) => 1]))
+        # @test axes(b, 1) == gradedrange([U1(0) => 1, U1(1) => 1])
         # @test Array(a) isa Array{elt}
         # @test Array(a) == a
     end
@@ -216,7 +218,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             # @test @view(a[Block(1, 1)])[1:2, 1:2] == a[1:2, 1:2]
             # @test @view(a[Block(2, 2)])[1:2, 1:2] == a[3:4, 3:4]
             a_dense = Array(a)
-            @test eachindex(a) == CartesianIndices(size(a))
+            @test eachindex(a) != CartesianIndices(size(a))
+            @test length(eachindex(a)) == length(CartesianIndices(size(a)))
             for I in eachindex(a)
                 @test a[I] == a_dense[I]
             end
@@ -433,7 +436,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test iszero(b[Block(2, 1)])
         @test iszero(b[Block(1, 2)])
         @test b[Block(2, 2)] == a2
-        @test all(space_isequal.(axes(b), (r, dual(r))))
+        @test axes(b) == (r, dual(r))
 
         # Regression test for Vector, which caused
         # an ambiguity error with Base.
@@ -447,7 +450,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test blockstoredlength(b) == 1
         @test b[Block(1)] == a1
         @test iszero(b[Block(2)])
-        @test all(space_isequal.(axes(b), (r,)))
+        @test axes(b) == (r,)
 
         # Regression test for BitArray
         r = gradedrange([U1(0) => 2, U1(1) => 3])
@@ -462,7 +465,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test iszero(b[Block(2, 1)])
         @test iszero(b[Block(1, 2)])
         @test b[Block(2, 2)] == a2
-        @test all(space_isequal.(axes(b), (r, dual(r))))
+        @test axes(b) == (r, dual(r))
     end
 end
 
@@ -470,12 +473,12 @@ end
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     v = zeros(g)
     v2 = v[g]
-    @test space_isequal(only(axes(v2)), g)
+    @test only(axes(v2)) == g
     @test v2 == v
     gd = dual(g)
     v = zeros(gd)
     v2 = v[gd]
-    @test space_isequal(only(axes(v2)), gd)
+    @test only(axes(v2)) == gd
     @test v2 == v
 end
 
@@ -489,6 +492,6 @@ end
     ad = adjoint(a)
     @test Array(ad) == adjoint(Array(a))
     @test isdual.(axes(ad)) == (false, true)
-    @test space_isequal(axes(ad, 2), dual(axes(a, 1)))
-    @test space_isequal(axes(ad, 2), dual(axes(a, 1)))
+    @test axes(ad, 2) == dual(axes(a, 1))
+    @test axes(ad, 2) == dual(axes(a, 1))
 end

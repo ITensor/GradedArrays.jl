@@ -45,9 +45,16 @@ function KroneckerArrays.:×(g1::GradedUnitRange, g2::GradedUnitRange)
     return mortar_axis(v)
 end
 
-function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
-    return (isdual(a1) == isdual(a2)) && sectors(a1) == sectors(a2) && blockisequal(a1, a2)
+function Base.isequal(a::GradedUnitRange, b::GradedUnitRange)
+    ea = eachblockaxis(a)
+    eb = eachblockaxis(b)
+    return length(ea) == length(eb) && all(splat(isequal), zip(ea, eb))
 end
+Base.:(==)(a::GradedUnitRange, b::GradedUnitRange) = isequal(a, b)
+Base.:(==)(::GradedUnitRange, ::AbstractUnitRange) = false
+Base.:(==)(::AbstractUnitRange, ::GradedUnitRange) = false
+Base.isequal(::GradedUnitRange, ::AbstractUnitRange) = false
+Base.isequal(::AbstractUnitRange, ::GradedUnitRange) = false
 
 function BlockSparseArrays.blockrange(xs::Vector{<:GradedUnitRange})
     baxis = mapreduce(eachblockaxis, vcat, xs)
@@ -122,6 +129,21 @@ const GradedArray{T, N, I, A, Blocks, Axes <: NTuple{N, GradedUnitRange{I}}} =
 
 const GradedMatrix{T, I, A, Blocks, Axes} = GradedArray{T, 2, A, Blocks, Axes}
 const GradedVector{T, I, A, Blocks, Axes} = GradedArray{T, 1, A, Blocks, Axes}
+
+# Override ArrayLayouts._check_mul_axes for GradedArray.
+# For graded matrices, the contracted axes satisfy axes(A,2) == dual(axes(B,1)),
+# not axes(A,2) == axes(B,1), so the default check needs to account for duality.
+const GradedMatrixOrAdj = Union{
+    GradedMatrix, LinearAlgebra.AdjOrTrans{<:Any, <:GradedMatrix},
+}
+function ArrayLayouts._check_mul_axes(A::GradedMatrixOrAdj, B::GradedMatrixOrAdj)
+    axes(A, 2) == dual(axes(B, 1)) || throw(
+        DimensionMismatch(
+            "second axis of A, $(axes(A, 2)), and first axis of B, $(axes(B, 1)), must match"
+        )
+    )
+    return nothing
+end
 
 # Specific overloads
 # ------------------
