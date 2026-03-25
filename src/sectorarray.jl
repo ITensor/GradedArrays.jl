@@ -420,7 +420,6 @@ function KroneckerArrays.:(⊗)(
     return SectorArray(A.sectors, collect(T, data))
 end
 
-
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
     require_unique_fusion(src)
     TensorAlgebra.add!(dest, src.data, α, β)

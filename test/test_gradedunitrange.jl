@@ -188,8 +188,8 @@ using Test: @test, @test_throws, @testset
         # so this comparison fails with strict GradedUnitRange ==.
         @test_broken ax ==
             (isdual(g) ? dual : identity)(
-                gradedrange([U1(1) => 1, U1(2) => 2, U1(3) => 2])
-            )
+            gradedrange([U1(1) => 1, U1(2) => 2, U1(3) => 2])
+        )
 
         v = mortar([[Block(2), Block(2)], [Block(1)]])
         a = g[v]
