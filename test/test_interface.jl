@@ -1,5 +1,5 @@
 using BlockArrays: BlockedOneTo, blockedrange, blockisequal
-using GradedArrays: dual, flip, isdual, sectors, space_isequal, ungrade
+using GradedArrays: dual, flip, isdual, sectors, ungrade
 using Test: @test, @testset
 
 # TODO: is this something we want to support?
@@ -14,8 +14,8 @@ broken || @testset "GradedUnitRange interface for AbstractUnitRange" begin
     @test !isdual(af)
     @test ad isa UnitRange
     @test af isa UnitRange
-    @test space_isequal(ad, a)
-    @test space_isequal(af, a)
+    @test ad == a
+    @test af == a
     @test only(sectors(a)) == NoSector()
     @test ungrade(a) === a
     @test map_sectors(identity, a) === a

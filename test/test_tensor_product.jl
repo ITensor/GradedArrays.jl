@@ -1,7 +1,7 @@
 using BlockArrays: blocklength, blocklengths
 using GradedArrays: GradedArrays, GradedOneTo, NotAbelianStyle, SU2, SectorUnitRange, U1,
-    dual, gradedrange, isdual, sectormergesort, sectorrange, sectors, space_isequal,
-    tensor_product, unmerged_tensor_product, ⊗
+    dual, gradedrange, isdual, sectormergesort, sectorrange, sectors, tensor_product,
+    unmerged_tensor_product, ⊗
 using Test: @test, @test_broken, @testset
 using TestExtras: @constinferred
 
@@ -22,23 +22,20 @@ Base.length(s::NotAbelianString) = length(s.str)
     @test sectormergesort(1:1) isa UnitRange
 
     # a = gradedrange([NotAbelianString("x") => 2, NotAbelianString("y") => 3])
-    # @test space_isequal(unmerged_tensor_product(a), a)
+    # @test unmerged_tensor_product(a) == a
 
     # b = unmerged_tensor_product(a, a)
     # @test b isa GradedOneTo
     # @test length(b) == 50
     # @test blocklength(b) == 4
     # @test blocklengths(b) == [8, 12, 12, 18]
-    # @test space_isequal(
-    #     b,
-    #     gradedrange(
-    #         [
-    #             NotAbelianString("xx") => 4,
-    #             NotAbelianString("yx") => 6,
-    #             NotAbelianString("xy") => 6,
-    #             NotAbelianString("yy") => 9,
-    #         ]
-    #     ),
+    # @test b == gradedrange(
+    #     [
+    #         NotAbelianString("xx") => 4,
+    #         NotAbelianString("yx") => 6,
+    #         NotAbelianString("xy") => 6,
+    #         NotAbelianString("yy") => 9,
+    #     ]
     # )
 
     # c = unmerged_tensor_product(a, a, a)
@@ -49,29 +46,26 @@ Base.length(s::NotAbelianString) = length(s.str)
     #     NotAbelianString.(["xxx", "yxx", "xyx", "yyx", "xxy", "yxy", "xyy", "yyy"])
 
     a = gradedrange([U1(1) => 1, U1(2) => 3, U1(1) => 1])
-    @test space_isequal(
-        unmerged_tensor_product(a, a),
-        gradedrange(
-            [
-                U1(2) => 1,
-                U1(3) => 3,
-                U1(2) => 1,
-                U1(3) => 3,
-                U1(4) => 9,
-                U1(3) => 3,
-                U1(2) => 1,
-                U1(3) => 3,
-                U1(2) => 1,
-            ]
-        )
+    @test unmerged_tensor_product(a, a) == gradedrange(
+        [
+            U1(2) => 1,
+            U1(3) => 3,
+            U1(2) => 1,
+            U1(3) => 3,
+            U1(4) => 9,
+            U1(3) => 3,
+            U1(2) => 1,
+            U1(3) => 3,
+            U1(2) => 1,
+        ]
     )
-    @test space_isequal(unmerged_tensor_product(a), a)
-    @test space_isequal(tensor_product(a), gradedrange([U1(1) => 2, U1(2) => 3]))
+    @test unmerged_tensor_product(a) == a
+    @test tensor_product(a) == gradedrange([U1(1) => 2, U1(2) => 3])
 
-    @test space_isequal(a ⊗ a, gradedrange([U1(2) => 4, U1(3) => 12, U1(4) => 9]))
+    @test a ⊗ a == gradedrange([U1(2) => 4, U1(3) => 12, U1(4) => 9])
 
     d = tensor_product(a, a, a)
-    @test space_isequal(d, gradedrange([U1(3) => 8, U1(4) => 36, U1(5) => 54, U1(6) => 27]))
+    @test d == gradedrange([U1(3) => 8, U1(4) => 36, U1(5) => 54, U1(6) => 27])
 end
 
 @testset "dual and tensor_product" begin
@@ -80,25 +74,25 @@ end
 
     b = unmerged_tensor_product(ad)
     @test isdual(b)
-    @test space_isequal(b, ad)
+    @test b == ad
 
     b = tensor_product(ad)
     @test b isa GradedOneTo
     @test !isdual(b)
-    @test space_isequal(b, gradedrange([U1(-2) => 3, U1(-1) => 2]))
+    @test b == gradedrange([U1(-2) => 3, U1(-1) => 2])
 
     c = tensor_product(ad, ad)
     @test c isa GradedOneTo
     @test !isdual(c)
-    @test space_isequal(c, gradedrange([U1(-4) => 9, U1(-3) => 12, U1(-2) => 4]))
+    @test c == gradedrange([U1(-4) => 9, U1(-3) => 12, U1(-2) => 4])
 
     d = tensor_product(ad, a)
     @test !isdual(d)
-    @test space_isequal(d, gradedrange([U1(-1) => 6, U1(0) => 13, U1(1) => 6]))
+    @test d == gradedrange([U1(-1) => 6, U1(0) => 13, U1(1) => 6])
 
     e = tensor_product(a, ad)
     @test !isdual(d)
-    @test space_isequal(e, d)
+    @test e == d
 end
 
 @testset "Abelian mixed axes and sectors" begin
@@ -113,27 +107,27 @@ end
     @test (@constinferred sr1 ⊗ sr1) isa SectorUnitRange
     @test (@constinferred g1 ⊗ g1) isa GradedOneTo
 
-    @test space_isequal(sr1 ⊗ sr1, sectorrange(s2, 1))
+    @test sr1 ⊗ sr1 == sectorrange(s2, 1)
     @test (@constinferred s1 ⊗ sr1) isa SectorUnitRange
-    @test space_isequal(s1 ⊗ sr1, sectorrange(s2, 1))
+    @test s1 ⊗ sr1 == sectorrange(s2, 1)
     @test (@constinferred sr1 ⊗ s1) isa SectorUnitRange
-    @test space_isequal(sr1 ⊗ s1, sectorrange(s2, 1))
-    @test space_isequal(sr1d ⊗ s1, sectorrange(U1(0), 1))
-    @test space_isequal(sr1d ⊗ sr1, sectorrange(U1(0), 1))
-    @test space_isequal(sr1d ⊗ sr1d, sectorrange(U1(-2), 1))
+    @test sr1 ⊗ s1 == sectorrange(s2, 1)
+    @test sr1d ⊗ s1 == sectorrange(U1(0), 1)
+    @test sr1d ⊗ sr1 == sectorrange(U1(0), 1)
+    @test sr1d ⊗ sr1d == sectorrange(U1(-2), 1)
 
-    @test space_isequal(g1 ⊗ g1, gradedrange([s2 => 1]))
+    @test g1 ⊗ g1 == gradedrange([s2 => 1])
     @test (@constinferred g1 ⊗ s1) isa GradedOneTo
-    @test space_isequal(g1 ⊗ s1, gradedrange([s2 => 1]))
+    @test g1 ⊗ s1 == gradedrange([s2 => 1])
     @test (@constinferred s1 ⊗ g1) isa GradedOneTo
-    @test space_isequal(s1 ⊗ g1, gradedrange([s2 => 1]))
-    @test space_isequal(g1d ⊗ s1, gradedrange([U1(0) => 1]))
-    @test space_isequal(g1d ⊗ g1d, gradedrange([U1(-2) => 1]))
+    @test s1 ⊗ g1 == gradedrange([s2 => 1])
+    @test g1d ⊗ s1 == gradedrange([U1(0) => 1])
+    @test g1d ⊗ g1d == gradedrange([U1(-2) => 1])
 
     @test (@constinferred g1 ⊗ sr1) isa GradedOneTo
-    @test space_isequal(g1 ⊗ sr1, gradedrange([s2 => 1]))
+    @test g1 ⊗ sr1 == gradedrange([s2 => 1])
     @test (@constinferred sr1 ⊗ g1) isa GradedOneTo
-    @test space_isequal(sr1 ⊗ g1, gradedrange([s2 => 1]))
+    @test sr1 ⊗ g1 == gradedrange([s2 => 1])
 end
 
 @testset "Non-abelian mixed axes and sectors" begin
@@ -148,25 +142,25 @@ end
     @test (@constinferred sr1 ⊗ sr1) isa GradedOneTo
     @test (@constinferred g1 ⊗ g1) isa GradedOneTo
 
-    @test space_isequal(sr1 ⊗ sr1, g2)
+    @test sr1 ⊗ sr1 == g2
     @test (@constinferred s1 ⊗ sr1) isa GradedOneTo
-    @test space_isequal(s1 ⊗ sr1, g2)
+    @test s1 ⊗ sr1 == g2
     @test (@constinferred sr1 ⊗ s1) isa GradedOneTo
-    @test space_isequal(sr1 ⊗ s1, g2)
-    @test space_isequal(sr1d ⊗ s1, g2)
-    @test space_isequal(sr1d ⊗ sr1, g2)
-    @test space_isequal(sr1d ⊗ sr1d, g2)
+    @test sr1 ⊗ s1 == g2
+    @test sr1d ⊗ s1 == g2
+    @test sr1d ⊗ sr1 == g2
+    @test sr1d ⊗ sr1d == g2
 
-    @test space_isequal(g1 ⊗ g1, g2)
+    @test g1 ⊗ g1 == g2
     @test (@constinferred g1 ⊗ s1) isa GradedOneTo
-    @test space_isequal(g1 ⊗ s1, g2)
+    @test g1 ⊗ s1 == g2
     @test (@constinferred s1 ⊗ g1) isa GradedOneTo
-    @test space_isequal(s1 ⊗ g1, g2)
-    @test space_isequal(g1d ⊗ s1, g2)
-    @test space_isequal(g1d ⊗ g1d, g2)
+    @test s1 ⊗ g1 == g2
+    @test g1d ⊗ s1 == g2
+    @test g1d ⊗ g1d == g2
 
     @test (@constinferred g1 ⊗ sr1) isa GradedOneTo
-    @test space_isequal(g1 ⊗ sr1, g2)
+    @test g1 ⊗ sr1 == g2
     @test (@constinferred sr1 ⊗ g1) isa GradedOneTo
-    @test space_isequal(sr1 ⊗ g1, g2)
+    @test sr1 ⊗ g1 == g2
 end

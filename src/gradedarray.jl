@@ -51,10 +51,10 @@ function Base.isequal(a::GradedUnitRange, b::GradedUnitRange)
     return length(ea) == length(eb) && all(splat(isequal), zip(ea, eb))
 end
 Base.:(==)(a::GradedUnitRange, b::GradedUnitRange) = isequal(a, b)
-
-function space_isequal(a1::AbstractUnitRange, a2::AbstractUnitRange)
-    return (isdual(a1) == isdual(a2)) && sectors(a1) == sectors(a2) && blockisequal(a1, a2)
-end
+Base.:(==)(::GradedUnitRange, ::AbstractUnitRange) = false
+Base.:(==)(::AbstractUnitRange, ::GradedUnitRange) = false
+Base.isequal(::GradedUnitRange, ::AbstractUnitRange) = false
+Base.isequal(::AbstractUnitRange, ::GradedUnitRange) = false
 
 function BlockSparseArrays.blockrange(xs::Vector{<:GradedUnitRange})
     baxis = mapreduce(eachblockaxis, vcat, xs)
