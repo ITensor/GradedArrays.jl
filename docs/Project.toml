@@ -9,6 +9,6 @@ path = ".."
 
 [compat]
 Documenter = "1"
-GradedArrays = "0.7"
+GradedArrays = "0.7, 0.6"
 ITensorFormatter = "0.2.27"
 Literate = "2"
