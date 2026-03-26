@@ -424,7 +424,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
         r_bad = gradedrange([U1(0) => 1, U1(1) => 3])
         B_bad = randn_blockdiagonal(elt, (r_bad, dual(r_bad)))
-        @test_throws ArgumentError A .+ B_bad
+        @test_throws DimensionMismatch A .+ B_bad
     end
     false && @testset "Construct from dense" begin
         r = gradedrange([U1(0) => 2, U1(1) => 3])
