@@ -411,7 +411,11 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         D = conj.(A) .- B ./ β
         @test Array(D) ≈ conj.(Array(A)) .- Array(B) ./ β
         @test axes(D) == axes(A)
-        Dₗ = linearbroadcasted(+, linearbroadcasted(conj, A), linearbroadcasted(*, -1 / β, B))
+        Dₗ = linearbroadcasted(
+            +,
+            linearbroadcasted(conj, A),
+            linearbroadcasted(*, -1 / β, B)
+        )
         @test TensorAlgebra.iscall(Dₗ)
         @test Array(copy(Dₗ)) ≈ conj.(Array(A)) .- Array(B) ./ β
         @test axes(Dₗ) == axes(A)
