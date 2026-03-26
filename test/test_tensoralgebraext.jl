@@ -4,8 +4,8 @@ using GradedArrays: GradedArray, GradedMatrix, SU2, SectorArray, SectorDelta, U1
     flip, gradedrange, isdual, sector, sector_type, sectorrange, trivial,
     trivial_gradedrange, ⊗
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, FusionStyle, contract,
-    matricize, tensor_product_axis, trivial_axis, unmatricize
+using TensorAlgebra: TensorAlgebra, FusionStyle, contract, matricize, tensor_product_axis,
+    trivial_axis, unmatricize
 using Test: @test, @test_throws, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
