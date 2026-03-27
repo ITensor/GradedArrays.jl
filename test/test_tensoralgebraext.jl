@@ -4,8 +4,8 @@ using GradedArrays: GradedArray, GradedMatrix, SU2, SectorArray, SectorDelta, U1
     flip, gradedrange, isdual, sector, sector_type, sectorrange, trivial,
     trivial_gradedrange, ⊗
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, *ₗ, +ₗ, -ₗ, /ₗ, FusionStyle, conjed, contract,
-    matricize, tensor_product_axis, trivial_axis, unmatricize
+using TensorAlgebra: TensorAlgebra, FusionStyle, contract, matricize, tensor_product_axis,
+    trivial_axis, unmatricize
 using Test: @test, @test_throws, @testset
 
 function randn_blockdiagonal(elt::Type, axes::Tuple)
@@ -76,38 +76,20 @@ end
     @test st.data isa Matrix
     @test Array(st) ≈ α .* Array(s) .+ β .* Array(t)
     @test axes(st) == axes(s)
-    @test (α *ₗ s) isa SectorArray
-    @test TensorAlgebra.iscall((α *ₗ s).data)
-    @test (α *ₗ s +ₗ β *ₗ t) isa SectorArray
-    @test TensorAlgebra.iscall((α *ₗ s +ₗ β *ₗ t).data)
-    @test Array(α *ₗ s +ₗ β *ₗ t) ≈ α .* Array(s) .+ β .* Array(t)
-    @test axes(α *ₗ s +ₗ β *ₗ t) == axes(s)
-    @test Base.broadcasted(*, α, s) isa SectorArray
-    @test TensorAlgebra.iscall(Base.broadcasted(*, α, s).data)
-
     conjdiff = conj.(s) .- t ./ β
     @test conjdiff isa SectorArray
     @test conjdiff.data isa Matrix
     @test Array(conjdiff) ≈ conj.(Array(s)) .- Array(t) ./ β
     @test axes(conjdiff) == axes(s)
-    @test conjed(s) isa SectorArray
-    @test TensorAlgebra.iscall(conjed(s).data)
-    @test (conjed(s) -ₗ (t /ₗ β)) isa SectorArray
-    @test TensorAlgebra.iscall((conjed(s) -ₗ (t /ₗ β)).data)
-    @test Array(conjed(s) -ₗ (t /ₗ β)) ≈ conj.(Array(s)) .- Array(t) ./ β
-    @test axes(conjed(s) -ₗ (t /ₗ β)) == axes(s)
 
     @test_throws ArgumentError s .* t
     @test_throws ArgumentError exp.(s)
 end
 
-@testset "SectorArray scalar multiplication materializes on broadcast materialize" begin
+@testset "SectorArray scalar multiplication materializes on broadcast" begin
     s = SectorArray((U1(0), dual(U1(0))), randn!(Matrix{Float64}(undef, 2, 2)))
 
-    scaled = Base.broadcasted(*, 2, s)
-    @test scaled isa SectorArray
-    @test TensorAlgebra.iscall(scaled.data)
-    materialized = Base.Broadcast.materialize(scaled)
+    materialized = 2 .* s
     @test materialized isa SectorArray
     @test materialized.data isa Matrix
     @test materialized[1, 1] == 2 * s[1, 1]
@@ -118,14 +100,6 @@ end
     @test scaled_mul.data isa Matrix
     @test scaled_mul[1, 1] == 2 * s[1, 1]
     @test Array(scaled_mul) ≈ 2 .* Array(s)
-end
-
-@testset "SectorArray lazy display" begin
-    s = SectorArray((U1(0), dual(U1(0))), randn!(Matrix{Float64}(undef, 2, 2)))
-    lazy = 2 *ₗ s
-    shown = sprint(show, MIME("text/plain"), lazy)
-    @test contains(shown, "SectorMatrix")
-    @test contains(shown, "⊗")
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
