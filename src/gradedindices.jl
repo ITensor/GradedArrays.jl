@@ -54,6 +54,11 @@ function flip(g::GradedIndices)
 end
 Base.adjoint(g::GradedIndices) = dual(g)
 
+# Bounds checking (needed for AbstractArray scalar indexing)
+function Base.checkindex(::Type{Bool}, g::GradedIndices, i::Int)
+    return 1 <= i <= length(g)
+end
+
 # Equality and hashing
 function Base.:(==)(a::GradedIndices, b::GradedIndices)
     return labels(a) == labels(b) &&

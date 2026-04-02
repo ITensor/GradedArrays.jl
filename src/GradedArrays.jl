@@ -6,6 +6,7 @@ export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
 export SectorRange, SectorDelta, SectorIndices, GradedIndices
 export SectorUnitRange, SectorOneTo, SectorArray, SectorMatrix
 export GradedUnitRange, GradedOneTo, GradedArray
+export AbstractGradedArray, AbelianArray
 export gradedrange
 
 export dual, flip, gradedrange, isdual,
@@ -39,6 +40,8 @@ include("sectorrange.jl")
 include("sectorindices.jl")
 include("gradedindices.jl")
 include("sectorarray.jl")
+include("abstractgradedarray.jl")
+include("abelianarray.jl")
 include("gradedarray.jl")
 include("broadcast.jl")
 
