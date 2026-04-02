@@ -195,71 +195,83 @@ function Base.:(*)(a::SectorDelta{T₁, 2, I}, b::SectorDelta{T₂, 2, I}) where
 end
 
 """
-    SectorArray(sectors, data) <: AbstractKroneckerArray
+    SectorArray(labels, isdual, data) <: AbstractArray
 
-A representation of a general symmetric array as the combination of a structural part (`sectors`) and a data part (`data`).
-This can be thought of as a direct implementation of the Wigner-Eckart theorem.
+A representation of a general symmetric array as the combination of sector labels,
+dual flags, and a data array. This can be thought of as a direct implementation of
+the Wigner-Eckart theorem.
+
+Each dimension has:
+
+  - a sector label (`labels`): the raw `TKS.Sector` value
+  - a dual flag (`isdual`): whether that dimension is in the dual space
+  - a data slice from `data`: the reduced matrix element storage
 """
-struct SectorArray{T, N, I <: SectorRange, A <: AbstractArray{T, N}} <:
-    AbstractKroneckerArray{T, N}
-    sectors::NTuple{N, I}
+struct SectorArray{T, N, I <: TKS.Sector, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
+    labels::NTuple{N, I}
+    isdual::NTuple{N, Bool}
     data::A
-
-    # constructing from undef
-    function SectorArray{T, N, I, A}(
-            ::UndefInitializer,
-            axs::Tuple{Vararg{SectorUnitRange{I}, N}}
-        ) where {T, N, I, A}
-        sectors = kroneckerfactors.(axs, 1)
-        data = similar(A, kroneckerfactors.(axs, 2))
-        return new{T, N, I, A}(sectors, data)
-    end
-
-    # constructing from data
-    function SectorArray{T, N, I, A}(sectors::NTuple{N, I}, data::A) where {T, N, I, A}
-        return new{T, N, I, A}(sectors, data)
-    end
 end
 
+# Constructors
 function SectorArray{T}(
         ::UndefInitializer,
-        axs::Tuple{Ax, Vararg{Ax}}
-    ) where {T, Ax <: SectorUnitRange}
-    N = length(axs)
-    I = sector_type(Ax)
-    return SectorArray{T, N, I, Array{T, N}}(undef, axs)
+        labels::NTuple{N, I},
+        isdual::NTuple{N, Bool},
+        dims::NTuple{N, Int}
+    ) where {T, N, I <: TKS.Sector}
+    data = Array{T, N}(undef, dims)
+    return SectorArray{T, N, I, Array{T, N}}(labels, isdual, data)
 end
-function SectorArray(sectors::NTuple{N, I}, data::AbstractArray{T, N}) where {T, I, N}
-    return SectorArray{T, N, I, typeof(data)}(sectors, data)
+
+# Convenience: construct from SectorRange tuples (backward compat bridge)
+function SectorArray(
+        sranges::NTuple{N, SectorRange},
+        data::AbstractArray{T, N}
+    ) where {T, N}
+    ls = map(label, sranges)
+    ds = map(GradedArrays.isdual, sranges)
+    return SectorArray(ls, ds, data)
 end
 
 const SectorMatrix{T, I, A <: AbstractMatrix{T}} = SectorArray{T, 2, I, A}
 
-# Accessors
-# ---------
-function KroneckerArrays.kroneckerfactors(A::SectorArray)
-    return (SectorDelta{eltype(A)}(sectors(A)), A.data)
+# Primitive accessors
+# -------------------
+labels(sa::SectorArray) = sa.labels
+label(sa::SectorArray, d::Int) = sa.labels[d]
+isdual(sa::SectorArray, d::Int) = sa.isdual[d]
+
+# Derived accessors
+# -----------------
+function sectors(sa::SectorArray)
+    return ntuple(
+        d -> isdual(sa, d) ? dual(label(sa, d)) : label(sa, d), Val(ndims(sa))
+    )
 end
-function KroneckerArrays.kroneckerfactortypes(
-        ::Type{SectorArray{T, N, I, A}}
-    ) where {T, N, I, A}
-    return (SectorDelta{T, N, I}, A)
+function sector(sa::SectorArray, d::Int)
+    return isdual(sa, d) ? dual(label(sa, d)) : label(sa, d)
+end
+function sectorranges(sa::SectorArray)
+    return ntuple(d -> SectorRange(label(sa, d), isdual(sa, d)), Val(ndims(sa)))
+end
+function sector_multiplicities(sa::SectorArray)
+    return ntuple(
+        d -> div(size(sa.data, d), TKS.dim(label(sa, d))), Val(ndims(sa))
+    )
 end
 
-sectors(A::SectorArray) = A.sectors
-sectors(A::SectorArray, i) = A.sectors[i]
-
-sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = I
+sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = SectorRange{I}
 data_type(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
 
 # AbstractArray interface
 # -----------------------
+Base.size(sa::SectorArray) = size(sa.data)
+
 Base.@propagate_inbounds function Base.getindex(
         A::SectorArray{T, N},
         I::Vararg{Int, N}
     ) where {T, N}
-    TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
-        error("not implemented for non-abelian tensors")
     @boundscheck checkbounds(A, I...)
     return @inbounds A.data[I...]
 end
@@ -268,63 +280,19 @@ Base.@propagate_inbounds function Base.setindex!(
         v,
         I::Vararg{Int, N}
     ) where {T, N}
-    TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
-        error("not implemented for non-abelian tensors")
     @boundscheck checkbounds(A, I...)
     @inbounds A.data[I...] = v
     return A
 end
 
-function Base.similar(
-        A::AbstractArray,
-        elt::Type,
-        axs::Tuple{SectorUnitRange, Vararg{SectorUnitRange}}
-    )
-    return SectorArray(
-        kroneckerfactors.(axs, 1),
-        similar(A, elt, kroneckerfactors.(axs, 2))
-    )
-end
-# disambiguate
-function Base.similar(
-        A::AbstractKroneckerArray,
-        elt::Type,
-        axs::Tuple{SectorUnitRange, Vararg{SectorUnitRange}}
-    )
-    return SectorArray(
-        kroneckerfactors.(axs, 1),
-        similar(A, elt, kroneckerfactors.(axs, 2))
-    )
-end
-function Base.similar(
-        ::Type{A},
-        axs::Tuple{SectorUnitRange, Vararg{SectorUnitRange}}
-    ) where {A <: SectorArray}
-    return SectorArray(
-        kroneckerfactors.(axs, 1),
-        similar(data_type(A), kroneckerfactors.(axs, 2))
-    )
-end
-
-Base.copy(A::SectorArray) = SectorArray(sectors(A), copy(A.data))
-function Base.copy!(C::SectorArray, A::SectorArray)
-    axes(C) == axes(A) || throw(DimensionMismatch()) # TODO: sector error?
-    copy!(arg2(C), arg2(A))
-    return C
-end
+Base.copy(A::SectorArray) = SectorArray(A.labels, A.isdual, copy(A.data))
 
 function Base.convert(
         ::Type{SectorArray{T₁, N, I, A}},
         x::SectorArray{T₂, N, I, B}
     )::SectorArray{T₁, N, I, A} where {T₁, T₂, N, I, A, B}
     A === B && return x
-    return SectorArray(sectors(x), convert(A, x.data))
-end
-
-# Avoid infinite recursion while eagerly adjointing the sectors
-function Base.adjoint(a::SectorArray)
-    sectors_adjoint = adjoint(kroneckerfactors(a, 1))
-    return SectorArray(axes(sectors_adjoint), adjoint(kroneckerfactors(a, 2)))
+    return SectorArray(x.labels, x.isdual, convert(A, x.data))
 end
 
 # Fermionic specializations
@@ -368,34 +336,28 @@ function fermion_contraction_phase(x::SectorDelta{<:Any, N}, length_codomain::In
 end
 
 function Base.permutedims(x::SectorArray, perm)
-    y = similar(x, ntuple(n -> axes(x, perm[n]), ndims(x)))
+    new_labels = ntuple(n -> label(x, perm[n]), Val(ndims(x)))
+    new_isdual = ntuple(n -> isdual(x, perm[n]), Val(ndims(x)))
+    y = SectorArray(new_labels, new_isdual, similar(x.data, size(x)[collect(perm)]))
     return permutedims!(y, x, perm)
 end
 function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
-    return TensorAlgebra.permutedimsadd!(y, x, perm, true, false)
+    permutedims!(y.data, x.data, perm)
+    return y
 end
-# no lazy view of fermionic permuted dims to avoid recomputing phases with scalar index
 function FI.permuteddims(x::SectorArray, perm)
-    return if TKS.BraidingStyle(sector_type(x)) isa TKS.Bosonic
-        delta = FI.permuteddims(
-            kroneckerfactors(x, 1), perm
-        )
-        data = FI.permuteddims(
-            kroneckerfactors(x, 2), perm
-        )
-        SectorArray(delta.sectors, data)
-    else
-        permutedims(x, perm)
-    end
+    new_labels = ntuple(n -> label(x, perm[n]), Val(ndims(x)))
+    new_isdual = ntuple(n -> isdual(x, perm[n]), Val(ndims(x)))
+    return SectorArray(new_labels, new_isdual, FI.permuteddims(x.data, perm))
 end
 
 # TODO: Define this as part of:
 # `check_input(::typeof(mul!), ::SectorMatrix, ::SectorMatrix, ::SectorMatrix)`
 function check_mul_axes(c::SectorMatrix, a::SectorMatrix, b::SectorMatrix)
-    axes(a, 2) == dual(axes(b, 1)) ||
-        throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
-    axes(c, 1) == axes(a, 1) || throw(DimensionMismatch())
-    axes(c, 2) == axes(b, 2) || throw(DimensionMismatch())
+    sector(a, 2) == dual(sector(b, 1)) ||
+        throw(DimensionMismatch("sector mismatch in contracted dimension"))
+    sector(c, 1) == sector(a, 1) || throw(DimensionMismatch())
+    sector(c, 2) == sector(b, 2) || throw(DimensionMismatch())
     return nothing
 end
 
@@ -421,20 +383,12 @@ function KroneckerArrays.:(⊗)(
 end
 
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
-    require_unique_fusion(src)
     TensorAlgebra.add!(dest, src.data, α, β)
     return dest
 end
 
 function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β::Number)
-    _check_add_axes(dest, src)
+    size(dest) == size(src) || throw(DimensionMismatch())
     TensorAlgebra.add!(dest.data, src.data, α, β)
     return dest
-end
-
-# TODO: can we avoid this?
-function Base.materialize!(dst::SectorArray, src::KroneckerArrays.KroneckerBroadcasted)
-    Base.materialize!(kroneckerfactors(dst, 1), kroneckerfactors(src, 1))
-    Base.materialize!(kroneckerfactors(dst, 2), kroneckerfactors(src, 2))
-    return dst
 end
