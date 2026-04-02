@@ -3,12 +3,13 @@ module GradedArrays
 # exports
 # -------
 export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
-export SectorRange, SectorDelta
+export SectorRange, SectorDelta, SectorIndices
 export SectorUnitRange, SectorOneTo, SectorArray, SectorMatrix
 export GradedUnitRange, GradedOneTo, GradedArray
 export gradedrange
 
 export dual, flip, gradedrange, isdual,
+    labels,
     sector, sector_multiplicities, sector_multiplicity,
     sectorrange, sectors, sector_type,
     ungrade
@@ -35,6 +36,7 @@ using TypeParameterAccessors:
     similartype, type_parameters, unspecify_type_parameters, unwrap_array_type
 
 include("sectorrange.jl")
+include("sectorindices.jl")
 include("sectorarray.jl")
 include("gradedarray.jl")
 include("broadcast.jl")
