@@ -54,52 +54,15 @@ end
 Base.size(a::AbelianArray) = map(length, a.axes)
 Base.axes(a::AbelianArray) = a.axes
 
-"""
-    _find_block_and_offset(g::GradedIndices, idx::Int)
-
-Given a linear integer index into the total dimension of `g`, return `(block_index, local_offset)`
-where `block_index` is the 1-based block number and `local_offset` is the 1-based position
-within that block.
-"""
-function _find_block_and_offset(g::GradedIndices, idx::Int)
-    cumulative = 0
-    for k in 1:BlockArrays.blocklength(g)
-        blen = _block_length(g, k)
-        if idx <= cumulative + blen
-            return (k, idx - cumulative)
-        end
-        cumulative += blen
-    end
-    throw(BoundsError())
+function Base.getindex(a::AbelianArray, I::Vararg{Int})
+    return error(
+        "Scalar indexing is not supported for AbelianArray. Use block indexing: a[Block(i,j)]"
+    )
 end
-
-Base.@propagate_inbounds function Base.getindex(
-        a::AbelianArray{T, N}, I::Vararg{Int, N}
-    ) where {T, N}
-    @boundscheck checkbounds(a, I...)
-    bk_off = ntuple(d -> _find_block_and_offset(a.axes[d], I[d]), Val(N))
-    bk = ntuple(d -> bk_off[d][1], Val(N))
-    off = ntuple(d -> bk_off[d][2], Val(N))
-    if haskey(a.blockdata, bk)
-        return @inbounds a.blockdata[bk][off...]
-    else
-        return zero(T)
-    end
-end
-
-Base.@propagate_inbounds function Base.setindex!(
-        a::AbelianArray{T, N}, v, I::Vararg{Int, N}
-    ) where {T, N}
-    @boundscheck checkbounds(a, I...)
-    bk_off = ntuple(d -> _find_block_and_offset(a.axes[d], I[d]), Val(N))
-    bk = ntuple(d -> bk_off[d][1], Val(N))
-    off = ntuple(d -> bk_off[d][2], Val(N))
-    if !haskey(a.blockdata, bk)
-        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
-        a.blockdata[bk] = zeros(T, block_dims)
-    end
-    @inbounds a.blockdata[bk][off...] = v
-    return a
+function Base.setindex!(a::AbelianArray, v, I::Vararg{Int})
+    return error(
+        "Scalar indexing is not supported for AbelianArray. Use block indexing: a[Block(i,j)] = v"
+    )
 end
 
 # ---------------------------------------------------------------------------

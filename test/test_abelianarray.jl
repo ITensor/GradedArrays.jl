@@ -3,7 +3,7 @@ using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianArray, AbstractGradedArray, GradedIndices, SectorArray,
     SectorRange, gradedrange, isdual, labels, sector_multiplicities, sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "AbelianArray" begin
     # Helper: build U1 axes
@@ -89,35 +89,11 @@ using Test: @test, @testset
         @test length(stored) == 2
     end
 
-    @testset "Scalar indexing — stored block" begin
-        a = AbelianArray{Float64}(undef, g1, g2)
-        a[Block(1, 1)] = [10.0 20.0; 30.0 40.0]
-
-        # Block(1,1) occupies rows 1:2, cols 1:1 — wait, let's check dimensions.
-        # g1: block 1 has U1(0) with mult 2, dim=1 => block length 2
-        # g2: block 1 has U1(0) with mult 1, dim=1 => block length 1
-        # So block (1,1) is 2x1, not 2x2. Fix the data.
-        a[Block(1, 1)] = [10.0; 30.0;;]  # 2x1
-
-        @test a[1, 1] == 10.0
-        @test a[2, 1] == 30.0
-    end
-
-    @testset "Scalar indexing — unstored block returns zero" begin
+    @testset "Scalar indexing errors" begin
         a = AbelianArray{Float64}(undef, g1, g2)
         a[Block(1, 1)] = ones(2, 1)
-
-        # Block(1,2) is unstored. g2 block 2 starts at col 2.
-        @test a[1, 2] == 0.0
-        @test a[1, 3] == 0.0
-    end
-
-    @testset "Scalar setindex! allocates block on first write" begin
-        a = AbelianArray{Float64}(undef, g1, g2)
-        a[1, 1] = 42.0
-        @test a[1, 1] == 42.0
-        stored = collect(eachblockstoredindex(a))
-        @test Block(1, 1) in stored
+        @test_throws ErrorException a[1, 1]
+        @test_throws ErrorException (a[1, 1] = 42.0)
     end
 
     @testset "Dual axes" begin

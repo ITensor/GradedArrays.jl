@@ -131,15 +131,10 @@ isdual(sa::SectorArray, d::Int) = sa.isdual[d]
 # Derived accessors
 # -----------------
 function sectors(sa::SectorArray)
-    return ntuple(
-        d -> isdual(sa, d) ? dual(label(sa, d)) : label(sa, d), Val(ndims(sa))
-    )
+    return ntuple(d -> SectorRange(label(sa, d), isdual(sa, d)), Val(ndims(sa)))
 end
 function sector(sa::SectorArray, d::Int)
-    return isdual(sa, d) ? dual(label(sa, d)) : label(sa, d)
-end
-function sectorranges(sa::SectorArray)
-    return ntuple(d -> SectorRange(label(sa, d), isdual(sa, d)), Val(ndims(sa)))
+    return SectorRange(label(sa, d), isdual(sa, d))
 end
 function sector_multiplicities(sa::SectorArray)
     return ntuple(

@@ -28,7 +28,6 @@ using Test: @test, @testset
         :sector_multiplicities,
         :sector_multiplicity,
         :sectorrange,
-        :sectorranges,
         :sectors,
         :sector_type,
     ]

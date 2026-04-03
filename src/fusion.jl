@@ -19,8 +19,8 @@ function TensorAlgebra.permutedimsopadd!(
         y::SectorArray, op, x::SectorArray, perm,
         α::Number, β::Number
     )
-    xsectors = SectorDelta{eltype(x)}(sectorranges(x))
-    ysectors = SectorDelta{eltype(y)}(sectorranges(y))
+    xsectors = SectorDelta{eltype(x)}(sectors(x))
+    ysectors = SectorDelta{eltype(y)}(sectors(y))
     ysectors == permutedims(xsectors, perm) || throw(DimensionMismatch())
     phase = fermion_permutation_phase(xsectors, perm)
     TensorAlgebra.permutedimsopadd!(y.data, op, x.data, perm, phase * α, β)

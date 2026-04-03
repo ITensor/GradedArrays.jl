@@ -1,7 +1,6 @@
 using BlockArrays: blocklength
 using GradedArrays: GradedArrays, SU2, SectorIndices, SectorRange, U1, dual, flip, isdual,
-    label, labels, sector, sector_multiplicities, sector_multiplicity, sector_type,
-    sectorrange, sectors
+    label, labels, sector, sector_multiplicities, sector_multiplicity, sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -11,8 +10,7 @@ using Test: @test, @testset
         @test label(si) == TKS.U1Irrep(1)
         @test sector_multiplicity(si) == 3
         @test isdual(si) == false
-        @test sector(si) == TKS.U1Irrep(1)
-        @test sectorrange(si) == SectorRange(TKS.U1Irrep(1), false)
+        @test sector(si) == SectorRange(TKS.U1Irrep(1), false)
 
         # Convenience constructors
         si2 = SectorIndices(TKS.U1Irrep(2), 5)
@@ -28,9 +26,8 @@ using Test: @test, @testset
     @testset "U1 dual sector accessor" begin
         si = SectorIndices(TKS.U1Irrep(1), 3, true)
         @test isdual(si) == true
-        # For dual, sector should be the conjugated label
-        @test sector(si) == TKS.dual(TKS.U1Irrep(1))
-        @test sectorrange(si) == SectorRange(TKS.U1Irrep(1), true)
+        # For dual, sector should return a dual SectorRange
+        @test sector(si) == SectorRange(TKS.U1Irrep(1), true)
     end
 
     @testset "SU2 construction and accessors" begin
@@ -39,19 +36,18 @@ using Test: @test, @testset
         @test label(si) == TKS.SU2Irrep(1 // 2)
         @test sector_multiplicity(si) == 4
         @test isdual(si) == false
-        @test sector(si) == TKS.SU2Irrep(1 // 2)
+        @test sector(si) == SectorRange(TKS.SU2Irrep(1 // 2), false)
     end
 
     @testset "SU2 dual" begin
         si = SectorIndices(TKS.SU2Irrep(1), 2, true)
-        @test sector(si) == TKS.dual(TKS.SU2Irrep(1))
-        @test sectorrange(si) == SectorRange(TKS.SU2Irrep(1), true)
+        @test sector(si) == SectorRange(TKS.SU2Irrep(1), true)
     end
 
     @testset "Collection-like interface" begin
         si = SectorIndices(TKS.U1Irrep(3), 7, false)
         @test labels(si) == [TKS.U1Irrep(3)]
-        @test sectors(si) == [TKS.U1Irrep(3)]
+        @test sectors(si) == [SectorRange(TKS.U1Irrep(3), false)]
         @test sector_multiplicities(si) == [7]
         @test blocklength(si) == 1
     end
@@ -138,8 +134,8 @@ using Test: @test, @testset
 
     @testset "dual sectors accessor for collection interface" begin
         si = SectorIndices(TKS.U1Irrep(1), 3, true)
-        # sectors() should return the effective sector (with conjugation applied)
-        @test sectors(si) == [TKS.dual(TKS.U1Irrep(1))]
+        # sectors() should return SectorRange with isdual=true
+        @test sectors(si) == [SectorRange(TKS.U1Irrep(1), true)]
         # labels() should return the raw label (no conjugation)
         @test labels(si) == [TKS.U1Irrep(1)]
     end

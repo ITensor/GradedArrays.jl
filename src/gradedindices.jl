@@ -5,8 +5,8 @@ Represents a graded axis — a collection of sector labels with multiplicities a
 This is the axis type for `AbelianArray` and replaces the old `GradedUnitRange` type alias
 for new code paths.
 
-Stores raw labels, multiplicities, and a single dual flag. Constructs `SectorRange` values
-on the fly via the `sectorranges` accessor.
+Stores raw labels, multiplicities, and a single dual flag. The `sectors` accessor returns
+`SectorRange` values on the fly.
 """
 struct GradedIndices{I <: TKS.Sector}
     labels::Vector{I}
@@ -33,8 +33,7 @@ sector_multiplicities(g::GradedIndices) = g.multiplicities
 isdual(g::GradedIndices) = g.isdual
 
 # Derived accessors
-sectors(g::GradedIndices) = isdual(g) ? dual.(labels(g)) : labels(g)
-sectorranges(g::GradedIndices) = SectorRange.(labels(g), isdual(g))
+sectors(g::GradedIndices) = SectorRange.(labels(g), isdual(g))
 BlockArrays.blocklength(g::GradedIndices) = length(labels(g))
 function Base.length(g::GradedIndices)
     return sum(

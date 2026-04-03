@@ -4,8 +4,8 @@
 Represents one sector's index space — a sector label paired with a multiplicity count
 and a dual flag. This is the building block for `GradedIndices`.
 
-Stores the raw label, multiplicity, and dual flag as primitives. Constructs `SectorRange`
-on the fly via the `sectorrange` accessor.
+Stores the raw label, multiplicity, and dual flag as primitives. The `sector` accessor
+returns a `SectorRange` on the fly.
 """
 struct SectorIndices{I <: TKS.Sector}
     label::I
@@ -25,12 +25,11 @@ sector_multiplicity(si::SectorIndices) = si.multiplicity
 isdual(si::SectorIndices) = si.isdual
 
 # Derived accessors
-sector(si::SectorIndices) = isdual(si) ? dual(label(si)) : label(si)
-sectorrange(si::SectorIndices) = SectorRange(label(si), isdual(si))
+sector(si::SectorIndices) = SectorRange(label(si), isdual(si))
 
 # Duck-typed interface matching GradedIndices
 labels(si::SectorIndices) = [label(si)]
-sectors(si::SectorIndices) = [sector(si)]
+sectors(si::SectorIndices) = [SectorRange(label(si), isdual(si))]
 sector_multiplicities(si::SectorIndices) = [sector_multiplicity(si)]
 BlockArrays.blocklength(si::SectorIndices) = 1
 Base.length(si::SectorIndices) = TKS.dim(label(si)) * sector_multiplicity(si)

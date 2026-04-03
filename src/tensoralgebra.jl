@@ -88,7 +88,7 @@ function sectormergesort(g::GradedIndices)
     end
 
     # Sort by SectorRange to use the custom isless ordering
-    total = sort!(collect(pairs(dict)); by = p -> SectorRange(first(p)))
+    total = sort!(collect(pairs(dict)); by = first)
     return gradedrange([c => m for (c, m) in total])
 end
 

@@ -1,5 +1,5 @@
 using GradedArrays: GradedArrays, SU2, SectorArray, SectorMatrix, SectorRange, U1, dual,
-    isdual, label, labels, sector, sector_multiplicities, sector_type, sectorranges, sectors
+    isdual, label, labels, sector, sector_multiplicities, sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -56,22 +56,13 @@ using Test: @test, @testset
         sa = SectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data
         )
-        # sector(sa, d): non-dual returns label, dual returns dual(label)
-        @test sector(sa, 1) == TKS.U1Irrep(1)
-        @test sector(sa, 2) == TKS.dual(TKS.U1Irrep(-1))
+        # sector(sa, d) returns SectorRange
+        @test sector(sa, 1) == SectorRange(TKS.U1Irrep(1), false)
+        @test sector(sa, 2) == SectorRange(TKS.U1Irrep(-1), true)
 
         secs = sectors(sa)
-        @test secs == (TKS.U1Irrep(1), TKS.dual(TKS.U1Irrep(-1)))
-    end
-
-    @testset "Derived accessors — sectorranges" begin
-        data = ones(2, 3)
-        sa = SectorArray(
-            (TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data
-        )
-        srs = sectorranges(sa)
-        @test srs[1] == SectorRange(TKS.U1Irrep(1), false)
-        @test srs[2] == SectorRange(TKS.U1Irrep(-1), true)
+        @test secs ==
+            (SectorRange(TKS.U1Irrep(1), false), SectorRange(TKS.U1Irrep(-1), true))
     end
 
     @testset "Derived accessors — sector_multiplicities (U1, dim=1)" begin

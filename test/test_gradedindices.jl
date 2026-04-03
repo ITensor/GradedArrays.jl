@@ -1,6 +1,6 @@
 using BlockArrays: blocklength
 using GradedArrays: GradedArrays, GradedIndices, SU2, SectorRange, U1, dual, flip, isdual,
-    labels, sector_multiplicities, sector_type, sectorranges, sectors
+    labels, sector_multiplicities, sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -49,22 +49,12 @@ using Test: @test, @test_throws, @testset
 
     @testset "sectors accessor — non-dual" begin
         g = GradedArrays.gradedrange([TKS.U1Irrep(0) => 2, TKS.U1Irrep(1) => 3])
-        @test sectors(g) == [TKS.U1Irrep(0), TKS.U1Irrep(1)]
+        @test sectors(g) == [U1(0), U1(1)]
     end
 
     @testset "sectors accessor — dual" begin
         g = GradedArrays.gradedrange([TKS.U1Irrep(0) => 2, TKS.U1Irrep(1) => 3])'
-        @test sectors(g) == [TKS.dual(TKS.U1Irrep(0)), TKS.dual(TKS.U1Irrep(1))]
-    end
-
-    @testset "sectorranges accessor" begin
-        g = GradedArrays.gradedrange([U1(0) => 2, U1(1) => 3])
-        srs = sectorranges(g)
-        @test srs == [U1(0), U1(1)]
-
-        gd = g'
-        srsd = sectorranges(gd)
-        @test srsd == [U1(0)', U1(1)']
+        @test sectors(g) == [U1(0)', U1(1)']
     end
 
     @testset "blocklength" begin
@@ -167,7 +157,7 @@ using Test: @test, @test_throws, @testset
 
         gd = g'
         @test isdual(gd) == true
-        @test sectors(gd) == [TKS.dual(TKS.SU2Irrep(0)), TKS.dual(TKS.SU2Irrep(1 // 2))]
+        @test sectors(gd) == [SU2(TKS.SU2Irrep(0))', SU2(TKS.SU2Irrep(1 // 2))']
     end
 
     @testset "SU2 gradedrange from SectorRange" begin
