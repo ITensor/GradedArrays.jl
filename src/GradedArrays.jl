@@ -4,37 +4,26 @@ module GradedArrays
 # -------
 export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
 export SectorRange, SectorDelta, SectorIndices, GradedIndices
-export SectorUnitRange, SectorOneTo, SectorArray, SectorMatrix
-export GradedUnitRange, GradedOneTo, GradedArray
+export SectorArray, SectorMatrix
 export AbstractGradedArray, AbelianArray
 export gradedrange
 
 export dual, flip, gradedrange, isdual,
     labels,
     sector, sector_multiplicities, sector_multiplicity,
-    sectorrange, sectorranges, sectors, sector_type,
-    ungrade
+    sectorrange, sectorranges, sectors, sector_type
 
 # imports
 # -------
 import FunctionImplementations as FI
-using ArrayLayouts: ArrayLayouts
-using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
-    AbstractBlockedUnitRange, Block, BlockIndexRange, BlockedOneTo, blockisequal, blocks,
-    blocksize, eachblockaxes1
-using BlockSparseArrays: BlockSparseArrays, @view!, AbstractBlockSparseArray,
-    AnyAbstractBlockSparseArray, BlockOneTo, BlockSparseArray, BlockUnitRange, blockrange,
-    blockreshape, blocktype, eachblockstoredindex, sparsemortar
-using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange,
-    cartesianrange, kroneckerfactors, unproduct, ×
+using BlockArrays:
+    BlockArrays, AbstractBlockVector, Block, BlockVector, blocklengths, blocks
+using BlockSparseArrays: BlockSparseArrays, eachblockstoredindex
+using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
-using SparseArraysBase: isstored
-using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
-    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
-    tuplemortar, unmatricize
+using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, trivialbiperm
 using TensorKitSectors: TensorKitSectors as TKS
-using TypeParameterAccessors:
-    similartype, type_parameters, unspecify_type_parameters, unwrap_array_type
+using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
 include("sectorrange.jl")
 include("sectorindices.jl")
@@ -42,13 +31,10 @@ include("gradedindices.jl")
 include("sectorarray.jl")
 include("abstractgradedarray.jl")
 include("abelianarray.jl")
-include("gradedarray.jl")
-include("broadcast.jl")
 
 include("sectorproduct.jl")
 
 include("fusion.jl")
 include("tensoralgebra.jl")
-include("factorizations.jl")
 
 end

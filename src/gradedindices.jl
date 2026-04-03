@@ -47,6 +47,55 @@ end
 # sector_type
 sector_type(::Type{GradedIndices{I}}) where {I} = SectorRange{I}
 
+# blocklengths: total length of each block (quantum_dimension * multiplicity)
+function BlockArrays.blocklengths(g::GradedIndices)
+    return [TKS.dim(l) * m for (l, m) in zip(labels(g), sector_multiplicities(g))]
+end
+
+quantum_dimension(g::GradedIndices) = length(g)
+
+function trivial(::Type{GradedIndices{I}}) where {I}
+    return gradedrange([one(I) => 1])
+end
+trivial(g::GradedIndices) = trivial(typeof(g))
+
+"""
+    gradedrange(xs::AbstractVector{<:Pair})
+
+Generic fallback that converts sector keys via `to_sector` before constructing `GradedIndices`.
+This supports NamedTuple keys (for sector products) and other non-standard key types.
+"""
+function gradedrange(xs::AbstractVector{<:Pair})
+    isempty(xs) && throw(
+        ArgumentError("Cannot create GradedIndices from empty vector without type info")
+    )
+    converted = [to_sector(first(p)) => last(p) for p in xs]
+    return gradedrange(converted)
+end
+
+# ========================  × with GradedIndices  ========================
+
+function KroneckerArrays.:×(g::GradedIndices, s::SectorRange)
+    return ×(g, to_gradedrange(s))
+end
+function KroneckerArrays.:×(s::SectorRange, g::GradedIndices)
+    return ×(to_gradedrange(s), g)
+end
+function KroneckerArrays.:×(g1::GradedIndices, g2::GradedIndices)
+    v = [si1 × si2 for si1 in _each_sectorindices(g1), si2 in _each_sectorindices(g2)]
+    ls = [label(si) for si in vec(v)]
+    ms = [sector_multiplicity(si) for si in vec(v)]
+    d = isempty(v) ? false : isdual(first(v))
+    return GradedIndices(ls, ms, d)
+end
+
+function _each_sectorindices(g::GradedIndices)
+    return [
+        SectorIndices(l, m, isdual(g))
+            for (l, m) in zip(labels(g), sector_multiplicities(g))
+    ]
+end
+
 # dual, flip, adjoint
 dual(g::GradedIndices) = GradedIndices(labels(g), sector_multiplicities(g), !isdual(g))
 function flip(g::GradedIndices)

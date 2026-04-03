@@ -54,6 +54,23 @@ function Base.hash(si::SectorIndices, h::UInt)
     return hash(label(si), hash(sector_multiplicity(si), hash(isdual(si), h)))
 end
 
+# ========================  sectorrange constructors  ========================
+
+"""
+    sectorrange(sector, dim)
+    sectorrange(sector, range)
+
+Construct a [`SectorIndices`](@ref) for the given sector and multiplicity.
+"""
+sectorrange(s::SectorRange, dim::Integer) = SectorIndices(label(s), Int(dim), isdual(s))
+sectorrange(s::SectorRange, range::AbstractUnitRange) = sectorrange(s, length(range))
+function sectorrange(
+        sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}},
+        args...
+    )
+    return sectorrange(to_sector(sector), args...)
+end
+
 # Show
 function Base.show(io::IO, si::SectorIndices)
     print(io, "SectorIndices(")

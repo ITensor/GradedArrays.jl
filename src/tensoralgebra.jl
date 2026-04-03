@@ -1,308 +1,118 @@
-struct SectorFusion <: FusionStyle end
+using SplitApplyCombine: groupcount
 
-TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:SectorArray}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:GradedArray}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:SectorUnitRange}) = SectorFusion()
+flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
+flip_dual(g::GradedIndices) = isdual(g) ? flip(g) : g
+flip_dual(si::SectorIndices) = isdual(si) ? flip(si) : si
 
-const BlockReshapeFusion = typeof(FusionStyle(AbstractBlockArray))
-
-function TensorAlgebra.trivial_axis(
-        ::BlockReshapeFusion,
-        ::Val{:codomain},
-        a::GradedArray,
-        axes_codomain::Tuple{Vararg{AbstractUnitRange}},
-        axes_domain::Tuple{Vararg{AbstractUnitRange}}
+function tensor_product(
+        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange,
+        rs::AbstractUnitRange...
     )
-    return trivial_gradedrange(axes(a))
-end
-function TensorAlgebra.trivial_axis(
-        ::BlockReshapeFusion,
-        ::Val{:domain},
-        a::GradedArray,
-        axes_codomain::Tuple{Vararg{AbstractUnitRange}},
-        axes_domain::Tuple{Vararg{AbstractUnitRange}}
-    )
-    return flip(trivial_gradedrange(axes(a)))
-end
-function trivial_gradedrange(t::Tuple{Vararg{G}}) where {G <: GradedUnitRange}
-    return trivial(first(t))
-end
-trivial_gradedrange(t::Tuple{Vararg{GradedUnitRange}}) = ⊗(trivial.(t)...)
-function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
-    return gradedrange([trivial(S) => 1])
+    return tensor_product(tensor_product(r1, r2), r3, rs...)
 end
 
-function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:codomain}, r1::SectorUnitRange, r2::SectorUnitRange
-    )
-    return r1 ⊗ r2
-end
-function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:domain}, r1::SectorUnitRange, r2::SectorUnitRange
-    )
-    return flip(r1 ⊗ r2)
-end
-function TensorAlgebra.tensor_product_axis(
-        style::BlockReshapeFusion, side::Val{:codomain},
-        r1::GradedUnitRange, r2::GradedUnitRange
-    )
-    return tensor_product_gradedrange(style, side, r1, r2)
-end
-function TensorAlgebra.tensor_product_axis(
-        style::BlockReshapeFusion, side::Val{:domain},
-        r1::GradedUnitRange, r2::GradedUnitRange
-    )
-    return tensor_product_gradedrange(style, side, r1, r2)
-end
-# TODO: Could this call out to a generic tensor_product_axis for AbstractBlockedUnitRange?
-function tensor_product_gradedrange(
-        ::BlockReshapeFusion, side::Val,
-        r1::AbstractUnitRange, r2::AbstractUnitRange
-    )
-    (isone(first(r1)) && isone(first(r2))) ||
-        throw(ArgumentError("Only one-based axes are supported"))
-    blockaxpairs = Iterators.product(eachblockaxes1(r1), eachblockaxes1(r2))
-    blockaxs = map(blockaxpairs) do (b1, b2)
-        # TODO: Store a FusionStyle for the blocks in `BlockReshapeFusion`
-        # and use that here.
-        return tensor_product_axis(side, b1, b2)
-    end
-    return mortar_axis(vec(blockaxs))
+# ========================  unmerged_tensor_product  ========================
+
+unmerged_tensor_product() = Base.OneTo(1)
+unmerged_tensor_product(a) = a
+function unmerged_tensor_product(a1, a2, a3, as...)
+    return unmerged_tensor_product(unmerged_tensor_product(a1, a2), a3, as...)
 end
 
-function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbstractArray, length_codomain::Val
-    )
-    a_reshaped = matricize(BlockReshapeFusion(), a, length_codomain)
-    return sectormergesort(a_reshaped)
-end
-function TensorAlgebra.matricize(
-        ::SectorFusion, a::SectorDelta, ndims_codomain::Val{Ncodomain}
-    ) where {Ncodomain}
-    biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
-    ax_codomain, ax_domain = blocks(axes(a)[biperm])
-    ax_codomain =
-        isempty(ax_codomain) ? trivial(sector_type(a)) : tensor_product(ax_codomain...)
-    ax_domain =
-        isempty(ax_domain) ? trivial(sector_type(a)) : flip(tensor_product(ax_domain...))
-    return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
-end
-function TensorAlgebra.matricize(
-        ::SectorFusion, a::SectorArray, length_codomain::Val
-    )
-    asectors, adata = kroneckerfactors(a)
-    asectors_reshaped = matricize(asectors, length_codomain)
-    adata_reshaped = matricize(adata, length_codomain)
+# default to tensor_product
+unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
-    T = TKS.sectorscalartype(sector_type(a))
-    phase = prod(
-        ntuple(length_codomain) do i
-            return ifelse(isdual(axes(a, i)), twist(sectors(a, i)), one(T))
-        end
-    )
-    isone(phase) || (adata_reshaped .*= phase)
-
-    return SectorArray(asectors_reshaped.sectors, adata_reshaped)
-end
-
-function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::SectorDelta,
-        codomain_axes::Tuple{Vararg{SectorRange}},
-        domain_axes::Tuple{Vararg{SectorRange}}
-    )
-    return SectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
-end
-function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::AbstractMatrix,
-        codomain_axes::Tuple{Vararg{AbstractUnitRange}},
-        domain_axes::Tuple{Vararg{AbstractUnitRange}}
-    )
-    blocked_axes = tuplemortar((codomain_axes, domain_axes))
-    if isempty(blocked_axes)
-        # Handle edge case of empty blocked_axes, which can occur
-        # when matricizing a 0-dimensional array (a scalar).
-        a = similar(m, ())
-        a[] = only(m)
-        return a
-    end
-
-    fused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
-    blockperms = sectorsortperm.(fused_axes)
-    J = map(invblockmergeperm, fused_axes, blockperms, axes(m))
-    return unmatricize(FusionStyle(BlockSparseArray), m[J...], blocked_axes)
-end
-function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::SectorMatrix,
-        codomain_axes::Tuple{Vararg{AbstractUnitRange}},
-        domain_axes::Tuple{Vararg{AbstractUnitRange}}
-    )
-    msectors, mdata = kroneckerfactors(m)
-    msectors = unmatricize(
-        kroneckerfactors(m, 1),
-        kroneckerfactors.(codomain_axes, 1),
-        kroneckerfactors.(domain_axes, 1)
-    )
-    mdata = unmatricize(
-        kroneckerfactors(m, 2),
-        kroneckerfactors.(codomain_axes, 2),
-        kroneckerfactors.(domain_axes, 2)
-    )
-
-    phase = fermion_contraction_phase(msectors, length(codomain_axes))
-    isone(phase) || (mdata .*= phase)
-
-    return SectorArray(msectors.sectors, mdata)
-end
-
-function TensorAlgebra.permutedimsopadd!(
-        y::SectorArray, op, x::SectorArray, perm,
-        α::Number, β::Number
-    )
-    ysectors, ydata = kroneckerfactors(y)
-    xsectors, xdata = kroneckerfactors(x)
-    ysectors == permutedims(xsectors, perm) || throw(DimensionMismatch())
-    phase = fermion_permutation_phase(xsectors, perm)
-    TensorAlgebra.permutedimsopadd!(ydata, op, xdata, perm, phase * α, β)
-    return y
-end
-function TensorAlgebra.permutedimsopadd!(
-        y::GradedArray{<:Any, N}, op, x::GradedArray{<:Any, N}, perm,
-        α::Number, β::Number
-    ) where {N}
-    if !iszero(β)
-        for bI in eachblockstoredindex(y)
-            y_b = @view!(y[bI])
-            idperm = ntuple(identity, ndims(y_b))
-            TensorAlgebra.permutedimsopadd!(y_b, identity, y_b, idperm, β, false)
-        end
-    end
-    for bI in eachblockstoredindex(x)
-        b = Tuple(bI)
-        b_dest = Block(ntuple(i -> b[perm[i]], N))
-        y_b = @view!(y[b_dest])
-        x_b = @view!(x[bI])
-        TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, true)
-    end
-    return y
-end
-
-# Sort the blocks by sector and then merge the common sectors.
-function sectormergesort(a::AbstractArray)
-    I = sectormergesortperm.(axes(a))
-    return a[I...]
-end
-
-# Returns a Vector{BlockIndexRange{1}} mapping each block of fine_ax (in original order)
-# to its position (block + subrange) within the merged axis merged_ax, given the block
-# permutation blockperm used to sort and merge fine_ax into merged_ax.
-# Requires that blocks of fine_ax subdivide blocks of merged_ax.
-function invblockmergeperm(fine_ax, blockperm, merged_ax)
-    n = length(blockperm)
-    bir_type = Base.promote_op(getindex, Block{1, Int}, UnitRange{Int})
-    J = Vector{bir_type}(undef, n)
-    j = 1
-    offset = 0
-    for k′ in 1:n
-        k = Int(blockperm[k′])
-        size_k = length(fine_ax[Block(k)])
-        merged_block_size = length(merged_ax[Block(j)])
-        offset + size_k ≤ merged_block_size ||
-            throw(ArgumentError("fine_ax blocks do not subdivide merged_ax blocks"))
-        J[k] = Block(j)[(offset + 1):(offset + size_k)]
-        offset += size_k
-        if offset == merged_block_size
-            j += 1
-            offset = 0
-        end
-    end
-    return J
-end
-
-function checkindices(
-        a::GradedArray{<:Any, N}, I::NTuple{N, AbstractVector{<:BlockIndexRange{1}}}
-    ) where {N}
-    for d in 1:N
-        nblocks_d = length(axes(a, d))
-        for bir in I[d]
-            Int(bir.block) ≤ nblocks_d ||
-                throw(BlockBoundsError(a, ntuple(i -> i == d ? bir : I[i][1], Val(N))))
-        end
-    end
-    return nothing
-end
-
-# Splitting: each I[d][k] = Block(b)[r] means dest block k comes from source block b
-# at subrange r. This is the inverse of the merging getindex below.
-function Base.getindex(
-        a::GradedArray{<:Any, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
-    ) where {N}
-    checkindices(a, I)
-    ax_dest = ntuple(d -> only(axes(axes(a, d)[I[d]])), Val(N))
-    a_dest = similar(a, ax_dest)
-    # Map source block b → list of (dest BlockIndexRange, src subrange).
-    # Stored blocks of a not referenced by I are skipped (partial block selection).
-    src_to_dests = ntuple(Val(N)) do d
-        key_type = Block{1, Int}
-        dest_bir_type = Base.promote_op(getindex, key_type, Base.OneTo{Int})
-        val_type = Tuple{dest_bir_type, UnitRange{Int}}
-        dict = Dict{key_type, Vector{val_type}}()
-        for k in eachindex(I[d])
-            bir = I[d][k]
-            b = Block(Int(bir.block))
-            r = only(bir.indices)
-            push!(get!(dict, b, val_type[]), (Block(k)[Base.axes1(r)], r))
-        end
-        return dict
-    end
-    for bI_src in eachblockstoredindex(a)
-        src_tuple = Tuple(bI_src)
-        all(d -> haskey(src_to_dests[d], src_tuple[d]), 1:N) || continue
-        dest_refs = ntuple(d -> src_to_dests[d][src_tuple[d]], Val(N))
-        for combo in Iterators.product(dest_refs...)
-            src_r = ntuple(d -> combo[d][2], Val(N))
-            src_data = @view(a[bI_src][src_r...])
-            iszero(src_data) && continue
-            dest_b = Block(ntuple(d -> only(Tuple(combo[d][1].block)), Val(N)))
-            a_dest_b = @view!(a_dest[dest_b])
-            dest_r = ntuple(d -> only(combo[d][1].indices), Val(N))
-            copyto!(@view(a_dest_b[dest_r...]), src_data)
-        end
-    end
-    return a_dest
-end
-
-# Merging: each I[d] groups source blocks into destination blocks.
-function Base.getindex(
-        a::GradedArray{<:Any, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
-    ) where {N}
-    ax_dest = ntuple(d -> Base.axes1(axes(a, d)[I[d]]), Val(N))
-    a_dest = similar(a, ax_dest)
-    ax = axes(a)
-    # Map source Block -> BlockIndexRange encoding dest block + subrange within it
-    src_to_dest = ntuple(Val(N)) do d
-        key_type = eltype(I[d])
-        range_type = UnitRange{Int}
-        val_type = Base.promote_op(getindex, key_type, range_type)
-        dict = Dict{key_type, val_type}()
-        for j in eachindex(blocks(I[d]))
-            sub_blocks = I[d][Block(j)]
-            start = 1
-            for b in sub_blocks
-                r = Base.OneTo(length(ax[d][b])) .+ (start - 1)
-                dict[b] = Block(j)[r]
-                start += length(r)
+function unmerged_tensor_product(a1::GradedIndices, a2::GradedIndices)
+    ls1 = labels(a1)
+    ms1 = sector_multiplicities(a1)
+    ls2 = labels(a2)
+    ms2 = sector_multiplicities(a2)
+    P = promote_type(eltype(ls1), eltype(ls2))
+    new_labels = P[]
+    new_mults = Int[]
+    for (l2, m2) in zip(ls2, ms2)
+        s2 = isdual(a2) ? dual(l2) : l2
+        for (l1, m1) in zip(ls1, ms1)
+            s1 = isdual(a1) ? dual(l1) : l1
+            fused = s1 ⊗ s2
+            if fused isa SectorRange
+                # Abelian: single output sector
+                push!(new_labels, label(fused))
+                push!(new_mults, m1 * m2)
+            elseif fused isa GradedIndices
+                # Non-abelian: multiple output sectors
+                for (fl, fm) in zip(labels(fused), sector_multiplicities(fused))
+                    push!(new_labels, fl)
+                    push!(new_mults, m1 * m2 * fm)
+                end
             end
         end
-        return dict
     end
-    for bI_src in eachblockstoredindex(a)
-        src_tuple = Tuple(bI_src)
-        dest_info = ntuple(d -> src_to_dest[d][src_tuple[d]], Val(N))
-        dest_b = Block(map(di -> only(Tuple(di.block)), dest_info))
-        a_dest_b = @view!(a_dest[dest_b])
-        dest_r = map(di -> only(di.indices), dest_info)
-        copyto!(@view(a_dest_b[dest_r...]), a[bI_src])
+    return GradedIndices(new_labels, new_mults, false)
+end
+
+# ========================  sorting utilities  ========================
+
+# convention: sort dual GradedIndices according to nondual blocks
+# Sort by SectorRange to use the custom isless ordering
+function sectorsortperm(g::GradedIndices)
+    return Block.(sortperm(SectorRange.(labels(g))))
+end
+
+# Get the permutation for sorting, then group by common elements.
+# groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
+function groupsortperm(v; kwargs...)
+    perm = sortperm(v; kwargs...)
+    v_sorted = @view v[perm]
+    group_lengths = collect(groupcount(identity, v_sorted))
+    return BlockVector(perm, group_lengths)
+end
+
+# Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedUnitRangesExt`.
+# Get the permutation for sorting, then group by common elements.
+# groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
+# Sort by SectorRange to use the custom isless ordering
+function sectormergesortperm(g::GradedIndices)
+    return Block.(groupsortperm(SectorRange.(labels(g))))
+end
+
+# Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
+invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
+
+function sectormergesort(g::GradedIndices)
+    glabels = sectors(g)
+    multiplicities = sector_multiplicities(g)
+    dict = Dict{eltype(glabels), eltype(multiplicities)}()
+    for (l, m) in zip(glabels, multiplicities)
+        dict[l] = get(dict, l, 0) + m
     end
-    return a_dest
+
+    # Sort by SectorRange to use the custom isless ordering
+    total = sort!(collect(pairs(dict)); by = p -> SectorRange(first(p)))
+    return gradedrange([c => m for (c, m) in total])
+end
+
+sectormergesort(g::AbstractUnitRange) = g
+
+# tensor_product produces a sorted, non-dual GradedIndices
+tensor_product(g::GradedIndices) = sectormergesort(flip_dual(g))
+
+function tensor_product(g1::GradedIndices, g2::GradedIndices)
+    return sectormergesort(unmerged_tensor_product(g1, g2))
+end
+
+# Allow fusing a SectorRange with a GradedIndices
+function tensor_product(s::SectorRange, g::GradedIndices)
+    return tensor_product(to_gradedrange(s), g)
+end
+function tensor_product(g::GradedIndices, s::SectorRange)
+    return tensor_product(g, to_gradedrange(s))
+end
+
+# Allow fusing a TKS.Sector with a GradedIndices
+function tensor_product(s::TKS.Sector, g::GradedIndices)
+    return tensor_product(to_gradedrange(SectorRange(s)), g)
+end
+function tensor_product(g::GradedIndices, s::TKS.Sector)
+    return tensor_product(g, to_gradedrange(SectorRange(s)))
 end

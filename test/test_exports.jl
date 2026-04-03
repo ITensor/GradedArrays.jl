@@ -2,12 +2,11 @@ using GradedArrays: GradedArrays
 using Test: @test, @testset
 @testset "Test exports" begin
     exports = [
+        :AbstractGradedArray,
+        :AbelianArray,
         :Fib,
         :GradedArrays,
-        :GradedArray,
         :GradedIndices,
-        :GradedOneTo,
-        :GradedUnitRange,
         :Ising,
         :labels,
         :O2,
@@ -15,9 +14,7 @@ using Test: @test, @testset
         :SectorDelta,
         :SectorIndices,
         :SectorMatrix,
-        :SectorOneTo,
         :SectorRange,
-        :SectorUnitRange,
         :SU2,
         :TrivialSector,
         :U1,
@@ -34,7 +31,6 @@ using Test: @test, @testset
         :sectorranges,
         :sectors,
         :sector_type,
-        :ungrade,
     ]
     @test issetequal(names(GradedArrays), exports)
 end

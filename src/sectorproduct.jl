@@ -195,13 +195,11 @@ function KroneckerArrays.:×(pairs::Pair...)
     return ×(NamedTuple{keys}(vals))
 end
 
-function KroneckerArrays.:×(sr1::SectorOneTo, sr2::SectorOneTo)
-    isdual(sr1) == isdual(sr2) || throw(ArgumentError("SectorProduct duality must match"))
-    sr = sectorrange(
-        sector(sr1) × sector(sr2),
-        sector_multiplicity(sr1) * sector_multiplicity(sr2)
-    )
-    return isdual(sr1) ? dual(sr) : sr
+function KroneckerArrays.:×(si1::SectorIndices, si2::SectorIndices)
+    isdual(si1) == isdual(si2) || throw(ArgumentError("SectorProduct duality must match"))
+    new_label = label(si1) × label(si2)
+    new_mult = sector_multiplicity(si1) * sector_multiplicity(si2)
+    return SectorIndices(new_label, new_mult, isdual(si1))
 end
 
 # TODO: type piracy?
