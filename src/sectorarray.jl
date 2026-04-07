@@ -1,20 +1,38 @@
 # Array
 # -----
 """
-    SectorDelta{T}(sectors::NTuple{N, I}) <: AbstractArray{T, N}
+    SectorDelta{T,N,I<:TKS.Sector} <: AbstractArray{T, N}
 
-An immutable representation of the structural tensor associated to the representation space of a number of sectors.
-For abelian symmetries, this boils down to a scalar which can always be normalized to 1.
+An immutable representation of the structural tensor associated to the representation space
+of a number of sectors. For abelian symmetries, this boils down to a scalar which can
+always be normalized to 1.
+
+Stores primitive fields: raw sector labels and dual flags. `axes` returns `SectorRange`
+values constructed on the fly.
 """
-struct SectorDelta{T, N, I <: SectorRange} <: AbstractArray{T, N}
-    sectors::NTuple{N, I}
+struct SectorDelta{T, N, I <: TKS.Sector} <: AbstractArray{T, N}
+    labels::NTuple{N, I}
+    isdual::NTuple{N, Bool}
 end
-SectorDelta{T}(sectors::NTuple{N, I}) where {T, N, I} = SectorDelta{T, N, I}(sectors)
+function SectorDelta{T}(
+        labels::NTuple{N, I}, isdual::NTuple{N, Bool}
+    ) where {T, N, I <: TKS.Sector}
+    return SectorDelta{T, N, I}(labels, isdual)
+end
+
+# Convenience: construct from SectorRange tuples (backward compat bridge)
+function SectorDelta{T}(sranges::NTuple{N, SectorRange}) where {T, N}
+    ls = map(label, sranges)
+    ds = map(GradedArrays.isdual, sranges)
+    return SectorDelta{T}(ls, ds)
+end
 
 function require_unique_fusion(A)
     return TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
         error("not implemented for non-abelian tensors")
 end
+
+# ========================  AbstractArray interface  ========================
 
 Base.@propagate_inbounds function Base.getindex(
         A::SectorDelta{T, N},
@@ -25,34 +43,54 @@ Base.@propagate_inbounds function Base.getindex(
     return one(T)
 end
 
-Base.axes(A::SectorDelta) = A.sectors
+function Base.axes(A::SectorDelta)
+    return ntuple(d -> SectorRange(A.labels[d], A.isdual[d]), Val(ndims(A)))
+end
 Base.size(A::SectorDelta) = length.(axes(A))
 
 function Base.similar(
         ::SectorDelta,
         ::Type{T},
-        sectors::Tuple{I, Vararg{I}}
-    ) where {T, I <: SectorRange}
-    return SectorDelta{T}(sectors)
+        sranges::Tuple{SectorRange, Vararg{SectorRange}}
+    ) where {T}
+    return SectorDelta{T}(sranges)
 end
 function Base.similar(
         ::Type{<:AbstractArray{T}},
-        sectors::Tuple{I, Vararg{I}}
-    ) where {T, I <: SectorRange}
-    return SectorDelta{T}(sectors)
+        sranges::Tuple{SectorRange, Vararg{SectorRange}}
+    ) where {T}
+    return SectorDelta{T}(sranges)
 end
 
-sectors(x::SectorDelta) = x.sectors
-sector_type(::Type{SectorDelta{T, N, I}}) where {T, N, I} = I
+# ========================  Primitive accessors  ========================
+
+labels(x::SectorDelta) = x.labels
+label(x::SectorDelta, d::Int) = x.labels[d]
+isdual(x::SectorDelta, d::Int) = x.isdual[d]
+
+# ========================  Derived accessors  ========================
+
+function sectors(x::SectorDelta)
+    return ntuple(d -> SectorRange(label(x, d), isdual(x, d)), Val(ndims(x)))
+end
+function sector(x::SectorDelta, d::Int)
+    return SectorRange(label(x, d), isdual(x, d))
+end
+sector_type(::Type{<:SectorDelta{T, N, I}}) where {T, N, I} = SectorRange{I}
+
+# ========================  permutedims  ========================
 
 function Base.permutedims(x::SectorDelta, perm)
-    return SectorDelta{eltype(x)}(Base.Fix1(getindex, sectors(x)).(perm))
+    new_labels = ntuple(n -> label(x, perm[n]), Val(ndims(x)))
+    new_isdual = ntuple(n -> isdual(x, perm[n]), Val(ndims(x)))
+    return SectorDelta{eltype(x)}(new_labels, new_isdual)
 end
 function FI.permuteddims(x::SectorDelta, perm)
     return permutedims(x, perm)
 end
 
-# Defined as this makes broadcasting work better
+# ========================  copy / broadcasting  ========================
+
 Base.copy(A::SectorDelta) = A
 function Base.copy!(C::SectorDelta, A::SectorDelta)
     axes(C) == axes(A) || throw(DimensionMismatch())
@@ -66,14 +104,15 @@ function Base.copy(A::Adjoint{T, <:SectorDelta{T, 2}}) where {T}
     return SectorDelta{T}(reverse(dual.(sectors(adjoint(A)))))
 end
 function LinearAlgebra.adjoint!(
-        A::SectorDelta{T, 2, I},
-        B::SectorDelta{T, 2, I}
-    ) where {T, I}
+        A::SectorDelta{T, 2}, B::SectorDelta{T, 2}
+    ) where {T}
     reverse(dual.(sectors(B))) == sectors(A) || throw(DimensionMismatch())
     return A
 end
 
-function Base.:(*)(a::SectorDelta{T₁, 2, I}, b::SectorDelta{T₂, 2, I}) where {T₁, T₂, I}
+# ========================  multiplication  ========================
+
+function Base.:(*)(a::SectorDelta{T₁, 2}, b::SectorDelta{T₂, 2}) where {T₁, T₂}
     axes(a, 2) == dual(axes(b, 1)) ||
         throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
     T = Base.promote_type(T₁, T₂)
@@ -253,14 +292,14 @@ end
 # Other
 # -----
 function KroneckerArrays.:(⊗)(A::SectorDelta{T, N}, data::AbstractArray{T, N}) where {T, N}
-    return SectorArray(A.sectors, data)
+    return SectorArray(A.labels, A.isdual, data)
 end
 function KroneckerArrays.:(⊗)(
         A::SectorDelta{T₁, N},
         data::AbstractArray{T₂, N}
     ) where {T₁, T₂, N}
     T = Base.promote_type(*, T₁, T₂)
-    return SectorArray(A.sectors, collect(T, data))
+    return SectorArray(A.labels, A.isdual, collect(T, data))
 end
 
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
