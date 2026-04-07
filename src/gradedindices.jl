@@ -43,8 +43,9 @@ function Base.length(g::GradedIndices)
     )
 end
 
-# sector_type
+# sector_type, SymmetryStyle
 sector_type(::Type{GradedIndices{I}}) where {I} = SectorRange{I}
+SymmetryStyle(::Type{<:GradedIndices{I}}) where {I} = SymmetryStyle(SectorRange{I})
 
 # blocklengths: total length of each block (quantum_dimension * multiplicity)
 function BlockArrays.blocklengths(g::GradedIndices)
@@ -72,6 +73,34 @@ function gradedrange(xs::AbstractVector{<:Pair})
     return gradedrange(converted)
 end
 
+# ========================  BlockSparseArrays interface  ========================
+
+function BlockSparseArrays.eachblockaxis(g::GradedIndices)
+    return [
+        SectorIndices(l, m, isdual(g))
+            for (l, m) in zip(labels(g), sector_multiplicities(g))
+    ]
+end
+
+function BlockSparseArrays.mortar_axis(axs::AbstractVector{<:SectorIndices})
+    isempty(axs) && throw(
+        ArgumentError("Cannot create GradedIndices from empty vector without type info")
+    )
+    allequal(isdual, axs) ||
+        throw(ArgumentError("Cannot combine sectors with different arrows"))
+    ls = [label(si) for si in axs]
+    ms = [sector_multiplicity(si) for si in axs]
+    return GradedIndices(ls, ms, isdual(first(axs)))
+end
+
+# Non-abelian fusion: flatten GradedIndices elements into a single GradedIndices
+function BlockSparseArrays.mortar_axis(axs::AbstractVector{<:GradedIndices})
+    isempty(axs) && throw(
+        ArgumentError("Cannot create GradedIndices from empty vector without type info")
+    )
+    return mortar_axis(mapreduce(eachblockaxis, vcat, axs))
+end
+
 # ========================  × with GradedIndices  ========================
 
 function KroneckerArrays.:×(g::GradedIndices, s::SectorRange)
@@ -81,26 +110,19 @@ function KroneckerArrays.:×(s::SectorRange, g::GradedIndices)
     return ×(to_gradedrange(s), g)
 end
 function KroneckerArrays.:×(g1::GradedIndices, g2::GradedIndices)
-    v = [si1 × si2 for si1 in _each_sectorindices(g1), si2 in _each_sectorindices(g2)]
-    ls = [label(si) for si in vec(v)]
-    ms = [sector_multiplicity(si) for si in vec(v)]
-    d = isempty(v) ? false : isdual(first(v))
-    return GradedIndices(ls, ms, d)
+    v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
+    return mortar_axis(v)
 end
 
-function _each_sectorindices(g::GradedIndices)
-    return [
-        SectorIndices(l, m, isdual(g))
-            for (l, m) in zip(labels(g), sector_multiplicities(g))
-    ]
-end
-
-# dual, flip, adjoint
+# dual, flip, flip_dual, adjoint
 dual(g::GradedIndices) = GradedIndices(labels(g), sector_multiplicities(g), !isdual(g))
 function flip(g::GradedIndices)
     return GradedIndices(dual.(labels(g)), sector_multiplicities(g), !isdual(g))
 end
+flip_dual(g::GradedIndices) = isdual(g) ? flip(g) : g
 Base.adjoint(g::GradedIndices) = dual(g)
+
+to_gradedrange(g::GradedIndices) = g
 
 # Bounds checking (needed for AbstractArray scalar indexing)
 function Base.checkindex(::Type{Bool}, g::GradedIndices, i::Int)

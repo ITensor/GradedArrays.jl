@@ -1,6 +1,7 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, SU2, SectorIndices, SectorRange, U1, dual, flip, isdual,
-    label, labels, sector, sector_multiplicities, sector_multiplicity, sector_type, sectors
+using GradedArrays: GradedArrays, GradedIndices, SU2, SectorIndices, SectorRange, U1, dual,
+    flip, gradedrange, isdual, label, labels, sector, sector_multiplicities,
+    sector_multiplicity, sector_type, sectorrange, sectors, tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -138,5 +139,37 @@ using Test: @test, @testset
         @test sectors(si) == [SectorRange(TKS.U1Irrep(1), true)]
         # labels() should return the raw label (no conjugation)
         @test labels(si) == [TKS.U1Irrep(1)]
+    end
+
+    @testset "tensor_product (abelian)" begin
+        si0 = sectorrange(U1(0), 2)
+        si1 = sectorrange(U1(1), 3)
+
+        # two-arg
+        tp = tensor_product(si0, si1)
+        @test tp isa SectorIndices
+        @test sector(tp) == U1(1)
+        @test sector_multiplicity(tp) == 6
+
+        # single-arg (identity)
+        @test tensor_product(si1) == si1
+
+        # single-arg dual (flips)
+        si1d = sectorrange(U1(1)', 3)
+        tp1 = tensor_product(si1d)
+        @test !isdual(tp1)
+
+        # variadic fold
+        si = sectorrange(U1(1), 1)
+        @test tensor_product(si, si, si) == sectorrange(U1(3), 1)
+        @test tensor_product(si, si, si, si) == sectorrange(U1(4), 1)
+    end
+
+    @testset "tensor_product (non-abelian)" begin
+        # SU2: j=1/2 ⊗ j=1/2 = j=0 ⊕ j=1
+        si_half = sectorrange(SU2(TKS.SU2Irrep(1 // 2)), 1)
+        tp = tensor_product(si_half, si_half)
+        @test tp isa GradedIndices
+        @test sector_multiplicities(tp) == [1, 1]
     end
 end

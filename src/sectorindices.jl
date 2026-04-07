@@ -34,14 +34,16 @@ sector_multiplicities(si::SectorIndices) = [sector_multiplicity(si)]
 BlockArrays.blocklength(si::SectorIndices) = 1
 Base.length(si::SectorIndices) = TKS.dim(label(si)) * sector_multiplicity(si)
 
-# sector_type
+# sector_type, SymmetryStyle
 sector_type(::Type{SectorIndices{I}}) where {I} = SectorRange{I}
+SymmetryStyle(::Type{<:SectorIndices{I}}) where {I} = SymmetryStyle(SectorRange{I})
 
-# dual and flip
+# dual, flip, flip_dual
 dual(si::SectorIndices) = SectorIndices(label(si), sector_multiplicity(si), !isdual(si))
 function flip(si::SectorIndices)
     return SectorIndices(dual(label(si)), sector_multiplicity(si), !isdual(si))
 end
+flip_dual(si::SectorIndices) = isdual(si) ? flip(si) : si
 
 # Equality and hashing
 function Base.:(==)(a::SectorIndices, b::SectorIndices)
@@ -70,7 +72,42 @@ function sectorrange(
     return sectorrange(to_sector(sector), args...)
 end
 
-# Show
+to_gradedrange(si::SectorIndices) = gradedrange([sector(si) => sector_multiplicity(si)])
+
+# ========================  BlockSparseArrays interface  ========================
+
+BlockSparseArrays.eachblockaxis(si::SectorIndices) = [si]
+
+# ========================  tensor_product  ========================
+
+function tensor_product(si::SectorIndices)
+    return isdual(si) ? flip(si) : si
+end
+
+function tensor_product(sr1::SectorIndices, sr2::SectorIndices)
+    return tensor_product(
+        combine_styles(SymmetryStyle(sr1), SymmetryStyle(sr2)), sr1, sr2
+    )
+end
+
+function tensor_product(::AbelianStyle, sr1::SectorIndices, sr2::SectorIndices)
+    s = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
+    return sectorrange(s, sector_multiplicity(sr1) * sector_multiplicity(sr2))
+end
+
+function tensor_product(::NotAbelianStyle, sr1::SectorIndices, sr2::SectorIndices)
+    g = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
+    d₁ = sector_multiplicity(sr1)
+    d₂ = sector_multiplicity(sr2)
+    return gradedrange(
+        [
+            c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), sector_multiplicities(g))
+        ]
+    )
+end
+
+# ========================  Show  ========================
+
 function Base.show(io::IO, si::SectorIndices)
     print(io, "SectorIndices(")
     show(io, label(si))

@@ -1,13 +1,6 @@
 using SplitApplyCombine: groupcount
 
-flip_dual(r::AbstractUnitRange) = isdual(r) ? flip(r) : r
-flip_dual(g::GradedIndices) = isdual(g) ? flip(g) : g
-flip_dual(si::SectorIndices) = isdual(si) ? flip(si) : si
-
-function tensor_product(
-        r1::AbstractUnitRange, r2::AbstractUnitRange, r3::AbstractUnitRange,
-        rs::AbstractUnitRange...
-    )
+function tensor_product(r1, r2, r3, rs...)
     return tensor_product(tensor_product(r1, r2), r3, rs...)
 end
 
@@ -23,32 +16,14 @@ end
 unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
 function unmerged_tensor_product(a1::GradedIndices, a2::GradedIndices)
-    ls1 = labels(a1)
-    ms1 = sector_multiplicities(a1)
-    ls2 = labels(a2)
-    ms2 = sector_multiplicities(a2)
-    P = promote_type(eltype(ls1), eltype(ls2))
-    new_labels = P[]
-    new_mults = Int[]
-    for (l2, m2) in zip(ls2, ms2)
-        s2 = isdual(a2) ? dual(l2) : l2
-        for (l1, m1) in zip(ls1, ms1)
-            s1 = isdual(a1) ? dual(l1) : l1
-            fused = s1 ⊗ s2
-            if fused isa SectorRange
-                # Abelian: single output sector
-                push!(new_labels, label(fused))
-                push!(new_mults, m1 * m2)
-            elseif fused isa GradedIndices
-                # Non-abelian: multiple output sectors
-                for (fl, fm) in zip(labels(fused), sector_multiplicities(fused))
-                    push!(new_labels, fl)
-                    push!(new_mults, m1 * m2 * fm)
-                end
-            end
-        end
+    ea1 = eachblockaxis(a1)
+    ea2 = eachblockaxis(a2)
+    T = Base.promote_op(⊗, eltype(ea1), eltype(ea2))
+    new_axes = T[]
+    for b in ea2, a in ea1
+        push!(new_axes, a ⊗ b)
     end
-    return GradedIndices(new_labels, new_mults, false)
+    return mortar_axis(new_axes)
 end
 
 # ========================  sorting utilities  ========================
@@ -56,7 +31,7 @@ end
 # convention: sort dual GradedIndices according to nondual blocks
 # Sort by SectorRange to use the custom isless ordering
 function sectorsortperm(g::GradedIndices)
-    return Block.(sortperm(SectorRange.(labels(g))))
+    return Block.(sortperm(sectors(g)))
 end
 
 # Get the permutation for sorting, then group by common elements.
@@ -73,7 +48,7 @@ end
 # groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
 # Sort by SectorRange to use the custom isless ordering
 function sectormergesortperm(g::GradedIndices)
-    return Block.(groupsortperm(SectorRange.(labels(g))))
+    return Block.(groupsortperm(sectors(g)))
 end
 
 # Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
@@ -87,12 +62,9 @@ function sectormergesort(g::GradedIndices)
         dict[l] = get(dict, l, 0) + m
     end
 
-    # Sort by SectorRange to use the custom isless ordering
     total = sort!(collect(pairs(dict)); by = first)
     return gradedrange([c => m for (c, m) in total])
 end
-
-sectormergesort(g::AbstractUnitRange) = g
 
 # tensor_product produces a sorted, non-dual GradedIndices
 tensor_product(g::GradedIndices) = sectormergesort(flip_dual(g))
@@ -101,7 +73,19 @@ function tensor_product(g1::GradedIndices, g2::GradedIndices)
     return sectormergesort(unmerged_tensor_product(g1, g2))
 end
 
-# Allow fusing a SectorRange with a GradedIndices
+# ========================  mixed-type tensor_product  ========================
+# Convert to a common type via `to_gradedrange` and dispatch to
+# tensor_product(::GradedIndices, ::GradedIndices).
+
+# SectorIndices ↔ GradedIndices
+function tensor_product(s::SectorIndices, g::GradedIndices)
+    return tensor_product(to_gradedrange(s), g)
+end
+function tensor_product(g::GradedIndices, s::SectorIndices)
+    return tensor_product(g, to_gradedrange(s))
+end
+
+# SectorRange ↔ GradedIndices
 function tensor_product(s::SectorRange, g::GradedIndices)
     return tensor_product(to_gradedrange(s), g)
 end
@@ -109,10 +93,26 @@ function tensor_product(g::GradedIndices, s::SectorRange)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# Allow fusing a TKS.Sector with a GradedIndices
+# SectorRange ↔ SectorIndices
+function tensor_product(s::SectorRange, si::SectorIndices)
+    return tensor_product(to_gradedrange(s), to_gradedrange(si))
+end
+function tensor_product(si::SectorIndices, s::SectorRange)
+    return tensor_product(to_gradedrange(si), to_gradedrange(s))
+end
+
+# TKS.Sector ↔ GradedIndices
 function tensor_product(s::TKS.Sector, g::GradedIndices)
-    return tensor_product(to_gradedrange(SectorRange(s)), g)
+    return tensor_product(to_gradedrange(s), g)
 end
 function tensor_product(g::GradedIndices, s::TKS.Sector)
-    return tensor_product(g, to_gradedrange(SectorRange(s)))
+    return tensor_product(g, to_gradedrange(s))
+end
+
+# TKS.Sector ↔ SectorIndices
+function tensor_product(s::TKS.Sector, si::SectorIndices)
+    return tensor_product(to_gradedrange(s), to_gradedrange(si))
+end
+function tensor_product(si::SectorIndices, s::TKS.Sector)
+    return tensor_product(to_gradedrange(si), to_gradedrange(s))
 end

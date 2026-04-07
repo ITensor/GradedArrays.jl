@@ -1,6 +1,6 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, GradedIndices, SU2, SectorRange, U1, dual, flip, isdual,
-    labels, sector_multiplicities, sector_type, sectors
+using GradedArrays: GradedArrays, GradedIndices, SU2, SectorRange, U1, dual, flip,
+    gradedrange, isdual, labels, sector_multiplicities, sector_type, sectors, tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -171,5 +171,42 @@ using Test: @test, @test_throws, @testset
         @test_throws ArgumentError GradedIndices(
             [TKS.U1Irrep(0)], Int[1, 2], false
         )
+    end
+
+    @testset "tensor_product (abelian)" begin
+        g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+        g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
+
+        # two-arg: fuses and sorts
+        tp = tensor_product(g1, g2)
+        @test tp isa GradedIndices
+        @test !isdual(tp)
+        # sectors should be sorted and merged
+        @test sectors(tp) == sort(sectors(tp))
+
+        # single-arg: mergesort + flip_dual
+        g = gradedrange([U1(1) => 2, U1(0) => 3])
+        @test tensor_product(g) == gradedrange([U1(0) => 3, U1(1) => 2])
+
+        # single-arg dual: flips then mergesorts
+        gd = gradedrange([U1(1) => 2, U1(0) => 3])'
+        tp_d = tensor_product(gd)
+        @test !isdual(tp_d)
+
+        # variadic fold
+        g_small = gradedrange([U1(0) => 1, U1(1) => 1])
+        tp3 = tensor_product(g_small, g_small, g_small)
+        @test tp3 isa GradedIndices
+        @test !isdual(tp3)
+        tp4 = tensor_product(g_small, g_small, g_small, g_small)
+        @test tp4 isa GradedIndices
+    end
+
+    @testset "tensor_product (non-abelian)" begin
+        # SU2: j=0 ⊕ j=1/2 fused with itself
+        g = gradedrange([SU2(TKS.SU2Irrep(0)) => 1, SU2(TKS.SU2Irrep(1 // 2)) => 1])
+        tp = tensor_product(g, g)
+        @test tp isa GradedIndices
+        @test !isdual(tp)
     end
 end

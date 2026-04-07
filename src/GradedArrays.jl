@@ -18,7 +18,7 @@ export dual, flip, gradedrange, isdual,
 import FunctionImplementations as FI
 using BlockArrays:
     BlockArrays, AbstractBlockVector, Block, BlockVector, blocklengths, blocks
-using BlockSparseArrays: BlockSparseArrays, eachblockstoredindex
+using BlockSparseArrays: BlockSparseArrays, eachblockaxis, eachblockstoredindex, mortar_axis
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, trivialbiperm

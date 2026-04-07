@@ -16,7 +16,6 @@ SectorRange(label::TKS.Sector) = SectorRange(label, false)
 
 label(r::SectorRange) = r.label
 isdual(r::SectorRange) = r.isdual
-isdual(x::AbstractUnitRange) = false
 
 sector_type(x) = sector_type(typeof(x))
 sector_type(I::Type{<:SectorRange}) = I
@@ -80,7 +79,6 @@ function sector_label(c::TKS.Sector)
     return c
 end
 
-quantum_dimension(g::AbstractUnitRange) = length(g)
 quantum_dimension(r::SectorRange) = TKS.dim(label(r))
 quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 
