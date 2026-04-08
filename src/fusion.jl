@@ -184,6 +184,12 @@ function TensorAlgebra.unmatricize(
     return SectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
 end
 
+# TODO: Port unmatricize(::SectorFusion, ::SectorMatrix, ...) with fermionic
+# contraction phase. The old code used kroneckerfactors to split sector and data
+# components; the new SectorArray stores them directly but the multiplicity
+# information needed for reshaping the data component is not carried by SectorRange
+# axes alone. Needed when contracting bare SectorArray tensors (not AbelianArray).
+
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::FusedSectorMatrix,
         codomain_axes::Tuple{Vararg{GradedUnitRange}},

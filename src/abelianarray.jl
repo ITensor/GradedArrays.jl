@@ -310,16 +310,16 @@ const AbelianMatrix{T, I, D} = AbelianArray{T, 2, I, D}
 # ---------------------------------------------------------------------------
 
 function Base.show(io::IO, ::MIME"text/plain", a::AbelianArray{T, N}) where {T, N}
-    block_str = join(map(g -> string(BlockArrays.blocklength(g)), a.axes), "×")
+    block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
-    nstored = length(a.blockdata)
+    nstored = length(collect(eachblockstoredindex(a)))
     print(io, block_str, "-blocked ", size_str, " AbelianArray{", T, "}")
     print(io, " with ", nstored, " stored block", nstored == 1 ? "" : "s")
     return nothing
 end
 
 function Base.show(io::IO, a::AbelianArray{T, N}) where {T, N}
-    block_str = join(map(g -> string(BlockArrays.blocklength(g)), a.axes), "×")
+    block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
     print(io, block_str, "-blocked ", size_str, " AbelianArray{", T, "}")
     return nothing
