@@ -5,6 +5,7 @@ using Test: @test, @testset
         :AbstractGradedArray,
         :AbelianArray,
         :Fib,
+        :FusedSectorMatrix,
         :GradedArrays,
         :GradedIndices,
         :Ising,
