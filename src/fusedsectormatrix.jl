@@ -166,37 +166,32 @@ function FusedSectorMatrix(a::AbelianArray{T, 2}) where {T}
     # Zero flux: row_sector ⊗ flip(col_sector) = trivial
     # For abelian: flip(SectorRange(l, d)) = SectorRange(dual(l), !d)
     # So row label must equal dual(col_label) (accounting for duality).
-    col_ea = eachblockaxis(col_axis)
-    col_lookup = Dict{eltype(labels(col_axis)), Int}()
-    for (j, si) in enumerate(col_ea)
-        # The row label that matches: if col is dual, match label directly;
-        # if col is non-dual, match dual(label).
-        match_label = isdual(col_axis) ? label(si) : dual(label(si))
-        col_lookup[match_label] = j
+    col_sects = sectors(col_axis)
+    # Build lookup: for each col sector, compute the matching row label for zero flux.
+    # Zero flux: label(row) == dual(label(col)) if col is non-dual,
+    #            label(row) == label(col) if col is dual.
+    # Equivalently: the matching row label is label(flip(col_sector)).
+    I = eltype(labels(row_axis))
+    col_lookup = Dict{I, Int}()
+    for (j, cs) in enumerate(col_sects)
+        col_lookup[label(flip(cs))] = j
     end
 
-    row_ea = eachblockaxis(row_axis)
-    I = eltype(labels(row_axis))
+    row_sects = sectors(row_axis)
     sector_labels = I[]
     diag_blocks = Matrix{T}[]
 
-    for (i, si) in enumerate(row_ea)
-        l = label(si)
-        j = get(col_lookup, l, nothing)
+    for (i, rs) in enumerate(row_sects)
+        j = get(col_lookup, label(rs), nothing)
         row_len = blocklengths(row_axis)[i]
         if isnothing(j)
-            # No matching column sector — zero-sized column
-            push!(sector_labels, l)
+            push!(sector_labels, label(rs))
             push!(diag_blocks, zeros(T, row_len, 0))
         else
             col_len = blocklengths(col_axis)[j]
-            if haskey(a.blockdata, (i, j))
-                push!(sector_labels, l)
-                push!(diag_blocks, a.blockdata[(i, j)])
-            else
-                push!(sector_labels, l)
-                push!(diag_blocks, zeros(T, row_len, col_len))
-            end
+            data = get(a.blockdata, (i, j), nothing)
+            push!(sector_labels, label(rs))
+            push!(diag_blocks, isnothing(data) ? zeros(T, row_len, col_len) : data)
         end
     end
 
@@ -213,11 +208,11 @@ function AbelianArray(m::FusedSectorMatrix{T}) where {T}
     ax = axes(m)
     a = AbelianArray{T}(undef, ax)
 
-    col_ea = eachblockaxis(ax[2])
-    col_lookup = Dict{eltype(labels(ax[2])), Int}()
-    for (j, si) in enumerate(col_ea)
-        match_label = isdual(ax[2]) ? label(si) : dual(label(si))
-        col_lookup[match_label] = j
+    I = eltype(m.sectors)
+    col_sects = sectors(ax[2])
+    col_lookup = Dict{I, Int}()
+    for (j, cs) in enumerate(col_sects)
+        col_lookup[label(flip(cs))] = j
     end
 
     for (i, (s, block)) in enumerate(zip(m.sectors, m.blocks))

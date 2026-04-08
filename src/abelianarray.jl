@@ -44,7 +44,7 @@ end
 Total length of block `k` in axis `g`: quantum dimension times multiplicity.
 """
 function _block_length(g::GradedUnitRange, k::Int)
-    return TKS.dim(labels(g)[k]) * sector_multiplicities(g)[k]
+    return quantum_dimension(sectors(g)[k]) * sector_multiplicities(g)[k]
 end
 
 # ---------------------------------------------------------------------------
@@ -59,9 +59,8 @@ Base.axes(a::AbelianArray) = a.axes
 # ---------------------------------------------------------------------------
 
 function _wrap_block(a::AbelianArray{T, N}, bk::NTuple{N, Int}, data) where {T, N}
-    block_labels = ntuple(d -> labels(a.axes[d])[bk[d]], Val(N))
-    block_isdual = ntuple(d -> isdual(a.axes[d]), Val(N))
-    return SectorArray(block_labels, block_isdual, data)
+    block_sectors = ntuple(d -> sectors(a.axes[d])[bk[d]], Val(N))
+    return SectorArray(block_sectors, data)
 end
 
 # view: returns a SectorArray sharing data (errors for unstored blocks)

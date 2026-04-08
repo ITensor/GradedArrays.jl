@@ -177,11 +177,11 @@ function TensorAlgebra.unmatricize(
 
     # Convert FusedSectorMatrix to 2D AbelianArray using the merged axes
     m_abelian = AbelianArray{eltype(m)}(undef, merged_axes)
-    col_ea = eachblockaxis(merged_axes[2])
-    col_lookup = Dict{eltype(labels(merged_axes[2])), Int}()
-    for (j, si) in enumerate(col_ea)
-        match_label = isdual(merged_axes[2]) ? label(si) : dual(label(si))
-        col_lookup[match_label] = j
+    I = eltype(m.sectors)
+    col_sects = sectors(merged_axes[2])
+    col_lookup = Dict{I, Int}()
+    for (j, cs) in enumerate(col_sects)
+        col_lookup[label(flip(cs))] = j
     end
     for (i, (s, block)) in enumerate(zip(m.sectors, m.blocks))
         j = get(col_lookup, s, nothing)
