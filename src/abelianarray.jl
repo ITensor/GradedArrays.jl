@@ -54,17 +54,6 @@ end
 Base.size(a::AbelianArray) = map(length, a.axes)
 Base.axes(a::AbelianArray) = a.axes
 
-function Base.getindex(a::AbelianArray, I::Vararg{Int})
-    return error(
-        "Scalar indexing is not supported for AbelianArray. Use block indexing: a[Block(i,j)]"
-    )
-end
-function Base.setindex!(a::AbelianArray, v, I::Vararg{Int})
-    return error(
-        "Scalar indexing is not supported for AbelianArray. Use block indexing: a[Block(i,j)] = v"
-    )
-end
-
 # ---------------------------------------------------------------------------
 #  blocks — lazy wrapper over blockdata
 # ---------------------------------------------------------------------------

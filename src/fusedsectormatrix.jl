@@ -17,7 +17,8 @@ The codomain (row) axis is non-dual with sectors `sectors[i]` and multiplicities
 derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
 `dual(sectors[i])` and multiplicities from `size(blocks[i], 2)`.
 """
-struct FusedSectorMatrix{T, I <: TKS.Sector, D <: AbstractMatrix{T}}
+struct FusedSectorMatrix{T, I <: TKS.Sector, D <: AbstractMatrix{T}} <:
+    AbstractGradedArray{T, 2}
     sectors::Vector{I}
     blocks::Vector{D}
     function FusedSectorMatrix(
