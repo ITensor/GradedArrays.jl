@@ -15,14 +15,39 @@ function TensorAlgebra.matricize(
     return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
 end
 
+# ========================  permutedimsopadd!  ========================
+
 function TensorAlgebra.permutedimsopadd!(
         y::SectorArray, op, x::SectorArray, perm,
         α::Number, β::Number
     )
-    xsectors = SectorDelta{eltype(x)}(sectors(x))
-    ysectors = SectorDelta{eltype(y)}(sectors(y))
-    ysectors == permutedims(xsectors, perm) || throw(DimensionMismatch())
-    phase = fermion_permutation_phase(xsectors, perm)
+    xdelta = SectorDelta{eltype(x)}(x.labels, x.isdual)
+    ydelta = SectorDelta{eltype(y)}(y.labels, y.isdual)
+    ydelta == permutedims(xdelta, perm) || throw(DimensionMismatch())
+    phase = fermion_permutation_phase(xdelta, perm)
     TensorAlgebra.permutedimsopadd!(y.data, op, x.data, perm, phase * α, β)
+    return y
+end
+
+function TensorAlgebra.permutedimsopadd!(
+        y::AbelianArray{<:Any, N}, op, x::AbelianArray{<:Any, N}, perm,
+        α::Number, β::Number
+    ) where {N}
+    if !iszero(β)
+        for bI in eachblockstoredindex(y)
+            y_b = y[bI]
+            idperm = ntuple(identity, N)
+            TensorAlgebra.permutedimsopadd!(y_b, identity, y_b, idperm, β, false)
+            y[bI] = y_b
+        end
+    end
+    for bI in eachblockstoredindex(x)
+        b = Tuple(bI)
+        b_dest = Block(ntuple(i -> b[perm[i]], N))
+        x_b = x[bI]
+        y_b = y[b_dest]
+        TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, true)
+        y[b_dest] = y_b
+    end
     return y
 end

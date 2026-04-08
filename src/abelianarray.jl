@@ -130,6 +130,23 @@ end
 sector_type(::Type{<:AbelianArray{T, N, I}}) where {T, N, I} = SectorRange{I}
 
 # ---------------------------------------------------------------------------
+#  permutedims
+# ---------------------------------------------------------------------------
+
+function Base.permutedims(a::AbelianArray{<:Any, N}, perm) where {N}
+    dest_axes = ntuple(i -> a.axes[perm[i]], Val(N))
+    a_dest = AbelianArray{eltype(a)}(undef, dest_axes)
+    return permutedims!(a_dest, a, perm)
+end
+
+function Base.permutedims!(
+        y::AbelianArray{<:Any, N}, x::AbelianArray{<:Any, N}, perm
+    ) where {N}
+    TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
+    return y
+end
+
+# ---------------------------------------------------------------------------
 #  show
 # ---------------------------------------------------------------------------
 

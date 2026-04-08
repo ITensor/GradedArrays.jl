@@ -21,7 +21,8 @@ using BlockArrays:
 using BlockSparseArrays: BlockSparseArrays, eachblockaxis, eachblockstoredindex, mortar_axis
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
-using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, trivialbiperm
+using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, permutedimsadd!,
+    permutedimsopadd!, trivialbiperm, tryflattenlinear
 using TensorKitSectors: TensorKitSectors as TKS
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
@@ -34,6 +35,7 @@ include("abelianarray.jl")
 
 include("sectorproduct.jl")
 
+include("broadcast.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
 

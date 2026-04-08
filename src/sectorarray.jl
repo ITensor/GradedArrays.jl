@@ -262,7 +262,7 @@ function Base.permutedims(x::SectorArray, perm)
     return permutedims!(y, x, perm)
 end
 function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
-    permutedims!(y.data, x.data, perm)
+    TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
     return y
 end
 function FI.permuteddims(x::SectorArray, perm)
