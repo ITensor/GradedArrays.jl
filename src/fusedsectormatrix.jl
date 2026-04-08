@@ -78,6 +78,11 @@ function BlockSparseArrays.eachblockstoredindex(m::FusedSectorMatrix)
     return (Block(i, i) for i in eachindex(m.sectors))
 end
 
+# ========================  blocks  ========================
+
+using LinearAlgebra: Diagonal
+BlockArrays.blocks(m::FusedSectorMatrix) = Diagonal(m.blocks)
+
 # ========================  similar  ========================
 
 function Base.similar(m::FusedSectorMatrix{<:Any, I}, ::Type{T}) where {T, I}

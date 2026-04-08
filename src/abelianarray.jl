@@ -66,36 +66,61 @@ function Base.setindex!(a::AbelianArray, v, I::Vararg{Int})
 end
 
 # ---------------------------------------------------------------------------
-#  Block indexing
+#  blocks — lazy wrapper over blockdata
 # ---------------------------------------------------------------------------
 
-# Get or create a block, returning a SectorArray wrapping the data in-place.
-# Mutations to the returned SectorArray propagate to blockdata.
-function BlockSparseArrays.view!(
-        a::AbelianArray{T, N}, I::Vararg{Block{1}, N}
-    ) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
-    if !haskey(a.blockdata, bk)
-        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
-        a.blockdata[bk] = zeros(T, block_dims)
-    end
+"""
+    AbelianBlocks{T,N,A<:AbelianArray{T,N}} <: AbstractArray{SectorArray,N}
+
+Lazy view of an `AbelianArray`'s block storage. `getindex` returns
+`SectorArray` wrappers (in-place, sharing data with the parent),
+`setindex!` unwraps `SectorArray` data into the parent's `blockdata`.
+Accessing an unstored block errors.
+"""
+struct AbelianBlocks{T, N, A <: AbelianArray{T, N}} <: AbstractArray{SectorArray, N}
+    parent::A
+end
+
+BlockArrays.blocks(a::AbelianArray) = AbelianBlocks(a)
+Base.size(b::AbelianBlocks) = Tuple(blocklength.(b.parent.axes))
+
+function _wrap_block(a::AbelianArray{T, N}, bk::NTuple{N, Int}, data) where {T, N}
     block_labels = ntuple(d -> labels(a.axes[d])[bk[d]], Val(N))
     block_isdual = ntuple(d -> isdual(a.axes[d]), Val(N))
-    return SectorArray(block_labels, block_isdual, a.blockdata[bk])
+    return SectorArray(block_labels, block_isdual, data)
 end
-function BlockSparseArrays.view!(a::AbelianArray{<:Any, N}, I::Block{N}) where {N}
-    return BlockSparseArrays.view!(a, Tuple(I)...)
+
+function Base.getindex(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
+    a = b.parent
+    haskey(a.blockdata, I) ||
+        error("Block $I is not stored. Use view! or setindex! to create it.")
+    return _wrap_block(a, I, a.blockdata[I])
 end
+
+function Base.setindex!(
+        b::AbelianBlocks{T, N}, value::SectorArray, I::Vararg{Int, N}
+    ) where {T, N}
+    b.parent.blockdata[I] = convert(Array{T, N}, value.data)
+    return b
+end
+function Base.setindex!(
+        b::AbelianBlocks{T, N}, value::AbstractArray{T, N}, I::Vararg{Int, N}
+    ) where {T, N}
+    b.parent.blockdata[I] = convert(Array{T, N}, value)
+    return b
+end
+
+# ---------------------------------------------------------------------------
+#  Block indexing — convenience wrappers through blocks()
+# ---------------------------------------------------------------------------
 
 function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
-    block_labels = ntuple(d -> labels(a.axes[d])[bk[d]], Val(N))
-    block_isdual = ntuple(d -> isdual(a.axes[d]), Val(N))
     if haskey(a.blockdata, bk)
-        return SectorArray(block_labels, block_isdual, a.blockdata[bk])
+        return _wrap_block(a, bk, a.blockdata[bk])
     else
         block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
-        return SectorArray(block_labels, block_isdual, zeros(T, block_dims))
+        return _wrap_block(a, bk, zeros(T, block_dims))
     end
 end
 
@@ -113,6 +138,21 @@ end
 
 function Base.setindex!(a::AbelianArray{T, N}, value, I::Block{N}) where {T, N}
     return setindex!(a, value, Block.(Tuple(I))...)
+end
+
+# Get or create a block, returning a SectorArray wrapping the data in-place.
+function BlockSparseArrays.view!(
+        a::AbelianArray{T, N}, I::Vararg{Block{1}, N}
+    ) where {T, N}
+    bk = ntuple(d -> Int(I[d]), Val(N))
+    if !haskey(a.blockdata, bk)
+        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
+        a.blockdata[bk] = zeros(T, block_dims)
+    end
+    return _wrap_block(a, bk, a.blockdata[bk])
+end
+function BlockSparseArrays.view!(a::AbelianArray{<:Any, N}, I::Block{N}) where {N}
+    return BlockSparseArrays.view!(a, Tuple(I)...)
 end
 
 # ---------------------------------------------------------------------------
@@ -255,6 +295,11 @@ function Base.fill!(a::AbelianArray, v)
     iszero(v) || throw(
         ArgumentError("fill! with nonzero value is not supported for AbelianArray")
     )
+    empty!(a.blockdata)
+    return a
+end
+
+function FI.zero!(a::AbelianArray)
     empty!(a.blockdata)
     return a
 end
