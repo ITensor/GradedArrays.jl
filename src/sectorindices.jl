@@ -7,7 +7,7 @@ and a dual flag. This is the building block for `GradedIndices`.
 Stores the raw label, multiplicity, and dual flag as primitives. The `sector` accessor
 returns a `SectorRange` on the fly.
 """
-struct SectorIndices{I <: TKS.Sector}
+struct SectorIndices{I <: TKS.Sector} <: AbstractUnitRange{Int}
     label::I
     multiplicity::Int
     isdual::Bool

@@ -49,7 +49,7 @@ function TensorAlgebra.tensor_product_axis(
 end
 
 # GradedIndices level: iterate block axes, fuse each pair, reassemble
-function TensorAlgebra.tensor_product_axis(
+function _tensor_product_axis_graded(
         style::SectorFusion, side::Val,
         r1::GradedIndices, r2::GradedIndices
     )
@@ -58,6 +58,18 @@ function TensorAlgebra.tensor_product_axis(
         return tensor_product_axis(style, side, b1, b2)
     end
     return mortar_axis(vec(blockaxs))
+end
+function TensorAlgebra.tensor_product_axis(
+        style::SectorFusion, side::Val{:codomain},
+        r1::GradedIndices, r2::GradedIndices
+    )
+    return _tensor_product_axis_graded(style, side, r1, r2)
+end
+function TensorAlgebra.tensor_product_axis(
+        style::SectorFusion, side::Val{:domain},
+        r1::GradedIndices, r2::GradedIndices
+    )
+    return _tensor_product_axis_graded(style, side, r1, r2)
 end
 
 # ========================  SectorDelta matricize  ========================

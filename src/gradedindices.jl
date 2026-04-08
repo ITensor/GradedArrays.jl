@@ -8,7 +8,7 @@ for new code paths.
 Stores raw labels, multiplicities, and a single dual flag. The `sectors` accessor returns
 `SectorRange` values on the fly.
 """
-struct GradedIndices{I <: TKS.Sector}
+struct GradedIndices{I <: TKS.Sector} <: AbstractUnitRange{Int}
     labels::Vector{I}
     multiplicities::Vector{Int}
     isdual::Bool
@@ -164,11 +164,12 @@ function Base.checkindex(::Type{Bool}, g::GradedIndices, i::Int)
 end
 
 # Equality and hashing
-function Base.:(==)(a::GradedIndices, b::GradedIndices)
-    return labels(a) == labels(b) &&
-        sector_multiplicities(a) == sector_multiplicities(b) &&
-        isdual(a) == isdual(b)
+function Base.isequal(a::GradedIndices, b::GradedIndices)
+    return isequal(labels(a), labels(b)) &&
+        isequal(sector_multiplicities(a), sector_multiplicities(b)) &&
+        isequal(isdual(a), isdual(b))
 end
+Base.:(==)(a::GradedIndices, b::GradedIndices) = isequal(a, b)
 function Base.hash(g::GradedIndices, h::UInt)
     return hash(labels(g), hash(sector_multiplicities(g), hash(isdual(g), h)))
 end
