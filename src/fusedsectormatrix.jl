@@ -27,9 +27,9 @@ struct FusedSectorMatrix{T, I <: TKS.Sector, D <: AbstractMatrix{T}} <:
         ) where {T, I, D <: AbstractMatrix{T}}
         length(sectors) == length(blocks) ||
             throw(ArgumentError("sectors and blocks must have the same length"))
-        issorted(sectors) ||
+        issorted(SectorRange.(sectors)) ||
             throw(ArgumentError("sectors must be sorted"))
-        allunique(sectors) ||
+        allunique(SectorRange.(sectors)) ||
             throw(ArgumentError("sectors must be unique"))
         return new{T, I, D}(sectors, blocks)
     end
@@ -154,6 +154,9 @@ Convert a 2D block-diagonal `AbelianArray` (as produced by `matricize`) into a
 `FusedSectorMatrix`. Extracts diagonal blocks by matching row sectors with their
 zero-flux column counterparts.
 """
+# Identity
+FusedSectorMatrix(m::FusedSectorMatrix) = m
+
 function FusedSectorMatrix(a::AbelianArray{T, 2}) where {T}
     row_axis = a.axes[1]
     col_axis = a.axes[2]

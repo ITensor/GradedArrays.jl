@@ -113,7 +113,8 @@ function TensorAlgebra.matricize(
         ::SectorFusion, a::AbelianArray, ndims_codomain::Val{K}
     ) where {K}
     a_reshaped = block_reshape(a, Val(K))
-    return sectormergesort(a_reshaped)
+    a_merged = sectormergesort(a_reshaped)
+    return FusedSectorMatrix(a_merged)
 end
 
 """
@@ -167,21 +168,44 @@ function TensorAlgebra.unmatricize(
 end
 
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::AbelianMatrix,
+        ::SectorFusion, m::FusedSectorMatrix,
         codomain_axes::Tuple{Vararg{GradedUnitRange}},
         domain_axes::Tuple{Vararg{GradedUnitRange}}
     )
     blocked_axes = (codomain_axes..., domain_axes...)
     if isempty(blocked_axes)
-        a = similar(m, ())
-        fill!(a, zero(eltype(m)))
-        return a
+        error("Scalar unmatricize not yet supported for FusedSectorMatrix")
     end
 
-    fused_axes = matricize_axes(SectorFusion(), m, codomain_axes, domain_axes)
+    # Compute unfused axes from the original N-d axes, then merge
+    row_unfused = reduce(codomain_axes) do r1, r2
+        return tensor_product_axis(SectorFusion(), Val(:codomain), r1, r2)
+    end
+    col_unfused = reduce(domain_axes) do r1, r2
+        return tensor_product_axis(SectorFusion(), Val(:domain), r1, r2)
+    end
+    fused_axes = (row_unfused, col_unfused)
+    merged_axes = sectormergesort.(fused_axes)
+
+    # Convert FusedSectorMatrix to 2D AbelianArray using the merged axes
+    m_abelian = AbelianArray{eltype(m)}(undef, merged_axes)
+    col_ea = eachblockaxis(merged_axes[2])
+    col_lookup = Dict{eltype(labels(merged_axes[2])), Int}()
+    for (j, si) in enumerate(col_ea)
+        match_label = isdual(merged_axes[2]) ? label(si) : dual(label(si))
+        col_lookup[match_label] = j
+    end
+    for (i, (s, block)) in enumerate(zip(m.sectors, m.blocks))
+        j = get(col_lookup, s, nothing)
+        isnothing(j) && continue
+        iszero(block) && continue
+        m_abelian.blockdata[(i, j)] = block
+    end
+
+    # Unsort/unmerge/unreshape
     blockperms = sectorsortperm.(fused_axes)
-    J = map(invblockmergeperm, fused_axes, blockperms, axes(m))
-    m_split = m[J...]
+    J = map(invblockmergeperm, fused_axes, blockperms, merged_axes)
+    m_split = m_abelian[J...]
     return block_unreshape(m_split, codomain_axes, domain_axes)
 end
 
