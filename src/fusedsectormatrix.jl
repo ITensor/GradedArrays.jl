@@ -101,3 +101,58 @@ function Base.show(io::IO, m::FusedSectorMatrix{T}) where {T}
     print(io, nblocks, "-block FusedSectorMatrix{", T, "}")
     return nothing
 end
+
+# ========================  Conversion from AbelianArray  ========================
+
+"""
+    FusedSectorMatrix(a::AbelianArray{T,2})
+
+Convert a 2D block-diagonal `AbelianArray` (as produced by `matricize`) into a
+`FusedSectorMatrix`. Extracts diagonal blocks by matching row sectors with their
+zero-flux column counterparts.
+"""
+function FusedSectorMatrix(a::AbelianArray{T, 2}) where {T}
+    row_axis = a.axes[1]
+    col_axis = a.axes[2]
+
+    # Build lookup: for each col block, map its "matching label" to its position.
+    # The matching label is the label that a row sector must have to form zero flux.
+    # Zero flux: row_sector ⊗ flip(col_sector) = trivial
+    # For abelian: flip(SectorRange(l, d)) = SectorRange(dual(l), !d)
+    # So row label must equal dual(col_label) (accounting for duality).
+    col_ea = eachblockaxis(col_axis)
+    col_lookup = Dict{eltype(labels(col_axis)), Int}()
+    for (j, si) in enumerate(col_ea)
+        # The row label that matches: if col is dual, match label directly;
+        # if col is non-dual, match dual(label).
+        match_label = isdual(col_axis) ? label(si) : dual(label(si))
+        col_lookup[match_label] = j
+    end
+
+    row_ea = eachblockaxis(row_axis)
+    I = eltype(labels(row_axis))
+    sector_labels = I[]
+    diag_blocks = Matrix{T}[]
+
+    for (i, si) in enumerate(row_ea)
+        l = label(si)
+        j = get(col_lookup, l, nothing)
+        row_len = blocklengths(row_axis)[i]
+        if isnothing(j)
+            # No matching column sector — zero-sized column
+            push!(sector_labels, l)
+            push!(diag_blocks, zeros(T, row_len, 0))
+        else
+            col_len = blocklengths(col_axis)[j]
+            if haskey(a.blockdata, (i, j))
+                push!(sector_labels, l)
+                push!(diag_blocks, a.blockdata[(i, j)])
+            else
+                push!(sector_labels, l)
+                push!(diag_blocks, zeros(T, row_len, col_len))
+            end
+        end
+    end
+
+    return FusedSectorMatrix(sector_labels, diag_blocks)
+end

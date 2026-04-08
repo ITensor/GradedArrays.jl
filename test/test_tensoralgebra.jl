@@ -1,9 +1,10 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
-using GradedArrays: AbelianArray, GradedIndices, SectorArray, SectorDelta, SectorRange, U1,
-    dual, flip, gradedrange, isdual, label, sector, sector_multiplicities, sector_type,
-    sectormergesort, sectorrange, sectors, tensor_product, ⊗
+using GradedArrays: AbelianArray, FusedSectorMatrix, GradedIndices, SectorArray,
+    SectorDelta, SectorRange, U1, dual, flip, gradedrange, isdual, label, sector,
+    sector_multiplicities, sector_type, sectormergesort, sectorrange, sectors,
+    tensor_product, ⊗
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, linearbroadcasted, matricize
 using Test: @test, @test_throws, @testset
@@ -205,4 +206,50 @@ end
     # Check data values: block (1,1) and (3,3) should be on the diagonal
     @test m.blockdata[(1, 1)] ≈ ones(1, 1)
     @test m.blockdata[(3, 3)] ≈ 2 * ones(1, 1)
+end
+
+@testset "FusedSectorMatrix from 2D matricized AbelianArray" begin
+    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+    g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
+    a = AbelianArray{Float64}(undef, g1, g2)
+
+    block_11 = ones(2, 1)
+    block_22 = 2 * ones(3, 2)
+    a[Block(1, 1)] = SectorArray((U1(0), U1(0)), block_11)
+    a[Block(2, 2)] = SectorArray((U1(1), U1(-1)), block_22)
+
+    m = matricize(a, (1,), (2,))
+    fsm = FusedSectorMatrix(m)
+
+    @test fsm isa FusedSectorMatrix{Float64}
+    @test fsm.sectors == [label(U1(0)), label(U1(1))]
+    @test length(fsm.blocks) == 2
+    @test fsm.blocks[1] ≈ block_11
+    @test fsm.blocks[2] ≈ block_22
+end
+
+@testset "FusedSectorMatrix from 4D matricized AbelianArray" begin
+    g = gradedrange([U1(0) => 1, U1(1) => 1])
+    a = AbelianArray{Float64}(undef, g, g, dual(g), dual(g))
+
+    a[Block(1, 1, 1, 1)] = SectorArray(
+        (U1(0), U1(0), dual(U1(0)), dual(U1(0))), ones(1, 1, 1, 1)
+    )
+    a[Block(2, 2, 2, 2)] = SectorArray(
+        (U1(1), U1(1), dual(U1(1)), dual(U1(1))), 2 * ones(1, 1, 1, 1)
+    )
+
+    m = matricize(a, (1, 2), (3, 4))
+    fsm = FusedSectorMatrix(m)
+
+    @test fsm isa FusedSectorMatrix{Float64}
+    @test fsm.sectors == [label(U1(0)), label(U1(1)), label(U1(2))]
+    @test length(fsm.blocks) == 3
+
+    # U1(0): 1×1 block with data
+    @test fsm.blocks[1] ≈ ones(1, 1)
+    # U1(1): 2×2 zeros (no stored data for this sector)
+    @test fsm.blocks[2] ≈ zeros(2, 2)
+    # U1(2): 1×1 block with data
+    @test fsm.blocks[3] ≈ 2 * ones(1, 1)
 end
