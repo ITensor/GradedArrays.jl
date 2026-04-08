@@ -100,6 +100,27 @@ function Base.fill!(m::FusedSectorMatrix, v)
     return FI.zero!(m)
 end
 
+# ========================  mul!  ========================
+
+function LinearAlgebra.mul!(
+        C::FusedSectorMatrix, A::FusedSectorMatrix, B::FusedSectorMatrix,
+        α::Number, β::Number
+    )
+    C.sectors == A.sectors == B.sectors ||
+        throw(DimensionMismatch("FusedSectorMatrix sectors must match"))
+    for i in eachindex(C.blocks)
+        mul!(C.blocks[i], A.blocks[i], B.blocks[i], α, β)
+    end
+    return C
+end
+
+function Base.:(*)(A::FusedSectorMatrix{T₁}, B::FusedSectorMatrix{T₂}) where {T₁, T₂}
+    A.sectors == B.sectors || throw(DimensionMismatch("sectors must match"))
+    T = Base.promote_op(LinearAlgebra.matprod, T₁, T₂)
+    result_blocks = [A.blocks[i] * B.blocks[i] for i in eachindex(A.blocks)]
+    return FusedSectorMatrix(copy(A.sectors), result_blocks)
+end
+
 # ========================  similar  ========================
 
 function Base.similar(m::FusedSectorMatrix{<:Any, I}, ::Type{T}) where {T, I}
@@ -177,4 +198,29 @@ function FusedSectorMatrix(a::AbelianArray{T, 2}) where {T}
     end
 
     return FusedSectorMatrix(sector_labels, diag_blocks)
+end
+
+"""
+    AbelianArray(m::FusedSectorMatrix)
+
+Convert a `FusedSectorMatrix` to a 2D `AbelianArray` with merged graded axes.
+Inverse of `FusedSectorMatrix(::AbelianArray)`.
+"""
+function AbelianArray(m::FusedSectorMatrix{T}) where {T}
+    ax = axes(m)
+    a = AbelianArray{T}(undef, ax)
+
+    col_ea = eachblockaxis(ax[2])
+    col_lookup = Dict{eltype(labels(ax[2])), Int}()
+    for (j, si) in enumerate(col_ea)
+        match_label = isdual(ax[2]) ? label(si) : dual(label(si))
+        col_lookup[match_label] = j
+    end
+
+    for (i, (s, block)) in enumerate(zip(m.sectors, m.blocks))
+        j = get(col_lookup, s, nothing)
+        isnothing(j) && continue
+        a.blockdata[(i, j)] = block
+    end
+    return a
 end
