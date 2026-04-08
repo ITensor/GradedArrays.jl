@@ -49,8 +49,8 @@ function TensorAlgebra.tensor_product_axis(
 end
 
 # GradedUnitRange level: iterate block axes, fuse each pair, reassemble
-function _tensor_product_axis_graded(
-        style::SectorFusion, side::Val,
+function TensorAlgebra.tensor_product_axis(
+        style::SectorFusion, side::Val{:codomain},
         r1::GradedUnitRange, r2::GradedUnitRange
     )
     blockaxpairs = Iterators.product(eachblockaxis(r1), eachblockaxis(r2))
@@ -58,18 +58,6 @@ function _tensor_product_axis_graded(
         return tensor_product_axis(style, side, b1, b2)
     end
     return mortar_axis(vec(blockaxs))
-end
-function TensorAlgebra.tensor_product_axis(
-        style::SectorFusion, side::Val{:codomain},
-        r1::GradedUnitRange, r2::GradedUnitRange
-    )
-    return _tensor_product_axis_graded(style, side, r1, r2)
-end
-function TensorAlgebra.tensor_product_axis(
-        style::SectorFusion, side::Val{:domain},
-        r1::GradedUnitRange, r2::GradedUnitRange
-    )
-    return _tensor_product_axis_graded(style, side, r1, r2)
 end
 
 # ========================  SectorDelta matricize  ========================
