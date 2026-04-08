@@ -124,6 +124,22 @@ Base.adjoint(g::GradedIndices) = dual(g)
 
 to_gradedrange(g::GradedIndices) = g
 
+# ========================  Block indexing on GradedIndices  ========================
+
+# Merge groups of blocks into single blocks.
+# Each block of `I` groups source blocks that merge into one destination block.
+function Base.getindex(
+        g::GradedIndices, I::AbstractBlockVector{<:Block{1}}
+    )
+    ea = eachblockaxis(g)
+    dest_si = map(blocks(I)) do group
+        src_sis = [ea[Int(b)] for b in group]
+        total_mult = sum(sector_multiplicity, src_sis)
+        return SectorIndices(label(first(src_sis)), total_mult, isdual(first(src_sis)))
+    end
+    return mortar_axis(collect(dest_si))
+end
+
 # Bounds checking (needed for AbstractArray scalar indexing)
 function Base.checkindex(::Type{Bool}, g::GradedIndices, i::Int)
     return 1 <= i <= length(g)

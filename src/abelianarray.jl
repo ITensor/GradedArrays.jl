@@ -69,6 +69,15 @@ end
 #  Block indexing
 # ---------------------------------------------------------------------------
 
+# Get or create the raw data array for a block, suitable for in-place mutation.
+function _getblock!(a::AbelianArray{T, N}, bk::NTuple{N, Int}) where {T, N}
+    if !haskey(a.blockdata, bk)
+        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
+        a.blockdata[bk] = zeros(T, block_dims)
+    end
+    return a.blockdata[bk]
+end
+
 function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
     block_labels = ntuple(d -> labels(a.axes[d])[bk[d]], Val(N))
@@ -95,6 +104,44 @@ end
 
 function Base.setindex!(a::AbelianArray{T, N}, value, I::Block{N}) where {T, N}
     return setindex!(a, value, Block.(Tuple(I))...)
+end
+
+# ---------------------------------------------------------------------------
+#  Merging getindex: reindex by block permutation/merge
+# ---------------------------------------------------------------------------
+
+# Merging: each I[d] groups source blocks into destination blocks.
+# Ported from the old GradedArray getindex(::GradedArray, ::AbstractBlockVector...).
+function Base.getindex(
+        a::AbelianArray{T, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
+    ) where {T, N}
+    ax_dest = ntuple(d -> a.axes[d][I[d]], Val(N))
+    a_dest = AbelianArray{T}(undef, ax_dest)
+    ax = a.axes
+    # Map source Block -> (dest block index, subrange within dest block)
+    src_to_dest = ntuple(Val(N)) do d
+        dict = Dict{Block{1, Int}, Tuple{Int, UnitRange{Int}}}()
+        for j in eachindex(blocks(I[d]))
+            sub_blocks = I[d][Block(j)]
+            start = 1
+            for b in sub_blocks
+                blen = blocklengths(ax[d])[Int(b)]
+                dict[b] = (j, start:(start + blen - 1))
+                start += blen
+            end
+        end
+        return dict
+    end
+    for bI_src in eachblockstoredindex(a)
+        src_tuple = Tuple(bI_src)
+        dest_info = ntuple(d -> src_to_dest[d][src_tuple[d]], Val(N))
+        dest_bk = ntuple(d -> dest_info[d][1], Val(N))
+        dest_r = ntuple(d -> dest_info[d][2], Val(N))
+        dest_data = _getblock!(a_dest, dest_bk)
+        src_bk = ntuple(d -> Int(src_tuple[d]), Val(N))
+        copyto!(view(dest_data, dest_r...), a.blockdata[src_bk])
+    end
+    return a_dest
 end
 
 # ---------------------------------------------------------------------------

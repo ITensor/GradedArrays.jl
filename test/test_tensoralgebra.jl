@@ -2,8 +2,8 @@ import GradedArrays
 using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianArray, GradedIndices, SectorArray, SectorDelta, SectorRange, U1,
-    dual, flip, gradedrange, isdual, label, sector, sector_type, sectorrange, sectors,
-    tensor_product, ⊗
+    dual, flip, gradedrange, isdual, label, sector, sector_multiplicities, sector_type,
+    sectormergesort, sectorrange, sectors, tensor_product, ⊗
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, linearbroadcasted
 using Test: @test, @test_throws, @testset
@@ -115,4 +115,33 @@ end
     @test c isa AbelianArray
     c_block = c[Block(1, 2)]
     @test Array(c_block) ≈ α .* block_a .+ β .* block_b
+end
+
+@testset "sectormergesort on AbelianArray" begin
+    # Axis with repeated sectors: U1(1) appears at blocks 1 and 3
+    g1 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 3])
+    g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
+    a = AbelianArray{Float64}(undef, g1, g2)
+
+    a[Block(1, 2)] = SectorArray((U1(1), U1(-1)), ones(2, 2))
+    a[Block(3, 2)] = SectorArray((U1(1), U1(-1)), 2 * ones(3, 2))
+
+    a_merged = sectormergesort(a)
+
+    # Sectors should be sorted and unique after merge
+    @test sectors(a_merged.axes[1]) == [U1(0), U1(1)]
+    @test sector_multiplicities(a_merged.axes[1]) == [1, 5]
+    @test sectors(a_merged.axes[2]) == [U1(-1), U1(0)]
+    @test sector_multiplicities(a_merged.axes[2]) == [2, 1]
+
+    # The merged U1(1) block should stack the two source blocks (2×2 + 3×2 → 5×2)
+    merged_block = a_merged[Block(2, 1)]
+    @test size(merged_block) == (5, 2)
+    @test merged_block.data[1:2, :] ≈ ones(2, 2)
+    @test merged_block.data[3:5, :] ≈ 2 * ones(3, 2)
+
+    # U1(0) block should be empty (no stored data)
+    empty_block = a_merged[Block(1, 2)]
+    @test size(empty_block) == (1, 1)
+    @test all(iszero, empty_block.data)
 end

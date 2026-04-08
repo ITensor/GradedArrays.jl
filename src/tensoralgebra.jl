@@ -66,6 +66,12 @@ function sectormergesort(g::GradedIndices)
     return gradedrange([c => m for (c, m) in total])
 end
 
+# Sort the blocks of an array by sector and merge common sectors.
+function sectormergesort(a::AbelianArray)
+    I = sectormergesortperm.(axes(a))
+    return a[I...]
+end
+
 # tensor_product produces a sorted, non-dual GradedIndices
 tensor_product(g::GradedIndices) = sectormergesort(flip_dual(g))
 
