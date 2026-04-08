@@ -22,8 +22,9 @@ using BlockSparseArrays:
     BlockSparseArrays, @view!, eachblockaxis, eachblockstoredindex, mortar_axis, view!
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
-using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, permutedimsadd!,
-    permutedimsopadd!, trivialbiperm, tryflattenlinear
+using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, matricize_axes,
+    permutedimsadd!, permutedimsopadd!, tensor_product_axis, trivial_axis, trivialbiperm,
+    tryflattenlinear
 using TensorKitSectors: TensorKitSectors as TKS
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 

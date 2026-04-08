@@ -5,7 +5,7 @@ using GradedArrays: AbelianArray, GradedIndices, SectorArray, SectorDelta, Secto
     dual, flip, gradedrange, isdual, label, sector, sector_multiplicities, sector_type,
     sectormergesort, sectorrange, sectors, tensor_product, ⊗
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, linearbroadcasted
+using TensorAlgebra: TensorAlgebra, linearbroadcasted, matricize
 using Test: @test, @test_throws, @testset
 
 @testset "SectorArray linear broadcasting" begin
@@ -144,4 +144,65 @@ end
     empty_block = a_merged[Block(1, 2)]
     @test size(empty_block) == (1, 1)
     @test all(iszero, empty_block.data)
+end
+
+@testset "matricize 2D AbelianArray" begin
+    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+    g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
+    a = AbelianArray{Float64}(undef, g1, g2)
+
+    block_11 = randn!(Matrix{Float64}(undef, 2, 1))
+    block_22 = randn!(Matrix{Float64}(undef, 3, 2))
+    a[Block(1, 1)] = SectorArray((U1(0), U1(0)), block_11)
+    a[Block(2, 2)] = SectorArray((U1(1), U1(-1)), block_22)
+
+    m = matricize(a, (1,), (2,))
+    @test m isa AbelianArray{Float64, 2}
+
+    # Row axis should be sorted: [U1(0), U1(1)]
+    @test sectors(m.axes[1]) == [U1(0), U1(1)]
+    @test sector_multiplicities(m.axes[1]) == [2, 3]
+
+    # Column axis should be sorted: [U1(-1), U1(0)] (non-dual, since g2 is non-dual)
+    @test sectors(m.axes[2]) == [U1(-1), U1(0)]
+    @test sector_multiplicities(m.axes[2]) == [2, 1]
+
+    # Data should be preserved in zero-flux blocks
+    # U1(0) row × U1(0) col → flux 0
+    # U1(1) row × U1(-1) col → flux 0
+    @test haskey(m.blockdata, (1, 2))  # U1(0) × U1(0)
+    @test haskey(m.blockdata, (2, 1))  # U1(1) × U1(-1)
+    @test m.blockdata[(1, 2)] ≈ block_11
+    @test m.blockdata[(2, 1)] ≈ block_22
+end
+
+@testset "matricize 4D AbelianArray" begin
+    g = gradedrange([U1(0) => 1, U1(1) => 1])
+    a = AbelianArray{Float64}(undef, g, g, dual(g), dual(g))
+
+    a[Block(1, 1, 1, 1)] = SectorArray(
+        (U1(0), U1(0), dual(U1(0)), dual(U1(0))), ones(1, 1, 1, 1)
+    )
+    a[Block(2, 2, 2, 2)] = SectorArray(
+        (U1(1), U1(1), dual(U1(1)), dual(U1(1))), 2 * ones(1, 1, 1, 1)
+    )
+
+    m = matricize(a, (1, 2), (3, 4))
+    @test m isa AbelianArray{Float64, 2}
+
+    # Fused codomain: [U1(0)=>1, U1(1)=>2, U1(2)=>1]
+    @test sectors(m.axes[1]) == [U1(0), U1(1), U1(2)]
+    @test sector_multiplicities(m.axes[1]) == [1, 2, 1]
+
+    # All stored blocks should have zero flux
+    for bk in keys(m.blockdata)
+        row_s = sectors(m.axes[1])[bk[1]]
+        col_s = sectors(m.axes[2])[bk[2]]
+        flux = row_s ⊗ flip(col_s)
+        @test GradedArrays.istrivial(flux)
+    end
+
+    # Check data values: block (1,1) and (3,3) should be on the diagonal
+    @test m.blockdata[(1, 1)] ≈ ones(1, 1)
+    @test m.blockdata[(3, 3)] ≈ 2 * ones(1, 1)
 end
