@@ -55,23 +55,8 @@ Base.size(a::AbelianArray) = map(length, a.axes)
 Base.axes(a::AbelianArray) = a.axes
 
 # ---------------------------------------------------------------------------
-#  blocks — lazy wrapper over blockdata
+#  view (primitive): returns SectorArray sharing data with blockdata
 # ---------------------------------------------------------------------------
-
-"""
-    AbelianBlocks{T,N,A<:AbelianArray{T,N}} <: AbstractArray{SectorArray,N}
-
-Lazy view of an `AbelianArray`'s block storage. `getindex` returns
-`SectorArray` wrappers (in-place, sharing data with the parent),
-`setindex!` unwraps `SectorArray` data into the parent's `blockdata`.
-Accessing an unstored block errors.
-"""
-struct AbelianBlocks{T, N, A <: AbelianArray{T, N}} <: AbstractArray{SectorArray, N}
-    parent::A
-end
-
-BlockArrays.blocks(a::AbelianArray) = AbelianBlocks(a)
-Base.size(b::AbelianBlocks) = Tuple(blocklength.(b.parent.axes))
 
 function _wrap_block(a::AbelianArray{T, N}, bk::NTuple{N, Int}, data) where {T, N}
     block_labels = ntuple(d -> labels(a.axes[d])[bk[d]], Val(N))
@@ -79,45 +64,7 @@ function _wrap_block(a::AbelianArray{T, N}, bk::NTuple{N, Int}, data) where {T, 
     return SectorArray(block_labels, block_isdual, data)
 end
 
-function Base.getindex(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
-    a = b.parent
-    haskey(a.blockdata, I) ||
-        error("Block $I is not stored. Use view! or setindex! to create it.")
-    return _wrap_block(a, I, a.blockdata[I])
-end
-
-function Base.setindex!(
-        b::AbelianBlocks{T, N}, value::SectorArray, I::Vararg{Int, N}
-    ) where {T, N}
-    b.parent.blockdata[I] = convert(Array{T, N}, value.data)
-    return b
-end
-function Base.setindex!(
-        b::AbelianBlocks{T, N}, value::AbstractArray{T, N}, I::Vararg{Int, N}
-    ) where {T, N}
-    b.parent.blockdata[I] = convert(Array{T, N}, value)
-    return b
-end
-
-# ---------------------------------------------------------------------------
-#  Block indexing — convenience wrappers through blocks()
-# ---------------------------------------------------------------------------
-
-# getindex: returns a copy (does not share data with blockdata)
-function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
-    if haskey(a.blockdata, bk)
-        return _wrap_block(a, bk, copy(a.blockdata[bk]))
-    else
-        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
-        return _wrap_block(a, bk, zeros(T, block_dims))
-    end
-end
-function Base.getindex(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
-    return a[Block.(Tuple(I))...]
-end
-
-# view: returns a SectorArray sharing data with blockdata (stored blocks only)
+# view: returns a SectorArray sharing data (errors for unstored blocks)
 function Base.view(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
     haskey(a.blockdata, bk) || error("Block $bk is not stored. Use view! to create it.")
@@ -127,18 +74,7 @@ function Base.view(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
     return view(a, Block.(Tuple(I))...)
 end
 
-# setindex!
-function Base.setindex!(a::AbelianArray{T, N}, value, I::Vararg{Block{1}, N}) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
-    raw = value isa SectorArray ? value.data : value
-    a.blockdata[bk] = convert(Array{T, N}, raw)
-    return a
-end
-function Base.setindex!(a::AbelianArray{T, N}, value, I::Block{N}) where {T, N}
-    return setindex!(a, value, Block.(Tuple(I))...)
-end
-
-# view!: get or create a block, returns a SectorArray sharing data in-place
+# view!: get or create, then view
 function BlockSparseArrays.view!(
         a::AbelianArray{T, N}, I::Vararg{Block{1}, N}
     ) where {T, N}
@@ -151,6 +87,66 @@ function BlockSparseArrays.view!(
 end
 function BlockSparseArrays.view!(a::AbelianArray{<:Any, N}, I::Block{N}) where {N}
     return BlockSparseArrays.view!(a, Tuple(I)...)
+end
+
+# ---------------------------------------------------------------------------
+#  blocks — lazy view delegating to view (following BlockArrays convention)
+# ---------------------------------------------------------------------------
+
+"""
+    AbelianBlocks{T,N,A<:AbelianArray{T,N}} <: AbstractArray{SectorArray,N}
+
+Lazy view of an `AbelianArray`'s block storage, following the BlockArrays
+convention: `getindex` delegates to `view(parent, Block.(I)...)` (shares data),
+`setindex!` copies into the existing view.
+"""
+struct AbelianBlocks{T, N, A <: AbelianArray{T, N}} <: AbstractArray{SectorArray, N}
+    parent::A
+end
+
+BlockArrays.blocks(a::AbelianArray) = AbelianBlocks(a)
+Base.size(b::AbelianBlocks) = Tuple(blocklength.(b.parent.axes))
+
+function Base.getindex(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
+    return view(b.parent, Block.(I)...)
+end
+
+function Base.setindex!(
+        b::AbelianBlocks{T, N}, value, I::Vararg{Int, N}
+    ) where {T, N}
+    # Use view! to get-or-create, then copyto! (following BlockSparseArrays pattern)
+    dest = view!(b.parent, Block.(I)...)
+    copyto!(dest, value)
+    return b
+end
+
+# ---------------------------------------------------------------------------
+#  getindex / setindex! on AbelianArray with Block — convenience wrappers
+# ---------------------------------------------------------------------------
+
+# getindex: returns a copy (unstored blocks return zeros)
+function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
+    bk = ntuple(d -> Int(I[d]), Val(N))
+    if haskey(a.blockdata, bk)
+        return copy(view(a, I...))
+    else
+        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
+        return _wrap_block(a, bk, zeros(T, block_dims))
+    end
+end
+function Base.getindex(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
+    return a[Block.(Tuple(I))...]
+end
+
+# setindex!: replaces block data
+function Base.setindex!(a::AbelianArray{T, N}, value, I::Vararg{Block{1}, N}) where {T, N}
+    bk = ntuple(d -> Int(I[d]), Val(N))
+    raw = value isa SectorArray ? value.data : value
+    a.blockdata[bk] = convert(Array{T, N}, raw)
+    return a
+end
+function Base.setindex!(a::AbelianArray{T, N}, value, I::Block{N}) where {T, N}
+    return setindex!(a, value, Block.(Tuple(I))...)
 end
 
 # ---------------------------------------------------------------------------
