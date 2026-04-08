@@ -126,24 +126,8 @@ axes via `tensor_product_axis`, then permutes and reshapes each block's data.
 function block_reshape(
         a::AbelianArray{T, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
-    # Compute the unfused 2D axes by fusing codomain and domain block axes
-    codomain_axes = axes(a)[1:K]
-    domain_axes = axes(a)[(K + 1):N]
-    row_axis = if isempty(codomain_axes)
-        trivial_gradedrange(axes(a))
-    else
-        reduce(codomain_axes) do r1, r2
-            return tensor_product_axis(SectorFusion(), Val(:codomain), r1, r2)
-        end
-    end
-    col_axis = if isempty(domain_axes)
-        flip(trivial_gradedrange(axes(a)))
-    else
-        reduce(domain_axes) do r1, r2
-            return tensor_product_axis(SectorFusion(), Val(:domain), r1, r2)
-        end
-    end
-    a_2d = AbelianArray{T}(undef, row_axis, col_axis)
+    ax_2d = matricize_axes(SectorFusion(), a, ndims_codomain)
+    a_2d = AbelianArray{T}(undef, ax_2d)
 
     # CartesianIndices for mapping 2D block index → per-axis block indices
     codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
@@ -191,35 +175,13 @@ function TensorAlgebra.unmatricize(
     if isempty(blocked_axes)
         a = similar(m, ())
         fill!(a, zero(eltype(m)))
-        # TODO: handle scalar unmatricize
         return a
     end
 
-    # Compute what the unfused axes would be (before sectormergesort)
-    row_unfused = if isempty(codomain_axes)
-        trivial_gradedrange(axes(m))
-    else
-        reduce(codomain_axes) do r1, r2
-            return tensor_product_axis(SectorFusion(), Val(:codomain), r1, r2)
-        end
-    end
-    col_unfused = if isempty(domain_axes)
-        flip(trivial_gradedrange(axes(m)))
-    else
-        reduce(domain_axes) do r1, r2
-            return tensor_product_axis(SectorFusion(), Val(:domain), r1, r2)
-        end
-    end
-    fused_axes = (row_unfused, col_unfused)
-
-    # Compute the inverse block permutations: unsort/unmerge the merged axes
+    fused_axes = matricize_axes(SectorFusion(), m, codomain_axes, domain_axes)
     blockperms = sectorsortperm.(fused_axes)
     J = map(invblockmergeperm, fused_axes, blockperms, axes(m))
-
-    # Split the merged matrix back to unfused blocks
     m_split = m[J...]
-
-    # Un-reshape from 2D back to N-d
     return block_unreshape(m_split, codomain_axes, domain_axes)
 end
 

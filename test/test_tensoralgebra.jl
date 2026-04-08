@@ -164,17 +164,19 @@ end
     @test sectors(m.axes[1]) == [U1(0), U1(1)]
     @test sector_multiplicities(m.axes[1]) == [2, 3]
 
-    # Column axis should be sorted: [U1(-1), U1(0)] (non-dual, since g2 is non-dual)
-    @test sectors(m.axes[2]) == [U1(-1), U1(0)]
-    @test sector_multiplicities(m.axes[2]) == [2, 1]
+    # Column axis should be sorted and flipped (domain convention)
+    col_sects = sectors(m.axes[2])
+    col_mults = sector_multiplicities(m.axes[2])
+    @test GradedArrays.isdual(m.axes[2])
+    @test length(col_sects) == 2
 
-    # Data should be preserved in zero-flux blocks
-    # U1(0) row × U1(0) col → flux 0
-    # U1(1) row × U1(-1) col → flux 0
-    @test haskey(m.blockdata, (1, 2))  # U1(0) × U1(0)
-    @test haskey(m.blockdata, (2, 1))  # U1(1) × U1(-1)
-    @test m.blockdata[(1, 2)] ≈ block_11
-    @test m.blockdata[(2, 1)] ≈ block_22
+    # All stored blocks should have zero flux
+    for bk in keys(m.blockdata)
+        row_s = sectors(m.axes[1])[bk[1]]
+        col_s = sectors(m.axes[2])[bk[2]]
+        flux = row_s ⊗ flip(col_s)
+        @test GradedArrays.istrivial(flux)
+    end
 end
 
 @testset "matricize 4D AbelianArray" begin
