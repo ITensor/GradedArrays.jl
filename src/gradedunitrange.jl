@@ -37,7 +37,7 @@ sectors(g::GradedUnitRange) = SectorRange.(labels(g), isdual(g))
 BlockArrays.blocklength(g::GradedUnitRange) = length(labels(g))
 function Base.length(g::GradedUnitRange)
     return sum(
-        i -> TKS.dim(labels(g)[i]) * sector_multiplicities(g)[i],
+        i -> quantum_dimension(sectors(g)[i]) * sector_multiplicities(g)[i],
         eachindex(labels(g));
         init = 0
     )
@@ -49,7 +49,9 @@ SymmetryStyle(::Type{<:GradedUnitRange{I}}) where {I} = SymmetryStyle(SectorRang
 
 # blocklengths: total length of each block (quantum_dimension * multiplicity)
 function BlockArrays.blocklengths(g::GradedUnitRange)
-    return [TKS.dim(l) * m for (l, m) in zip(labels(g), sector_multiplicities(g))]
+    return [
+        quantum_dimension(s) * m for (s, m) in zip(sectors(g), sector_multiplicities(g))
+    ]
 end
 
 quantum_dimension(g::GradedUnitRange) = length(g)
@@ -150,7 +152,7 @@ function Base.getindex(
         b = Int(bir.block)
         r = only(bir.indices)
         src_si = ea[b]
-        qdim = TKS.dim(label(src_si))
+        qdim = quantum_dimension(sector(src_si))
         # multiplicity of the sub-range: sub-range length / quantum dimension
         sub_mult = div(length(r), qdim)
         return SectorUnitRange(label(src_si), sub_mult, isdual(src_si))

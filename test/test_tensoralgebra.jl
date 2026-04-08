@@ -159,7 +159,7 @@ end
 
     fsm = matricize(a, (1,), (2,))
     @test fsm isa FusedSectorMatrix{Float64}
-    @test fsm.sectors == [label(U1(0)), label(U1(1))]
+    @test fsm.labels == [label(U1(0)), label(U1(1))]
     @test length(fsm.blocks) == 2
     @test fsm.blocks[1] ≈ block_11
     @test fsm.blocks[2] ≈ block_22
@@ -178,7 +178,7 @@ end
 
     fsm = matricize(a, (1, 2), (3, 4))
     @test fsm isa FusedSectorMatrix{Float64}
-    @test fsm.sectors == [label(U1(0)), label(U1(1)), label(U1(2))]
+    @test fsm.labels == [label(U1(0)), label(U1(1)), label(U1(2))]
     @test length(fsm.blocks) == 3
 
     @test fsm.blocks[1] ≈ ones(1, 1)

@@ -10,48 +10,49 @@ Each diagonal block corresponds to a coupled sector from fusing codomain/domain 
 
 Fields:
 
-  - `sectors::Vector{I}` — coupled sector labels, sorted and unique
+  - `labels::Vector{I}` — coupled sector labels, sorted and unique
   - `blocks::Vector{D}` — diagonal blocks, one per sector
 
-The codomain (row) axis is non-dual with sectors `sectors[i]` and multiplicities
+The codomain (row) axis is non-dual with sectors `labels[i]` and multiplicities
 derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
-`dual(sectors[i])` and multiplicities from `size(blocks[i], 2)`.
+`dual(labels[i])` and multiplicities from `size(blocks[i], 2)`.
 """
 struct FusedSectorMatrix{T, I <: TKS.Sector, D <: AbstractMatrix{T}} <:
     AbstractGradedArray{T, 2}
-    sectors::Vector{I}
+    labels::Vector{I}
     blocks::Vector{D}
     function FusedSectorMatrix(
-            sectors::Vector{I},
+            labels::Vector{I},
             blocks::Vector{D}
         ) where {T, I, D <: AbstractMatrix{T}}
-        length(sectors) == length(blocks) ||
-            throw(ArgumentError("sectors and blocks must have the same length"))
-        issorted(SectorRange.(sectors)) ||
-            throw(ArgumentError("sectors must be sorted"))
-        allunique(SectorRange.(sectors)) ||
-            throw(ArgumentError("sectors must be unique"))
-        return new{T, I, D}(sectors, blocks)
+        length(labels) == length(blocks) ||
+            throw(ArgumentError("labels and blocks must have the same length"))
+        issorted(SectorRange.(labels)) ||
+            throw(ArgumentError("labels must be sorted"))
+        allunique(SectorRange.(labels)) ||
+            throw(ArgumentError("labels must be unique"))
+        return new{T, I, D}(labels, blocks)
     end
 end
 
 # ========================  Accessors  ========================
 
-labels(m::FusedSectorMatrix) = m.sectors
-BlockArrays.blocklength(m::FusedSectorMatrix) = length(m.sectors)
+labels(m::FusedSectorMatrix) = m.labels
+BlockArrays.blocklength(m::FusedSectorMatrix) = length(m.labels)
 sector_type(::Type{<:FusedSectorMatrix{T, I}}) where {T, I} = SectorRange{I}
 
 function Base.axes(m::FusedSectorMatrix{T, I}) where {T, I}
     codomain = gradedrange(
         [
-            SectorRange(s) => div(size(m.blocks[i], 1), TKS.dim(s))
-                for (i, s) in enumerate(m.sectors)
+            SectorRange(s) => div(size(m.blocks[i], 1), quantum_dimension(SectorRange(s)))
+                for (i, s) in enumerate(m.labels)
         ]
     )
     domain = gradedrange(
         [
-            SectorRange(dual(s), true) => div(size(m.blocks[i], 2), TKS.dim(dual(s)))
-                for (i, s) in enumerate(m.sectors)
+            SectorRange(dual(s), true) =>
+                div(size(m.blocks[i], 2), quantum_dimension(SectorRange(dual(s))))
+                for (i, s) in enumerate(m.labels)
         ]
     )
     return (codomain, domain)
@@ -76,7 +77,7 @@ end
 # ========================  eachblockstoredindex  ========================
 
 function BlockSparseArrays.eachblockstoredindex(m::FusedSectorMatrix)
-    return (Block(i, i) for i in eachindex(m.sectors))
+    return (Block(i, i) for i in eachindex(m.labels))
 end
 
 # ========================  blocks  ========================
@@ -106,7 +107,7 @@ function LinearAlgebra.mul!(
         C::FusedSectorMatrix, A::FusedSectorMatrix, B::FusedSectorMatrix,
         α::Number, β::Number
     )
-    C.sectors == A.sectors == B.sectors ||
+    C.labels == A.labels == B.labels ||
         throw(DimensionMismatch("FusedSectorMatrix sectors must match"))
     for i in eachindex(C.blocks)
         mul!(C.blocks[i], A.blocks[i], B.blocks[i], α, β)
@@ -115,32 +116,32 @@ function LinearAlgebra.mul!(
 end
 
 function Base.:(*)(A::FusedSectorMatrix{T₁}, B::FusedSectorMatrix{T₂}) where {T₁, T₂}
-    A.sectors == B.sectors || throw(DimensionMismatch("sectors must match"))
+    A.labels == B.labels || throw(DimensionMismatch("sectors must match"))
     T = Base.promote_op(LinearAlgebra.matprod, T₁, T₂)
     result_blocks = [A.blocks[i] * B.blocks[i] for i in eachindex(A.blocks)]
-    return FusedSectorMatrix(copy(A.sectors), result_blocks)
+    return FusedSectorMatrix(copy(A.labels), result_blocks)
 end
 
 # ========================  similar  ========================
 
 function Base.similar(m::FusedSectorMatrix{<:Any, I}, ::Type{T}) where {T, I}
     new_blocks = [similar(b, T) for b in m.blocks]
-    return FusedSectorMatrix(copy(m.sectors), new_blocks)
+    return FusedSectorMatrix(copy(m.labels), new_blocks)
 end
 
 # ========================  show  ========================
 
 function Base.show(io::IO, ::MIME"text/plain", m::FusedSectorMatrix{T}) where {T}
-    nblocks = length(m.sectors)
+    nblocks = length(m.labels)
     print(io, nblocks, "-block FusedSectorMatrix{", T, "} with sectors ")
     print(io, "[")
-    join(io, m.sectors, ", ")
+    join(io, m.labels, ", ")
     print(io, "]")
     return nothing
 end
 
 function Base.show(io::IO, m::FusedSectorMatrix{T}) where {T}
-    nblocks = length(m.sectors)
+    nblocks = length(m.labels)
     print(io, nblocks, "-block FusedSectorMatrix{", T, "}")
     return nothing
 end
@@ -208,14 +209,14 @@ function AbelianArray(m::FusedSectorMatrix{T}) where {T}
     ax = axes(m)
     a = AbelianArray{T}(undef, ax)
 
-    I = eltype(m.sectors)
+    I = eltype(m.labels)
     col_sects = sectors(ax[2])
     col_lookup = Dict{I, Int}()
     for (j, cs) in enumerate(col_sects)
         col_lookup[label(flip(cs))] = j
     end
 
-    for (i, (s, block)) in enumerate(zip(m.sectors, m.blocks))
+    for (i, (s, block)) in enumerate(zip(m.labels, m.blocks))
         j = get(col_lookup, s, nothing)
         isnothing(j) && continue
         a.blockdata[(i, j)] = block

@@ -177,7 +177,7 @@ function sector(sa::SectorArray, d::Int)
 end
 function sector_multiplicities(sa::SectorArray)
     return ntuple(
-        d -> div(size(sa.data, d), TKS.dim(label(sa, d))), Val(ndims(sa))
+        d -> div(size(sa.data, d), quantum_dimension(sector(sa, d))), Val(ndims(sa))
     )
 end
 

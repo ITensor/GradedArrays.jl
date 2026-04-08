@@ -34,6 +34,25 @@ function TensorAlgebra.trivial_axis(
     return flip(trivial_gradedrange(axes(a)))
 end
 
+function TensorAlgebra.trivial_axis(
+        ::SectorFusion,
+        ::Val{:codomain},
+        a::FusedSectorMatrix,
+        axes_codomain::Tuple{Vararg{AbstractUnitRange}},
+        axes_domain::Tuple{Vararg{AbstractUnitRange}}
+    )
+    return trivial_gradedrange((axes_codomain..., axes_domain...))
+end
+function TensorAlgebra.trivial_axis(
+        ::SectorFusion,
+        ::Val{:domain},
+        a::FusedSectorMatrix,
+        axes_codomain::Tuple{Vararg{AbstractUnitRange}},
+        axes_domain::Tuple{Vararg{AbstractUnitRange}}
+    )
+    return flip(trivial_gradedrange((axes_codomain..., axes_domain...)))
+end
+
 # ========================  tensor_product_axis  ========================
 
 # SectorUnitRange level: fuse two block axes
@@ -165,25 +184,23 @@ function TensorAlgebra.unmatricize(
         error("Scalar unmatricize not yet supported for FusedSectorMatrix")
     end
 
-    # Compute unfused axes from the original N-d axes, then merge
-    row_unfused = reduce(codomain_axes) do r1, r2
-        return tensor_product_axis(SectorFusion(), Val(:codomain), r1, r2)
-    end
-    col_unfused = reduce(domain_axes) do r1, r2
-        return tensor_product_axis(SectorFusion(), Val(:domain), r1, r2)
-    end
+    # Compute unfused 2D axes using the same logic as matricize
+    # (matricize_axes uses trivial_axis as init, ensuring consistent conventions)
+    row_unfused, col_unfused = matricize_axes(
+        SectorFusion(), m, codomain_axes, domain_axes
+    )
     fused_axes = (row_unfused, col_unfused)
     merged_axes = sectormergesort.(fused_axes)
 
     # Convert FusedSectorMatrix to 2D AbelianArray using the merged axes
     m_abelian = AbelianArray{eltype(m)}(undef, merged_axes)
-    I = eltype(m.sectors)
+    I = eltype(m.labels)
     col_sects = sectors(merged_axes[2])
     col_lookup = Dict{I, Int}()
     for (j, cs) in enumerate(col_sects)
         col_lookup[label(flip(cs))] = j
     end
-    for (i, (s, block)) in enumerate(zip(m.sectors, m.blocks))
+    for (i, (s, block)) in enumerate(zip(m.labels, m.blocks))
         j = get(col_lookup, s, nothing)
         isnothing(j) && continue
         iszero(block) && continue

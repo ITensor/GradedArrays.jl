@@ -32,7 +32,7 @@ labels(si::SectorUnitRange) = [label(si)]
 sectors(si::SectorUnitRange) = [SectorRange(label(si), isdual(si))]
 sector_multiplicities(si::SectorUnitRange) = [sector_multiplicity(si)]
 BlockArrays.blocklength(si::SectorUnitRange) = 1
-Base.length(si::SectorUnitRange) = TKS.dim(label(si)) * sector_multiplicity(si)
+Base.length(si::SectorUnitRange) = quantum_dimension(sector(si)) * sector_multiplicity(si)
 
 # sector_type, SymmetryStyle
 sector_type(::Type{SectorUnitRange{I}}) where {I} = SectorRange{I}
