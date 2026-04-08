@@ -5,7 +5,8 @@ module GradedArrays
 export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
 export SectorRange, SectorDelta, SectorUnitRange, GradedUnitRange
 export SectorArray, SectorMatrix
-export AbstractGradedArray, AbelianArray, FusedSectorMatrix
+export AbstractGradedArray, AbstractGradedMatrix
+export AbelianArray, AbelianVector, AbelianMatrix
 export gradedrange
 
 export dual, flip, gradedrange, isdual,

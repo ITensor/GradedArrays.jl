@@ -3,9 +3,11 @@ using Test: @test, @testset
 @testset "Test exports" begin
     exports = [
         :AbstractGradedArray,
+        :AbstractGradedMatrix,
         :AbelianArray,
+        :AbelianMatrix,
+        :AbelianVector,
         :Fib,
-        :FusedSectorMatrix,
         :GradedArrays,
         :GradedUnitRange,
         :Ising,

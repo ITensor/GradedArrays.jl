@@ -302,6 +302,7 @@ end
 #  Matrix multiplication (block-diagonal)
 # ---------------------------------------------------------------------------
 
+const AbelianVector{T, I, D} = AbelianArray{T, 1, I, D}
 const AbelianMatrix{T, I, D} = AbelianArray{T, 2, I, D}
 
 # ---------------------------------------------------------------------------
