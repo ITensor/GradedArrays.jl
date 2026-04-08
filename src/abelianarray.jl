@@ -210,13 +210,10 @@ end
 # ---------------------------------------------------------------------------
 
 function Base.fill!(a::AbelianArray, v)
-    if iszero(v)
-        empty!(a.blockdata)
-    else
-        for I in eachblockstoredindex(a)
-            fill!(@view!(a[I]), v)
-        end
-    end
+    iszero(v) || throw(
+        ArgumentError("fill! with nonzero value is not supported for AbelianArray")
+    )
+    empty!(a.blockdata)
     return a
 end
 
