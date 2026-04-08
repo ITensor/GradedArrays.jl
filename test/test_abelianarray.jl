@@ -1,6 +1,6 @@
 using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
-using GradedArrays: AbelianArray, AbstractGradedArray, GradedIndices, SectorArray,
+using GradedArrays: AbelianArray, AbstractGradedArray, GradedUnitRange, SectorArray,
     SectorRange, gradedrange, isdual, labels, sector_multiplicities, sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -143,7 +143,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "SU2 (non-abelian dimensions)" begin
         # SU2 j=1/2 has dim=2, j=1 has dim=3
-        g_su2 = GradedIndices(
+        g_su2 = GradedUnitRange(
             [TKS.SU2Irrep(1 // 2), TKS.SU2Irrep(1)],
             [1, 1],
             false

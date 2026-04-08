@@ -1,7 +1,7 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
-using GradedArrays: AbelianArray, FusedSectorMatrix, GradedIndices, SectorArray,
+using GradedArrays: AbelianArray, FusedSectorMatrix, GradedUnitRange, SectorArray,
     SectorDelta, SectorRange, U1, dual, flip, gradedrange, isdual, label, sector,
     sector_multiplicities, sector_type, sectormergesort, sectorrange, sectors,
     tensor_product, ⊗

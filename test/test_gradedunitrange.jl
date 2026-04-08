@@ -1,13 +1,13 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, GradedIndices, SU2, SectorRange, U1, dual, flip,
+using GradedArrays: GradedArrays, GradedUnitRange, SU2, SectorRange, U1, dual, flip,
     gradedrange, isdual, labels, sector_multiplicities, sector_type, sectors, tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
-@testset "GradedIndices" begin
+@testset "GradedUnitRange" begin
     @testset "gradedrange from raw TKS.Sector labels (U1)" begin
         g = GradedArrays.gradedrange([TKS.U1Irrep(0) => 2, TKS.U1Irrep(1) => 3])
-        @test g isa GradedIndices{TKS.U1Irrep}
+        @test g isa GradedUnitRange{TKS.U1Irrep}
         @test labels(g) == [TKS.U1Irrep(0), TKS.U1Irrep(1)]
         @test sector_multiplicities(g) == [2, 3]
         @test isdual(g) == false
@@ -15,7 +15,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "gradedrange from SectorRange labels (U1)" begin
         g = GradedArrays.gradedrange([U1(0) => 2, U1(1) => 3])
-        @test g isa GradedIndices{TKS.U1Irrep}
+        @test g isa GradedUnitRange{TKS.U1Irrep}
         @test labels(g) == [TKS.U1Irrep(0), TKS.U1Irrep(1)]
         @test sector_multiplicities(g) == [2, 3]
         @test isdual(g) == false
@@ -23,7 +23,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "gradedrange from dual SectorRange labels" begin
         g = GradedArrays.gradedrange([U1(0)' => 2, U1(1)' => 3])
-        @test g isa GradedIndices{TKS.U1Irrep}
+        @test g isa GradedUnitRange{TKS.U1Irrep}
         @test labels(g) == [TKS.U1Irrep(0), TKS.U1Irrep(1)]
         @test sector_multiplicities(g) == [2, 3]
         @test isdual(g) == true
@@ -120,14 +120,14 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "sector_type" begin
-        @test sector_type(GradedIndices{TKS.U1Irrep}) == SectorRange{TKS.U1Irrep}
-        @test sector_type(GradedIndices{TKS.SU2Irrep}) == SectorRange{TKS.SU2Irrep}
+        @test sector_type(GradedUnitRange{TKS.U1Irrep}) == SectorRange{TKS.U1Irrep}
+        @test sector_type(GradedUnitRange{TKS.SU2Irrep}) == SectorRange{TKS.SU2Irrep}
     end
 
     @testset "show" begin
         g = GradedArrays.gradedrange([TKS.U1Irrep(0) => 2, TKS.U1Irrep(1) => 3])
         str = sprint(show, g)
-        @test contains(str, "GradedIndices")
+        @test contains(str, "GradedUnitRange")
         @test contains(str, "=> 2")
         @test contains(str, "=> 3")
         @test !endswith(str, "'")
@@ -151,7 +151,7 @@ using Test: @test, @test_throws, @testset
                 TKS.SU2Irrep(0) => 1, TKS.SU2Irrep(1 // 2) => 2,
             ]
         )
-        @test g isa GradedIndices{TKS.SU2Irrep}
+        @test g isa GradedUnitRange{TKS.SU2Irrep}
         @test blocklength(g) == 2
         @test length(g) == 1 * 1 + 2 * 2  # 5
 
@@ -162,13 +162,13 @@ using Test: @test, @test_throws, @testset
 
     @testset "SU2 gradedrange from SectorRange" begin
         g = GradedArrays.gradedrange([SU2(TKS.SU2Irrep(0)) => 1, SU2(TKS.SU2Irrep(1)) => 2])
-        @test g isa GradedIndices{TKS.SU2Irrep}
+        @test g isa GradedUnitRange{TKS.SU2Irrep}
         @test labels(g) == [TKS.SU2Irrep(0), TKS.SU2Irrep(1)]
         @test sector_multiplicities(g) == [1, 2]
     end
 
     @testset "mismatched labels and multiplicities" begin
-        @test_throws ArgumentError GradedIndices(
+        @test_throws ArgumentError GradedUnitRange(
             [TKS.U1Irrep(0)], Int[1, 2], false
         )
     end
@@ -179,7 +179,7 @@ using Test: @test, @test_throws, @testset
 
         # two-arg: fuses and sorts
         tp = tensor_product(g1, g2)
-        @test tp isa GradedIndices
+        @test tp isa GradedUnitRange
         @test !isdual(tp)
         # sectors should be sorted and merged
         @test sectors(tp) == sort(sectors(tp))
@@ -196,17 +196,17 @@ using Test: @test, @test_throws, @testset
         # variadic fold
         g_small = gradedrange([U1(0) => 1, U1(1) => 1])
         tp3 = tensor_product(g_small, g_small, g_small)
-        @test tp3 isa GradedIndices
+        @test tp3 isa GradedUnitRange
         @test !isdual(tp3)
         tp4 = tensor_product(g_small, g_small, g_small, g_small)
-        @test tp4 isa GradedIndices
+        @test tp4 isa GradedUnitRange
     end
 
     @testset "tensor_product (non-abelian)" begin
         # SU2: j=0 ⊕ j=1/2 fused with itself
         g = gradedrange([SU2(TKS.SU2Irrep(0)) => 1, SU2(TKS.SU2Irrep(1 // 2)) => 1])
         tp = tensor_product(g, g)
-        @test tp isa GradedIndices
+        @test tp isa GradedUnitRange
         @test !isdual(tp)
     end
 end

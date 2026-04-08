@@ -1,12 +1,12 @@
 # ===========================================================================
-#  AbelianArray — dict-of-keys graded array with GradedIndices axes
+#  AbelianArray — dict-of-keys graded array with GradedUnitRange axes
 # ===========================================================================
 
 """
     AbelianArray{T,N,I<:TKS.Sector,D<:AbstractArray{T,N}} <: AbstractGradedArray{T,N}
 
 A graded array that stores non-zero blocks in a dictionary keyed by block indices.
-Each axis is a [`GradedIndices`](@ref) carrying sector labels, multiplicities, and a dual flag.
+Each axis is a [`GradedUnitRange`](@ref) carrying sector labels, multiplicities, and a dual flag.
 
 Blocks are stored as plain dense arrays of type `D` (default `Array{T,N}`).
 Accessing a block via `a[Block(i,j)]` returns a [`SectorArray`](@ref) wrapping the data
@@ -14,7 +14,7 @@ with the appropriate sector labels and dual flags.
 """
 struct AbelianArray{T, N, I <: TKS.Sector, D <: AbstractArray{T, N}} <:
     AbstractGradedArray{T, N}
-    axes::NTuple{N, GradedIndices{I}}
+    axes::NTuple{N, GradedUnitRange{I}}
     blockdata::Dict{NTuple{N, Int}, D}
 end
 
@@ -23,13 +23,13 @@ end
 # ---------------------------------------------------------------------------
 
 function AbelianArray{T}(
-        ::UndefInitializer, axs::NTuple{N, GradedIndices{I}}
+        ::UndefInitializer, axs::NTuple{N, GradedUnitRange{I}}
     ) where {T, N, I <: TKS.Sector}
     return AbelianArray{T, N, I, Array{T, N}}(axs, Dict{NTuple{N, Int}, Array{T, N}}())
 end
 
 function AbelianArray{T}(
-        init::UndefInitializer, axs::Vararg{GradedIndices{I}, N}
+        init::UndefInitializer, axs::Vararg{GradedUnitRange{I}, N}
     ) where {T, N, I <: TKS.Sector}
     return AbelianArray{T}(init, axs)
 end
@@ -39,11 +39,11 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    _block_length(g::GradedIndices, k::Int)
+    _block_length(g::GradedUnitRange, k::Int)
 
 Total length of block `k` in axis `g`: quantum dimension times multiplicity.
 """
-function _block_length(g::GradedIndices, k::Int)
+function _block_length(g::GradedUnitRange, k::Int)
     return TKS.dim(labels(g)[k]) * sector_multiplicities(g)[k]
 end
 
@@ -219,7 +219,7 @@ function Base.similar(a::AbelianArray{<:Any, N, I}, ::Type{S}) where {S, N, I}
 end
 
 function Base.similar(
-        ::AbelianArray{<:Any, <:Any, I}, ::Type{S}, axs::NTuple{M, GradedIndices{I}}
+        ::AbelianArray{<:Any, <:Any, I}, ::Type{S}, axs::NTuple{M, GradedUnitRange{I}}
     ) where {S, M, I}
     return AbelianArray{S}(undef, axs)
 end

@@ -8,7 +8,7 @@ TensorAlgebra.FusionStyle(::Type{<:AbelianArray}) = SectorFusion()
 
 # ========================  trivial_axis  ========================
 
-function trivial_gradedrange(t::Tuple{Vararg{GradedIndices}})
+function trivial_gradedrange(t::Tuple{Vararg{GradedUnitRange}})
     return ⊗(trivial.(t)...)
 end
 function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
@@ -36,22 +36,22 @@ end
 
 # ========================  tensor_product_axis  ========================
 
-# SectorIndices level: fuse two block axes
+# SectorUnitRange level: fuse two block axes
 function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:codomain}, r1::SectorIndices, r2::SectorIndices
+        ::SectorFusion, ::Val{:codomain}, r1::SectorUnitRange, r2::SectorUnitRange
     )
     return r1 ⊗ r2
 end
 function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:domain}, r1::SectorIndices, r2::SectorIndices
+        ::SectorFusion, ::Val{:domain}, r1::SectorUnitRange, r2::SectorUnitRange
     )
     return flip(r1 ⊗ r2)
 end
 
-# GradedIndices level: iterate block axes, fuse each pair, reassemble
+# GradedUnitRange level: iterate block axes, fuse each pair, reassemble
 function _tensor_product_axis_graded(
         style::SectorFusion, side::Val,
-        r1::GradedIndices, r2::GradedIndices
+        r1::GradedUnitRange, r2::GradedUnitRange
     )
     blockaxpairs = Iterators.product(eachblockaxis(r1), eachblockaxis(r2))
     blockaxs = map(blockaxpairs) do (b1, b2)
@@ -61,13 +61,13 @@ function _tensor_product_axis_graded(
 end
 function TensorAlgebra.tensor_product_axis(
         style::SectorFusion, side::Val{:codomain},
-        r1::GradedIndices, r2::GradedIndices
+        r1::GradedUnitRange, r2::GradedUnitRange
     )
     return _tensor_product_axis_graded(style, side, r1, r2)
 end
 function TensorAlgebra.tensor_product_axis(
         style::SectorFusion, side::Val{:domain},
-        r1::GradedIndices, r2::GradedIndices
+        r1::GradedUnitRange, r2::GradedUnitRange
     )
     return _tensor_product_axis_graded(style, side, r1, r2)
 end
@@ -168,8 +168,8 @@ end
 
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::AbelianMatrix,
-        codomain_axes::Tuple{Vararg{GradedIndices}},
-        domain_axes::Tuple{Vararg{GradedIndices}}
+        codomain_axes::Tuple{Vararg{GradedUnitRange}},
+        domain_axes::Tuple{Vararg{GradedUnitRange}}
     )
     blocked_axes = (codomain_axes..., domain_axes...)
     if isempty(blocked_axes)
