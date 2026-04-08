@@ -103,33 +103,42 @@ end
 #  Block indexing — convenience wrappers through blocks()
 # ---------------------------------------------------------------------------
 
+# getindex: returns a copy (does not share data with blockdata)
 function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
     if haskey(a.blockdata, bk)
-        return _wrap_block(a, bk, a.blockdata[bk])
+        return _wrap_block(a, bk, copy(a.blockdata[bk]))
     else
         block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
         return _wrap_block(a, bk, zeros(T, block_dims))
     end
 end
-
-# Single Block{N} argument: splat to N Block{1} arguments
 function Base.getindex(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
     return a[Block.(Tuple(I))...]
 end
 
+# view: returns a SectorArray sharing data with blockdata (stored blocks only)
+function Base.view(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
+    bk = ntuple(d -> Int(I[d]), Val(N))
+    haskey(a.blockdata, bk) || error("Block $bk is not stored. Use view! to create it.")
+    return _wrap_block(a, bk, a.blockdata[bk])
+end
+function Base.view(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
+    return view(a, Block.(Tuple(I))...)
+end
+
+# setindex!
 function Base.setindex!(a::AbelianArray{T, N}, value, I::Vararg{Block{1}, N}) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
     raw = value isa SectorArray ? value.data : value
     a.blockdata[bk] = convert(Array{T, N}, raw)
     return a
 end
-
 function Base.setindex!(a::AbelianArray{T, N}, value, I::Block{N}) where {T, N}
     return setindex!(a, value, Block.(Tuple(I))...)
 end
 
-# Get or create a block, returning a SectorArray wrapping the data in-place.
+# view!: get or create a block, returns a SectorArray sharing data in-place
 function BlockSparseArrays.view!(
         a::AbelianArray{T, N}, I::Vararg{Block{1}, N}
     ) where {T, N}
