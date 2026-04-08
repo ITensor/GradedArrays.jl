@@ -207,6 +207,20 @@ end
 
 Base.copy(A::SectorArray) = SectorArray(A.labels, A.isdual, copy(A.data))
 
+function FI.zero!(A::SectorArray)
+    fill!(A.data, zero(eltype(A)))
+    return A
+end
+
+function Base.fill!(A::SectorArray, v)
+    if iszero(v)
+        return FI.zero!(A)
+    end
+    require_unique_fusion(A)
+    fill!(A.data, v)
+    return A
+end
+
 function Base.convert(
         ::Type{SectorArray{T₁, N, I, A}},
         x::SectorArray{T₂, N, I, B}

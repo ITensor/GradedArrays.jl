@@ -1,7 +1,7 @@
 using GradedArrays: GradedArrays, SU2, SectorArray, SectorMatrix, SectorRange, U1, dual,
     isdual, label, labels, sector, sector_multiplicities, sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "SectorArray" begin
     @testset "Construction from labels, isdual, data" begin
@@ -218,5 +218,33 @@ using Test: @test, @testset
         )
         TensorAlgebra.add!(dest, sa, 3.0, 0.0)
         @test dest ≈ [3.0 6.0; 9.0 12.0]
+    end
+
+    @testset "fill! abelian" begin
+        sa = SectorArray((U1(0), dual(U1(0))), [1.0 2.0; 3.0 4.0])
+        fill!(sa, 7.0)
+        @test all(==(7.0), sa.data)
+
+        fill!(sa, 0.0)
+        @test all(iszero, sa.data)
+    end
+
+    @testset "fill! non-abelian errors for nonzero" begin
+        sa = SectorArray(
+            (SU2(TKS.SU2Irrep(1 // 2)), dual(SU2(TKS.SU2Irrep(1 // 2)))),
+            ones(2, 2)
+        )
+        # fill! with zero is fine
+        fill!(sa, 0.0)
+        @test all(iszero, sa.data)
+
+        # fill! with nonzero errors for non-abelian
+        @test_throws ErrorException fill!(sa, 1.0)
+    end
+
+    @testset "zero!" begin
+        sa = SectorArray((U1(0), dual(U1(0))), [1.0 2.0; 3.0 4.0])
+        GradedArrays.FI.zero!(sa)
+        @test all(iszero, sa.data)
     end
 end

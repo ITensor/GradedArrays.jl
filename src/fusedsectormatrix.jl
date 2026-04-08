@@ -83,6 +83,22 @@ end
 using LinearAlgebra: Diagonal
 BlockArrays.blocks(m::FusedSectorMatrix) = Diagonal(m.blocks)
 
+# ========================  fill! / zero!  ========================
+
+function FI.zero!(m::FusedSectorMatrix)
+    for b in m.blocks
+        fill!(b, zero(eltype(m)))
+    end
+    return m
+end
+
+function Base.fill!(m::FusedSectorMatrix, v)
+    iszero(v) || throw(
+        ArgumentError("fill! with nonzero value is not supported for FusedSectorMatrix")
+    )
+    return FI.zero!(m)
+end
+
 # ========================  similar  ========================
 
 function Base.similar(m::FusedSectorMatrix{<:Any, I}, ::Type{T}) where {T, I}

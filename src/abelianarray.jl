@@ -291,17 +291,18 @@ end
 #  fill! / zero!
 # ---------------------------------------------------------------------------
 
+function FI.zero!(a::AbelianArray)
+    for bk in keys(a.blockdata)
+        fill!(a.blockdata[bk], zero(eltype(a)))
+    end
+    return a
+end
+
 function Base.fill!(a::AbelianArray, v)
     iszero(v) || throw(
         ArgumentError("fill! with nonzero value is not supported for AbelianArray")
     )
-    empty!(a.blockdata)
-    return a
-end
-
-function FI.zero!(a::AbelianArray)
-    empty!(a.blockdata)
-    return a
+    return FI.zero!(a)
 end
 
 # ---------------------------------------------------------------------------

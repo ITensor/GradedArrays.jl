@@ -46,11 +46,12 @@ end
 flip_dual(si::SectorUnitRange) = isdual(si) ? flip(si) : si
 
 # Equality and hashing
-function Base.:(==)(a::SectorUnitRange, b::SectorUnitRange)
-    return label(a) == label(b) &&
-        sector_multiplicity(a) == sector_multiplicity(b) &&
-        isdual(a) == isdual(b)
+function Base.isequal(a::SectorUnitRange, b::SectorUnitRange)
+    return isequal(label(a), label(b)) &&
+        isequal(sector_multiplicity(a), sector_multiplicity(b)) &&
+        isequal(isdual(a), isdual(b))
 end
+Base.:(==)(a::SectorUnitRange, b::SectorUnitRange) = isequal(a, b)
 function Base.hash(si::SectorUnitRange, h::UInt)
     return hash(label(si), hash(sector_multiplicity(si), hash(isdual(si), h)))
 end

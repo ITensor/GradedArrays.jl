@@ -1,7 +1,8 @@
-using BlockArrays: Block, blocklength
+using BlockArrays: BlockArrays, Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
-using GradedArrays: AbelianArray, AbstractGradedArray, GradedUnitRange, SectorArray,
-    SectorRange, gradedrange, isdual, labels, sector_multiplicities, sector_type, sectors
+using GradedArrays: GradedArrays, AbelianArray, AbstractGradedArray, GradedUnitRange,
+    SectorArray, SectorRange, U1, dual, gradedrange, isdual, labels, sector_multiplicities,
+    sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -175,5 +176,47 @@ using Test: @test, @test_throws, @testset
         @test occursin("2×2-blocked", s)
         @test occursin("5×3", s)
         @test occursin("1 stored block", s)
+    end
+
+    @testset "blocks accessor" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        a = AbelianArray{Float64}(undef, g, dual(g))
+        a[Block(1, 1)] = SectorArray((U1(0), dual(U1(0))), ones(2, 2))
+        a[Block(2, 2)] = SectorArray((U1(1), dual(U1(1))), 2 * ones(3, 3))
+
+        b = BlockArrays.blocks(a)
+        @test size(b) == (2, 2)
+
+        # Stored blocks return SectorArray
+        b11 = b[1, 1]
+        @test b11 isa SectorArray
+        @test b11.data ≈ ones(2, 2)
+
+        # Unstored blocks error
+        @test_throws ErrorException b[1, 2]
+
+        # Writing through blocks
+        b[1, 1] = SectorArray((U1(0), dual(U1(0))), 5 * ones(2, 2))
+        @test a[Block(1, 1)].data ≈ 5 * ones(2, 2)
+    end
+
+    @testset "fill! and zero!" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        a = AbelianArray{Float64}(undef, g, dual(g))
+        a[Block(1, 1)] = SectorArray((U1(0), dual(U1(0))), ones(2, 2))
+
+        # fill!(a, 0) zeros stored blocks in place
+        fill!(a, 0)
+        @test !isempty(a.blockdata)
+        @test all(iszero, a.blockdata[(1, 1)])
+
+        # fill! with nonzero errors
+        @test_throws ArgumentError fill!(a, 1.0)
+
+        # zero! zeros stored blocks in place (blocks stay allocated)
+        a[Block(1, 1)] = SectorArray((U1(0), dual(U1(0))), ones(2, 2))
+        GradedArrays.FI.zero!(a)
+        @test !isempty(a.blockdata)
+        @test all(iszero, a.blockdata[(1, 1)])
     end
 end
