@@ -213,8 +213,8 @@ function Base.fill!(a::AbelianArray, v)
     if iszero(v)
         empty!(a.blockdata)
     else
-        for bk in keys(a.blockdata)
-            fill!(a.blockdata[bk], v)
+        for I in eachblockstoredindex(a)
+            fill!(@view!(a[I]), v)
         end
     end
     return a
