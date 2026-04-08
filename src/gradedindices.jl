@@ -140,6 +140,24 @@ function Base.getindex(
     return mortar_axis(collect(dest_si))
 end
 
+# Splitting: each BlockIndexRange{1} selects a sub-range within a source block.
+# Produces one dest block per entry.
+function Base.getindex(
+        g::GradedIndices, I::AbstractVector{<:BlockIndexRange{1}}
+    )
+    ea = eachblockaxis(g)
+    dest_si = map(I) do bir
+        b = Int(bir.block)
+        r = only(bir.indices)
+        src_si = ea[b]
+        qdim = TKS.dim(label(src_si))
+        # multiplicity of the sub-range: sub-range length / quantum dimension
+        sub_mult = div(length(r), qdim)
+        return SectorIndices(label(src_si), sub_mult, isdual(src_si))
+    end
+    return mortar_axis(collect(dest_si))
+end
+
 # Bounds checking (needed for AbstractArray scalar indexing)
 function Base.checkindex(::Type{Bool}, g::GradedIndices, i::Int)
     return 1 <= i <= length(g)

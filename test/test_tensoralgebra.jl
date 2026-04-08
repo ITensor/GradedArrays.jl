@@ -6,7 +6,7 @@ using GradedArrays: AbelianArray, FusedSectorMatrix, GradedIndices, SectorArray,
     sector_multiplicities, sector_type, sectormergesort, sectorrange, sectors,
     tensor_product, ⊗
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, linearbroadcasted, matricize
+using TensorAlgebra: TensorAlgebra, contract, linearbroadcasted, matricize
 using Test: @test, @test_throws, @testset
 
 @testset "SectorArray linear broadcasting" begin
@@ -252,4 +252,53 @@ end
     @test fsm.blocks[2] ≈ zeros(2, 2)
     # U1(2): 1×1 block with data
     @test fsm.blocks[3] ≈ 2 * ones(1, 1)
+end
+
+@testset "contract 2D AbelianArray (matrix-matrix)" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianArray{Float64}(undef, g, dual(g))
+    b = AbelianArray{Float64}(undef, g, dual(g))
+
+    a_11 = randn!(Matrix{Float64}(undef, 2, 2))
+    a_22 = randn!(Matrix{Float64}(undef, 3, 3))
+    a[Block(1, 1)] = SectorArray((U1(0), dual(U1(0))), a_11)
+    a[Block(2, 2)] = SectorArray((U1(1), dual(U1(1))), a_22)
+
+    b_11 = randn!(Matrix{Float64}(undef, 2, 2))
+    b_22 = randn!(Matrix{Float64}(undef, 3, 3))
+    b[Block(1, 1)] = SectorArray((U1(0), dual(U1(0))), b_11)
+    b[Block(2, 2)] = SectorArray((U1(1), dual(U1(1))), b_22)
+
+    result, dimnames = contract(a, (1, -1), b, (-1, 2))
+    @test result isa AbelianArray{Float64, 2}
+    @test result[Block(1, 1)].data ≈ a_11 * b_11
+    @test result[Block(2, 2)].data ≈ a_22 * b_22
+end
+
+@testset "contract 4D AbelianArray" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianArray{Float64}(undef, g, g, dual(g), dual(g))
+    b = AbelianArray{Float64}(undef, g, g, dual(g), dual(g))
+
+    a_data = randn!(Array{Float64}(undef, 2, 2, 2, 2))
+    a[Block(1, 1, 1, 1)] = SectorArray(
+        (U1(0), U1(0), dual(U1(0)), dual(U1(0))), a_data
+    )
+    b_data = randn!(Array{Float64}(undef, 2, 2, 2, 2))
+    b[Block(1, 1, 1, 1)] = SectorArray(
+        (U1(0), U1(0), dual(U1(0)), dual(U1(0))), b_data
+    )
+
+    # Contract: a[1, -1, 2, -2] * b[2, -3, 1, -4]
+    # This permutes + contracts
+    result, dimnames = contract(a, (1, -1, 2, -2), b, (2, -3, 1, -4))
+    @test result isa AbelianArray
+
+    # Verify against dense
+    a_dense = zeros(5, 5, 5, 5)
+    a_dense[1:2, 1:2, 1:2, 1:2] = a_data
+    b_dense = zeros(5, 5, 5, 5)
+    b_dense[1:2, 1:2, 1:2, 1:2] = b_data
+    result_dense, _ = contract(a_dense, (1, -1, 2, -2), b_dense, (2, -3, 1, -4))
+    @test size(result) == size(result_dense)
 end

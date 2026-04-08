@@ -116,6 +116,48 @@ function Base.setindex!(a::AbelianArray{T, N}, value, I::Block{N}) where {T, N}
 end
 
 # ---------------------------------------------------------------------------
+#  Splitting getindex: each I[d][k] = Block(b)[r] means dest block k comes
+#  from source block b at subrange r. Inverse of the merging getindex.
+# ---------------------------------------------------------------------------
+
+# Ported from the old GradedArray getindex(::AbstractVector{<:BlockIndexRange{1}}...).
+function Base.getindex(
+        a::AbelianArray{T, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
+    ) where {T, N}
+    ax_dest = ntuple(d -> a.axes[d][I[d]], Val(N))
+    a_dest = AbelianArray{T}(undef, ax_dest)
+    # Map source block b → list of (dest BlockIndexRange, src subrange).
+    src_to_dests = ntuple(Val(N)) do d
+        key_type = Block{1, Int}
+        dest_bir_type = Base.promote_op(getindex, key_type, Base.OneTo{Int})
+        val_type = Tuple{dest_bir_type, UnitRange{Int}}
+        dict = Dict{key_type, Vector{val_type}}()
+        for k in eachindex(I[d])
+            bir = I[d][k]
+            b = Block(Int(bir.block))
+            r = only(bir.indices)
+            push!(get!(dict, b, val_type[]), (Block(k)[Base.axes1(r)], r))
+        end
+        return dict
+    end
+    for bI_src in eachblockstoredindex(a)
+        src_tuple = Tuple(bI_src)
+        all(d -> haskey(src_to_dests[d], src_tuple[d]), 1:N) || continue
+        dest_refs = ntuple(d -> src_to_dests[d][src_tuple[d]], Val(N))
+        for combo in Iterators.product(dest_refs...)
+            src_r = ntuple(d -> combo[d][2], Val(N))
+            src_data = view(a[bI_src], src_r...)
+            iszero(src_data) && continue
+            dest_b = Block(ntuple(d -> only(Tuple(combo[d][1].block)), Val(N)))
+            a_dest_b = @view!(a_dest[dest_b])
+            dest_r = ntuple(d -> only(combo[d][1].indices), Val(N))
+            copyto!(view(a_dest_b, dest_r...), src_data)
+        end
+    end
+    return a_dest
+end
+
+# ---------------------------------------------------------------------------
 #  Merging getindex: reindex by block permutation/merge
 # ---------------------------------------------------------------------------
 

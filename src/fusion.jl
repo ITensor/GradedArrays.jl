@@ -160,6 +160,109 @@ function block_reshape(
     return a_2d
 end
 
+# ========================  AbelianArray unmatricize  ========================
+
+function TensorAlgebra.unmatricize(
+        ::SectorFusion, m::SectorDelta,
+        codomain_axes::Tuple{Vararg{SectorRange}},
+        domain_axes::Tuple{Vararg{SectorRange}}
+    )
+    return SectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
+end
+
+function TensorAlgebra.unmatricize(
+        ::SectorFusion, m::AbelianMatrix,
+        codomain_axes::Tuple{Vararg{GradedIndices}},
+        domain_axes::Tuple{Vararg{GradedIndices}}
+    )
+    blocked_axes = (codomain_axes..., domain_axes...)
+    if isempty(blocked_axes)
+        a = similar(m, ())
+        fill!(a, zero(eltype(m)))
+        # TODO: handle scalar unmatricize
+        return a
+    end
+
+    # Compute what the unfused axes would be (before sectormergesort)
+    row_unfused = if isempty(codomain_axes)
+        trivial_gradedrange(axes(m))
+    else
+        reduce(codomain_axes) do r1, r2
+            return tensor_product_axis(SectorFusion(), Val(:codomain), r1, r2)
+        end
+    end
+    col_unfused = if isempty(domain_axes)
+        flip(trivial_gradedrange(axes(m)))
+    else
+        reduce(domain_axes) do r1, r2
+            return tensor_product_axis(SectorFusion(), Val(:domain), r1, r2)
+        end
+    end
+    fused_axes = (row_unfused, col_unfused)
+
+    # Compute the inverse block permutations: unsort/unmerge the merged axes
+    blockperms = sectorsortperm.(fused_axes)
+    J = map(invblockmergeperm, fused_axes, blockperms, axes(m))
+
+    # Split the merged matrix back to unfused blocks
+    m_split = m[J...]
+
+    # Un-reshape from 2D back to N-d
+    return block_unreshape(m_split, codomain_axes, domain_axes)
+end
+
+"""
+    block_unreshape(m::AbelianArray{T,2}, codomain_axes, domain_axes) -> AbelianArray{T,N}
+
+Inverse of `block_reshape`. Reshapes a 2D AbelianArray with unfused graded axes
+back to an N-d AbelianArray by splitting each 2D block into its constituent
+N-d blocks.
+"""
+function block_unreshape(
+        m::AbelianMatrix{T}, codomain_axes::Tuple, domain_axes::Tuple
+    ) where {T}
+    N = length(codomain_axes) + length(domain_axes)
+    K = length(codomain_axes)
+    dest_axes = (codomain_axes..., domain_axes...)
+    a = AbelianArray{T}(undef, dest_axes)
+
+    cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
+    dom_cart = CartesianIndices(Tuple(map(blocklength, domain_axes)))
+
+    for bI_src in eachblockstoredindex(m)
+        src_tuple = Tuple(bI_src)
+        row_block = Int(src_tuple[1])
+        col_block = Int(src_tuple[2])
+
+        ci_cod = Tuple(cod_cart[row_block])
+        ci_dom = Tuple(dom_cart[col_block])
+
+        # Compute the N-d block shape
+        block_dims = ntuple(Val(N)) do d
+            if d <= K
+                return _block_length(codomain_axes[d], ci_cod[d])
+            else
+                return _block_length(domain_axes[d - K], ci_dom[d - K])
+            end
+        end
+
+        # Unmatricize the individual SectorArray block
+        src_block = m[bI_src]
+        dest_data = reshape(src_block.data, block_dims)
+
+        # Inverse permute: the original block_reshape permuted (codomain..., domain...)
+        # so we need to un-permute back to the original dimension order.
+        # Since block_reshape just put codomain first (no arbitrary perm), and the
+        # codomain/domain dims are contiguous (1:K and K+1:N), this is already
+        # in the right order.
+
+        dest_bk = (ci_cod..., ci_dom...)
+        a.blockdata[dest_bk] = dest_data
+    end
+
+    return a
+end
+
 # ========================  permutedimsopadd!  ========================
 
 function TensorAlgebra.permutedimsopadd!(

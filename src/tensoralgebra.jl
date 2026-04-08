@@ -54,6 +54,34 @@ end
 # Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
 invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
+# Returns a Vector{BlockIndexRange{1}} mapping each block of fine_ax (in original order)
+# to its position (block + subrange) within the merged axis merged_ax, given the block
+# permutation blockperm used to sort and merge fine_ax into merged_ax.
+# Requires that blocks of fine_ax subdivide blocks of merged_ax.
+function invblockmergeperm(fine_ax::GradedIndices, blockperm, merged_ax::GradedIndices)
+    n = blocklength(fine_ax)
+    fine_bls = blocklengths(fine_ax)
+    merged_bls = blocklengths(merged_ax)
+    bir_type = Base.promote_op(getindex, Block{1, Int}, UnitRange{Int})
+    J = Vector{bir_type}(undef, n)
+    j = 1
+    offset = 0
+    for k′ in 1:n
+        k = Int(blockperm[k′])
+        size_k = fine_bls[k]
+        merged_block_size = merged_bls[j]
+        offset + size_k ≤ merged_block_size ||
+            throw(ArgumentError("fine_ax blocks do not subdivide merged_ax blocks"))
+        J[k] = Block(j)[(offset + 1):(offset + size_k)]
+        offset += size_k
+        if offset == merged_block_size
+            j += 1
+            offset = 0
+        end
+    end
+    return J
+end
+
 function sectormergesort(g::GradedIndices)
     glabels = sectors(g)
     multiplicities = sector_multiplicities(g)

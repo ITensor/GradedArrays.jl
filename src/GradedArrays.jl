@@ -16,15 +16,15 @@ export dual, flip, gradedrange, isdual,
 # imports
 # -------
 import FunctionImplementations as FI
-using BlockArrays:
-    BlockArrays, AbstractBlockVector, Block, BlockVector, blocklength, blocklengths, blocks
+using BlockArrays: BlockArrays, AbstractBlockVector, Block, BlockIndexRange, BlockVector,
+    blocklength, blocklengths, blocks
 using BlockSparseArrays:
     BlockSparseArrays, @view!, eachblockaxis, eachblockstoredindex, mortar_axis, view!
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, matricize_axes,
     permutedimsadd!, permutedimsopadd!, tensor_product_axis, trivial_axis, trivialbiperm,
-    tryflattenlinear
+    tryflattenlinear, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
