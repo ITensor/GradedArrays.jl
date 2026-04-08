@@ -206,6 +206,83 @@ function Base.permutedims!(
 end
 
 # ---------------------------------------------------------------------------
+#  fill! / zero!
+# ---------------------------------------------------------------------------
+
+function Base.fill!(a::AbelianArray, v)
+    if iszero(v)
+        empty!(a.blockdata)
+    else
+        for bk in keys(a.blockdata)
+            fill!(a.blockdata[bk], v)
+        end
+    end
+    return a
+end
+
+# ---------------------------------------------------------------------------
+#  Matrix multiplication (block-diagonal)
+# ---------------------------------------------------------------------------
+
+const AbelianMatrix{T, I, D} = AbelianArray{T, 2, I, D}
+
+function _check_mul_axes(A::AbelianMatrix, B::AbelianMatrix)
+    return A.axes[2] == dual(B.axes[1]) || throw(
+        DimensionMismatch(
+            "second axis of A, $(A.axes[2]), and first axis of B, $(B.axes[1]), must match"
+        )
+    )
+end
+
+function LinearAlgebra.mul!(
+        C::AbelianMatrix, A::AbelianMatrix, B::AbelianMatrix, α::Number, β::Number
+    )
+    _check_mul_axes(A, B)
+
+    # Scale existing blocks of C by β
+    if !iszero(β)
+        for bk in keys(C.blockdata)
+            C.blockdata[bk] .*= β
+        end
+    else
+        empty!(C.blockdata)
+    end
+
+    # Build lookup: col axis of A sector label → block index
+    # Build lookup: row axis of B sector label → block index
+    row_ea_B = eachblockaxis(B.axes[1])
+    row_B_lookup = Dict(label(si) => i for (i, si) in enumerate(row_ea_B))
+
+    for (bk_A, data_A) in A.blockdata
+        row_A, col_A = bk_A
+        # The contracted sector: col axis of A
+        contracted_label = labels(A.axes[2])[col_A]
+        # Find matching row in B: same label (dual convention handled by _check_mul_axes)
+        contracted_label_B = isdual(A.axes[2]) ? contracted_label : dual(contracted_label)
+        j_B = get(row_B_lookup, contracted_label_B, nothing)
+        isnothing(j_B) && continue
+
+        for (bk_B, data_B) in B.blockdata
+            row_B, col_B = bk_B
+            row_B == j_B || continue
+
+            dest_bk = (row_A, col_B)
+            C_block = view!(C, Block(dest_bk...))
+            mul!(C_block.data, data_A, data_B, α, true)
+        end
+    end
+    return C
+end
+
+function Base.:(*)(A::AbelianMatrix, B::AbelianMatrix)
+    _check_mul_axes(A, B)
+    T = Base.promote_op(LinearAlgebra.matprod, eltype(A), eltype(B))
+    C = AbelianArray{T}(undef, A.axes[1], B.axes[2])
+    mul!(C, A, B, true, false)
+    return C
+end
+
+# ---------------------------------------------------------------------------
 #  show
 # ---------------------------------------------------------------------------
 
