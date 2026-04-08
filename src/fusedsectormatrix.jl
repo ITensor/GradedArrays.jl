@@ -42,19 +42,10 @@ BlockArrays.blocklength(m::FusedSectorMatrix) = length(m.labels)
 sector_type(::Type{<:FusedSectorMatrix{T, I}}) where {T, I} = SectorRange{I}
 
 function Base.axes(m::FusedSectorMatrix{T, I}) where {T, I}
-    codomain = gradedrange(
-        [
-            SectorRange(s) => div(size(m.blocks[i], 1), quantum_dimension(SectorRange(s)))
-                for (i, s) in enumerate(m.labels)
-        ]
-    )
-    domain = gradedrange(
-        [
-            SectorRange(dual(s), true) =>
-                div(size(m.blocks[i], 2), quantum_dimension(SectorRange(dual(s))))
-                for (i, s) in enumerate(m.labels)
-        ]
-    )
+    codomain_sectors = SectorRange.(m.labels)
+    domain_sectors = dual.(codomain_sectors)
+    codomain = gradedrange(codomain_sectors .=> size.(m.blocks, 1))
+    domain = gradedrange(domain_sectors .=> size.(m.blocks, 2))
     return (codomain, domain)
 end
 
@@ -148,78 +139,57 @@ end
 
 # ========================  Conversion from AbelianArray  ========================
 
-"""
-    FusedSectorMatrix(a::AbelianArray{T,2})
-
-Convert a 2D block-diagonal `AbelianArray` (as produced by `matricize`) into a
-`FusedSectorMatrix`. Extracts diagonal blocks by matching row sectors with their
-zero-flux column counterparts.
-"""
 # Identity
 FusedSectorMatrix(m::FusedSectorMatrix) = m
 
-function FusedSectorMatrix(a::AbelianArray{T, 2}) where {T}
-    row_axis = a.axes[1]
-    col_axis = a.axes[2]
+"""
+    FusedSectorMatrix(a::AbelianMatrix{T})
 
-    # Build lookup: for each col block, map its "matching label" to its position.
-    # The matching label is the label that a row sector must have to form zero flux.
-    # Zero flux: row_sector ⊗ flip(col_sector) = trivial
-    # For abelian: flip(SectorRange(l, d)) = SectorRange(dual(l), !d)
-    # So row label must equal dual(col_label) (accounting for duality).
-    col_sects = sectors(col_axis)
-    # Build lookup: for each col sector, compute the matching row label for zero flux.
-    # Zero flux: label(row) == dual(label(col)) if col is non-dual,
-    #            label(row) == label(col) if col is dual.
-    # Equivalently: the matching row label is label(flip(col_sector)).
-    I = eltype(labels(row_axis))
-    col_lookup = Dict{I, Int}()
-    for (j, cs) in enumerate(col_sects)
-        col_lookup[label(flip(cs))] = j
+Convert a 2D block-diagonal `AbelianArray` (as produced by `matricize`) into a
+`FusedSectorMatrix`. Extracts diagonal blocks from the stored entries.
+"""
+function FusedSectorMatrix(a::AbelianMatrix{T}) where {T}
+    row_ax, col_ax = axes(a)
+    n = blocklength(row_ax)
+    blocklength(col_ax) == n ||
+        throw(ArgumentError("AbelianMatrix must have matching row/column block counts"))
+
+    row_sectors = sectors(row_ax)
+    col_sectors = sectors(col_ax)
+    row_sectors == dual.(col_sectors) || throw(
+        ArgumentError(
+            "AbelianMatrix axes must be canonical duals to convert to FusedSectorMatrix"
+        )
+    )
+    BlockSparseArrays.isblockdiagonal(a) || throw(
+        ArgumentError(
+            "AbelianMatrix must be block-diagonal to convert to FusedSectorMatrix"
+        )
+    )
+
+    sector_labels = collect(labels(row_ax))
+    # Default: zero blocks with the right dimensions from row/col axes
+    row_bls = blocklengths(row_ax)
+    col_bls = blocklengths(col_ax)
+    diag_blocks = [zeros(T, row_bls[i], col_bls[i]) for i in 1:n]
+    for bI in eachblockstoredindex(a)
+        i = Int(Tuple(bI)[1])
+        diag_blocks[i] = Array(a[bI])
     end
-
-    row_sects = sectors(row_axis)
-    sector_labels = I[]
-    diag_blocks = Matrix{T}[]
-
-    for (i, rs) in enumerate(row_sects)
-        j = get(col_lookup, label(rs), nothing)
-        row_len = blocklengths(row_axis)[i]
-        if isnothing(j)
-            push!(sector_labels, label(rs))
-            push!(diag_blocks, zeros(T, row_len, 0))
-        else
-            col_len = blocklengths(col_axis)[j]
-            data = get(a.blockdata, (i, j), nothing)
-            push!(sector_labels, label(rs))
-            push!(diag_blocks, isnothing(data) ? zeros(T, row_len, col_len) : data)
-        end
-    end
-
     return FusedSectorMatrix(sector_labels, diag_blocks)
 end
 
 """
     AbelianArray(m::FusedSectorMatrix)
 
-Convert a `FusedSectorMatrix` to a 2D `AbelianArray` with merged graded axes.
+Convert a `FusedSectorMatrix` to a 2D `AbelianArray`.
 Inverse of `FusedSectorMatrix(::AbelianArray)`.
 """
 function AbelianArray(m::FusedSectorMatrix{T}) where {T}
-    ax = axes(m)
-    a = AbelianArray{T}(undef, ax)
-
-    I = eltype(m.labels)
-    col_sects = sectors(ax[2])
-    col_lookup = Dict{I, Int}()
-    for (j, cs) in enumerate(col_sects)
-        col_lookup[label(flip(cs))] = j
-    end
-
-    for (i, (s, block)) in enumerate(zip(m.labels, m.blocks))
-        j = get(col_lookup, s, nothing)
-        isnothing(j) && continue
-        a.blockdata[(i, j)] = block
+    a = AbelianArray{T}(undef, axes(m))
+    for (i, block) in enumerate(m.blocks)
+        iszero(block) && continue
+        a[Block(i, i)] = block
     end
     return a
 end

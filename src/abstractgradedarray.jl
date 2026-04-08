@@ -5,6 +5,15 @@ Abstract supertype for graded (symmetry-structured) arrays whose axes carry sect
 Concrete subtypes include [`AbelianArray`](@ref) and [`FusedSectorMatrix`](@ref).
 """
 abstract type AbstractGradedArray{T, N} <: AbstractArray{T, N} end
+const AbstractGradedMatrix{T} = AbstractGradedArray{T, 2}
+
+function BlockSparseArrays.isblockdiagonal(A::AbstractGradedMatrix)
+    for bI in eachblockstoredindex(A)
+        row, col = Tuple(bI)
+        row == col || return false
+    end
+    return true
+end
 
 # Scalar indexing is not supported for graded arrays.
 function Base.getindex(::AbstractGradedArray, ::Vararg{Int})

@@ -78,6 +78,16 @@ function TensorAlgebra.tensor_product_axis(
     end
     return mortar_axis(vec(blockaxs))
 end
+function TensorAlgebra.tensor_product_axis(
+        style::SectorFusion, side::Val{:domain},
+        r1::GradedUnitRange, r2::GradedUnitRange
+    )
+    blockaxpairs = Iterators.product(eachblockaxis(r1), eachblockaxis(r2))
+    blockaxs = map(blockaxpairs) do (b1, b2)
+        return tensor_product_axis(style, side, b1, b2)
+    end
+    return mortar_axis(vec(blockaxs))
+end
 
 # ========================  SectorDelta matricize  ========================
 
@@ -184,32 +194,10 @@ function TensorAlgebra.unmatricize(
         error("Scalar unmatricize not yet supported for FusedSectorMatrix")
     end
 
-    # Compute unfused 2D axes using the same logic as matricize
-    # (matricize_axes uses trivial_axis as init, ensuring consistent conventions)
-    row_unfused, col_unfused = matricize_axes(
-        SectorFusion(), m, codomain_axes, domain_axes
-    )
-    fused_axes = (row_unfused, col_unfused)
-    merged_axes = sectormergesort.(fused_axes)
-
-    # Convert FusedSectorMatrix to 2D AbelianArray using the merged axes
-    m_abelian = AbelianArray{eltype(m)}(undef, merged_axes)
-    I = eltype(m.labels)
-    col_sects = sectors(merged_axes[2])
-    col_lookup = Dict{I, Int}()
-    for (j, cs) in enumerate(col_sects)
-        col_lookup[label(flip(cs))] = j
-    end
-    for (i, (s, block)) in enumerate(zip(m.labels, m.blocks))
-        j = get(col_lookup, s, nothing)
-        isnothing(j) && continue
-        iszero(block) && continue
-        m_abelian.blockdata[(i, j)] = block
-    end
-
-    # Unsort/unmerge/unreshape
+    fused_axes = matricize_axes(SectorFusion(), m, codomain_axes, domain_axes)
+    m_abelian = AbelianArray(m)
     blockperms = sectorsortperm.(fused_axes)
-    J = map(invblockmergeperm, fused_axes, blockperms, merged_axes)
+    J = map(invblockmergeperm, fused_axes, blockperms, axes(m_abelian))
     m_split = m_abelian[J...]
     return block_unreshape(m_split, codomain_axes, domain_axes)
 end

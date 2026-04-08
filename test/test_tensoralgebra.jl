@@ -1,9 +1,9 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
-using GradedArrays: AbelianArray, FusedSectorMatrix, GradedUnitRange, SectorArray,
-    SectorDelta, SectorRange, U1, dual, flip, gradedrange, isdual, label, sector,
-    sector_multiplicities, sector_type, sectormergesort, sectorrange, sectors,
+using GradedArrays: AbelianArray, AbelianMatrix, FusedSectorMatrix, GradedUnitRange,
+    SectorArray, SectorDelta, SectorRange, U1, dual, flip, gradedrange, isdual, label,
+    sector, sector_multiplicities, sector_type, sectormergesort, sectorrange, sectors,
     tensor_product, ⊗
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, linearbroadcasted, matricize
@@ -163,6 +163,31 @@ end
     @test length(fsm.blocks) == 2
     @test fsm.blocks[1] ≈ block_11
     @test fsm.blocks[2] ≈ block_22
+
+    a_matrix = AbelianArray(fsm)
+    @test a_matrix isa AbelianMatrix
+    @test sectors(axes(a_matrix, 1)) == [U1(0), U1(1)]
+    @test sectors(axes(a_matrix, 1)) == dual.(sectors(axes(a_matrix, 2)))
+end
+
+@testset "sectormergesort on reshaped AbelianMatrix preserves canonical pairing" begin
+    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+    g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
+    a = AbelianArray{Float64}(undef, g1, g2)
+
+    block_11 = randn!(Matrix{Float64}(undef, 2, 1))
+    block_22 = randn!(Matrix{Float64}(undef, 3, 2))
+    a[Block(1, 1)] = SectorArray((U1(0), U1(0)), block_11)
+    a[Block(2, 2)] = SectorArray((U1(1), U1(-1)), block_22)
+
+    a_reshaped = GradedArrays.block_reshape(a, Val(1))
+    a_merged = sectormergesort(a_reshaped)
+
+    @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]
+    @test sectors(axes(a_merged, 1)) == dual.(sectors(axes(a_merged, 2)))
+    @test collect(eachblockstoredindex(a_merged)) == [Block(1, 1), Block(2, 2)]
+    @test Array(a_merged[Block(1, 1)]) ≈ block_11
+    @test Array(a_merged[Block(2, 2)]) ≈ block_22
 end
 
 @testset "matricize 4D AbelianArray → FusedSectorMatrix" begin
@@ -184,6 +209,40 @@ end
     @test fsm.blocks[1] ≈ ones(1, 1)
     @test fsm.blocks[2] ≈ zeros(2, 2)
     @test fsm.blocks[3] ≈ 2 * ones(1, 1)
+end
+
+@testset "FusedSectorMatrix(::AbelianMatrix) requires canonical fused axes" begin
+    row_ax = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianArray{Float64}(undef, row_ax, dual(row_ax))
+    block_11 = randn!(Matrix{Float64}(undef, 2, 2))
+    block_22 = randn!(Matrix{Float64}(undef, 3, 3))
+    a[Block(1, 1)] = SectorArray((U1(0), dual(U1(0))), block_11)
+    a[Block(2, 2)] = SectorArray((U1(1), dual(U1(1))), block_22)
+
+    fsm = FusedSectorMatrix(a)
+    @test fsm.blocks[1] ≈ block_11
+    @test fsm.blocks[2] ≈ block_22
+
+    nonsorted_ax = gradedrange([U1(1) => 3, U1(0) => 2])
+    a_nonsorted = AbelianArray{Float64}(undef, nonsorted_ax, dual(nonsorted_ax))
+    a_nonsorted[Block(1, 1)] = SectorArray((U1(1), dual(U1(1))), block_22)
+    a_nonsorted[Block(2, 2)] = SectorArray((U1(0), dual(U1(0))), block_11)
+    @test_throws ArgumentError FusedSectorMatrix(a_nonsorted)
+
+    mismatched_col_ax = gradedrange([U1(-1) => 3, U1(0) => 2])
+    a_mismatched = AbelianArray{Float64}(undef, row_ax, mismatched_col_ax)
+    a_mismatched[Block(1, 1)] =
+        SectorArray((U1(0), U1(-1)), randn!(Matrix{Float64}(undef, 2, 3)))
+    a_mismatched[Block(2, 2)] =
+        SectorArray((U1(1), U1(0)), randn!(Matrix{Float64}(undef, 3, 2)))
+    @test_throws ArgumentError FusedSectorMatrix(a_mismatched)
+end
+
+@testset "FusedSectorMatrix(::AbelianMatrix) rejects off-diagonal stored blocks" begin
+    ax = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianArray{Float64}(undef, ax, dual(ax))
+    a[Block(1, 2)] = SectorArray((U1(0), dual(U1(1))), randn!(Matrix{Float64}(undef, 2, 3)))
+    @test_throws ArgumentError FusedSectorMatrix(a)
 end
 
 @testset "contract 2D AbelianArray (matrix-matrix)" begin
