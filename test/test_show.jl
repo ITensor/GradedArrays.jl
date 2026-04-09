@@ -1,5 +1,5 @@
 using GradedArrays:
-    GradedArrays, Fib, GradedUnitRange, Ising, O2, SU2, TrivialSector, U1, dual, gradedrange
+    GradedArrays, Fib, GradedOneTo, Ising, O2, SU2, TrivialSector, U1, dual, gradedrange
 using KroneckerArrays: ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
@@ -31,18 +31,18 @@ using Test: @test, @testset
     @test sprint(show, s) == "($TrivialSector() × $U1(3) × $SU2(1/2))"
 end
 
-@testset "show GradedUnitRange" begin
+@testset "show GradedOneTo" begin
     x = U1(0)
     y = U1(1)
     z = U1(2)
     g1 = gradedrange([x => 2, y => 3, z => 2])
-    @test g1 isa GradedUnitRange
+    @test g1 isa GradedOneTo
 
     lx = repr(TKS.U1Irrep(0))
     ly = repr(TKS.U1Irrep(1))
     lz = repr(TKS.U1Irrep(2))
-    @test sprint(show, g1) == "GradedUnitRange([$lx => 2, $ly => 3, $lz => 2])"
+    @test sprint(show, g1) == "GradedOneTo([$lx => 2, $ly => 3, $lz => 2])"
 
     g1d = dual(g1)
-    @test sprint(show, g1d) == "GradedUnitRange([$lx => 2, $ly => 3, $lz => 2])'"
+    @test sprint(show, g1d) == "GradedOneTo([$lx => 2, $ly => 3, $lz => 2])'"
 end

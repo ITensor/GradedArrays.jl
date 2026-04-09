@@ -3,7 +3,7 @@ module GradedArrays
 # exports
 # -------
 export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
-export SectorRange, SectorDelta, SectorUnitRange, GradedUnitRange
+export SectorRange, SectorDelta, SectorOneTo, GradedOneTo
 export SectorArray, SectorMatrix
 export AbstractGradedArray, AbstractGradedMatrix
 export AbelianArray, AbelianVector, AbelianMatrix
@@ -30,8 +30,8 @@ using TensorKitSectors: TensorKitSectors as TKS
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
 include("sectorrange.jl")
-include("sectorunitrange.jl")
-include("gradedunitrange.jl")
+include("sectoroneto.jl")
+include("gradedoneto.jl")
 include("sectorarray.jl")
 include("abstractgradedarray.jl")
 include("abelianarray.jl")

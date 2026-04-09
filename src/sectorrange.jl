@@ -121,7 +121,7 @@ struct NotAbelianStyle <: SymmetryStyle end
 SymmetryStyle(x) = SymmetryStyle(typeof(x))
 
 # default SymmetryStyle to AbelianStyle
-# allows for abelian-like slicing style for GradedUnitRange: assume length(::label) = 1
+# allows for abelian-like slicing style for GradedOneTo: assume length(::label) = 1
 # and preserve labels in any slicing operation
 SymmetryStyle(T::Type) = AbelianStyle()
 function SymmetryStyle(::Type{T}) where {T <: SectorRange}

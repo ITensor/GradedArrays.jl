@@ -8,7 +8,7 @@ TensorAlgebra.FusionStyle(::Type{<:AbelianArray}) = SectorFusion()
 
 # ========================  trivial_axis  ========================
 
-function trivial_gradedrange(t::Tuple{Vararg{GradedUnitRange}})
+function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
     return ⊗(trivial.(t)...)
 end
 function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
@@ -55,22 +55,22 @@ end
 
 # ========================  tensor_product_axis  ========================
 
-# SectorUnitRange level: fuse two block axes
+# SectorOneTo level: fuse two block axes
 function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:codomain}, r1::SectorUnitRange, r2::SectorUnitRange
+        ::SectorFusion, ::Val{:codomain}, r1::SectorOneTo, r2::SectorOneTo
     )
     return r1 ⊗ r2
 end
 function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:domain}, r1::SectorUnitRange, r2::SectorUnitRange
+        ::SectorFusion, ::Val{:domain}, r1::SectorOneTo, r2::SectorOneTo
     )
     return flip(r1 ⊗ r2)
 end
 
-# GradedUnitRange level: iterate block axes, fuse each pair, reassemble
+# GradedOneTo level: iterate block axes, fuse each pair, reassemble
 function TensorAlgebra.tensor_product_axis(
         style::SectorFusion, side::Val{:codomain},
-        r1::GradedUnitRange, r2::GradedUnitRange
+        r1::GradedOneTo, r2::GradedOneTo
     )
     blockaxpairs = Iterators.product(eachblockaxis(r1), eachblockaxis(r2))
     blockaxs = map(blockaxpairs) do (b1, b2)
@@ -80,7 +80,7 @@ function TensorAlgebra.tensor_product_axis(
 end
 function TensorAlgebra.tensor_product_axis(
         style::SectorFusion, side::Val{:domain},
-        r1::GradedUnitRange, r2::GradedUnitRange
+        r1::GradedOneTo, r2::GradedOneTo
     )
     blockaxpairs = Iterators.product(eachblockaxis(r1), eachblockaxis(r2))
     blockaxs = map(blockaxpairs) do (b1, b2)
@@ -192,8 +192,8 @@ end
 
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::FusedSectorMatrix,
-        codomain_axes::Tuple{Vararg{GradedUnitRange}},
-        domain_axes::Tuple{Vararg{GradedUnitRange}}
+        codomain_axes::Tuple{Vararg{GradedOneTo}},
+        domain_axes::Tuple{Vararg{GradedOneTo}}
     )
     blocked_axes = (codomain_axes..., domain_axes...)
     if isempty(blocked_axes)

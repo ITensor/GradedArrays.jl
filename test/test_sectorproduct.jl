@@ -62,7 +62,7 @@ using TestExtras: @constinferred
         @test sectorproduct(U1(0)) > sectorproduct(U1(0), U1(-1))
     end
 
-    @testset "Quantum dimension and GradedUnitRange" begin
+    @testset "Quantum dimension and GradedOneTo" begin
         g = gradedrange([(U1(0) × Z{2}(0)) => 1, (U1(1) × Z{2}(0)) => 2])  # abelian
         @test (@constinferred quantum_dimension(g)) == 3
 
@@ -158,7 +158,7 @@ using TestExtras: @constinferred
         @test_throws ArgumentError p12 ⊗ z12
     end
 
-    @testset "GradedUnitRange fusion rules" begin
+    @testset "GradedOneTo fusion rules" begin
         s1 = U1(1) × SU2(1 // 2)
         s2 = U1(0) × SU2(1 // 2)
         g1 = gradedrange([s1 => 2])
@@ -241,7 +241,7 @@ end
         @test a != c
     end
 
-    @testset "Quantum dimension and GradedUnitRange" begin
+    @testset "Quantum dimension and GradedOneTo" begin
         g = gradedrange(
             [
                 (; A = U1(0)) × (; B = Z{2}(0)) => 1,
@@ -337,7 +337,7 @@ end
         @test q11 ⊗ q11 == gradedrange([q20 => 1, q21 => 1, q22 => 1])
     end
 
-    @testset "GradedUnitRange fusion rules" begin
+    @testset "GradedOneTo fusion rules" begin
         s1 = (; A = U1(1)) × (; B = SU2(1 // 2))
         s2 = (; A = U1(0)) × (; B = SU2(1 // 2))
         g1 = gradedrange([s1 => 2])

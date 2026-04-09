@@ -15,7 +15,7 @@ end
 # default to tensor_product
 unmerged_tensor_product(a1, a2) = a1 ⊗ a2
 
-function unmerged_tensor_product(a1::GradedUnitRange, a2::GradedUnitRange)
+function unmerged_tensor_product(a1::GradedOneTo, a2::GradedOneTo)
     ea1 = eachblockaxis(a1)
     ea2 = eachblockaxis(a2)
     T = Base.promote_op(⊗, eltype(ea1), eltype(ea2))
@@ -28,9 +28,9 @@ end
 
 # ========================  sorting utilities  ========================
 
-# convention: sort dual GradedUnitRange according to nondual blocks
+# convention: sort dual GradedOneTo according to nondual blocks
 # Sort by SectorRange to use the custom isless ordering
-function sectorsortperm(g::GradedUnitRange)
+function sectorsortperm(g::GradedOneTo)
     return Block.(sortperm(sectors(g)))
 end
 
@@ -43,11 +43,11 @@ function groupsortperm(v; kwargs...)
     return BlockVector(perm, group_lengths)
 end
 
-# Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedUnitRangesExt`.
+# Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedOneTosExt`.
 # Get the permutation for sorting, then group by common elements.
 # groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
 # Sort by SectorRange to use the custom isless ordering
-function sectormergesortperm(g::GradedUnitRange)
+function sectormergesortperm(g::GradedOneTo)
     return Block.(groupsortperm(sectors(g)))
 end
 
@@ -58,7 +58,7 @@ invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 # to its position (block + subrange) within the merged axis merged_ax, given the block
 # permutation blockperm used to sort and merge fine_ax into merged_ax.
 # Requires that blocks of fine_ax subdivide blocks of merged_ax.
-function invblockmergeperm(fine_ax::GradedUnitRange, blockperm, merged_ax::GradedUnitRange)
+function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::GradedOneTo)
     n = blocklength(fine_ax)
     fine_bls = blocklengths(fine_ax)
     merged_bls = blocklengths(merged_ax)
@@ -82,7 +82,7 @@ function invblockmergeperm(fine_ax::GradedUnitRange, blockperm, merged_ax::Grade
     return J
 end
 
-function sectormergesort(g::GradedUnitRange)
+function sectormergesort(g::GradedOneTo)
     glabels = sectors(g)
     multiplicities = sector_multiplicities(g)
     dict = Dict{eltype(glabels), eltype(multiplicities)}()
@@ -100,53 +100,53 @@ function sectormergesort(a::AbelianArray)
     return a[I...]
 end
 
-# tensor_product produces a sorted, non-dual GradedUnitRange
-tensor_product(g::GradedUnitRange) = sectormergesort(flip_dual(g))
+# tensor_product produces a sorted, non-dual GradedOneTo
+tensor_product(g::GradedOneTo) = sectormergesort(flip_dual(g))
 
-function tensor_product(g1::GradedUnitRange, g2::GradedUnitRange)
+function tensor_product(g1::GradedOneTo, g2::GradedOneTo)
     return sectormergesort(unmerged_tensor_product(g1, g2))
 end
 
 # ========================  mixed-type tensor_product  ========================
 # Convert to a common type via `to_gradedrange` and dispatch to
-# tensor_product(::GradedUnitRange, ::GradedUnitRange).
+# tensor_product(::GradedOneTo, ::GradedOneTo).
 
-# SectorUnitRange ↔ GradedUnitRange
-function tensor_product(s::SectorUnitRange, g::GradedUnitRange)
+# SectorOneTo ↔ GradedOneTo
+function tensor_product(s::SectorOneTo, g::GradedOneTo)
     return tensor_product(to_gradedrange(s), g)
 end
-function tensor_product(g::GradedUnitRange, s::SectorUnitRange)
+function tensor_product(g::GradedOneTo, s::SectorOneTo)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# SectorRange ↔ GradedUnitRange
-function tensor_product(s::SectorRange, g::GradedUnitRange)
+# SectorRange ↔ GradedOneTo
+function tensor_product(s::SectorRange, g::GradedOneTo)
     return tensor_product(to_gradedrange(s), g)
 end
-function tensor_product(g::GradedUnitRange, s::SectorRange)
+function tensor_product(g::GradedOneTo, s::SectorRange)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# SectorRange ↔ SectorUnitRange
-function tensor_product(s::SectorRange, si::SectorUnitRange)
+# SectorRange ↔ SectorOneTo
+function tensor_product(s::SectorRange, si::SectorOneTo)
     return tensor_product(to_gradedrange(s), to_gradedrange(si))
 end
-function tensor_product(si::SectorUnitRange, s::SectorRange)
+function tensor_product(si::SectorOneTo, s::SectorRange)
     return tensor_product(to_gradedrange(si), to_gradedrange(s))
 end
 
-# TKS.Sector ↔ GradedUnitRange
-function tensor_product(s::TKS.Sector, g::GradedUnitRange)
+# TKS.Sector ↔ GradedOneTo
+function tensor_product(s::TKS.Sector, g::GradedOneTo)
     return tensor_product(to_gradedrange(s), g)
 end
-function tensor_product(g::GradedUnitRange, s::TKS.Sector)
+function tensor_product(g::GradedOneTo, s::TKS.Sector)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# TKS.Sector ↔ SectorUnitRange
-function tensor_product(s::TKS.Sector, si::SectorUnitRange)
+# TKS.Sector ↔ SectorOneTo
+function tensor_product(s::TKS.Sector, si::SectorOneTo)
     return tensor_product(to_gradedrange(s), to_gradedrange(si))
 end
-function tensor_product(si::SectorUnitRange, s::TKS.Sector)
+function tensor_product(si::SectorOneTo, s::TKS.Sector)
     return tensor_product(to_gradedrange(si), to_gradedrange(s))
 end

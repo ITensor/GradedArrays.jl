@@ -208,12 +208,12 @@ end
 
 Base.copy(A::SectorArray) = SectorArray(A.labels, A.isdual, copy(A.data))
 
-# similar for SectorArray with SectorUnitRange axes.
+# similar for SectorArray with SectorOneTo axes.
 # Delegates to similar on the data array for the data dimensions.
 function Base.similar(
         a::SectorArray,
         ::Type{T},
-        axes::Tuple{SectorUnitRange, Vararg{SectorUnitRange}}
+        axes::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
     sects = map(sector, axes)
     data_dims = map(length, axes)

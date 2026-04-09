@@ -1,12 +1,12 @@
 # ===========================================================================
-#  AbelianArray — dict-of-keys graded array with GradedUnitRange axes
+#  AbelianArray — dict-of-keys graded array with GradedOneTo axes
 # ===========================================================================
 
 """
     AbelianArray{T,N,I<:TKS.Sector,D<:AbstractArray{T,N}} <: AbstractGradedArray{T,N}
 
 A graded array that stores non-zero blocks in a dictionary keyed by block indices.
-Each axis is a [`GradedUnitRange`](@ref) carrying sector labels, multiplicities, and a dual flag.
+Each axis is a [`GradedOneTo`](@ref) carrying sector labels, multiplicities, and a dual flag.
 
 Blocks are stored as plain dense arrays of type `D` (default `Array{T,N}`).
 Accessing a block via `a[Block(i,j)]` returns a [`SectorArray`](@ref) wrapping the data
@@ -14,7 +14,7 @@ with the appropriate sector labels and dual flags.
 """
 struct AbelianArray{T, N, I <: TKS.Sector, D <: AbstractArray{T, N}} <:
     AbstractGradedArray{T, N}
-    axes::NTuple{N, GradedUnitRange{I}}
+    axes::NTuple{N, GradedOneTo{I}}
     blockdata::Dict{NTuple{N, Int}, D}
 end
 
@@ -23,13 +23,13 @@ end
 # ---------------------------------------------------------------------------
 
 function AbelianArray{T}(
-        ::UndefInitializer, axs::NTuple{N, GradedUnitRange{I}}
+        ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
     ) where {T, N, I <: TKS.Sector}
     return AbelianArray{T, N, I, Array{T, N}}(axs, Dict{NTuple{N, Int}, Array{T, N}}())
 end
 
 function AbelianArray{T}(
-        init::UndefInitializer, axs::Vararg{GradedUnitRange{I}, N}
+        init::UndefInitializer, axs::Vararg{GradedOneTo{I}, N}
     ) where {T, N, I <: TKS.Sector}
     return AbelianArray{T}(init, axs)
 end
@@ -237,17 +237,17 @@ end
 #  similar
 # ---------------------------------------------------------------------------
 
-# similar with GradedUnitRange axes: returns an empty AbelianArray.
+# similar with GradedOneTo axes: returns an empty AbelianArray.
 # Defined on AbstractGradedArray so FusedSectorMatrix can use it too.
 function Base.similar(
         a::AbstractGradedArray,
         ::Type{S},
-        axes::Tuple{Vararg{GradedUnitRange}}
+        axes::Tuple{Vararg{GradedOneTo}}
     ) where {S}
     return AbelianArray{S}(undef, axes)
 end
 function Base.similar(
-        a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedUnitRange}}
+        a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
     ) where {T}
     return similar(a, T, axes)
 end

@@ -89,14 +89,14 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
 end
 
 @testset "Gradedrange fusion rules" begin
-    @testset "Trivial GradedUnitRange" begin
+    @testset "Trivial GradedOneTo" begin
         g1 = gradedrange([U1(0) => 1])
         g2 = gradedrange([SU2(0) => 1])
         @test trivial(g1) == g1
         @test trivial(dual(g1)) == g1  # trivial returns nondual
         @test trivial(typeof(g2)) == g2
     end
-    @testset "GradedUnitRange abelian tensor product" begin
+    @testset "GradedOneTo abelian tensor product" begin
         g1 = gradedrange([U1(-1) => 1, U1(0) => 1, U1(1) => 2])
         g2 = gradedrange([U1(-2) => 2, U1(0) => 1, U1(1) => 2])
 
@@ -192,7 +192,7 @@ end
         @test_throws MethodError tensor_product(gradedrange([Z{2}(0) => 1]), g2)
     end
 
-    @testset "GradedUnitRange non-abelian fusion rules" begin
+    @testset "GradedOneTo non-abelian fusion rules" begin
         g3 = gradedrange([SU2(0) => 1, SU2(1 // 2) => 2, SU2(1) => 1])
         g4 = gradedrange([SU2(1 // 2) => 1, SU2(1) => 2])
         g34 = gradedrange(
@@ -245,7 +245,7 @@ end
         @test nsymbol(ad8, ad8, ad8) == 2
     end
 
-    @testset "Mixed GradedUnitRange - Sector fusion rules" begin
+    @testset "Mixed GradedOneTo - Sector fusion rules" begin
         g1 = gradedrange([U1(1) => 1, U1(2) => 2])
         g2 = gradedrange([U1(2) => 1, U1(3) => 2])
         @test (@constinferred tensor_product(g1, U1(1))) == g2
