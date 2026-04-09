@@ -3,7 +3,7 @@ using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianArray, AbelianMatrix, FusedSectorMatrix, GradedOneTo,
     SectorArray, SectorDelta, SectorRange, U1, dual, flip, gradedrange, isdual, label,
-    sector, sector_multiplicities, sector_type, sectormergesort, sectorrange, sectors,
+    sector_multiplicities, sector_type, sectoraxes, sectormergesort, sectorrange, sectors,
     tensor_product, ⊗
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, linearbroadcasted, matricize
@@ -74,9 +74,9 @@ end
     s = SectorArray((U1(0), U1(1), U1(2)), data)
     sp = permutedims(s, (3, 1, 2))
     @test sp isa SectorArray
-    @test sector(sp, 1) == U1(2)
-    @test sector(sp, 2) == U1(0)
-    @test sector(sp, 3) == U1(1)
+    @test sectoraxes(sp, 1) == U1(2)
+    @test sectoraxes(sp, 2) == U1(0)
+    @test sectoraxes(sp, 3) == U1(1)
     @test Array(sp) ≈ permutedims(data, (3, 1, 2))
 end
 

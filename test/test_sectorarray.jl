@@ -1,5 +1,5 @@
-using GradedArrays: GradedArrays, SU2, SectorArray, SectorMatrix, SectorRange, U1, dual,
-    isdual, label, labels, sector, sector_multiplicities, sector_type, sectors
+using GradedArrays: GradedArrays, SU2, SectorArray, SectorDelta, SectorMatrix, SectorRange,
+    U1, dual, isdual, label, labels, sector, sector_multiplicities, sector_type, sectoraxes
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -51,18 +51,28 @@ using Test: @test, @test_throws, @testset
         @test isdual(sa, 3) == false
     end
 
-    @testset "Derived accessors — sectors" begin
+    @testset "Derived accessors — sectoraxes" begin
         data = ones(2, 3)
         sa = SectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data
         )
-        # sector(sa, d) returns SectorRange
-        @test sector(sa, 1) == SectorRange(TKS.U1Irrep(1), false)
-        @test sector(sa, 2) == SectorRange(TKS.U1Irrep(-1), true)
+        # sectoraxes(sa, d) returns SectorRange
+        @test sectoraxes(sa, 1) == SectorRange(TKS.U1Irrep(1), false)
+        @test sectoraxes(sa, 2) == SectorRange(TKS.U1Irrep(-1), true)
 
-        secs = sectors(sa)
+        secs = sectoraxes(sa)
         @test secs ==
             (SectorRange(TKS.U1Irrep(1), false), SectorRange(TKS.U1Irrep(-1), true))
+    end
+
+    @testset "sector(::SectorArray) returns SectorDelta" begin
+        data = ones(2, 3)
+        sa = SectorArray(
+            (TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data
+        )
+        sd = sector(sa)
+        @test sd isa SectorDelta{Float64, 2, TKS.U1Irrep}
+        @test axes(sd) == sectoraxes(sa)
     end
 
     @testset "Derived accessors — sector_multiplicities (U1, dim=1)" begin
@@ -178,10 +188,10 @@ using Test: @test, @test_throws, @testset
         a_data = [1.0 2.0; 3.0 4.0]
         b_data = [5.0 6.0; 7.0 8.0]
         c_data = zeros(2, 2)
-        # a has label(2) = U1(1), isdual=false => sector(2) = U1(1)
-        # b has label(1) = U1(1), isdual=true  => sector(1) = dual(U1(1)) = U1(-1)
-        # For check_mul_axes: sector(a,2) must == dual(sector(b,1))
-        # sector(a,2) = U1(1), dual(sector(b,1)) = dual(U1(-1)) = U1(1) ✓
+        # a has label(2) = U1(1), isdual=false => sectoraxes(a,2) = U1(1)
+        # b has label(1) = U1(1), isdual=true  => sectoraxes(b,1) = dual(U1(1)) = U1(-1)
+        # For check_mul_axes: sectoraxes(a,2) must == dual(sectoraxes(b,1))
+        # sectoraxes(a,2) = U1(1), dual(sectoraxes(b,1)) = dual(U1(-1)) = U1(1)
         a = SectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(1)), (false, false), a_data
         )

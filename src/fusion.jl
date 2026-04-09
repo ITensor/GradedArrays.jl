@@ -108,13 +108,12 @@ end
 function TensorAlgebra.matricize(
         ::SectorFusion, a::SectorArray, ndims_codomain::Val{K}
     ) where {K}
-    asectors = SectorDelta{eltype(a)}(a.labels, a.isdual)
-    asectors_reshaped = matricize(asectors, Val(K))
+    asectors_reshaped = matricize(sector(a), Val(K))
 
     T = TKS.sectorscalartype(sector_type(a))
     phase = prod(
         ntuple(K) do i
-            return ifelse(isdual(a, i), twist(sector(a, i)), one(T))
+            return ifelse(isdual(a, i), twist(sectoraxes(a, i)), one(T))
         end
     )
 
@@ -246,10 +245,8 @@ function TensorAlgebra.permutedimsopadd!(
         y::SectorArray, op, x::SectorArray, perm,
         α::Number, β::Number
     )
-    xdelta = SectorDelta{eltype(x)}(x.labels, x.isdual)
-    ydelta = SectorDelta{eltype(y)}(y.labels, y.isdual)
-    ydelta == permutedims(xdelta, perm) || throw(DimensionMismatch())
-    phase = fermion_permutation_phase(xdelta, perm)
+    sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())
+    phase = fermion_permutation_phase(sector(x), perm)
     TensorAlgebra.permutedimsopadd!(y.data, op, x.data, perm, phase * α, β)
     return y
 end

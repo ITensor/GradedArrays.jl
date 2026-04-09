@@ -71,12 +71,7 @@ isdual(x::SectorDelta, d::Int) = x.isdual[d]
 
 # ========================  Derived accessors  ========================
 
-function sectors(x::SectorDelta)
-    return ntuple(d -> SectorRange(label(x, d), isdual(x, d)), Val(ndims(x)))
-end
-function sector(x::SectorDelta, d::Int)
-    return SectorRange(label(x, d), isdual(x, d))
-end
+sectoraxes(x, d::Int) = sectoraxes(x)[d]
 sector_type(::Type{<:SectorDelta{T, N, I}}) where {T, N, I} = SectorRange{I}
 
 # ========================  permutedims  ========================
@@ -102,12 +97,12 @@ function Base.copyto!(C::SectorDelta, A::SectorDelta)
     return C
 end
 function Base.copy(A::Adjoint{T, <:SectorDelta{T, 2}}) where {T}
-    return SectorDelta{T}(reverse(dual.(sectors(adjoint(A)))))
+    return SectorDelta{T}(reverse(dual.(axes(adjoint(A)))))
 end
 function LinearAlgebra.adjoint!(
         A::SectorDelta{T, 2}, B::SectorDelta{T, 2}
     ) where {T}
-    reverse(dual.(sectors(B))) == sectors(A) || throw(DimensionMismatch())
+    reverse(dual.(axes(B))) == axes(A) || throw(DimensionMismatch())
     return A
 end
 
@@ -170,21 +165,18 @@ isdual(sa::SectorArray, d::Int) = sa.isdual[d]
 
 # Derived accessors
 # -----------------
-function sectors(sa::SectorArray)
+function sectoraxes(sa::SectorArray)
     return ntuple(d -> SectorRange(label(sa, d), isdual(sa, d)), Val(ndims(sa)))
-end
-function sector(sa::SectorArray, d::Int)
-    return SectorRange(label(sa, d), isdual(sa, d))
 end
 function sector_multiplicities(sa::SectorArray)
     return ntuple(
-        d -> div(size(sa.data, d), quantum_dimension(sector(sa, d))), Val(ndims(sa))
+        d -> div(size(sa.data, d), quantum_dimension(sectoraxes(sa, d))), Val(ndims(sa))
     )
 end
 
-# Kronecker factor decomposition
+# Kronecker factor decomposition: SectorArray = sector ⊗ data
 data(sa::SectorArray) = sa.data
-sectoraxes(sa::SectorArray) = sectors(sa)
+sector(sa::SectorArray) = SectorDelta{eltype(sa)}(sa.labels, sa.isdual)
 dataaxes(sa::SectorArray) = axes(data(sa))
 
 sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = SectorRange{I}
@@ -269,7 +261,7 @@ function fermion_permutation_phase(x::SectorDelta{<:Any, N}, perm::NTuple{N, Int
     BS isa TKS.Bosonic && return true
     @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
 
-    mask = map(fermionparity, sectors(x))
+    mask = map(fermionparity, axes(x))
     return masked_inversion_parity(mask, perm)
 end
 
@@ -306,10 +298,10 @@ end
 # TODO: Define this as part of:
 # `check_input(::typeof(mul!), ::SectorMatrix, ::SectorMatrix, ::SectorMatrix)`
 function check_mul_axes(c::SectorMatrix, a::SectorMatrix, b::SectorMatrix)
-    sector(a, 2) == dual(sector(b, 1)) ||
+    sectoraxes(a, 2) == dual(sectoraxes(b, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
-    sector(c, 1) == sector(a, 1) || throw(DimensionMismatch())
-    sector(c, 2) == sector(b, 2) || throw(DimensionMismatch())
+    sectoraxes(c, 1) == sectoraxes(a, 1) || throw(DimensionMismatch())
+    sectoraxes(c, 2) == sectoraxes(b, 2) || throw(DimensionMismatch())
     return nothing
 end
 
