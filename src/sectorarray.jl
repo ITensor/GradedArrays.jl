@@ -12,12 +12,12 @@ values constructed on the fly.
 """
 struct SectorDelta{T, N, I <: TKS.Sector} <: AbstractArray{T, N}
     labels::NTuple{N, I}
-    isdual::NTuple{N, Bool}
+    isduals::NTuple{N, Bool}
 end
 function SectorDelta{T}(
-        labels::NTuple{N, I}, isdual::NTuple{N, Bool}
+        labels::NTuple{N, I}, isduals::NTuple{N, Bool}
     ) where {T, N, I <: TKS.Sector}
-    return SectorDelta{T, N, I}(labels, isdual)
+    return SectorDelta{T, N, I}(labels, isduals)
 end
 
 # Convenience: construct from SectorRange tuples (backward compat bridge)
@@ -44,7 +44,7 @@ Base.@propagate_inbounds function Base.getindex(
 end
 
 function Base.axes(A::SectorDelta)
-    return ntuple(d -> SectorRange(A.labels[d], A.isdual[d]), Val(ndims(A)))
+    return ntuple(d -> SectorRange(A.labels[d], A.isduals[d]), Val(ndims(A)))
 end
 Base.size(A::SectorDelta) = length.(axes(A))
 
@@ -67,10 +67,10 @@ end
 
 labels(x::SectorDelta) = x.labels
 label(x::SectorDelta, d::Int) = x.labels[d]
-isdual(x::SectorDelta, d::Int) = x.isdual[d]
 
 # ========================  Derived accessors  ========================
 
+isdual(x, d::Int) = isdual(axes(x, d))
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
 sector_type(::Type{<:SectorDelta{T, N, I}}) where {T, N, I} = SectorRange{I}
 
@@ -130,7 +130,7 @@ Each dimension has:
 """
 struct SectorArray{T, N, I <: TKS.Sector, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
     labels::NTuple{N, I}
-    isdual::NTuple{N, Bool}
+    isduals::NTuple{N, Bool}
     data::A
 end
 
@@ -138,11 +138,11 @@ end
 function SectorArray{T}(
         ::UndefInitializer,
         labels::NTuple{N, I},
-        isdual::NTuple{N, Bool},
+        isduals::NTuple{N, Bool},
         dims::NTuple{N, Int}
     ) where {T, N, I <: TKS.Sector}
     data = Array{T, N}(undef, dims)
-    return SectorArray{T, N, I, Array{T, N}}(labels, isdual, data)
+    return SectorArray{T, N, I, Array{T, N}}(labels, isduals, data)
 end
 
 # Convenience: construct from SectorRange tuples (backward compat bridge)
@@ -155,18 +155,22 @@ function SectorArray(
     return SectorArray(ls, ds, data)
 end
 
+# Construct from SectorDelta (inverse of sector/data decomposition)
+function SectorArray(delta::SectorDelta{<:Any, N}, data::AbstractArray{<:Any, N}) where {N}
+    return SectorArray(delta.labels, delta.isduals, data)
+end
+
 const SectorMatrix{T, I, A <: AbstractMatrix{T}} = SectorArray{T, 2, I, A}
 
 # Primitive accessors
 # -------------------
 labels(sa::SectorArray) = sa.labels
 label(sa::SectorArray, d::Int) = sa.labels[d]
-isdual(sa::SectorArray, d::Int) = sa.isdual[d]
 
 # Derived accessors
 # -----------------
 function sectoraxes(sa::SectorArray)
-    return ntuple(d -> SectorRange(label(sa, d), isdual(sa, d)), Val(ndims(sa)))
+    return ntuple(d -> SectorRange(sa.labels[d], sa.isduals[d]), Val(ndims(sa)))
 end
 function sector_multiplicities(sa::SectorArray)
     return ntuple(
@@ -176,7 +180,7 @@ end
 
 # Kronecker factor decomposition: SectorArray = sector ⊗ data
 data(sa::SectorArray) = sa.data
-sector(sa::SectorArray) = SectorDelta{eltype(sa)}(sa.labels, sa.isdual)
+sector(sa::SectorArray) = SectorDelta{eltype(sa)}(sa.labels, sa.isduals)
 dataaxes(sa::SectorArray) = axes(data(sa))
 
 sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = SectorRange{I}
@@ -184,7 +188,11 @@ datatype(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
 
 # AbstractArray interface
 # -----------------------
-Base.size(sa::SectorArray) = size(sa.data)
+function Base.axes(sa::SectorArray)
+    mults = sector_multiplicities(sa)
+    return ntuple(d -> sectorrange(sectoraxes(sa, d), mults[d]), Val(ndims(sa)))
+end
+Base.size(sa::SectorArray) = map(length, axes(sa))
 
 Base.@propagate_inbounds function Base.getindex(
         A::SectorArray{T, N},
@@ -203,7 +211,7 @@ Base.@propagate_inbounds function Base.setindex!(
     return A
 end
 
-Base.copy(A::SectorArray) = SectorArray(A.labels, A.isdual, copy(A.data))
+Base.copy(A::SectorArray) = SectorArray(sector(A), copy(data(A)))
 
 # similar for SectorArray with SectorOneTo axes.
 # Delegates to similar on the data array for the data dimensions.
@@ -236,7 +244,7 @@ function Base.convert(
         x::SectorArray{T₂, N, I, B}
     )::SectorArray{T₁, N, I, A} where {T₁, T₂, N, I, A, B}
     A === B && return x
-    return SectorArray(x.labels, x.isdual, convert(A, x.data))
+    return SectorArray(sector(x), convert(A, data(x)))
 end
 
 # Fermionic specializations
@@ -280,9 +288,8 @@ function fermion_contraction_phase(x::SectorDelta{<:Any, N}, length_codomain::In
 end
 
 function Base.permutedims(x::SectorArray, perm)
-    new_labels = ntuple(n -> label(x, perm[n]), Val(ndims(x)))
-    new_isdual = ntuple(n -> isdual(x, perm[n]), Val(ndims(x)))
-    y = SectorArray(new_labels, new_isdual, similar(x.data, size(x)[collect(perm)]))
+    new_sector = permutedims(sector(x), perm)
+    y = SectorArray(new_sector, similar(data(x), size(x)[collect(perm)]))
     return permutedims!(y, x, perm)
 end
 function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
@@ -290,9 +297,7 @@ function Base.permutedims!(y::SectorArray, x::SectorArray, perm)
     return y
 end
 function FI.permuteddims(x::SectorArray, perm)
-    new_labels = ntuple(n -> label(x, perm[n]), Val(ndims(x)))
-    new_isdual = ntuple(n -> isdual(x, perm[n]), Val(ndims(x)))
-    return SectorArray(new_labels, new_isdual, FI.permuteddims(x.data, perm))
+    return SectorArray(permutedims(sector(x), perm), FI.permuteddims(data(x), perm))
 end
 
 # TODO: Define this as part of:
@@ -315,15 +320,11 @@ end
 
 # Other
 # -----
-function KroneckerArrays.:(⊗)(A::SectorDelta{T, N}, data::AbstractArray{T, N}) where {T, N}
-    return SectorArray(A.labels, A.isdual, data)
-end
 function KroneckerArrays.:(⊗)(
-        A::SectorDelta{T₁, N},
-        data::AbstractArray{T₂, N}
-    ) where {T₁, T₂, N}
-    T = Base.promote_type(*, T₁, T₂)
-    return SectorArray(A.labels, A.isdual, collect(T, data))
+        A::SectorDelta{<:Any, N},
+        data::AbstractArray{<:Any, N}
+    ) where {N}
+    return SectorArray(A, data)
 end
 
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)

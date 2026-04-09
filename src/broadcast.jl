@@ -14,7 +14,7 @@ BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type, ax)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa SectorArray, bc′.args)]
-    return SectorArray(arg.labels, arg.isdual, similar(arg.data, elt))
+    return similar(arg, elt, axes(arg))
 end
 
 function Base.copyto!(dest::SectorArray, bc::BC.Broadcasted{<:SectorStyle})

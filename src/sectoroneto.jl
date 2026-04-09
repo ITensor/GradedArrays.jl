@@ -42,6 +42,8 @@ labels(si::SectorOneTo) = [label(si)]
 sectors(si::SectorOneTo) = [SectorRange(label(si), isdual(si))]
 sector_multiplicities(si::SectorOneTo) = [sector_multiplicity(si)]
 BlockArrays.blocklength(si::SectorOneTo) = 1
+Base.first(::SectorOneTo) = 1
+Base.last(si::SectorOneTo) = length(si)
 Base.length(si::SectorOneTo) = quantum_dimension(sector(si)) * sector_multiplicity(si)
 
 # sector_type, SymmetryStyle

@@ -39,7 +39,7 @@ using Test: @test, @test_throws, @testset
         @test blk isa SectorArray
         @test blk.data == data11
         @test labels(blk) == (TKS.U1Irrep(0), TKS.U1Irrep(0))
-        @test blk.isdual == (false, false)
+        @test blk.isduals == (false, false)
     end
 
     @testset "Block getindex returns correct labels and isdual" begin
@@ -50,7 +50,7 @@ using Test: @test, @test_throws, @testset
 
         blk = a[Block(1, 1)]
         @test labels(blk) == (TKS.U1Irrep(0), TKS.U1Irrep(0))
-        @test blk.isdual == (true, false)
+        @test blk.isduals == (true, false)
     end
 
     @testset "Block getindex for unstored block returns zeros" begin
@@ -110,7 +110,7 @@ using Test: @test, @test_throws, @testset
 
         a[Block(1, 1)] = ones(2, 1)
         blk = a[Block(1, 1)]
-        @test blk.isdual == (true, true)
+        @test blk.isduals == (true, true)
     end
 
     @testset "similar" begin

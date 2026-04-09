@@ -124,7 +124,7 @@ using Test: @test, @test_throws, @testset
         sa2 = copy(sa)
         @test sa2[1, 1] == sa[1, 1]
         @test labels(sa2) === labels(sa)
-        @test sa2.isdual === sa.isdual
+        @test sa2.isduals === sa.isduals
 
         # Verify it's a deep copy of data
         sa2[1, 1] = 999.0

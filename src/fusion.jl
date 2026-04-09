@@ -117,10 +117,10 @@ function TensorAlgebra.matricize(
         end
     )
 
-    adata_reshaped = matricize(a.data, Val(K))
+    adata_reshaped = matricize(data(a), Val(K))
     isone(phase) || (adata_reshaped = phase .* adata_reshaped)
 
-    return SectorArray(asectors_reshaped.labels, asectors_reshaped.isdual, adata_reshaped)
+    return SectorArray(asectors_reshaped, adata_reshaped)
 end
 
 # ========================  AbelianArray matricize  ========================
