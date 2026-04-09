@@ -168,7 +168,7 @@ function block_reshape(
         dest_block = matricize(src_block, ndims_codomain)
 
         # Store in the 2D array
-        a_2d.blockdata[(row_block, col_block)] = dest_block.data
+        a_2d[Block(row_block, col_block)] = dest_block.data
     end
 
     return a_2d
@@ -253,8 +253,7 @@ function block_unreshape(
         # codomain/domain dims are contiguous (1:K and K+1:N), this is already
         # in the right order.
 
-        dest_bk = (ci_cod..., ci_dom...)
-        a.blockdata[dest_bk] = dest_data
+        a[Block(ci_cod..., ci_dom...)] = dest_data
     end
 
     return a
