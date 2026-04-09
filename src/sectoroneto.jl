@@ -27,6 +27,16 @@ isdual(si::SectorOneTo) = si.isdual
 # Derived accessors
 sector(si::SectorOneTo) = SectorRange(label(si), isdual(si))
 
+# Kronecker factor decomposition:
+# SectorOneTo = SectorRange (sector axis) ⊗ OneTo (data axis)
+data(si::SectorOneTo) = Base.OneTo(sector_multiplicity(si))
+sectoraxes(si::SectorOneTo) = (sector(si),)
+dataaxes(si::SectorOneTo) = (data(si),)
+
+# Generic single-axis accessors (like axes1 = first ∘ axes)
+sectoraxes1(a) = first(sectoraxes(a))
+dataaxes1(a) = first(dataaxes(a))
+
 # Duck-typed interface matching GradedOneTo
 labels(si::SectorOneTo) = [label(si)]
 sectors(si::SectorOneTo) = [SectorRange(label(si), isdual(si))]

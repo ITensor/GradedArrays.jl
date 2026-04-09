@@ -195,7 +195,7 @@ function Base.getindex(
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
     a_dest = similar(a, ax_dest)
-    ax = a.axes
+    ax = axes(a)
     # Map source Block → BlockIndexRange encoding dest block + subrange within it
     src_to_dest = ntuple(Val(N)) do d
         key_type = eltype(I[d])
@@ -269,8 +269,8 @@ sector_type(::Type{<:AbelianArray{T, N, I}}) where {T, N, I} = SectorRange{I}
 # ---------------------------------------------------------------------------
 
 function Base.permutedims(a::AbelianArray{<:Any, N}, perm) where {N}
-    dest_axes = ntuple(i -> a.axes[perm[i]], Val(N))
-    a_dest = AbelianArray{eltype(a)}(undef, dest_axes)
+    dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
+    a_dest = similar(a, dest_axes)
     return permutedims!(a_dest, a, perm)
 end
 

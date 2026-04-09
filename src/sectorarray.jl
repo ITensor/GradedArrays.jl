@@ -182,6 +182,11 @@ function sector_multiplicities(sa::SectorArray)
     )
 end
 
+# Kronecker factor decomposition
+data(sa::SectorArray) = sa.data
+sectoraxes(sa::SectorArray) = sectors(sa)
+dataaxes(sa::SectorArray) = axes(data(sa))
+
 sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = SectorRange{I}
 data_type(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
 
@@ -215,9 +220,9 @@ function Base.similar(
         ::Type{T},
         axes::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
-    sects = map(sector, axes)
-    data_dims = map(length, axes)
-    return SectorArray(sects, similar(a.data, T, Tuple(data_dims)))
+    sects = map(sectoraxes1, axes)
+    data_ax = map(dataaxes1, axes)
+    return SectorArray(sects, similar(data(a), T, data_ax))
 end
 
 function FI.zero!(A::SectorArray)

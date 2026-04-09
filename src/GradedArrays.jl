@@ -11,7 +11,9 @@ export gradedrange
 
 export dual, flip, gradedrange, isdual,
     labels,
-    sector, sector_multiplicities, sector_multiplicity,
+    data, dataaxes, dataaxes1,
+    sector, sectoraxes, sectoraxes1,
+    sector_multiplicities, sector_multiplicity,
     sectorrange, sectors, sector_type
 
 # imports
