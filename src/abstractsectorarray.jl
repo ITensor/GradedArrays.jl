@@ -1,16 +1,3 @@
-# ========================  Abstract types  ========================
-
-"""
-    AbstractSectorDelta{T,N} <: AbstractArray{T,N}
-
-Abstract supertype for structural (Kronecker/identity) tensors associated to sector labels.
-Concrete subtypes:
-
-  - [`AbelianSectorDelta`](@ref): unfused N-D abelian structural tensor (product of Kronecker deltas)
-  - [`SectorIdentity`](@ref): fused 2D structural factor (identity matrix per coupled sector)
-"""
-abstract type AbstractSectorDelta{T, N} <: AbstractArray{T, N} end
-
 """
     AbstractSectorArray{T,N} <: AbstractArray{T,N}
 
@@ -21,8 +8,6 @@ Concrete subtypes:
   - [`SectorMatrix`](@ref): fused 2D data matrix (one coupled sector label)
 """
 abstract type AbstractSectorArray{T, N} <: AbstractArray{T, N} end
-
-# ========================  Shared AbstractSectorArray interface  ========================
 
 """
     data(sa::AbstractSectorArray)
@@ -49,11 +34,6 @@ Base.@propagate_inbounds function Base.setindex!(
     @inbounds data(A)[I...] = v
     return A
 end
-
-# ========================  Shared AbstractSectorDelta interface  ========================
-
-Base.copy(A::AbstractSectorDelta) = A
-Base.size(A::AbstractSectorDelta) = length.(axes(A))
 
 # ========================  Shared utilities  ========================
 

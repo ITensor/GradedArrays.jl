@@ -36,13 +36,14 @@ using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 include("sectorrange.jl")
 include("sectoroneto.jl")
 include("gradedoneto.jl")
-include("abstractsectortypes.jl")
+include("abstractsectordelta.jl")
+include("abstractsectorarray.jl")
 include("abeliansectorarray.jl")
 include("sectormatrix.jl")
 include("abstractgradedarray.jl")
-include("abelianarray.jl")
+include("abeliangradedarray.jl")
 
-include("fusedsectormatrix.jl")
+include("fusedgradedmatrix.jl")
 
 include("sectorproduct.jl")
 
