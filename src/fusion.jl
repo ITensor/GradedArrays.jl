@@ -331,7 +331,7 @@ function TensorAlgebra.permutedimsopadd!(
     ) where {N}
     if !iszero(β)
         for bI in eachblockstoredindex(y)
-            y_b = @view!(y[bI])
+            y_b = view(y, bI)
             idperm = ntuple(identity, ndims(y_b))
             TensorAlgebra.permutedimsopadd!(y_b, identity, y_b, idperm, β, false)
         end
@@ -339,7 +339,7 @@ function TensorAlgebra.permutedimsopadd!(
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
         b_dest = Block(ntuple(i -> b[perm[i]], N))
-        y_b = @view!(y[b_dest])
+        y_b = view!(y, Tuple(b_dest)...)
         x_b = x[bI]
         TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, true)
     end

@@ -193,7 +193,7 @@ function Base.getindex(
             src_data = view(a[bI_src], src_r...)
             iszero(src_data) && continue
             dest_b = Block(ntuple(d -> only(Tuple(combo[d][1].block)), Val(N)))
-            a_dest_b = @view!(a_dest[dest_b])
+            a_dest_b = view(a_dest, dest_b)
             dest_r = ntuple(d -> only(combo[d][1].indices), Val(N))
             copyto!(view(a_dest_b, dest_r...), src_data)
         end
@@ -235,7 +235,7 @@ function Base.getindex(
         src_tuple = Tuple(bI_src)
         dest_info = ntuple(d -> src_to_dest[d][src_tuple[d]], Val(N))
         dest_b = Block(map(di -> only(Tuple(di.block)), dest_info))
-        a_dest_b = @view!(a_dest[dest_b])
+        a_dest_b = view(a_dest, dest_b)
         dest_r = map(di -> only(di.indices), dest_info)
         copyto!(view(a_dest_b, dest_r...), a[bI_src])
     end

@@ -22,7 +22,7 @@ import FunctionImplementations as FI
 using BlockArrays: BlockArrays, AbstractBlockVector, Block, BlockIndexRange, BlockVector,
     blocklength, blocklengths, blocks
 using BlockSparseArrays:
-    BlockSparseArrays, @view!, eachblockaxis, eachblockstoredindex, mortar_axis, view!
+    BlockSparseArrays, eachblockaxis, eachblockstoredindex, mortar_axis, view!
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, matricize_axes,
