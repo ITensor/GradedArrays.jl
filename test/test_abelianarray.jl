@@ -13,7 +13,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "Construction" begin
         a = AbelianArray{Float64}(undef, g1, g2)
-        @test a isa AbelianArray{Float64, 2, TKS.U1Irrep, Matrix{Float64}}
+        @test a isa AbelianArray{Float64, 2, Matrix{Float64}, TKS.U1Irrep}
         @test a isa AbstractGradedArray{Float64, 2}
         @test a isa AbstractArray{Float64, 2}
         @test size(a) == (5, 3)

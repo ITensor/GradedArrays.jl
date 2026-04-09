@@ -263,8 +263,8 @@ function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
 
     # Compute unfused 2D axes via the fusion tree.
     # We need a dummy array for trivial_axis dispatch; an empty AbelianArray suffices.
-    dummy = AbelianArray{Float64, N, I, Array{Float64, N}}(
-        axs, Dict{NTuple{N, Int}, Array{Float64, N}}()
+    dummy = AbelianArray{Float64, N, Array{Float64, N}, I}(
+        Dict{NTuple{N, Int}, Array{Float64, N}}(), axs
     )
     unfused_cod, unfused_dom = matricize_axes(
         SectorFusion(), dummy, codomain_axs, domain_axs

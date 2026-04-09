@@ -3,7 +3,7 @@
 # ===========================================================================
 
 """
-    AbelianArray{T,N,I<:TKS.Sector,D<:AbstractArray{T,N}} <: AbstractGradedArray{T,N}
+    AbelianArray{T,N,D<:AbstractArray{T,N},I<:TKS.Sector} <: AbstractGradedArray{T,N}
 
 A graded array that stores non-zero blocks in a dictionary keyed by block indices.
 Each axis is a [`GradedOneTo`](@ref) carrying sector labels, multiplicities, and a dual flag.
@@ -12,10 +12,10 @@ Blocks are stored as plain dense arrays of type `D` (default `Array{T,N}`).
 Accessing a block via `a[Block(i,j)]` returns a [`SectorArray`](@ref) wrapping the data
 with the appropriate sector labels and dual flags.
 """
-struct AbelianArray{T, N, I <: TKS.Sector, D <: AbstractArray{T, N}} <:
+struct AbelianArray{T, N, D <: AbstractArray{T, N}, I <: TKS.Sector} <:
     AbstractGradedArray{T, N}
-    axes::NTuple{N, GradedOneTo{I}}
     blockdata::Dict{NTuple{N, Int}, D}
+    axes::NTuple{N, GradedOneTo{I}}
 end
 
 # ---------------------------------------------------------------------------
@@ -26,23 +26,23 @@ end
 function allowedblocks end
 
 # Fully-parameterized undef constructor: finds allowed blocks, allocates, calls inner.
-function AbelianArray{T, N, I, D}(
+function AbelianArray{T, N, D, I}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
-    ) where {T, N, I <: TKS.Sector, D <: AbstractArray{T, N}}
+    ) where {T, N, D <: AbstractArray{T, N}, I <: TKS.Sector}
     bks = allowedblocks(axs)
     blockdata = Dict{NTuple{N, Int}, D}(
         Int.(Tuple(bk)) =>
             D(undef, ntuple(d -> blocklengths(axs[d])[Int(Tuple(bk)[d])], Val(N)))
             for bk in bks
     )
-    return AbelianArray{T, N, I, D}(axs, blockdata)
+    return AbelianArray{T, N, D, I}(blockdata, axs)
 end
 
 # Convenience: infer D = Array{T,N} and I from axes.
 function AbelianArray{T}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
     ) where {T, N, I <: TKS.Sector}
-    return AbelianArray{T, N, I, Array{T, N}}(undef, axs)
+    return AbelianArray{T, N, Array{T, N}, I}(undef, axs)
 end
 
 function AbelianArray{T}(
@@ -58,9 +58,9 @@ end
 Base.size(a::AbelianArray) = map(length, a.axes)
 Base.axes(a::AbelianArray) = a.axes
 function BlockSparseArrays.blocktype(
-        ::Type{<:AbelianArray{T, N, I, D}}
-    ) where {T, N, I, D}
-    return SectorArray{T, N, I, D}
+        ::Type{<:AbelianArray{T, N, D, I}}
+    ) where {T, N, D, I}
+    return SectorArray{T, N, D, I}
 end
 BlockSparseArrays.blocktype(a::AbelianArray) = BlockSparseArrays.blocktype(typeof(a))
 
@@ -265,7 +265,7 @@ function Base.similar(
     D = datatype(BlockSparseArrays.blocktype(a))
     D_N = Base.promote_op(similar, D, Type{S}, NTuple{N, Base.OneTo{Int}})
     D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
-    return AbelianArray{S, N, I, D_N′}(undef, axes)
+    return AbelianArray{S, N, D_N′, I}(undef, axes)
 end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
@@ -283,7 +283,7 @@ end
 #  sector_type
 # ---------------------------------------------------------------------------
 
-sector_type(::Type{<:AbelianArray{T, N, I}}) where {T, N, I} = SectorRange{I}
+sector_type(::Type{<:AbelianArray{T, N, D, I}}) where {T, N, D, I} = SectorRange{I}
 
 # ---------------------------------------------------------------------------
 #  permutedims
@@ -324,8 +324,8 @@ end
 #  Matrix multiplication (block-diagonal)
 # ---------------------------------------------------------------------------
 
-const AbelianVector{T, I, D} = AbelianArray{T, 1, I, D}
-const AbelianMatrix{T, I, D} = AbelianArray{T, 2, I, D}
+const AbelianVector{T, D, I} = AbelianArray{T, 1, D, I}
+const AbelianMatrix{T, D, I} = AbelianArray{T, 2, D, I}
 
 # ---------------------------------------------------------------------------
 #  show

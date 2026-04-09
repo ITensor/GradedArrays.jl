@@ -7,7 +7,7 @@ using Test: @test, @test_throws, @testset
     @testset "Construction from labels, isdual, data" begin
         data = [1.0 2.0; 3.0 4.0]
         sa = SectorArray((TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data)
-        @test sa isa SectorArray{Float64, 2, TKS.U1Irrep, Matrix{Float64}}
+        @test sa isa SectorArray{Float64, 2, Matrix{Float64}, TKS.U1Irrep}
         @test sa isa AbstractArray{Float64, 2}
         @test !(sa isa GradedArrays.KroneckerArrays.AbstractKroneckerArray)
     end
@@ -136,7 +136,7 @@ using Test: @test, @test_throws, @testset
         sa = SectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(1)), (false, false), data
         )
-        T = SectorArray{Float64, 2, TKS.U1Irrep, Matrix{Float64}}
+        T = SectorArray{Float64, 2, Matrix{Float64}, TKS.U1Irrep}
         sa2 = convert(T, sa)
         @test eltype(sa2) == Float64
         @test sa2[1, 1] === 1.0

@@ -3,7 +3,7 @@
 # ===========================================================================
 
 """
-    FusedSectorMatrix{T,I<:TKS.Sector,D<:AbstractMatrix{T}}
+    FusedSectorMatrix{T,D<:AbstractMatrix{T},I<:TKS.Sector}
 
 Block-diagonal matrix produced by matricizing an `AbstractGradedArray`.
 Each diagonal block corresponds to a coupled sector from fusing codomain/domain legs.
@@ -17,7 +17,7 @@ The codomain (row) axis is non-dual with sectors `labels[i]` and multiplicities
 derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
 `dual(labels[i])` and multiplicities from `size(blocks[i], 2)`.
 """
-struct FusedSectorMatrix{T, I <: TKS.Sector, D <: AbstractMatrix{T}} <:
+struct FusedSectorMatrix{T, D <: AbstractMatrix{T}, I <: TKS.Sector} <:
     AbstractGradedArray{T, 2}
     labels::Vector{I}
     blocks::Vector{D}
@@ -31,7 +31,7 @@ struct FusedSectorMatrix{T, I <: TKS.Sector, D <: AbstractMatrix{T}} <:
             throw(ArgumentError("labels must be sorted"))
         allunique(SectorRange.(labels)) ||
             throw(ArgumentError("labels must be unique"))
-        return new{T, I, D}(labels, blocks)
+        return new{T, D, I}(labels, blocks)
     end
 end
 
@@ -39,13 +39,13 @@ end
 
 labels(m::FusedSectorMatrix) = m.labels
 BlockArrays.blocklength(m::FusedSectorMatrix) = length(m.labels)
-function BlockSparseArrays.blocktype(::Type{<:FusedSectorMatrix{T, I, D}}) where {T, I, D}
-    return SectorArray{T, 2, I, D}
+function BlockSparseArrays.blocktype(::Type{<:FusedSectorMatrix{T, D, I}}) where {T, D, I}
+    return SectorArray{T, 2, D, I}
 end
 BlockSparseArrays.blocktype(m::FusedSectorMatrix) = BlockSparseArrays.blocktype(typeof(m))
-sector_type(::Type{<:FusedSectorMatrix{T, I}}) where {T, I} = SectorRange{I}
+sector_type(::Type{<:FusedSectorMatrix{T, D, I}}) where {T, D, I} = SectorRange{I}
 
-function Base.axes(m::FusedSectorMatrix{T, I}) where {T, I}
+function Base.axes(m::FusedSectorMatrix)
     codomain_sectors = SectorRange.(m.labels)
     domain_sectors = dual.(codomain_sectors)
     codomain = gradedrange(codomain_sectors .=> size.(m.blocks, 1))

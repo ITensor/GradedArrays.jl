@@ -128,7 +128,7 @@ Each dimension has:
   - a dual flag (`isdual`): whether that dimension is in the dual space
   - a data slice from `data`: the reduced matrix element storage
 """
-struct SectorArray{T, N, I <: TKS.Sector, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
+struct SectorArray{T, N, A <: AbstractArray{T, N}, I <: TKS.Sector} <: AbstractArray{T, N}
     labels::NTuple{N, I}
     isduals::NTuple{N, Bool}
     data::A
@@ -142,7 +142,7 @@ function SectorArray{T}(
         dims::NTuple{N, Int}
     ) where {T, N, I <: TKS.Sector}
     data = Array{T, N}(undef, dims)
-    return SectorArray{T, N, I, Array{T, N}}(labels, isduals, data)
+    return SectorArray{T, N, Array{T, N}, I}(labels, isduals, data)
 end
 
 # Convenience: construct from SectorRange tuples (backward compat bridge)
@@ -160,7 +160,7 @@ function SectorArray(delta::SectorDelta{<:Any, N}, data::AbstractArray{<:Any, N}
     return SectorArray(delta.labels, delta.isduals, data)
 end
 
-const SectorMatrix{T, I, A <: AbstractMatrix{T}} = SectorArray{T, 2, I, A}
+const SectorMatrix{T, A <: AbstractMatrix{T}, I <: TKS.Sector} = SectorArray{T, 2, A, I}
 
 # Primitive accessors
 # -------------------
@@ -183,8 +183,8 @@ data(sa::SectorArray) = sa.data
 sector(sa::SectorArray) = SectorDelta{eltype(sa)}(sa.labels, sa.isduals)
 dataaxes(sa::SectorArray) = axes(data(sa))
 
-sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = SectorRange{I}
-datatype(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
+sector_type(::Type{<:SectorArray{T, N, A, I}}) where {T, N, A, I} = SectorRange{I}
+datatype(::Type{SectorArray{T, N, A, I}}) where {T, N, A, I} = A
 
 # AbstractArray interface
 # -----------------------
@@ -240,9 +240,9 @@ function Base.fill!(A::SectorArray, v)
 end
 
 function Base.convert(
-        ::Type{SectorArray{T₁, N, I, A}},
-        x::SectorArray{T₂, N, I, B}
-    )::SectorArray{T₁, N, I, A} where {T₁, T₂, N, I, A, B}
+        ::Type{SectorArray{T₁, N, A, I}},
+        x::SectorArray{T₂, N, B, I}
+    )::SectorArray{T₁, N, A, I} where {T₁, T₂, N, A, B, I}
     A === B && return x
     return SectorArray(sector(x), convert(A, data(x)))
 end
