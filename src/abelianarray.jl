@@ -304,12 +304,22 @@ function Base.permutedims!(
 end
 
 # ---------------------------------------------------------------------------
-#  fill! / zero!
+#  fill! / zero! / scale!
 # ---------------------------------------------------------------------------
 
-function FI.zero!(a::AbelianArray)
-    for bk in keys(a.blockdata)
-        fill!(a.blockdata[bk], zero(eltype(a)))
+scale!(a::SectorArray, β::Number) = (a.data .*= β; a)
+FI.zero!(a::SectorArray) = (fill!(a.data, zero(eltype(a))); a)
+
+function scale!(a::AbstractGradedArray, β::Number)
+    for bI in eachblockstoredindex(a)
+        scale!(view(a, bI), β)
+    end
+    return a
+end
+
+function FI.zero!(a::AbstractGradedArray)
+    for bI in eachblockstoredindex(a)
+        FI.zero!(view(a, bI))
     end
     return a
 end

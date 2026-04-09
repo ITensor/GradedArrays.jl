@@ -225,11 +225,6 @@ function Base.similar(
     return SectorArray(sects, similar(data(a), T, data_ax))
 end
 
-function FI.zero!(A::SectorArray)
-    fill!(A.data, zero(eltype(A)))
-    return A
-end
-
 function Base.fill!(A::SectorArray, v)
     if iszero(v)
         return FI.zero!(A)

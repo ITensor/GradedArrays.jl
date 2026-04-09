@@ -329,13 +329,7 @@ function TensorAlgebra.permutedimsopadd!(
         y::AbelianArray{<:Any, N}, op, x::AbelianArray{<:Any, N}, perm,
         α::Number, β::Number
     ) where {N}
-    if !iszero(β)
-        for bI in eachblockstoredindex(y)
-            y_b = view(y, bI)
-            idperm = ntuple(identity, ndims(y_b))
-            TensorAlgebra.permutedimsopadd!(y_b, identity, y_b, idperm, β, false)
-        end
-    end
+    iszero(β) || scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
         b_dest = Block(ntuple(i -> b[perm[i]], N))
