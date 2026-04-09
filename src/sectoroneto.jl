@@ -37,6 +37,9 @@ dataaxes(si::SectorOneTo) = (data(si),)
 sectoraxes1(a) = first(sectoraxes(a))
 dataaxes1(a) = first(dataaxes(a))
 
+# Type-level data axis type (for promote_op in similar)
+dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
+
 # Duck-typed interface matching GradedOneTo
 labels(si::SectorOneTo) = [label(si)]
 sectors(si::SectorOneTo) = [SectorRange(label(si), isdual(si))]

@@ -263,7 +263,8 @@ function Base.similar(
     ) where {S, I}
     N = length(axes)
     D = datatype(BlockSparseArrays.blocktype(a))
-    D_N = Base.promote_op(similar, D, Type{S}, NTuple{N, Base.OneTo{Int}})
+    data_ax_types = Tuple{ntuple(d -> dataaxistype(typeof(axes[d])), Val(N))...}
+    D_N = Base.promote_op(similar, D, Type{S}, data_ax_types)
     D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
     return AbelianArray{S, N, D_N′, I}(undef, axes)
 end

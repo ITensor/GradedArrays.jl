@@ -55,6 +55,7 @@ function BlockArrays.blocklengths(g::GradedOneTo)
 end
 
 quantum_dimension(g::GradedOneTo) = length(g)
+dataaxistype(::Type{<:GradedOneTo}) = Base.OneTo{Int}
 
 function trivial(::Type{GradedOneTo{I}}) where {I}
     return gradedrange([one(I) => 1])
