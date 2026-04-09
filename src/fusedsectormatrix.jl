@@ -39,8 +39,10 @@ end
 
 labels(m::FusedSectorMatrix) = m.labels
 BlockArrays.blocklength(m::FusedSectorMatrix) = length(m.labels)
-BlockSparseArrays.blocktype(::Type{<:FusedSectorMatrix{T, I, D}}) where {T, I, D} = D
-BlockSparseArrays.blocktype(m::FusedSectorMatrix) = blocktype(typeof(m))
+function BlockSparseArrays.blocktype(::Type{<:FusedSectorMatrix{T, I, D}}) where {T, I, D}
+    return SectorArray{T, 2, I, D}
+end
+BlockSparseArrays.blocktype(m::FusedSectorMatrix) = BlockSparseArrays.blocktype(typeof(m))
 sector_type(::Type{<:FusedSectorMatrix{T, I}}) where {T, I} = SectorRange{I}
 
 function Base.axes(m::FusedSectorMatrix{T, I}) where {T, I}

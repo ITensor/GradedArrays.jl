@@ -45,7 +45,7 @@ function BlockSparseArrays.blocktype(
     ) where {T, N, I, D}
     return SectorArray{T, N, I, D}
 end
-BlockSparseArrays.blocktype(a::AbelianArray) = blocktype(typeof(a))
+BlockSparseArrays.blocktype(a::AbelianArray) = BlockSparseArrays.blocktype(typeof(a))
 
 # ---------------------------------------------------------------------------
 #  view (primitive): returns SectorArray sharing data with blockdata
@@ -242,9 +242,13 @@ end
 function Base.similar(
         a::AbstractGradedArray,
         ::Type{S},
-        axes::Tuple{Vararg{GradedOneTo}}
-    ) where {S}
-    return AbelianArray{S}(undef, axes)
+        axes::Tuple{GradedOneTo{I}, Vararg{GradedOneTo{I}}}
+    ) where {S, I}
+    N = length(axes)
+    D = datatype(BlockSparseArrays.blocktype(a))
+    D_N = Base.promote_op(similar, D, Type{S}, NTuple{N, Base.OneTo{Int}})
+    D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
+    return AbelianArray{S, N, I, D_N′}(axes, Dict{NTuple{N, Int}, D_N′}())
 end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}

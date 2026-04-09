@@ -188,7 +188,7 @@ sectoraxes(sa::SectorArray) = sectors(sa)
 dataaxes(sa::SectorArray) = axes(data(sa))
 
 sector_type(::Type{<:SectorArray{T, N, I}}) where {T, N, I} = SectorRange{I}
-data_type(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
+datatype(::Type{SectorArray{T, N, I, A}}) where {T, N, I, A} = A
 
 # AbstractArray interface
 # -----------------------
