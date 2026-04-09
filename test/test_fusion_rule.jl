@@ -1,6 +1,6 @@
 using BlockArrays: blocklengths
 using GradedArrays: GradedArrays, O2, SU2, TrivialSector, U1, Z, dual, flip, gradedrange,
-    nsymbol, quantum_dimension, tensor_product, trivial, unmerged_tensor_product, ⊗
+    nsymbol, quantum_dimension, tensor_product, trivial, unmerged_tensor_product
 using SUNRepresentations: SUNIrrep
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
@@ -12,15 +12,15 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         z0 = Z{2}(0)
         z1 = Z{2}(1)
 
-        @test z0 ⊗ z0 == z0
-        @test z0 ⊗ z1 == z1
-        @test z1 ⊗ z1 == z0
-        @test (@constinferred z0 ⊗ z0) == z0
+        @test tensor_product(z0, z0) == z0
+        @test tensor_product(z0, z1) == z1
+        @test tensor_product(z1, z1) == z0
+        @test (@constinferred tensor_product(z0, z0)) == z0
 
         q = TrivialSector()
-        @test (@constinferred q ⊗ q) == q
-        @test (@constinferred q ⊗ z0) == z0
-        @test (@constinferred z1 ⊗ q) == z1
+        @test (@constinferred tensor_product(q, q)) == q
+        @test (@constinferred tensor_product(q, z0)) == z0
+        @test (@constinferred tensor_product(z1, q)) == z1
         @test nsymbol(q, q, q) == 1
 
         # test different input number
@@ -35,10 +35,10 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         q2 = U1(2)
         q3 = U1(3)
 
-        @test q1 ⊗ q1 == U1(2)
-        @test q1 ⊗ q2 == U1(3)
-        @test q2 ⊗ q1 == U1(3)
-        @test (@constinferred q1 ⊗ q2) == q3
+        @test tensor_product(q1, q1) == U1(2)
+        @test tensor_product(q1, q2) == U1(3)
+        @test tensor_product(q2, q1) == U1(3)
+        @test (@constinferred tensor_product(q1, q2)) == q3
         @test nsymbol(q1, q2, q3) == 1
         @test nsymbol(q1, q1, q3) == 0
     end
@@ -50,22 +50,24 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         s1 = O2(1)
 
         q = TrivialSector()
-        @test (@constinferred s0e ⊗ q) == gradedrange([s0e => 1])
-        @test (@constinferred q ⊗ s0o) == gradedrange([s0o => 1])
+        @test (@constinferred tensor_product(s0e, q)) == gradedrange([s0e => 1])
+        @test (@constinferred tensor_product(q, s0o)) == gradedrange([s0o => 1])
 
-        @test (@constinferred s0e ⊗ s0e) == gradedrange([s0e => 1])
-        @test (@constinferred s0o ⊗ s0e) == gradedrange([s0o => 1])
-        @test (@constinferred s0o ⊗ s0e) == gradedrange([s0o => 1])
-        @test (@constinferred s0o ⊗ s0o) == gradedrange([s0e => 1])
+        @test (@constinferred tensor_product(s0e, s0e)) == gradedrange([s0e => 1])
+        @test (@constinferred tensor_product(s0o, s0e)) == gradedrange([s0o => 1])
+        @test (@constinferred tensor_product(s0o, s0e)) == gradedrange([s0o => 1])
+        @test (@constinferred tensor_product(s0o, s0o)) == gradedrange([s0e => 1])
 
-        @test (@constinferred s0e ⊗ s12) == gradedrange([s12 => 1])
-        @test (@constinferred s0o ⊗ s12) == gradedrange([s12 => 1])
-        @test (@constinferred s12 ⊗ s0e) == gradedrange([s12 => 1])
-        @test (@constinferred s12 ⊗ s0o) == gradedrange([s12 => 1])
-        @test (@constinferred s12 ⊗ s1) == gradedrange([s12 => 1, O2(3 // 2) => 1])
-        @test (@constinferred s12 ⊗ s12) == gradedrange([s0e => 1, s0o => 1, s1 => 1])
+        @test (@constinferred tensor_product(s0e, s12)) == gradedrange([s12 => 1])
+        @test (@constinferred tensor_product(s0o, s12)) == gradedrange([s12 => 1])
+        @test (@constinferred tensor_product(s12, s0e)) == gradedrange([s12 => 1])
+        @test (@constinferred tensor_product(s12, s0o)) == gradedrange([s12 => 1])
+        @test (@constinferred tensor_product(s12, s1)) ==
+            gradedrange([s12 => 1, O2(3 // 2) => 1])
+        @test (@constinferred tensor_product(s12, s12)) ==
+            gradedrange([s0e => 1, s0o => 1, s1 => 1])
 
-        @test (@constinferred quantum_dimension(s0o ⊗ s1)) == 2
+        @test (@constinferred quantum_dimension(tensor_product(s0o, s1))) == 2
     end
 
     @testset "SU2 fusion rules" begin
@@ -75,12 +77,12 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         j4 = SU2(3 // 2)
         j5 = SU2(2)
 
-        @test j1 ⊗ j2 == gradedrange([j2 => 1])
-        @test j2 ⊗ j2 == gradedrange([j1 => 1, j3 => 1])
-        @test j2 ⊗ j3 == gradedrange([j2 => 1, j4 => 1])
-        @test j3 ⊗ j3 == gradedrange([j1 => 1, j3 => 1, j5 => 1])
-        @test (@constinferred j1 ⊗ j2) == gradedrange([j2 => 1])
-        @test (@constinferred quantum_dimension(j1 ⊗ j2)) == 2
+        @test tensor_product(j1, j2) == gradedrange([j2 => 1])
+        @test tensor_product(j2, j2) == gradedrange([j1 => 1, j3 => 1])
+        @test tensor_product(j2, j3) == gradedrange([j2 => 1, j4 => 1])
+        @test tensor_product(j3, j3) == gradedrange([j1 => 1, j3 => 1, j5 => 1])
+        @test (@constinferred tensor_product(j1, j2)) == gradedrange([j2 => 1])
+        @test (@constinferred quantum_dimension(tensor_product(j1, j2))) == 2
 
         @test tensor_product(j2) == j2
         @test tensor_product(j2, j1) == gradedrange([j2 => 1])
@@ -257,8 +259,8 @@ end
         @test (@constinferred tensor_product(SU2(1 // 2), g3)) == g4
 
         # test different simple sectors cannot be fused
-        @test_throws MethodError Z{2}(0) ⊗ U1(1)
-        @test_throws MethodError SU2(1) ⊗ U1(1)
+        @test_throws MethodError tensor_product(Z{2}(0), U1(1))
+        @test_throws MethodError tensor_product(SU2(1), U1(1))
         @test_throws MethodError tensor_product(g1, SU2(1))
         @test_throws MethodError tensor_product(U1(1), g3)
     end

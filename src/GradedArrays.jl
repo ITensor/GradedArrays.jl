@@ -25,7 +25,7 @@ using BlockArrays: BlockArrays, AbstractBlockVector, Block, BlockIndexRange, Blo
     blocklength, blocklengths, blocks
 using BlockSparseArrays:
     BlockSparseArrays, eachblockaxis, eachblockstoredindex, mortar_axis, view!
-using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×
+using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, matricize_axes,
     permutedimsadd!, permutedimsopadd!, tensor_product_axis, trivial_axis, trivialbiperm,

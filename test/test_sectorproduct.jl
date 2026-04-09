@@ -1,7 +1,7 @@
 using BlockArrays: blocklengths
 using GradedArrays: GradedArrays, SU2, SectorProduct, TrivialSector, U1, Z, arguments, dual,
     flip, gradedrange, label, quantum_dimension, sector, sector_type, sectorproduct,
-    sectorrange, trivial, ×, ⊗
+    sectorrange, tensor_product, trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
@@ -97,34 +97,34 @@ using TestExtras: @constinferred
     @testset "Fusion of Abelian products" begin
         p1 = ×(U1(1))
         p2 = ×(U1(2))
-        @test (@constinferred p1 ⊗ TrivialSector()) == p1
-        @test (@constinferred TrivialSector() ⊗ p2) == p2
-        @test (@constinferred p1 ⊗ p2) == ×(U1(3))
+        @test (@constinferred tensor_product(p1, TrivialSector())) == p1
+        @test (@constinferred tensor_product(TrivialSector(), p2)) == p2
+        @test (@constinferred tensor_product(p1, p2)) == ×(U1(3))
 
         p11 = U1(1) × U1(1)
-        @test p11 ⊗ p11 == U1(2) × U1(2)
+        @test tensor_product(p11, p11) == U1(2) × U1(2)
 
         p123 = U1(1) × U1(2) × U1(3)
-        @test p123 ⊗ p123 == U1(2) × U1(4) × U1(6)
+        @test tensor_product(p123, p123) == U1(2) × U1(4) × U1(6)
 
         s1 = sectorproduct(U1(1), Z{2}(1))
         s2 = sectorproduct(U1(0), Z{2}(0))
-        @test s1 ⊗ s2 == U1(1) × Z{2}(1)
+        @test tensor_product(s1, s2) == U1(1) × Z{2}(1)
     end
 
     @testset "Fusion of NonAbelian products" begin
         p0 = ×(SU2(0))
         ph = ×(SU2(1 // 2))
-        @test (@constinferred p0 ⊗ TrivialSector()) == gradedrange(
+        @test (@constinferred tensor_product(p0, TrivialSector())) == gradedrange(
             [
                 sectorproduct(SU2(0)) => 1,
             ]
         )
-        @test (@constinferred TrivialSector() ⊗ ph) ==
+        @test (@constinferred tensor_product(TrivialSector(), ph)) ==
             gradedrange([sectorproduct(SU2(1 // 2)) => 1])
 
         phh = SU2(1 // 2) × SU2(1 // 2)
-        @test phh ⊗ phh == gradedrange(
+        @test tensor_product(phh, phh) == gradedrange(
             [
                 (SU2(0) × SU2(0)) => 1,
                 (SU2(1) × SU2(0)) => 1,
@@ -132,7 +132,7 @@ using TestExtras: @constinferred
                 (SU2(1) × SU2(1)) => 1,
             ]
         )
-        @test phh ⊗ phh == gradedrange(
+        @test tensor_product(phh, phh) == gradedrange(
             [
                 (SU2(0) × SU2(0)) => 1,
                 (SU2(1) × SU2(0)) => 1,
@@ -143,19 +143,19 @@ using TestExtras: @constinferred
     end
 
     @testset "Fusion of different length Categories" begin
-        @test (U1(1) × U1(0)) ⊗ ×(U1(1)) == U1(2) × U1(0)
-        @test (@constinferred (SU2(0) × SU2(0)) ⊗ ×(SU2(1))) ==
+        @test tensor_product(U1(1) × U1(0), ×(U1(1))) == U1(2) × U1(0)
+        @test (@constinferred tensor_product(SU2(0) × SU2(0), ×(SU2(1)))) ==
             gradedrange([(SU2(1) × SU2(0)) => 1])
 
-        @test (@constinferred (SU2(1) × U1(1)) ⊗ ×(SU2(0))) ==
+        @test (@constinferred tensor_product(SU2(1) × U1(1), ×(SU2(0)))) ==
             gradedrange([SU2(1) × U1(1) => 1])
-        @test (@constinferred U1(1) × SU2(1) ⊗ ×(U1(2))) ==
+        @test (@constinferred tensor_product(U1(1) × SU2(1), ×(U1(2)))) ==
             gradedrange([U1(3) × SU2(1) => 1])
 
         # check incompatible sectors
         p12 = Z{2}(1) × U1(2)
         z12 = Z{2}(1) × Z{2}(1)
-        @test_throws ArgumentError p12 ⊗ z12
+        @test_throws ArgumentError tensor_product(p12, z12)
     end
 
     @testset "GradedOneTo fusion rules" begin
@@ -163,7 +163,8 @@ using TestExtras: @constinferred
         s2 = U1(0) × SU2(1 // 2)
         g1 = gradedrange([s1 => 2])
         g2 = gradedrange([s2 => 1])
-        @test g1 ⊗ g2 == gradedrange([U1(1) × SU2(0) => 2, U1(1) × SU2(1) => 2])
+        @test tensor_product(g1, g2) ==
+            gradedrange([U1(1) × SU2(0) => 2, U1(1) × SU2(1) => 2])
     end
 end
 
@@ -283,19 +284,19 @@ end
         q01 = ×((; B = U1(1)))
         q11 = (; A = U1(1)) × (; B = U1(1))
 
-        @test (@constinferred q10 ⊗ q10) == ×((; A = U1(2)))
-        @test (@constinferred q01 ⊗ q00) == q01
-        @test (@constinferred q00 ⊗ q01) == q01
-        @test (@constinferred q10 ⊗ q01) == q11
-        @test q11 ⊗ q11 == (; A = U1(2)) × (; B = U1(2))
+        @test (@constinferred tensor_product(q10, q10)) == ×((; A = U1(2)))
+        @test (@constinferred tensor_product(q01, q00)) == q01
+        @test (@constinferred tensor_product(q00, q01)) == q01
+        @test (@constinferred tensor_product(q10, q01)) == q11
+        @test tensor_product(q11, q11) == (; A = U1(2)) × (; B = U1(2))
 
         s11 = (; A = U1(1)) × (; B = Z{2}(1))
         s10 = ×((; A = U1(1)))
         s01 = ×((; B = Z{2}(1)))
-        @test (@constinferred s01 ⊗ q00) == s01
-        @test (@constinferred q00 ⊗ s01) == s01
-        @test (@constinferred s10 ⊗ s01) == s11
-        @test s11 ⊗ s11 == (; A = U1(2)) × (; B = Z{2}(0))
+        @test (@constinferred tensor_product(s01, q00)) == s01
+        @test (@constinferred tensor_product(q00, s01)) == s01
+        @test (@constinferred tensor_product(s10, s01)) == s11
+        @test tensor_product(s11, s11) == (; A = U1(2)) × (; B = Z{2}(0))
     end
 
     @testset "Fusion of NonAbelian products" begin
@@ -304,13 +305,13 @@ end
         phb = ×((; B = SU2(1 // 2)))
         phab = (; A = SU2(1 // 2)) × (; B = SU2(1 // 2))
 
-        @test (@constinferred pha ⊗ pha) ==
+        @test (@constinferred tensor_product(pha, pha)) ==
             gradedrange([×((; A = SU2(0))) => 1, ×((; A = SU2(1))) => 1])
-        @test (@constinferred pha ⊗ p0) == gradedrange([pha => 1])
-        @test (@constinferred p0 ⊗ phb) == gradedrange([phb => 1])
-        @test (@constinferred pha ⊗ phb) == gradedrange([phab => 1])
+        @test (@constinferred tensor_product(pha, p0)) == gradedrange([pha => 1])
+        @test (@constinferred tensor_product(p0, phb)) == gradedrange([phb => 1])
+        @test (@constinferred tensor_product(pha, phb)) == gradedrange([phab => 1])
 
-        @test phab ⊗ phab == gradedrange(
+        @test tensor_product(phab, phab) == gradedrange(
             [
                 (; A = SU2(0)) × (; B = SU2(0)) => 1,
                 (; A = SU2(1)) × (; B = SU2(0)) => 1,
@@ -331,10 +332,10 @@ end
         q21 = (N = U1(2),) × (J = SU2(1),)
         q22 = (N = U1(2),) × (J = SU2(2),)
 
-        @test q1h ⊗ q1h == gradedrange([q20 => 1, q21 => 1])
-        @test q10 ⊗ q1h == gradedrange([q2h => 1])
-        @test (@constinferred q0h ⊗ q1h) == gradedrange([q10 => 1, q11 => 1])
-        @test q11 ⊗ q11 == gradedrange([q20 => 1, q21 => 1, q22 => 1])
+        @test tensor_product(q1h, q1h) == gradedrange([q20 => 1, q21 => 1])
+        @test tensor_product(q10, q1h) == gradedrange([q2h => 1])
+        @test (@constinferred tensor_product(q0h, q1h)) == gradedrange([q10 => 1, q11 => 1])
+        @test tensor_product(q11, q11) == gradedrange([q20 => 1, q21 => 1, q22 => 1])
     end
 
     @testset "GradedOneTo fusion rules" begin
@@ -344,14 +345,14 @@ end
         g2 = gradedrange([s2 => 1])
         s3 = (; A = U1(1)) × (; B = SU2(0))
         s4 = (; A = U1(1)) × (; B = SU2(1))
-        @test g1 ⊗ g2 == gradedrange([s3 => 2, s4 => 2])
+        @test tensor_product(g1, g2) == gradedrange([s3 => 2, s4 => 2])
 
         sA = ×((; A = U1(1)))
         sB = ×((; B = SU2(1 // 2)))
         sAB = (; A = U1(1)) × (; B = SU2(1 // 2))
         gA = gradedrange([sA => 2])
         gB = gradedrange([sB => 1])
-        @test gA ⊗ gB == gradedrange([sAB => 2])
+        @test tensor_product(gA, gB) == gradedrange([sAB => 2])
     end
 end
 
@@ -362,8 +363,8 @@ end
     @test_throws MethodError sA1 != st1
     @test_throws MethodError sA1 < st1
     @test_throws MethodError st1 < sA1
-    @test_throws MethodError st1 ⊗ sA1
-    @test_throws MethodError sA1 ⊗ st1
+    @test_throws MethodError tensor_product(st1, sA1)
+    @test_throws MethodError tensor_product(sA1, st1)
     @test_throws MethodError st1 × sA1
     @test_throws MethodError sA1 × st1
 end
@@ -382,15 +383,15 @@ end
 
         @test (@constinferred s × ×()) == s
         @test (@constinferred s × ×((;))) == s
-        @test label(@constinferred s ⊗ ×()) == s
-        @test label(@constinferred s ⊗ ×((;))) == s
+        @test label(@constinferred tensor_product(s, ×())) == s
+        @test label(@constinferred tensor_product(s, ×((;)))) == s
 
         @test (@constinferred flip(dual(s))) == s
         @test (@constinferred trivial(s)) == s
         @test (@constinferred quantum_dimension(s)) == 1
 
         g0 = gradedrange([s => 2])
-        @test (@constinferred ⊗(g0, g0)) == gradedrange([s => 4])
+        @test (@constinferred tensor_product(g0, g0)) == gradedrange([s => 4])
 
         @test (@constinferred s × U1(1)) == st1
         @test (@constinferred U1(1) × s) == st1
@@ -399,21 +400,21 @@ end
         @test (@constinferred s × sA1) == sA1
         @test (@constinferred sA1 × s) == sA1
 
-        @test (@constinferred U1(1) ⊗ s) == st1
-        @test (@constinferred s ⊗ U1(1)) == st1
-        @test (@constinferred SU2(0) ⊗ s) == gradedrange([×(SU2(0)) => 1])
-        @test (@constinferred s ⊗ SU2(0)) == gradedrange([×(SU2(0)) => 1])
+        @test (@constinferred tensor_product(U1(1), s)) == st1
+        @test (@constinferred tensor_product(s, U1(1))) == st1
+        @test (@constinferred tensor_product(SU2(0), s)) == gradedrange([×(SU2(0)) => 1])
+        @test (@constinferred tensor_product(s, SU2(0))) == gradedrange([×(SU2(0)) => 1])
 
-        @test (@constinferred st1 ⊗ s) == st1
-        @test (@constinferred ×(SU2(0)) ⊗ s) ==
+        @test (@constinferred tensor_product(st1, s)) == st1
+        @test (@constinferred tensor_product(×(SU2(0)), s)) ==
             gradedrange([×(SU2(0)) => 1])
-        @test (@constinferred ×(SU2(1), U1(2)) ⊗ s) ==
+        @test (@constinferred tensor_product(×(SU2(1), U1(2)), s)) ==
             gradedrange([×(SU2(1), U1(2)) => 1])
 
-        @test (@constinferred sA1 ⊗ s) == sA1
-        @test (@constinferred ×((; A = SU2(0))) ⊗ s) ==
+        @test (@constinferred tensor_product(sA1, s)) == sA1
+        @test (@constinferred tensor_product(×((; A = SU2(0))), s)) ==
             gradedrange([×((; A = SU2(0))) => 1])
-        @test (@constinferred (; B = SU2(1)) × (; C = U1(2)) ⊗ s) ==
+        @test (@constinferred tensor_product((; B = SU2(1)) × (; C = U1(2)), s)) ==
             gradedrange([(; B = SU2(1)) × (; C = U1(2)) => 1])
 
         # Empty behaves as empty NamedTuple

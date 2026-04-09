@@ -9,7 +9,7 @@ TensorAlgebra.FusionStyle(::Type{<:AbelianGradedArray}) = SectorFusion()
 # ========================  trivial_axis  ========================
 
 function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
-    return ⊗(trivial.(t)...)
+    return tensor_product(trivial.(t)...)
 end
 function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
     return gradedrange([trivial(S) => 1])
@@ -59,12 +59,12 @@ end
 function TensorAlgebra.tensor_product_axis(
         ::SectorFusion, ::Val{:codomain}, r1::SectorOneTo, r2::SectorOneTo
     )
-    return r1 ⊗ r2
+    return tensor_product(r1, r2)
 end
 function TensorAlgebra.tensor_product_axis(
         ::SectorFusion, ::Val{:domain}, r1::SectorOneTo, r2::SectorOneTo
     )
-    return flip(r1 ⊗ r2)
+    return flip(tensor_product(r1, r2))
 end
 
 # GradedOneTo level: iterate block axes, fuse each pair, reassemble

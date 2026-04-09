@@ -162,8 +162,6 @@ end
 function tensor_product(c1::TKS.Sector, c2::SectorRange)
     return tensor_product(to_sector(c1), c2)
 end
-const ⊗ = tensor_product
-
 # =====================================  Sectors ===========================================
 
 const TrivialSector = SectorRange{TKS.Trivial}

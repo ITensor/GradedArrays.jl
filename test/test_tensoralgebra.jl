@@ -4,7 +4,7 @@ using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorOneTo, SectorRange, U1, dual,
     flip, gradedrange, isdual, label, sector_multiplicities, sector_type, sectoraxes,
-    sectormergesort, sectorrange, sectors, tensor_product, ⊗
+    sectormergesort, sectorrange, sectors, tensor_product
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, linearbroadcasted, matricize, unmatricize
 using Test: @test, @test_throws, @testset

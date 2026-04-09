@@ -13,15 +13,15 @@ function unmerged_tensor_product(a1, a2, a3, as...)
 end
 
 # default to tensor_product
-unmerged_tensor_product(a1, a2) = a1 ⊗ a2
+unmerged_tensor_product(a1, a2) = tensor_product(a1, a2)
 
 function unmerged_tensor_product(a1::GradedOneTo, a2::GradedOneTo)
     ea1 = eachblockaxis(a1)
     ea2 = eachblockaxis(a2)
-    T = Base.promote_op(⊗, eltype(ea1), eltype(ea2))
+    T = Base.promote_op(tensor_product, eltype(ea1), eltype(ea2))
     new_axes = T[]
     for b in ea2, a in ea1
-        push!(new_axes, a ⊗ b)
+        push!(new_axes, tensor_product(a, b))
     end
     return mortar_axis(new_axes)
 end

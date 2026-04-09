@@ -166,7 +166,7 @@ using Test: @test, @testset
     end
 
     @testset "tensor_product (non-abelian)" begin
-        # SU2: j=1/2 ⊗ j=1/2 = j=0 ⊕ j=1
+        # SU2: tensor_product(j=1/2, j=1/2) = j=0 ⊕ j=1
         si_half = sectorrange(SU2(TKS.SU2Irrep(1 // 2)), 1)
         tp = tensor_product(si_half, si_half)
         @test tp isa GradedOneTo

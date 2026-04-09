@@ -28,7 +28,7 @@ isdual(si::SectorOneTo) = si.isdual
 sector(si::SectorOneTo) = SectorRange(label(si), isdual(si))
 
 # Kronecker factor decomposition:
-# SectorOneTo = SectorRange (sector axis) ⊗ OneTo (data axis)
+# SectorOneTo = tensor_product(SectorRange (sector axis), OneTo (data axis))
 data(si::SectorOneTo) = Base.OneTo(sector_multiplicity(si))
 sectoraxes(si::SectorOneTo) = (sector(si),)
 dataaxes(si::SectorOneTo) = (data(si),)
@@ -107,12 +107,12 @@ function tensor_product(sr1::SectorOneTo, sr2::SectorOneTo)
 end
 
 function tensor_product(::AbelianStyle, sr1::SectorOneTo, sr2::SectorOneTo)
-    s = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
+    s = tensor_product(sector(flip_dual(sr1)), sector(flip_dual(sr2)))
     return sectorrange(s, sector_multiplicity(sr1) * sector_multiplicity(sr2))
 end
 
 function tensor_product(::NotAbelianStyle, sr1::SectorOneTo, sr2::SectorOneTo)
-    g = sector(flip_dual(sr1)) ⊗ sector(flip_dual(sr2))
+    g = tensor_product(sector(flip_dual(sr1)), sector(flip_dual(sr2)))
     d₁ = sector_multiplicity(sr1)
     d₂ = sector_multiplicity(sr2)
     return gradedrange(
