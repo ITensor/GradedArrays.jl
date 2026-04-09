@@ -24,9 +24,15 @@ using Test: @test, @test_throws, @testset
         @test size(a2) == (5, 3)
     end
 
-    @testset "Empty array has no stored blocks" begin
+    @testset "Constructor allocates allowed blocks" begin
         a = AbelianArray{Float64}(undef, g1, g2)
-        @test isempty(collect(eachblockstoredindex(a)))
+        stored = Set(collect(eachblockstoredindex(a)))
+        @test Block(1, 1) in stored  # U1(0) × U1(0): charge 0
+        @test Block(2, 2) in stored  # U1(1) × U1(-1): charge 0
+        @test length(stored) == 2
+        # All blocks are zero-initialized
+        @test all(iszero, a[Block(1, 1)].data)
+        @test all(iszero, a[Block(2, 2)].data)
     end
 
     @testset "Block setindex!/getindex" begin
@@ -120,7 +126,8 @@ using Test: @test, @test_throws, @testset
         a2 = similar(a)
         @test a2 isa AbelianArray{Float64, 2}
         @test size(a2) == size(a)
-        @test isempty(collect(eachblockstoredindex(a2)))
+        # similar now allocates all allowed blocks (same as constructor)
+        @test length(collect(eachblockstoredindex(a2))) == 2
 
         a3 = similar(a, ComplexF64)
         @test a3 isa AbelianArray{ComplexF64, 2}
@@ -177,7 +184,7 @@ using Test: @test, @test_throws, @testset
         @test occursin("AbelianArray", s)
         @test occursin("2×2-blocked", s)
         @test occursin("5×3", s)
-        @test occursin("1 stored block", s)
+        @test occursin("2 stored block", s)
     end
 
     @testset "blocks accessor" begin

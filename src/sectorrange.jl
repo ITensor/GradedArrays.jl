@@ -95,6 +95,7 @@ end
 dual(c::TKS.Sector) = TKS.dual(c)
 dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
 flip(r1::SectorRange) = typeof(r1)(dual(r1.label), !isdual(r1))
+flip_dual(r::SectorRange) = isdual(r) ? flip(r) : r
 
 fermionparity(c::SectorRange) = TKS.fermionparity(c.label)
 twist(c::SectorRange) = TKS.twist(c.label)
@@ -137,8 +138,10 @@ combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
 combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()
 
 function fusion_rule(r1::SectorRange, r2::SectorRange)
-    a = label(r1)
-    b = label(r2)
+    r1′ = flip_dual(r1)
+    r2′ = flip_dual(r2)
+    a = label(r1′)
+    b = label(r2′)
     fstyle = TKS.FusionStyle(typeof(r1)) & TKS.FusionStyle(typeof(r2))
     fstyle === TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
     return gradedrange(

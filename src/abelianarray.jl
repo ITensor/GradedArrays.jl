@@ -22,10 +22,15 @@ end
 #  Constructors
 # ---------------------------------------------------------------------------
 
+# Forward declaration — implementation in fusion.jl (needs fusion machinery)
+function _allocate_allowed_blocks! end
+
 function AbelianArray{T}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
     ) where {T, N, I <: TKS.Sector}
-    return AbelianArray{T, N, I, Array{T, N}}(axs, Dict{NTuple{N, Int}, Array{T, N}}())
+    a = AbelianArray{T, N, I, Array{T, N}}(axs, Dict{NTuple{N, Int}, Array{T, N}}())
+    _allocate_allowed_blocks!(a)
+    return a
 end
 
 function AbelianArray{T}(
@@ -59,7 +64,7 @@ function Base.view(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     return SectorArray(sects, a.blockdata[bk])
 end
 function Base.view(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
-    return view(a, Block.(Tuple(I))...)
+    return view(a, Tuple(I)...)
 end
 
 # view!: get or create, then view
@@ -125,12 +130,12 @@ function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, 
     end
 end
 function Base.getindex(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
-    return a[Block.(Tuple(I))...]
+    return a[Tuple(I)...]
 end
 
 # setindex!: Block{N} unpacks to Vararg{Block{1}, N} (following BlockArrays convention)
 function Base.setindex!(a::AbelianArray{<:Any, N}, value, I::Block{N}) where {N}
-    return setindex!(a, value, Block.(Tuple(I))...)
+    return setindex!(a, value, Tuple(I)...)
 end
 
 # Primitive: get-or-create block view, then broadcast in.
@@ -237,7 +242,7 @@ end
 #  similar
 # ---------------------------------------------------------------------------
 
-# similar with GradedOneTo axes: returns an empty AbelianArray.
+# similar with GradedOneTo axes: allocates all allowed blocks.
 # Defined on AbstractGradedArray so FusedSectorMatrix can use it too.
 function Base.similar(
         a::AbstractGradedArray,
@@ -248,7 +253,9 @@ function Base.similar(
     D = datatype(BlockSparseArrays.blocktype(a))
     D_N = Base.promote_op(similar, D, Type{S}, NTuple{N, Base.OneTo{Int}})
     D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
-    return AbelianArray{S, N, I, D_N′}(axes, Dict{NTuple{N, Int}, D_N′}())
+    a_new = AbelianArray{S, N, I, D_N′}(axes, Dict{NTuple{N, Int}, D_N′}())
+    _allocate_allowed_blocks!(a_new)
+    return a_new
 end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}

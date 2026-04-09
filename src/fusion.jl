@@ -239,6 +239,74 @@ function block_unreshape(
     return a
 end
 
+# ========================  Allowed block allocation  ========================
+
+"""
+    _allocate_allowed_blocks!(a::AbelianArray)
+
+Allocate all allowed (zero-flux) blocks in `a`. Allowed blocks are enumerated
+efficiently via fusion: fuse axes into a 2D form, identify coupled sectors, and
+map back to N-d block indices.
+
+The enumeration uses a codomain/domain split and groups unfused domain blocks by
+sector. For each codomain sector, matching domain blocks are found via hash lookup,
+giving O(B_cod + B_dom) cost instead of the O(B_cod × B_dom) naïve Cartesian filter.
+"""
+function _allocate_allowed_blocks!(a::AbelianArray{T, N}) where {T, N}
+    N == 0 && return a
+    axs = axes(a)
+    codomain_axs = (axs[1],)
+    domain_axs = Base.tail(axs)
+
+    # Compute unfused 2D axes via the fusion tree
+    unfused_cod, unfused_dom = matricize_axes(
+        SectorFusion(), a, codomain_axs, domain_axs
+    )
+
+    # Group unfused domain blocks by dual(sector) for fast lookup
+    dom_secs = sectors(unfused_dom)
+    cod_secs = sectors(unfused_cod)
+    dom_by_sector = Dict{eltype(cod_secs), Vector{Int}}()
+    for (j, s) in enumerate(dom_secs)
+        push!(get!(dom_by_sector, dual(s), Int[]), j)
+    end
+
+    # Allocate allowed blocks via view! (zero-initialized)
+    codomain_nblocks = Tuple(blocklength.(codomain_axs))
+    domain_nblocks = Tuple(blocklength.(domain_axs))
+    cod_cart = CartesianIndices(codomain_nblocks)
+    dom_cart = CartesianIndices(domain_nblocks)
+    for (i, s) in enumerate(cod_secs)
+        for j in get(dom_by_sector, s, Int[])
+            nd_bk = (Tuple(cod_cart[i])..., Tuple(dom_cart[j])...)
+            view!(a, Block.(nd_bk)...)
+        end
+    end
+
+    return a
+end
+
+"""
+    zeros(T, axs::GradedOneTo...)
+
+Create an `AbelianArray{T}` with all allowed (zero-flux) blocks filled with zeros.
+Equivalent to `AbelianArray{T}(undef, axs...)` since the constructor allocates all
+allowed blocks zero-initialized.
+"""
+function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
+    return AbelianArray{T}(undef, axs...)
+end
+
+function Base.zeros(axs::GradedOneTo...)
+    return zeros(Float64, axs...)
+end
+
+function Base.zeros(
+        ::Type{T}, axs::NTuple{N, GradedOneTo{I}}
+    ) where {T, N, I <: TKS.Sector}
+    return AbelianArray{T}(undef, axs...)
+end
+
 # ========================  permutedimsopadd!  ========================
 
 function TensorAlgebra.permutedimsopadd!(
