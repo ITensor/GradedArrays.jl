@@ -232,7 +232,7 @@ function block_unreshape(
         src_block = m[bI_src]
         dest_sects = ntuple(d -> sectors(dest_axes[d])[dest_bk[d]], Val(N))
         dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_block = SectorArray(dest_sects, reshape(src_block.data, dest_dims))
+        dest_block = SectorArray(dest_sects, reshape(data(src_block), dest_dims))
         a[Block(dest_bk...)] = dest_block
     end
 
@@ -321,7 +321,7 @@ function TensorAlgebra.permutedimsopadd!(
     )
     sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())
     phase = fermion_permutation_phase(sector(x), perm)
-    TensorAlgebra.permutedimsopadd!(y.data, op, x.data, perm, phase * α, β)
+    TensorAlgebra.permutedimsopadd!(data(y), op, data(x), perm, phase * α, β)
     return y
 end
 

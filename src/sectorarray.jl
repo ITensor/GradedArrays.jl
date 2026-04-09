@@ -174,7 +174,7 @@ function sectoraxes(sa::SectorArray)
 end
 function sector_multiplicities(sa::SectorArray)
     return ntuple(
-        d -> div(size(sa.data, d), quantum_dimension(sectoraxes(sa, d))), Val(ndims(sa))
+        d -> div(size(data(sa), d), quantum_dimension(sectoraxes(sa, d))), Val(ndims(sa))
     )
 end
 
@@ -199,7 +199,7 @@ Base.@propagate_inbounds function Base.getindex(
         I::Vararg{Int, N}
     ) where {T, N}
     @boundscheck checkbounds(A, I...)
-    return @inbounds A.data[I...]
+    return @inbounds data(A)[I...]
 end
 Base.@propagate_inbounds function Base.setindex!(
         A::SectorArray{T, N},
@@ -207,7 +207,7 @@ Base.@propagate_inbounds function Base.setindex!(
         I::Vararg{Int, N}
     ) where {T, N}
     @boundscheck checkbounds(A, I...)
-    @inbounds A.data[I...] = v
+    @inbounds data(A)[I...] = v
     return A
 end
 
@@ -230,7 +230,7 @@ function Base.fill!(A::SectorArray, v)
         return FI.zero!(A)
     end
     require_unique_fusion(A)
-    fill!(A.data, v)
+    fill!(data(A), v)
     return A
 end
 
@@ -309,7 +309,7 @@ function LinearAlgebra.mul!(
         c::SectorMatrix, a::SectorMatrix, b::SectorMatrix, α::Number, β::Number
     )
     check_mul_axes(c, a, b)
-    mul!(c.data, a.data, b.data, α, β)
+    mul!(data(c), data(a), data(b), α, β)
     return c
 end
 
@@ -323,12 +323,12 @@ function KroneckerArrays.:(⊗)(
 end
 
 function TensorAlgebra.add!(dest::AbstractArray, src::SectorArray, α::Number, β::Number)
-    TensorAlgebra.add!(dest, src.data, α, β)
+    TensorAlgebra.add!(dest, data(src), α, β)
     return dest
 end
 
 function TensorAlgebra.add!(dest::SectorArray, src::SectorArray, α::Number, β::Number)
     size(dest) == size(src) || throw(DimensionMismatch())
-    TensorAlgebra.add!(dest.data, src.data, α, β)
+    TensorAlgebra.add!(data(dest), data(src), α, β)
     return dest
 end

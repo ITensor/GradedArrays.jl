@@ -307,8 +307,15 @@ end
 #  fill! / zero! / scale!
 # ---------------------------------------------------------------------------
 
-scale!(a::SectorArray, β::Number) = (a.data .*= β; a)
-FI.zero!(a::SectorArray) = (fill!(a.data, zero(eltype(a))); a)
+scale!(a::AbstractArray, β::Number) = (a .*= β; a)
+function scale!(a::SectorArray, β::Number)
+    scale!(data(a), β)
+    return a
+end
+function FI.zero!(a::SectorArray)
+    FI.zero!(data(a))
+    return a
+end
 
 function scale!(a::AbstractGradedArray, β::Number)
     for bI in eachblockstoredindex(a)
