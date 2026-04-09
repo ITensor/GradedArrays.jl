@@ -45,16 +45,12 @@ Base.axes(a::AbelianArray) = a.axes
 #  view (primitive): returns SectorArray sharing data with blockdata
 # ---------------------------------------------------------------------------
 
-function _wrap_block(a::AbelianArray{T, N}, bk::NTuple{N, Int}, data) where {T, N}
-    block_sectors = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
-    return SectorArray(block_sectors, data)
-end
-
 # view: returns a SectorArray sharing data (errors for unstored blocks)
 function Base.view(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
     haskey(a.blockdata, bk) || error("Block $bk is not stored. Use view! to create it.")
-    return _wrap_block(a, bk, a.blockdata[bk])
+    sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
+    return SectorArray(sects, a.blockdata[bk])
 end
 function Base.view(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
     return view(a, Block.(Tuple(I))...)
@@ -69,7 +65,8 @@ function BlockSparseArrays.view!(
         block_dims = ntuple(d -> blocklengths(axes(a, d))[bk[d]], Val(N))
         a.blockdata[bk] = zeros(T, block_dims)
     end
-    return _wrap_block(a, bk, a.blockdata[bk])
+    sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
+    return SectorArray(sects, a.blockdata[bk])
 end
 function BlockSparseArrays.view!(a::AbelianArray{<:Any, N}, I::Block{N}) where {N}
     return BlockSparseArrays.view!(a, Tuple(I)...)
@@ -117,22 +114,26 @@ function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, 
         return copy(view(a, I...))
     else
         block_dims = ntuple(d -> blocklengths(axes(a, d))[bk[d]], Val(N))
-        return _wrap_block(a, bk, zeros(T, block_dims))
+        sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
+        return SectorArray(sects, zeros(T, block_dims))
     end
 end
 function Base.getindex(a::AbelianArray{T, N}, I::Block{N}) where {T, N}
     return a[Block.(Tuple(I))...]
 end
 
-# setindex!: replaces block data
-function Base.setindex!(a::AbelianArray{T, N}, value, I::Vararg{Block{1}, N}) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
-    raw = value isa SectorArray ? value.data : value
-    a.blockdata[bk] = convert(Array{T, N}, raw)
-    return a
-end
-function Base.setindex!(a::AbelianArray{T, N}, value, I::Block{N}) where {T, N}
+# setindex!: Block{N} unpacks to Vararg{Block{1}, N} (following BlockArrays convention)
+function Base.setindex!(a::AbelianArray{<:Any, N}, value, I::Block{N}) where {N}
     return setindex!(a, value, Block.(Tuple(I))...)
+end
+
+# Primitive: get-or-create block view, then broadcast in.
+# Handles both SectorArray and raw data values.
+function Base.setindex!(
+        a::AbelianArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Vararg{Block{1}, N}
+    ) where {N}
+    BlockSparseArrays.view!(a, I...) .= value
+    return a
 end
 
 # ---------------------------------------------------------------------------

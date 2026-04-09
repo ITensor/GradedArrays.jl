@@ -31,7 +31,8 @@ using Test: @test, @test_throws, @testset
 
     @testset "Block setindex!/getindex" begin
         a = AbelianArray{Float64}(undef, g1, g2)
-        data11 = [1.0 2.0; 3.0 4.0]
+        # Block (1,1): U1(0) with mult 2 × U1(0) with mult 1 → 2×1
+        data11 = reshape([1.0, 3.0], 2, 1)
         a[Block(1, 1)] = data11
 
         blk = a[Block(1, 1)]
@@ -70,13 +71,14 @@ using Test: @test, @test_throws, @testset
 
     @testset "SectorArray block setindex!" begin
         a = AbelianArray{Float64}(undef, g1, g2)
+        # Block (1,1): 2×1
         sa = SectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(0)),
             (false, false),
-            [5.0 6.0; 7.0 8.0]
+            reshape([5.0, 7.0], 2, 1)
         )
         a[Block(1, 1)] = sa
-        @test a[Block(1, 1)].data == [5.0 6.0; 7.0 8.0]
+        @test a[Block(1, 1)].data == reshape([5.0, 7.0], 2, 1)
     end
 
     @testset "eachblockstoredindex" begin

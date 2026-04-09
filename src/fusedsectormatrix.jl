@@ -186,10 +186,13 @@ Convert a `FusedSectorMatrix` to a 2D `AbelianArray`.
 Inverse of `FusedSectorMatrix(::AbelianArray)`.
 """
 function AbelianArray(m::FusedSectorMatrix{T}) where {T}
-    a = AbelianArray{T}(undef, axes(m))
+    codomain, domain = axes(m)
+    a = AbelianArray{T}(undef, (codomain, domain))
     for (i, block) in enumerate(m.blocks)
         iszero(block) && continue
-        a[Block(i, i)] = block
+        row_sector = sectors(codomain)[i]
+        col_sector = sectors(domain)[i]
+        a[Block(i, i)] = SectorArray((row_sector, col_sector), block)
     end
     return a
 end

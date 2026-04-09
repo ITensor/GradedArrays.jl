@@ -168,7 +168,7 @@ function block_reshape(
         dest_block = matricize(src_block, ndims_codomain)
 
         # Store in the 2D array
-        a_2d[Block(row_block, col_block)] = dest_block.data
+        a_2d[Block(row_block, col_block)] = dest_block
     end
 
     return a_2d
@@ -219,7 +219,6 @@ function block_unreshape(
         m::AbelianMatrix{T}, codomain_axes::Tuple, domain_axes::Tuple
     ) where {T}
     N = length(codomain_axes) + length(domain_axes)
-    K = length(codomain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
     a = AbelianArray{T}(undef, dest_axes)
 
@@ -227,33 +226,15 @@ function block_unreshape(
     dom_cart = CartesianIndices(Tuple(map(blocklength, domain_axes)))
 
     for bI_src in eachblockstoredindex(m)
-        src_tuple = Tuple(bI_src)
-        row_block = Int(src_tuple[1])
-        col_block = Int(src_tuple[2])
+        row_block = Int(Tuple(bI_src)[1])
+        col_block = Int(Tuple(bI_src)[2])
+        dest_bk = (Tuple(cod_cart[row_block])..., Tuple(dom_cart[col_block])...)
 
-        ci_cod = Tuple(cod_cart[row_block])
-        ci_dom = Tuple(dom_cart[col_block])
-
-        # Compute the N-d block shape
-        block_dims = ntuple(Val(N)) do d
-            if d <= K
-                return blocklengths(codomain_axes[d])[ci_cod[d]]
-            else
-                return blocklengths(domain_axes[d - K])[ci_dom[d - K]]
-            end
-        end
-
-        # Unmatricize the individual SectorArray block
         src_block = m[bI_src]
-        dest_data = reshape(src_block.data, block_dims)
-
-        # Inverse permute: the original block_reshape permuted (codomain..., domain...)
-        # so we need to un-permute back to the original dimension order.
-        # Since block_reshape just put codomain first (no arbitrary perm), and the
-        # codomain/domain dims are contiguous (1:K and K+1:N), this is already
-        # in the right order.
-
-        a[Block(ci_cod..., ci_dom...)] = dest_data
+        dest_sects = ntuple(d -> sectors(dest_axes[d])[dest_bk[d]], Val(N))
+        dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
+        dest_block = SectorArray(dest_sects, reshape(src_block.data, dest_dims))
+        a[Block(dest_bk...)] = dest_block
     end
 
     return a
