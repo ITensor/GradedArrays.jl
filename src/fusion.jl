@@ -300,15 +300,7 @@ end
 Create an `AbelianArray{T}` with all allowed (zero-flux) blocks filled with zeros.
 """
 function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
-    N = length(axs)
-    D = Array{T, N}
-    bks = allowedblocks(axs)
-    blockdata = Dict{NTuple{N, Int}, D}(
-        Int.(Tuple(bk)) =>
-            zeros(T, ntuple(d -> blocklengths(axs[d])[Int(Tuple(bk)[d])], Val(N)))
-            for bk in bks
-    )
-    return AbelianArray{T, N, I, D}(axs, blockdata)
+    return FI.zero!(AbelianArray{T}(undef, axs...))
 end
 
 function Base.zeros(axs::GradedOneTo...)

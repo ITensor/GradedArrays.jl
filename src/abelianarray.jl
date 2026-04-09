@@ -25,10 +25,10 @@ end
 # Forward declaration — implementation in fusion.jl (needs fusion machinery)
 function allowedblocks end
 
-function AbelianArray{T}(
+# Fully-parameterized undef constructor: finds allowed blocks, allocates, calls inner.
+function AbelianArray{T, N, I, D}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
-    ) where {T, N, I <: TKS.Sector}
-    D = Array{T, N}
+    ) where {T, N, I <: TKS.Sector, D <: AbstractArray{T, N}}
     bks = allowedblocks(axs)
     blockdata = Dict{NTuple{N, Int}, D}(
         Int.(Tuple(bk)) =>
@@ -36,6 +36,13 @@ function AbelianArray{T}(
             for bk in bks
     )
     return AbelianArray{T, N, I, D}(axs, blockdata)
+end
+
+# Convenience: infer D = Array{T,N} and I from axes.
+function AbelianArray{T}(
+        ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
+    ) where {T, N, I <: TKS.Sector}
+    return AbelianArray{T, N, I, Array{T, N}}(undef, axs)
 end
 
 function AbelianArray{T}(
@@ -258,13 +265,7 @@ function Base.similar(
     D = datatype(BlockSparseArrays.blocktype(a))
     D_N = Base.promote_op(similar, D, Type{S}, NTuple{N, Base.OneTo{Int}})
     D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
-    bks = allowedblocks(axes)
-    blockdata = Dict{NTuple{N, Int}, D_N′}(
-        Int.(Tuple(bk)) => D_N′(
-                undef, ntuple(d -> blocklengths(axes[d])[Int(Tuple(bk)[d])], Val(N))
-            ) for bk in bks
-    )
-    return AbelianArray{S, N, I, D_N′}(axes, blockdata)
+    return AbelianArray{S, N, I, D_N′}(undef, axes)
 end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
