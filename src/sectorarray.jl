@@ -55,6 +55,7 @@ function Base.similar(
     ) where {T}
     return SectorDelta{T}(sranges)
 end
+
 function Base.similar(
         ::Type{<:AbstractArray{T}},
         sranges::Tuple{SectorRange, Vararg{SectorRange}}
@@ -206,6 +207,18 @@ Base.@propagate_inbounds function Base.setindex!(
 end
 
 Base.copy(A::SectorArray) = SectorArray(A.labels, A.isdual, copy(A.data))
+
+# similar for SectorArray with SectorUnitRange axes.
+# Delegates to similar on the data array for the data dimensions.
+function Base.similar(
+        a::SectorArray,
+        ::Type{T},
+        axes::Tuple{SectorUnitRange, Vararg{SectorUnitRange}}
+    ) where {T}
+    sects = map(sector, axes)
+    data_dims = map(length, axes)
+    return SectorArray(sects, similar(a.data, T, Tuple(data_dims)))
+end
 
 function FI.zero!(A::SectorArray)
     fill!(A.data, zero(eltype(A)))

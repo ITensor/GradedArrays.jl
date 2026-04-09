@@ -145,7 +145,7 @@ function block_reshape(
         a::AbelianArray{T, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
     ax_2d = matricize_axes(SectorFusion(), a, ndims_codomain)
-    a_2d = AbelianArray{T}(undef, ax_2d)
+    a_2d = similar(a, ax_2d)
 
     # CartesianIndices for mapping 2D block index → per-axis block indices
     codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
@@ -220,7 +220,7 @@ function block_unreshape(
     ) where {T}
     N = length(codomain_axes) + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
-    a = AbelianArray{T}(undef, dest_axes)
+    a = similar(m, dest_axes)
 
     cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
     dom_cart = CartesianIndices(Tuple(map(blocklength, domain_axes)))

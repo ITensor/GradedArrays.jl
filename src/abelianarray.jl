@@ -40,6 +40,12 @@ end
 
 Base.size(a::AbelianArray) = map(length, a.axes)
 Base.axes(a::AbelianArray) = a.axes
+function BlockSparseArrays.blocktype(
+        ::Type{<:AbelianArray{T, N, I, D}}
+    ) where {T, N, I, D}
+    return SectorArray{T, N, I, D}
+end
+BlockSparseArrays.blocktype(a::AbelianArray) = blocktype(typeof(a))
 
 # ---------------------------------------------------------------------------
 #  view (primitive): returns SectorArray sharing data with blockdata
@@ -145,8 +151,8 @@ end
 function Base.getindex(
         a::AbelianArray{T, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {T, N}
-    ax_dest = ntuple(d -> a.axes[d][I[d]], Val(N))
-    a_dest = AbelianArray{T}(undef, ax_dest)
+    ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
+    a_dest = similar(a, ax_dest)
     # Map source block b → list of (dest BlockIndexRange, src subrange).
     src_to_dests = ntuple(Val(N)) do d
         key_type = Block{1, Int}
@@ -187,8 +193,8 @@ end
 function Base.getindex(
         a::AbelianArray{T, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {T, N}
-    ax_dest = ntuple(d -> a.axes[d][I[d]], Val(N))
-    a_dest = AbelianArray{T}(undef, ax_dest)
+    ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
+    a_dest = similar(a, ax_dest)
     ax = a.axes
     # Map source Block → BlockIndexRange encoding dest block + subrange within it
     src_to_dest = ntuple(Val(N)) do d
@@ -231,18 +237,25 @@ end
 #  similar
 # ---------------------------------------------------------------------------
 
-function Base.similar(a::AbelianArray{T, N, I}) where {T, N, I}
-    return AbelianArray{T}(undef, a.axes)
-end
-
-function Base.similar(a::AbelianArray{<:Any, N, I}, ::Type{S}) where {S, N, I}
-    return AbelianArray{S}(undef, a.axes)
-end
-
+# similar with GradedUnitRange axes: returns an empty AbelianArray.
+# Defined on AbstractGradedArray so FusedSectorMatrix can use it too.
 function Base.similar(
-        ::AbelianArray{<:Any, <:Any, I}, ::Type{S}, axs::NTuple{M, GradedUnitRange{I}}
-    ) where {S, M, I}
-    return AbelianArray{S}(undef, axs)
+        a::AbstractGradedArray,
+        ::Type{S},
+        axes::Tuple{Vararg{GradedUnitRange}}
+    ) where {S}
+    return AbelianArray{S}(undef, axes)
+end
+function Base.similar(
+        a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedUnitRange}}
+    ) where {T}
+    return similar(a, T, axes)
+end
+function Base.similar(a::AbelianArray{T}, ::Type{S}) where {T, S}
+    return similar(a, S, axes(a))
+end
+function Base.similar(a::AbelianArray{T}) where {T}
+    return similar(a, T)
 end
 
 # ---------------------------------------------------------------------------

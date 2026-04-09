@@ -39,6 +39,8 @@ end
 
 labels(m::FusedSectorMatrix) = m.labels
 BlockArrays.blocklength(m::FusedSectorMatrix) = length(m.labels)
+BlockSparseArrays.blocktype(::Type{<:FusedSectorMatrix{T, I, D}}) where {T, I, D} = D
+BlockSparseArrays.blocktype(m::FusedSectorMatrix) = blocktype(typeof(m))
 sector_type(::Type{<:FusedSectorMatrix{T, I}}) where {T, I} = SectorRange{I}
 
 function Base.axes(m::FusedSectorMatrix{T, I}) where {T, I}
@@ -187,7 +189,7 @@ Inverse of `FusedSectorMatrix(::AbelianArray)`.
 """
 function AbelianArray(m::FusedSectorMatrix{T}) where {T}
     codomain, domain = axes(m)
-    a = AbelianArray{T}(undef, (codomain, domain))
+    a = similar(m, (codomain, domain))
     for (i, block) in enumerate(m.blocks)
         iszero(block) && continue
         row_sector = sectors(codomain)[i]
