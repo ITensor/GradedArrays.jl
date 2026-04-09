@@ -122,7 +122,7 @@ end
     # Axis with repeated sectors: U1(1) appears at blocks 1 and 3
     g1 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
-    a = AbelianArray{Float64}(undef, g1, g2)
+    a = zeros(Float64, g1, g2)
 
     a[Block(1, 2)] = SectorArray((U1(1), U1(-1)), ones(2, 2))
     a[Block(3, 2)] = SectorArray((U1(1), U1(-1)), 2 * ones(3, 2))
@@ -192,7 +192,7 @@ end
 
 @testset "matricize 4D AbelianArray → FusedSectorMatrix" begin
     g = gradedrange([U1(0) => 1, U1(1) => 1])
-    a = AbelianArray{Float64}(undef, g, g, dual(g), dual(g))
+    a = zeros(Float64, g, g, dual(g), dual(g))
 
     a[Block(1, 1, 1, 1)] = SectorArray(
         (U1(0), U1(0), dual(U1(0)), dual(U1(0))), ones(1, 1, 1, 1)

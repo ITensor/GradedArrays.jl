@@ -23,14 +23,17 @@ end
 # ---------------------------------------------------------------------------
 
 # Forward declaration — implementation in fusion.jl (needs fusion machinery)
-function _allocate_allowed_blocks! end
+function allowedblocks end
 
 function AbelianArray{T}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
     ) where {T, N, I <: TKS.Sector}
-    a = AbelianArray{T, N, I, Array{T, N}}(axs, Dict{NTuple{N, Int}, Array{T, N}}())
-    _allocate_allowed_blocks!(a)
-    return a
+    D = Array{T, N}
+    bkeys = allowedblocks(axs)
+    blockdata = Dict{NTuple{N, Int}, D}(
+        bk => D(undef, ntuple(d -> blocklengths(axs[d])[bk[d]], Val(N))) for bk in bkeys
+    )
+    return AbelianArray{T, N, I, D}(axs, blockdata)
 end
 
 function AbelianArray{T}(
@@ -157,7 +160,7 @@ function Base.getindex(
         a::AbelianArray{T, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
-    a_dest = similar(a, ax_dest)
+    a_dest = FI.zero!(similar(a, ax_dest))
     # Map source block b → list of (dest BlockIndexRange, src subrange).
     src_to_dests = ntuple(Val(N)) do d
         key_type = Block{1, Int}
@@ -199,7 +202,7 @@ function Base.getindex(
         a::AbelianArray{T, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
-    a_dest = similar(a, ax_dest)
+    a_dest = FI.zero!(similar(a, ax_dest))
     ax = axes(a)
     # Map source Block → BlockIndexRange encoding dest block + subrange within it
     src_to_dest = ntuple(Val(N)) do d
@@ -242,7 +245,7 @@ end
 #  similar
 # ---------------------------------------------------------------------------
 
-# similar with GradedOneTo axes: allocates all allowed blocks.
+# similar with GradedOneTo axes: allocates all allowed blocks (uninitialized).
 # Defined on AbstractGradedArray so FusedSectorMatrix can use it too.
 function Base.similar(
         a::AbstractGradedArray,
@@ -253,9 +256,12 @@ function Base.similar(
     D = datatype(BlockSparseArrays.blocktype(a))
     D_N = Base.promote_op(similar, D, Type{S}, NTuple{N, Base.OneTo{Int}})
     D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
-    a_new = AbelianArray{S, N, I, D_N′}(axes, Dict{NTuple{N, Int}, D_N′}())
-    _allocate_allowed_blocks!(a_new)
-    return a_new
+    bkeys = allowedblocks(axes)
+    blockdata = Dict{NTuple{N, Int}, D_N′}(
+        bk => D_N′(undef, ntuple(d -> blocklengths(axes[d])[bk[d]], Val(N))) for
+            bk in bkeys
+    )
+    return AbelianArray{S, N, I, D_N′}(axes, blockdata)
 end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
@@ -281,7 +287,7 @@ sector_type(::Type{<:AbelianArray{T, N, I}}) where {T, N, I} = SectorRange{I}
 
 function Base.permutedims(a::AbelianArray{<:Any, N}, perm) where {N}
     dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
-    a_dest = similar(a, dest_axes)
+    a_dest = FI.zero!(similar(a, dest_axes))
     return permutedims!(a_dest, a, perm)
 end
 

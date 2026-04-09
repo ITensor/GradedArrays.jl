@@ -30,9 +30,9 @@ using Test: @test, @test_throws, @testset
         @test Block(1, 1) in stored  # U1(0) × U1(0): charge 0
         @test Block(2, 2) in stored  # U1(1) × U1(-1): charge 0
         @test length(stored) == 2
-        # All blocks are zero-initialized
-        @test all(iszero, a[Block(1, 1)].data)
-        @test all(iszero, a[Block(2, 2)].data)
+        # Blocks are allocated but uninitialized (undef)
+        @test size(a[Block(1, 1)]) == (2, 1)
+        @test size(a[Block(2, 2)]) == (3, 2)
     end
 
     @testset "Block setindex!/getindex" begin

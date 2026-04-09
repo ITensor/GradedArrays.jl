@@ -144,7 +144,7 @@ function block_reshape(
         a::AbelianArray{T, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
     ax_2d = matricize_axes(SectorFusion(), a, ndims_codomain)
-    a_2d = similar(a, ax_2d)
+    a_2d = FI.zero!(similar(a, ax_2d))
 
     # CartesianIndices for mapping 2D block index → per-axis block indices
     codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
@@ -219,7 +219,7 @@ function block_unreshape(
     ) where {T}
     N = length(codomain_axes) + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
-    a = similar(m, dest_axes)
+    a = FI.zero!(similar(m, dest_axes))
 
     cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
     dom_cart = CartesianIndices(Tuple(map(blocklength, domain_axes)))
@@ -239,28 +239,35 @@ function block_unreshape(
     return a
 end
 
-# ========================  Allowed block allocation  ========================
+# ========================  Allowed block keys  ========================
 
 """
-    _allocate_allowed_blocks!(a::AbelianArray)
+    allowedblocks(axs::NTuple{N, GradedOneTo}) -> Vector{NTuple{N, Int}}
 
-Allocate all allowed (zero-flux) blocks in `a`. Allowed blocks are enumerated
-efficiently via fusion: fuse axes into a 2D form, identify coupled sectors, and
-map back to N-d block indices.
+Return the block index tuples of all allowed (zero-flux) blocks for a graded
+array with axes `axs`.
 
-The enumeration uses a codomain/domain split and groups unfused domain blocks by
-sector. For each codomain sector, matching domain blocks are found via hash lookup,
-giving O(B_cod + B_dom) cost instead of the O(B_cod × B_dom) naïve Cartesian filter.
+Uses a codomain/domain split (K=1) and fusion to enumerate allowed blocks
+efficiently. The domain axes are fused into a single unfused `GradedOneTo`
+via `matricize_axes`, then domain blocks are grouped by sector in a hash table.
+For each codomain sector, matching domain blocks are found via lookup, and the
+2D (codomain, domain) indices are mapped back to N-d via `CartesianIndices`.
+
+Cost: O(B_cod + B_dom + #allowed) instead of the O(B_cod × B_dom) naïve
+Cartesian filter.
 """
-function _allocate_allowed_blocks!(a::AbelianArray{T, N}) where {T, N}
-    N == 0 && return a
-    axs = axes(a)
+function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
+    N == 0 && return NTuple{0, Int}[()]
     codomain_axs = (axs[1],)
     domain_axs = Base.tail(axs)
 
-    # Compute unfused 2D axes via the fusion tree
+    # Compute unfused 2D axes via the fusion tree.
+    # We need a dummy array for trivial_axis dispatch; an empty AbelianArray suffices.
+    dummy = AbelianArray{Float64, N, I, Array{Float64, N}}(
+        axs, Dict{NTuple{N, Int}, Array{Float64, N}}()
+    )
     unfused_cod, unfused_dom = matricize_axes(
-        SectorFusion(), a, codomain_axs, domain_axs
+        SectorFusion(), dummy, codomain_axs, domain_axs
     )
 
     # Group unfused domain blocks by dual(sector) for fast lookup
@@ -271,30 +278,35 @@ function _allocate_allowed_blocks!(a::AbelianArray{T, N}) where {T, N}
         push!(get!(dom_by_sector, dual(s), Int[]), j)
     end
 
-    # Allocate allowed blocks via view! (zero-initialized)
+    # Map 2D (codomain_block, domain_block) to N-d block index tuples
     codomain_nblocks = Tuple(blocklength.(codomain_axs))
     domain_nblocks = Tuple(blocklength.(domain_axs))
     cod_cart = CartesianIndices(codomain_nblocks)
     dom_cart = CartesianIndices(domain_nblocks)
+    keys = NTuple{N, Int}[]
     for (i, s) in enumerate(cod_secs)
         for j in get(dom_by_sector, s, Int[])
-            nd_bk = (Tuple(cod_cart[i])..., Tuple(dom_cart[j])...)
-            view!(a, Block.(nd_bk)...)
+            push!(keys, (Tuple(cod_cart[i])..., Tuple(dom_cart[j])...))
         end
     end
-
-    return a
+    return keys
 end
+
+# ========================  zeros / rand  ========================
 
 """
     zeros(T, axs::GradedOneTo...)
 
 Create an `AbelianArray{T}` with all allowed (zero-flux) blocks filled with zeros.
-Equivalent to `AbelianArray{T}(undef, axs...)` since the constructor allocates all
-allowed blocks zero-initialized.
 """
 function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
-    return AbelianArray{T}(undef, axs...)
+    N = length(axs)
+    D = Array{T, N}
+    bkeys = allowedblocks(axs)
+    blockdata = Dict{NTuple{N, Int}, D}(
+        bk => zeros(T, ntuple(d -> blocklengths(axs[d])[bk[d]], Val(N))) for bk in bkeys
+    )
+    return AbelianArray{T, N, I, D}(axs, blockdata)
 end
 
 function Base.zeros(axs::GradedOneTo...)
@@ -304,7 +316,7 @@ end
 function Base.zeros(
         ::Type{T}, axs::NTuple{N, GradedOneTo{I}}
     ) where {T, N, I <: TKS.Sector}
-    return AbelianArray{T}(undef, axs...)
+    return zeros(T, axs...)
 end
 
 # ========================  permutedimsopadd!  ========================
