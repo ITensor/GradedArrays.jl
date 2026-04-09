@@ -242,9 +242,9 @@ end
 # ========================  Allowed block keys  ========================
 
 """
-    allowedblocks(axs::NTuple{N, GradedOneTo}) -> Vector{NTuple{N, Int}}
+    allowedblocks(axs::NTuple{N, GradedOneTo}) -> Vector{Block{N, Int}}
 
-Return the block index tuples of all allowed (zero-flux) blocks for a graded
+Return the `Block` indices of all allowed (zero-flux) blocks for a graded
 array with axes `axs`.
 
 Uses a codomain/domain split (K=1) and fusion to enumerate allowed blocks
@@ -257,7 +257,7 @@ Cost: O(B_cod + B_dom + #allowed) instead of the O(B_cod × B_dom) naïve
 Cartesian filter.
 """
 function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
-    N == 0 && return NTuple{0, Int}[()]
+    N == 0 && return Block{0, Int}[Block()]
     codomain_axs = (axs[1],)
     domain_axs = Base.tail(axs)
 
@@ -278,18 +278,18 @@ function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
         push!(get!(dom_by_sector, dual(s), Int[]), j)
     end
 
-    # Map 2D (codomain_block, domain_block) to N-d block index tuples
+    # Map 2D (codomain_block, domain_block) to N-d Block indices
     codomain_nblocks = Tuple(blocklength.(codomain_axs))
     domain_nblocks = Tuple(blocklength.(domain_axs))
     cod_cart = CartesianIndices(codomain_nblocks)
     dom_cart = CartesianIndices(domain_nblocks)
-    keys = NTuple{N, Int}[]
+    bks = Block{N, Int}[]
     for (i, s) in enumerate(cod_secs)
         for j in get(dom_by_sector, s, Int[])
-            push!(keys, (Tuple(cod_cart[i])..., Tuple(dom_cart[j])...))
+            push!(bks, Block((Tuple(cod_cart[i])..., Tuple(dom_cart[j])...)))
         end
     end
-    return keys
+    return bks
 end
 
 # ========================  zeros / rand  ========================
@@ -302,9 +302,11 @@ Create an `AbelianArray{T}` with all allowed (zero-flux) blocks filled with zero
 function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
     N = length(axs)
     D = Array{T, N}
-    bkeys = allowedblocks(axs)
+    bks = allowedblocks(axs)
     blockdata = Dict{NTuple{N, Int}, D}(
-        bk => zeros(T, ntuple(d -> blocklengths(axs[d])[bk[d]], Val(N))) for bk in bkeys
+        Int.(Tuple(bk)) =>
+            zeros(T, ntuple(d -> blocklengths(axs[d])[Int(Tuple(bk)[d])], Val(N)))
+            for bk in bks
     )
     return AbelianArray{T, N, I, D}(axs, blockdata)
 end

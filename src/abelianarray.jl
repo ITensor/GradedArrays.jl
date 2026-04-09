@@ -29,9 +29,11 @@ function AbelianArray{T}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
     ) where {T, N, I <: TKS.Sector}
     D = Array{T, N}
-    bkeys = allowedblocks(axs)
+    bks = allowedblocks(axs)
     blockdata = Dict{NTuple{N, Int}, D}(
-        bk => D(undef, ntuple(d -> blocklengths(axs[d])[bk[d]], Val(N))) for bk in bkeys
+        Int.(Tuple(bk)) =>
+            D(undef, ntuple(d -> blocklengths(axs[d])[Int(Tuple(bk)[d])], Val(N)))
+            for bk in bks
     )
     return AbelianArray{T, N, I, D}(axs, blockdata)
 end
@@ -256,10 +258,11 @@ function Base.similar(
     D = datatype(BlockSparseArrays.blocktype(a))
     D_N = Base.promote_op(similar, D, Type{S}, NTuple{N, Base.OneTo{Int}})
     D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
-    bkeys = allowedblocks(axes)
+    bks = allowedblocks(axes)
     blockdata = Dict{NTuple{N, Int}, D_N′}(
-        bk => D_N′(undef, ntuple(d -> blocklengths(axes[d])[bk[d]], Val(N))) for
-            bk in bkeys
+        Int.(Tuple(bk)) => D_N′(
+                undef, ntuple(d -> blocklengths(axes[d])[Int(Tuple(bk)[d])], Val(N))
+            ) for bk in bks
     )
     return AbelianArray{S, N, I, D_N′}(axes, blockdata)
 end
