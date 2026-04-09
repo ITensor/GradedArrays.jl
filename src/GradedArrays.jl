@@ -3,10 +3,12 @@ module GradedArrays
 # exports
 # -------
 export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
-export SectorRange, SectorDelta, SectorOneTo, GradedOneTo
-export SectorArray, SectorMatrix
+export SectorRange, SectorOneTo, GradedOneTo
+export AbstractSectorDelta, AbelianSectorDelta, SectorIdentity
+export AbstractSectorArray, AbelianSectorArray, AbelianSectorMatrix, SectorMatrix
 export AbstractGradedArray, AbstractGradedMatrix
-export AbelianArray, AbelianVector, AbelianMatrix
+export AbelianGradedArray, AbelianGradedVector, AbelianGradedMatrix
+export FusedGradedMatrix
 export gradedrange
 
 export dual, flip, gradedrange, isdual,

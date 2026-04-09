@@ -1,13 +1,14 @@
-using GradedArrays: GradedArrays, SU2, SectorArray, SectorDelta, SectorMatrix, SectorRange,
-    U1, dual, isdual, label, labels, sector, sector_multiplicities, sector_type, sectoraxes
+using GradedArrays: GradedArrays, AbelianSectorArray, AbelianSectorDelta,
+    AbelianSectorMatrix, SU2, SectorRange, U1, dual, isdual, label, labels, sector,
+    sector_multiplicities, sector_type, sectoraxes
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
-@testset "SectorArray" begin
+@testset "AbelianSectorArray" begin
     @testset "Construction from labels, isdual, data" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = SectorArray((TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data)
-        @test sa isa SectorArray{Float64, 2, Matrix{Float64}, TKS.U1Irrep}
+        sa = AbelianSectorArray((TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data)
+        @test sa isa AbelianSectorArray{Float64, 2, Matrix{Float64}, TKS.U1Irrep}
         @test sa isa AbstractArray{Float64, 2}
         @test !(sa isa GradedArrays.KroneckerArrays.AbstractKroneckerArray)
     end
@@ -16,7 +17,7 @@ using Test: @test, @test_throws, @testset
         sr1 = SectorRange(TKS.U1Irrep(1), false)
         sr2 = SectorRange(TKS.U1Irrep(-1), true)
         data = [1.0 2.0; 3.0 4.0]
-        sa = SectorArray((sr1, sr2), data)
+        sa = AbelianSectorArray((sr1, sr2), data)
         @test label(sa, 1) == TKS.U1Irrep(1)
         @test label(sa, 2) == TKS.U1Irrep(-1)
         @test isdual(sa, 1) == false
@@ -24,7 +25,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Undef constructor" begin
-        sa = SectorArray{Float64}(
+        sa = AbelianSectorArray{Float64}(
             undef,
             (TKS.U1Irrep(0), TKS.U1Irrep(1)),
             (false, false),
@@ -40,7 +41,7 @@ using Test: @test, @test_throws, @testset
         data = ones(2, 3, 4)
         ls = (TKS.U1Irrep(1), TKS.U1Irrep(0), TKS.U1Irrep(-1))
         ds = (false, true, false)
-        sa = SectorArray(ls, ds, data)
+        sa = AbelianSectorArray(ls, ds, data)
 
         @test labels(sa) === ls
         @test label(sa, 1) == TKS.U1Irrep(1)
@@ -53,7 +54,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "Derived accessors — sectoraxes" begin
         data = ones(2, 3)
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data
         )
         # sectoraxes(sa, d) returns SectorRange
@@ -65,20 +66,20 @@ using Test: @test, @test_throws, @testset
             (SectorRange(TKS.U1Irrep(1), false), SectorRange(TKS.U1Irrep(-1), true))
     end
 
-    @testset "sector(::SectorArray) returns SectorDelta" begin
+    @testset "sector(::AbelianSectorArray) returns AbelianSectorDelta" begin
         data = ones(2, 3)
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(-1)), (false, true), data
         )
         sd = sector(sa)
-        @test sd isa SectorDelta{Float64, 2, TKS.U1Irrep}
+        @test sd isa AbelianSectorDelta{Float64, 2, TKS.U1Irrep}
         @test axes(sd) == sectoraxes(sa)
     end
 
     @testset "Derived accessors — sector_multiplicities (U1, dim=1)" begin
         # U1 has quantum dimension 1, so multiplicity = data size
         data = ones(3, 5)
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(0)), (false, false), data
         )
         @test sector_multiplicities(sa) == (3, 5)
@@ -87,7 +88,7 @@ using Test: @test, @test_throws, @testset
     @testset "Derived accessors — sector_multiplicities (SU2)" begin
         # SU2 j=1/2 has dim=2, so multiplicity = data_size / 2
         data = ones(4, 6)
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.SU2Irrep(1 // 2), TKS.SU2Irrep(1 // 2)), (false, false), data
         )
         @test sector_multiplicities(sa) == (2, 3)
@@ -95,7 +96,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "sector_type" begin
         data = ones(2, 2)
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(0)), (false, false), data
         )
         @test sector_type(typeof(sa)) == SectorRange{TKS.U1Irrep}
@@ -103,7 +104,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "AbstractArray interface — size, getindex, setindex!" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(0)), (false, false), data
         )
         @test size(sa) == (2, 2)
@@ -118,7 +119,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "copy" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(0)), (false, false), data
         )
         sa2 = copy(sa)
@@ -133,36 +134,36 @@ using Test: @test, @test_throws, @testset
 
     @testset "convert" begin
         data = [1 2; 3 4]
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(1)), (false, false), data
         )
-        T = SectorArray{Float64, 2, Matrix{Float64}, TKS.U1Irrep}
+        T = AbelianSectorArray{Float64, 2, Matrix{Float64}, TKS.U1Irrep}
         sa2 = convert(T, sa)
         @test eltype(sa2) == Float64
         @test sa2[1, 1] === 1.0
     end
 
-    @testset "SectorMatrix alias" begin
+    @testset "AbelianSectorMatrix alias" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(0)), (false, false), data
         )
-        @test sa isa SectorMatrix
+        @test sa isa AbelianSectorMatrix
     end
 
-    @testset "1D SectorArray" begin
+    @testset "1D AbelianSectorArray" begin
         data = [1.0, 2.0, 3.0]
-        sa = SectorArray((TKS.U1Irrep(1),), (false,), data)
+        sa = AbelianSectorArray((TKS.U1Irrep(1),), (false,), data)
         @test size(sa) == (3,)
         @test sa[2] == 2.0
         @test ndims(sa) == 1
     end
 
-    @testset "3D SectorArray" begin
+    @testset "3D AbelianSectorArray" begin
         data = ones(2, 3, 4)
         ls = (TKS.U1Irrep(1), TKS.U1Irrep(0), TKS.U1Irrep(-1))
         ds = (false, true, false)
-        sa = SectorArray(ls, ds, data)
+        sa = AbelianSectorArray(ls, ds, data)
         @test size(sa) == (2, 3, 4)
         @test ndims(sa) == 3
         @test sa[1, 2, 3] == 1.0
@@ -170,7 +171,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "permutedims" begin
         data = [1.0 2.0 3.0; 4.0 5.0 6.0]
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(0)), (false, true), data
         )
         sa_perm = permutedims(sa, (2, 1))
@@ -192,38 +193,38 @@ using Test: @test, @test_throws, @testset
         # b has label(1) = U1(1), isdual=true  => sectoraxes(b,1) = dual(U1(1)) = U1(-1)
         # For check_mul_axes: sectoraxes(a,2) must == dual(sectoraxes(b,1))
         # sectoraxes(a,2) = U1(1), dual(sectoraxes(b,1)) = dual(U1(-1)) = U1(1)
-        a = SectorArray(
+        a = AbelianSectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(1)), (false, false), a_data
         )
-        b = SectorArray(
+        b = AbelianSectorArray(
             (TKS.U1Irrep(1), TKS.U1Irrep(0)), (true, false), b_data
         )
-        c = SectorArray(
+        c = AbelianSectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(0)), (false, false), c_data
         )
         mul!(c, a, b, 1.0, 0.0)
         @test c.data ≈ a_data * b_data
     end
 
-    @testset "TensorAlgebra.add! (SectorArray to SectorArray)" begin
+    @testset "TensorAlgebra.add! (AbelianSectorArray to AbelianSectorArray)" begin
         using TensorAlgebra: TensorAlgebra
         data1 = [1.0 2.0; 3.0 4.0]
         data2 = [10.0 20.0; 30.0 40.0]
-        sa1 = SectorArray(
+        sa1 = AbelianSectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(1)), (false, false), data1
         )
-        sa2 = SectorArray(
+        sa2 = AbelianSectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(1)), (false, false), data2
         )
         TensorAlgebra.add!(sa1, sa2, 2.0, 1.0)
         @test sa1.data ≈ [21.0 42.0; 63.0 84.0]
     end
 
-    @testset "TensorAlgebra.add! (SectorArray to plain Array)" begin
+    @testset "TensorAlgebra.add! (AbelianSectorArray to plain Array)" begin
         using TensorAlgebra: TensorAlgebra
         dest = zeros(2, 2)
         data = [1.0 2.0; 3.0 4.0]
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (TKS.U1Irrep(0), TKS.U1Irrep(1)), (false, false), data
         )
         TensorAlgebra.add!(dest, sa, 3.0, 0.0)
@@ -231,7 +232,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "fill! abelian" begin
-        sa = SectorArray((U1(0), dual(U1(0))), [1.0 2.0; 3.0 4.0])
+        sa = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 2.0; 3.0 4.0])
         fill!(sa, 7.0)
         @test all(==(7.0), sa.data)
 
@@ -240,7 +241,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "fill! non-abelian errors for nonzero" begin
-        sa = SectorArray(
+        sa = AbelianSectorArray(
             (SU2(TKS.SU2Irrep(1 // 2)), dual(SU2(TKS.SU2Irrep(1 // 2)))),
             ones(2, 2)
         )
@@ -253,7 +254,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "zero!" begin
-        sa = SectorArray((U1(0), dual(U1(0))), [1.0 2.0; 3.0 4.0])
+        sa = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 2.0; 3.0 4.0])
         GradedArrays.FI.zero!(sa)
         @test all(iszero, sa.data)
     end

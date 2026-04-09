@@ -95,7 +95,7 @@ function sectormergesort(g::GradedOneTo)
 end
 
 # Sort the blocks of an array by sector and merge common sectors.
-function sectormergesort(a::AbelianArray)
+function sectormergesort(a::AbelianGradedArray)
     I = sectormergesortperm.(axes(a))
     return a[I...]
 end

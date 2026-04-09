@@ -2,9 +2,9 @@ using TensorAlgebra: tensor_product_axis, trivial_axis
 
 struct SectorFusion <: FusionStyle end
 
-TensorAlgebra.FusionStyle(::Type{<:SectorDelta}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:SectorArray}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:AbelianArray}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:AbelianSectorDelta}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:AbelianSectorArray}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:AbelianGradedArray}) = SectorFusion()
 
 # ========================  trivial_axis  ========================
 
@@ -18,7 +18,7 @@ end
 function TensorAlgebra.trivial_axis(
         ::SectorFusion,
         ::Val{:codomain},
-        a::AbelianArray,
+        a::AbelianGradedArray,
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
         axes_domain::Tuple{Vararg{AbstractUnitRange}}
     )
@@ -27,7 +27,7 @@ end
 function TensorAlgebra.trivial_axis(
         ::SectorFusion,
         ::Val{:domain},
-        a::AbelianArray,
+        a::AbelianGradedArray,
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
         axes_domain::Tuple{Vararg{AbstractUnitRange}}
     )
@@ -37,7 +37,7 @@ end
 function TensorAlgebra.trivial_axis(
         ::SectorFusion,
         ::Val{:codomain},
-        a::FusedSectorMatrix,
+        a::FusedGradedMatrix,
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
         axes_domain::Tuple{Vararg{AbstractUnitRange}}
     )
@@ -46,7 +46,7 @@ end
 function TensorAlgebra.trivial_axis(
         ::SectorFusion,
         ::Val{:domain},
-        a::FusedSectorMatrix,
+        a::FusedGradedMatrix,
         axes_codomain::Tuple{Vararg{AbstractUnitRange}},
         axes_domain::Tuple{Vararg{AbstractUnitRange}}
     )
@@ -89,10 +89,10 @@ function TensorAlgebra.tensor_product_axis(
     return mortar_axis(vec(blockaxs))
 end
 
-# ========================  SectorDelta matricize  ========================
+# ========================  AbelianSectorDelta matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::SectorDelta, ndims_codomain::Val{Ncodomain}
+        ::SectorFusion, a::AbelianSectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
     biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
     ax_codomain, ax_domain = blocks(axes(a)[biperm])
@@ -100,13 +100,13 @@ function TensorAlgebra.matricize(
         isempty(ax_codomain) ? trivial(sector_type(a)) : tensor_product(ax_codomain...)
     ax_domain =
         isempty(ax_domain) ? trivial(sector_type(a)) : flip(tensor_product(ax_domain...))
-    return SectorDelta{eltype(a)}((ax_codomain, ax_domain))
+    return AbelianSectorDelta{eltype(a)}((ax_codomain, ax_domain))
 end
 
-# ========================  SectorArray matricize  ========================
+# ========================  AbelianSectorArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::SectorArray, ndims_codomain::Val{K}
+        ::SectorFusion, a::AbelianSectorArray, ndims_codomain::Val{K}
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))
 
@@ -120,28 +120,28 @@ function TensorAlgebra.matricize(
     adata_reshaped = matricize(data(a), Val(K))
     isone(phase) || (adata_reshaped = phase .* adata_reshaped)
 
-    return SectorArray(asectors_reshaped, adata_reshaped)
+    return AbelianSectorArray(asectors_reshaped, adata_reshaped)
 end
 
-# ========================  AbelianArray matricize  ========================
+# ========================  AbelianGradedArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbelianArray, ndims_codomain::Val{K}
+        ::SectorFusion, a::AbelianGradedArray, ndims_codomain::Val{K}
     ) where {K}
     a_reshaped = block_reshape(a, Val(K))
     a_merged = sectormergesort(a_reshaped)
-    return FusedSectorMatrix(a_merged)
+    return FusedGradedMatrix(a_merged)
 end
 
 """
-    block_reshape(a::AbelianArray, ndims_codomain::Val{K}) -> AbelianArray{T,2}
+    block_reshape(a::AbelianGradedArray, ndims_codomain::Val{K}) -> AbelianGradedArray{T,2}
 
-Reshape an N-d AbelianArray into a 2D AbelianArray by grouping the first K
+Reshape an N-d AbelianGradedArray into a 2D AbelianGradedArray by grouping the first K
 dimensions as codomain and the remaining as domain. Computes unfused 2D graded
 axes via `tensor_product_axis`, then permutes and reshapes each block's data.
 """
 function block_reshape(
-        a::AbelianArray{T, N}, ndims_codomain::Val{K}
+        a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
     ax_2d = matricize_axes(SectorFusion(), a, ndims_codomain)
     a_2d = FI.zero!(similar(a, ax_2d))
@@ -162,7 +162,7 @@ function block_reshape(
         row_block = LinearIndices(cod_cart)[ci_cod...]
         col_block = LinearIndices(dom_cart)[ci_dom...]
 
-        # Matricize the individual block (SectorArray handles fermionic phase)
+        # Matricize the individual block (AbelianSectorArray handles fermionic phase)
         src_block = a[bI_src]
         dest_block = matricize(src_block, ndims_codomain)
 
@@ -173,34 +173,54 @@ function block_reshape(
     return a_2d
 end
 
-# ========================  AbelianArray unmatricize  ========================
+# ========================  AbelianGradedArray unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::SectorDelta,
+        ::SectorFusion, m::AbelianSectorDelta,
         codomain_axes::Tuple{Vararg{SectorRange}},
         domain_axes::Tuple{Vararg{SectorRange}}
     )
-    return SectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
+    return AbelianSectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
 end
 
-# TODO: Port unmatricize(::SectorFusion, ::SectorMatrix, ...) with fermionic
-# contraction phase. The old code used kroneckerfactors to split sector and data
-# components; the new SectorArray stores them directly but the multiplicity
-# information needed for reshaping the data component is not carried by SectorRange
-# axes alone. Needed when contracting bare SectorArray tensors (not AbelianArray).
+# Unmatricize an AbelianSectorMatrix back to an N-D AbelianSectorArray. Decomposes into
+# sector (AbelianSectorDelta) and data (plain matrix) components, unmatricizes each
+# independently, applies the fermionic contraction phase, and recombines.
+# The codomain/domain axes must be SectorOneTo (carrying multiplicity info).
+function TensorAlgebra.unmatricize(
+        ::SectorFusion, m::AbelianSectorMatrix,
+        codomain_axes::Tuple{Vararg{SectorOneTo}},
+        domain_axes::Tuple{Vararg{SectorOneTo}}
+    )
+    msectors = unmatricize(
+        sector(m),
+        sector.(codomain_axes),
+        sector.(domain_axes)
+    )
+    mdata = unmatricize(
+        data(m),
+        data.(codomain_axes),
+        data.(domain_axes)
+    )
+
+    phase = fermion_contraction_phase(msectors, length(codomain_axes))
+    isone(phase) || (mdata = phase .* mdata)
+
+    return AbelianSectorArray(msectors, mdata)
+end
 
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::FusedSectorMatrix,
+        ::SectorFusion, m::FusedGradedMatrix,
         codomain_axes::Tuple{Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
     blocked_axes = (codomain_axes..., domain_axes...)
     if isempty(blocked_axes)
-        error("Scalar unmatricize not yet supported for FusedSectorMatrix")
+        error("Scalar unmatricize not yet supported for FusedGradedMatrix")
     end
 
     fused_axes = matricize_axes(SectorFusion(), m, codomain_axes, domain_axes)
-    m_abelian = AbelianArray(m)
+    m_abelian = AbelianGradedArray(m)
     blockperms = sectorsortperm.(fused_axes)
     J = map(invblockmergeperm, fused_axes, blockperms, axes(m_abelian))
     m_split = m_abelian[J...]
@@ -208,14 +228,14 @@ function TensorAlgebra.unmatricize(
 end
 
 """
-    block_unreshape(m::AbelianArray{T,2}, codomain_axes, domain_axes) -> AbelianArray{T,N}
+    block_unreshape(m::AbelianGradedArray{T,2}, codomain_axes, domain_axes) -> AbelianGradedArray{T,N}
 
-Inverse of `block_reshape`. Reshapes a 2D AbelianArray with unfused graded axes
-back to an N-d AbelianArray by splitting each 2D block into its constituent
+Inverse of `block_reshape`. Reshapes a 2D AbelianGradedArray with unfused graded axes
+back to an N-d AbelianGradedArray by splitting each 2D block into its constituent
 N-d blocks.
 """
 function block_unreshape(
-        m::AbelianMatrix{T}, codomain_axes::Tuple, domain_axes::Tuple
+        m::AbelianGradedMatrix{T}, codomain_axes::Tuple, domain_axes::Tuple
     ) where {T}
     N = length(codomain_axes) + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
@@ -232,7 +252,7 @@ function block_unreshape(
         src_block = m[bI_src]
         dest_sects = ntuple(d -> sectors(dest_axes[d])[dest_bk[d]], Val(N))
         dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_block = SectorArray(dest_sects, reshape(data(src_block), dest_dims))
+        dest_block = AbelianSectorArray(dest_sects, reshape(data(src_block), dest_dims))
         a[Block(dest_bk...)] = dest_block
     end
 
@@ -262,8 +282,8 @@ function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
     domain_axs = Base.tail(axs)
 
     # Compute unfused 2D axes via the fusion tree.
-    # We need a dummy array for trivial_axis dispatch; an empty AbelianArray suffices.
-    dummy = AbelianArray{Float64, N, Array{Float64, N}, I}(
+    # We need a dummy array for trivial_axis dispatch; an empty AbelianGradedArray suffices.
+    dummy = AbelianGradedArray{Float64, N, Array{Float64, N}, I}(
         Dict{NTuple{N, Int}, Array{Float64, N}}(), axs
     )
     unfused_cod, unfused_dom = matricize_axes(
@@ -297,10 +317,10 @@ end
 """
     zeros(T, axs::GradedOneTo...)
 
-Create an `AbelianArray{T}` with all allowed (zero-flux) blocks filled with zeros.
+Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with zeros.
 """
 function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
-    return FI.zero!(AbelianArray{T}(undef, axs...))
+    return FI.zero!(AbelianGradedArray{T}(undef, axs...))
 end
 
 function Base.zeros(axs::GradedOneTo...)
@@ -316,7 +336,7 @@ end
 # ========================  permutedimsopadd!  ========================
 
 function TensorAlgebra.permutedimsopadd!(
-        y::SectorArray, op, x::SectorArray, perm,
+        y::AbelianSectorArray, op, x::AbelianSectorArray, perm,
         α::Number, β::Number
     )
     sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())
@@ -326,7 +346,7 @@ function TensorAlgebra.permutedimsopadd!(
 end
 
 function TensorAlgebra.permutedimsopadd!(
-        y::AbelianArray{<:Any, N}, op, x::AbelianArray{<:Any, N}, perm,
+        y::AbelianGradedArray{<:Any, N}, op, x::AbelianGradedArray{<:Any, N}, perm,
         α::Number, β::Number
     ) where {N}
     iszero(β) || scale!(y, β)

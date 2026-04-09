@@ -2,7 +2,7 @@
     GradedOneTo{I<:TKS.Sector}
 
 Represents a graded axis — a collection of sector labels with multiplicities and a dual flag.
-This is the axis type for `AbelianArray` and replaces the old `GradedOneTo` type alias
+This is the axis type for `AbelianGradedArray` and replaces the old `GradedOneTo` type alias
 for new code paths.
 
 Stores raw labels, multiplicities, and a single dual flag. The `sectors` accessor returns
