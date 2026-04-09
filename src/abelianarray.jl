@@ -35,19 +35,6 @@ function AbelianArray{T}(
 end
 
 # ---------------------------------------------------------------------------
-#  Helpers
-# ---------------------------------------------------------------------------
-
-"""
-    _block_length(g::GradedUnitRange, k::Int)
-
-Total length of block `k` in axis `g`: quantum dimension times multiplicity.
-"""
-function _block_length(g::GradedUnitRange, k::Int)
-    return quantum_dimension(sectors(g)[k]) * sector_multiplicities(g)[k]
-end
-
-# ---------------------------------------------------------------------------
 #  AbstractArray interface
 # ---------------------------------------------------------------------------
 
@@ -59,7 +46,7 @@ Base.axes(a::AbelianArray) = a.axes
 # ---------------------------------------------------------------------------
 
 function _wrap_block(a::AbelianArray{T, N}, bk::NTuple{N, Int}, data) where {T, N}
-    block_sectors = ntuple(d -> sectors(a.axes[d])[bk[d]], Val(N))
+    block_sectors = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
     return SectorArray(block_sectors, data)
 end
 
@@ -79,7 +66,7 @@ function BlockSparseArrays.view!(
     ) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
     if !haskey(a.blockdata, bk)
-        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
+        block_dims = ntuple(d -> blocklengths(axes(a, d))[bk[d]], Val(N))
         a.blockdata[bk] = zeros(T, block_dims)
     end
     return _wrap_block(a, bk, a.blockdata[bk])
@@ -104,7 +91,7 @@ struct AbelianBlocks{T, N, A <: AbelianArray{T, N}} <: AbstractArray{SectorArray
 end
 
 BlockArrays.blocks(a::AbelianArray) = AbelianBlocks(a)
-Base.size(b::AbelianBlocks) = Tuple(blocklength.(b.parent.axes))
+Base.size(b::AbelianBlocks) = Tuple(blocklength.(axes(b.parent)))
 
 function Base.getindex(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
     return view(b.parent, Block.(I)...)
@@ -129,7 +116,7 @@ function Base.getindex(a::AbelianArray{T, N}, I::Vararg{Block{1}, N}) where {T, 
     if haskey(a.blockdata, bk)
         return copy(view(a, I...))
     else
-        block_dims = ntuple(d -> _block_length(a.axes[d], bk[d]), Val(N))
+        block_dims = ntuple(d -> blocklengths(axes(a, d))[bk[d]], Val(N))
         return _wrap_block(a, bk, zeros(T, block_dims))
     end
 end

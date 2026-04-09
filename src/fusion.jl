@@ -237,9 +237,9 @@ function block_unreshape(
         # Compute the N-d block shape
         block_dims = ntuple(Val(N)) do d
             if d <= K
-                return _block_length(codomain_axes[d], ci_cod[d])
+                return blocklengths(codomain_axes[d])[ci_cod[d]]
             else
-                return _block_length(domain_axes[d - K], ci_dom[d - K])
+                return blocklengths(domain_axes[d - K])[ci_dom[d - K]]
             end
         end
 
