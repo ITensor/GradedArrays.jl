@@ -26,18 +26,14 @@ Base.@propagate_inbounds function Base.getindex(
 end
 
 function Base.axes(A::SectorIdentity)
-    return (SectorRange(A.label, false), dual(SectorRange(A.label, false)))
+    return (SectorRange(A.label), dual(SectorRange(A.label)))
 end
 
 labels(x::SectorIdentity) = (x.label, x.label)
 label(x::SectorIdentity) = x.label
 sector_type(::Type{<:SectorIdentity{T, I}}) where {T, I} = SectorRange{I}
 
-function sectoraxes(x::SectorIdentity)
-    return (SectorRange(x.label, false), SectorRange(x.label, true))
-end
-
-# Permuting axes may change dual flags, so delegate to AbelianSectorDelta.
-function Base.permutedims(x::SectorIdentity, perm)
-    return permutedims(AbelianSectorDelta{eltype(x)}(labels(x), map(isdual, axes(x))), perm)
+function Base.permutedims(a::SectorIdentity, perm)
+    perm == ntuple(identity, ndims(a)) && return a
+    return SectorIdentity{eltype(a)}(dual(a.label))
 end

@@ -25,7 +25,8 @@ labels(sm::SectorMatrix) = (sm.label, sm.label)
 label(sm::SectorMatrix) = sm.label
 
 function sectoraxes(sm::SectorMatrix)
-    return (SectorRange(sm.label, false), SectorRange(sm.label, true))
+    s = SectorRange(sm.label)
+    return (s, dual(s))
 end
 
 sector(sm::SectorMatrix) = SectorIdentity{eltype(sm)}(sm.label)
@@ -35,9 +36,10 @@ sector_type(::Type{<:SectorMatrix{T, D, I}}) where {T, D, I} = SectorRange{I}
 datatype(::Type{SectorMatrix{T, D, I}}) where {T, D, I} = D
 
 function Base.axes(sm::SectorMatrix)
+    s = SectorRange(sm.label)
     return (
-        sectorrange(SectorRange(sm.label, false), size(data(sm), 1)),
-        sectorrange(SectorRange(sm.label, true), size(data(sm), 2)),
+        sectorrange(s, size(data(sm), 1)),
+        sectorrange(dual(s), size(data(sm), 2)),
     )
 end
 
