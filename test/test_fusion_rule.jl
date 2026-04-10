@@ -1,6 +1,6 @@
 using BlockArrays: blocklengths
 using GradedArrays: GradedArrays, O2, SU2, TrivialSector, U1, Z, dual, flip, gradedrange,
-    nsymbol, quantum_dimension, tensor_product, trivial, unmerged_tensor_product
+    nsymbol, tensor_product, trivial, unmerged_tensor_product
 using SUNRepresentations: SUNIrrep
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred

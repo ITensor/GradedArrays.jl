@@ -60,8 +60,8 @@ using Test: @test, @testset
         a1, a2 = axes(sm)
         @test length(a1) == 4
         @test length(a2) == 6
-        @test GradedArrays.sector_multiplicity(a1) == 2
-        @test GradedArrays.sector_multiplicity(a2) == 3
+        @test GradedArrays.datalength(a1) == 2
+        @test GradedArrays.datalength(a2) == 3
     end
 
     @testset "size, getindex, setindex!" begin

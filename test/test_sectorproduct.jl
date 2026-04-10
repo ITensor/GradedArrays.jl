@@ -1,6 +1,6 @@
 using BlockArrays: blocklengths
-using GradedArrays: GradedArrays, SU2, SectorProduct, TrivialSector, U1, Z, arguments, dual,
-    flip, gradedrange, label, quantum_dimension, sector, sector_type, sectorproduct,
+using GradedArrays: GradedArrays, SU2, SectorProduct, SectorRange, TrivialSector, U1, Z,
+    arguments, dual, flip, gradedrange, label, sector, sector_type, sectorproduct,
     sectorrange, tensor_product, trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_broken, @test_throws, @testset
@@ -10,14 +10,14 @@ using TestExtras: @constinferred
     @testset "Ordered Constructor" begin
         s = SectorProduct(TKS.U1Irrep(1))
         @test length(arguments(s)) == 1
-        @test (@constinferred quantum_dimension(s)) == 1
+        @test (@constinferred length(SectorRange(s))) == 1
         @test (@constinferred dual(s)) == SectorProduct(TKS.U1Irrep(-1))
         @test arguments(s)[1] == TKS.U1Irrep(1)
         @test (@constinferred trivial(s)) == SectorProduct(TKS.U1Irrep(0))
 
         s = SectorProduct(TKS.U1Irrep(1), TKS.U1Irrep(2))
         @test length(arguments(s)) == 2
-        @test (@constinferred quantum_dimension(s)) == 1
+        @test (@constinferred length(SectorRange(s))) == 1
         @test (@constinferred dual(s)) == SectorProduct(TKS.U1Irrep(-1), TKS.U1Irrep(-2))
         @test arguments(s)[1] == TKS.U1Irrep(1)
         @test arguments(s)[2] == TKS.U1Irrep(2)
@@ -27,7 +27,7 @@ using TestExtras: @constinferred
         @test s ≡ sectorproduct(U1(1), SU2(1 // 2), U1(3))
         @test s ≡ ×(U1(1), SU2(1 // 2), U1(3))
         @test length(arguments(s)) == 3
-        @test (@constinferred quantum_dimension(s)) == 2
+        @test (@constinferred length(s)) == 2
         @test (@constinferred flip(dual(s))) == U1(-1) × SU2(1 // 2) × U1(-3)
         @test arguments(s)[1] == U1(1)
         @test arguments(s)[2] == SU2(1 // 2)
@@ -36,7 +36,7 @@ using TestExtras: @constinferred
 
         s = TrivialSector() × U1(3) × SU2(1 / 2)
         @test length(arguments(s)) == 3
-        @test (@constinferred quantum_dimension(s)) == 2
+        @test (@constinferred length(s)) == 2
         @test flip(dual(s)) == TrivialSector() × U1(-3) × SU2(1 // 2)
         @test (@constinferred trivial(s)) == SectorProduct(TrivialSector(), U1(0), SU2(0))
         @test s > trivial(s)
@@ -174,7 +174,7 @@ end
         @test length(arguments(s)) == 2
         @test arguments(s)[:A] == U1(1)
         @test arguments(s)[:B] == Z{2}(0)
-        @test (@constinferred quantum_dimension(s)) == 1
+        @test (@constinferred length(s)) == 1
         @test (@constinferred flip(dual(s))) == (A = U1(-1),) × (B = Z{2}(0),)
         @test (@constinferred trivial(s)) == (A = U1(0),) × (B = Z{2}(0),)
 
@@ -182,7 +182,7 @@ end
         @test length(arguments(s)) == 2
         @test arguments(s)[:A] == U1(1)
         @test arguments(s)[:B] == SU2(2)
-        @test (@constinferred quantum_dimension(s)) == 5
+        @test (@constinferred length(s)) == 5
         @test (@constinferred flip(dual(s))) == (A = U1(-1),) × (B = SU2(2),)
         @test (@constinferred trivial(s)) == (A = U1(0),) × (B = SU2(0),)
         @test s == (B = SU2(2),) × (A = U1(1),)
@@ -210,7 +210,7 @@ end
         @test length(arguments(s)) == 1
         @test arguments(s)[:A] == U1(2)
         @test s == ×((; A = U1(2)))
-        @test (@constinferred quantum_dimension(s)) == 1
+        @test (@constinferred length(s)) == 1
         @test (@constinferred flip(dual(s))) == ×("A" => U1(-2))
         @test (@constinferred trivial(s)) == ×((; A = U1(0)))
 
@@ -218,7 +218,7 @@ end
         @test length(arguments(s)) == 2
         @test arguments(s)[:B] == SU2(1 // 2)
         @test arguments(s)[:C] == Z{2}(1)
-        @test (@constinferred quantum_dimension(s)) == 2
+        @test (@constinferred length(s)) == 2
     end
 
     @testset "Comparisons with unspecified labels" begin
@@ -388,7 +388,7 @@ end
 
         @test (@constinferred flip(dual(s))) == s
         @test (@constinferred trivial(s)) == s
-        @test (@constinferred quantum_dimension(s)) == 1
+        @test (@constinferred length(s)) == 1
 
         g0 = gradedrange([s => 2])
         @test (@constinferred tensor_product(g0, g0)) == gradedrange([s => 4])

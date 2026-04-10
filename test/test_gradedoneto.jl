@@ -1,6 +1,6 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorRange, U1, dual, flip,
-    gradedrange, isdual, sector_multiplicities, sector_type, sectors, tensor_product
+using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorRange, U1, datalengths, dual,
+    flip, gradedrange, isdual, sector_type, sectors, tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -9,7 +9,7 @@ using Test: @test, @test_throws, @testset
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         @test g isa GradedOneTo{U1}
         @test sectors(g) == [U1(0), U1(1)]
-        @test sector_multiplicities(g) == [2, 3]
+        @test datalengths(g) == [2, 3]
         @test isdual(g) == false
     end
 
@@ -17,7 +17,7 @@ using Test: @test, @test_throws, @testset
         g = gradedrange([U1(0)' => 2, U1(1)' => 3])
         @test g isa GradedOneTo{U1}
         @test sectors(g) == [U1(0)', U1(1)']
-        @test sector_multiplicities(g) == [2, 3]
+        @test datalengths(g) == [2, 3]
         @test isdual(g) == true
     end
 
@@ -30,7 +30,7 @@ using Test: @test, @test_throws, @testset
         gd = g'
         @test isdual(gd) == true
         @test sectors(gd) == dual.(sectors(g))
-        @test sector_multiplicities(gd) == sector_multiplicities(g)
+        @test datalengths(gd) == datalengths(g)
     end
 
     @testset "double dual is identity" begin
@@ -79,7 +79,7 @@ using Test: @test, @test_throws, @testset
         g = gradedrange([U1(1) => 3, U1(2) => 5])
         gf = flip(g)
         @test sectors(gf) == [flip(U1(1)), flip(U1(2))]
-        @test sector_multiplicities(gf) == [3, 5]
+        @test datalengths(gf) == [3, 5]
         @test isdual(gf) == true
     end
 
@@ -131,7 +131,7 @@ using Test: @test, @test_throws, @testset
     @testset "repeated sectors allowed" begin
         g = gradedrange([U1(1) => 2, U1(1) => 3])
         @test sectors(g) == [U1(1), U1(1)]
-        @test sector_multiplicities(g) == [2, 3]
+        @test datalengths(g) == [2, 3]
         @test blocklength(g) == 2
         @test length(g) == 1 * 2 + 1 * 3  # 5
     end
@@ -155,7 +155,7 @@ using Test: @test, @test_throws, @testset
         g = gradedrange([SU2(0) => 1, SU2(1) => 2])
         @test g isa GradedOneTo{SU2}
         @test sectors(g) == [SU2(0), SU2(1)]
-        @test sector_multiplicities(g) == [1, 2]
+        @test datalengths(g) == [1, 2]
     end
 
     @testset "mismatched sectors and multiplicities" begin

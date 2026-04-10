@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, AbelianSectorDelta,
-    AbelianSectorMatrix, SU2, SectorRange, U1, data, dual, isdual, sector,
-    sector_multiplicities, sector_type, sectoraxes
+    AbelianSectorMatrix, SU2, SectorRange, U1, data, datalengths, dual, isdual, sector,
+    sector_type, sectoraxes
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -59,18 +59,18 @@ using Test: @test, @test_throws, @testset
         @test axes(sd) == sectoraxes(sa)
     end
 
-    @testset "Derived accessors — sector_multiplicities (U1, dim=1)" begin
+    @testset "Derived accessors — datalengths (U1, dim=1)" begin
         data = ones(3, 5)
         sa = AbelianSectorArray((U1(1), U1(0)), data)
-        @test sector_multiplicities(sa) == (3, 5)
+        @test datalengths(sa) == (3, 5)
     end
 
-    @testset "Derived accessors — sector_multiplicities (SU2)" begin
+    @testset "Derived accessors — datalengths (SU2)" begin
         data = ones(4, 6)
         sa = AbelianSectorArray(
             (SU2(1 // 2), SU2(1 // 2)), data
         )
-        @test sector_multiplicities(sa) == (2, 3)
+        @test datalengths(sa) == (2, 3)
     end
 
     @testset "sector_type" begin

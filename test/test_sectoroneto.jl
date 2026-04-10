@@ -1,7 +1,7 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorOneTo, SectorRange, U1, dual,
-    flip, gradedrange, isdual, sector, sector_multiplicities, sector_multiplicity,
-    sector_type, sectorrange, sectors, tensor_product
+using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorOneTo, SectorRange, U1,
+    datalength, datalengths, dual, flip, gradedrange, isdual, sector, sector_type,
+    sectorrange, sectors, tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -9,12 +9,12 @@ using Test: @test, @testset
     @testset "U1 construction and accessors" begin
         si = SectorOneTo(U1(1), 3)
         @test sector(si) == U1(1)
-        @test sector_multiplicity(si) == 3
+        @test datalength(si) == 3
         @test isdual(si) == false
 
         # Default multiplicity
         si3 = SectorOneTo(U1(0))
-        @test sector_multiplicity(si3) == 1
+        @test datalength(si3) == 1
         @test isdual(si3) == false
     end
 
@@ -28,7 +28,7 @@ using Test: @test, @testset
         # SU2 j=1/2: quantum dim = 2
         si = SectorOneTo(SU2(1 // 2), 4)
         @test sector(si) == SU2(1 // 2)
-        @test sector_multiplicity(si) == 4
+        @test datalength(si) == 4
         @test isdual(si) == false
     end
 
@@ -40,7 +40,7 @@ using Test: @test, @testset
     @testset "Collection-like interface" begin
         si = SectorOneTo(U1(3), 7)
         @test sectors(si) == [U1(3)]
-        @test sector_multiplicities(si) == [7]
+        @test datalengths(si) == [7]
         @test blocklength(si) == 1
     end
 
@@ -63,7 +63,7 @@ using Test: @test, @testset
         si = SectorOneTo(U1(1), 3)
         sid = dual(si)
         @test sector(sid) == U1(1)'
-        @test sector_multiplicity(sid) == 3
+        @test datalength(sid) == 3
         @test isdual(sid) == true
         @test dual(sid) == si  # double dual is identity
     end
@@ -72,7 +72,7 @@ using Test: @test, @testset
         si = SectorOneTo(U1(1), 3)
         sif = flip(si)
         @test sector(sif) == flip(U1(1))
-        @test sector_multiplicity(sif) == 3
+        @test datalength(sif) == 3
         @test isdual(sif) == true
     end
 
@@ -81,7 +81,7 @@ using Test: @test, @testset
         sif = flip(si)
         @test sector(sif) == flip(SU2(1 // 2))
         @test isdual(sif) == true
-        @test sector_multiplicity(sif) == 2
+        @test datalength(sif) == 2
     end
 
     @testset "equality" begin
@@ -134,7 +134,7 @@ using Test: @test, @testset
         tp = tensor_product(si0, si1)
         @test tp isa SectorOneTo
         @test sector(tp) == U1(1)
-        @test sector_multiplicity(tp) == 6
+        @test datalength(tp) == 6
 
         @test tensor_product(si1) == si1
 
@@ -151,6 +151,6 @@ using Test: @test, @testset
         si_half = sectorrange(SU2(1 // 2), 1)
         tp = tensor_product(si_half, si_half)
         @test tp isa GradedOneTo
-        @test sector_multiplicities(tp) == [1, 1]
+        @test datalengths(tp) == [1, 1]
     end
 end

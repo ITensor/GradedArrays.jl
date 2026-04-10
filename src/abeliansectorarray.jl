@@ -35,7 +35,7 @@ const AbelianSectorMatrix{T, A <: AbstractMatrix{T}, S <: SectorRange} =
 
 # Accessors
 sectoraxes(sa::AbelianSectorArray) = sa.sectors
-function sector_multiplicities(sa::AbelianSectorArray)
+function datalengths(sa::AbelianSectorArray)
     return ntuple(
         d -> div(size(data(sa), d), length(sectoraxes(sa, d))), Val(ndims(sa))
     )
@@ -51,7 +51,7 @@ datatype(::Type{AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = A
 # AbstractArray interface
 # -----------------------
 function Base.axes(sa::AbelianSectorArray)
-    mults = sector_multiplicities(sa)
+    mults = datalengths(sa)
     return ntuple(d -> sectorrange(sectoraxes(sa, d), mults[d]), Val(ndims(sa)))
 end
 

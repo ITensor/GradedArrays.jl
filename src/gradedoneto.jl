@@ -1,37 +1,38 @@
 """
     GradedOneTo{S<:SectorRange}
 
-Represents a graded axis — a collection of sectors with multiplicities and a dual flag.
+Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
 This is the axis type for `AbelianGradedArray`.
 
-Stores non-dual `SectorRange` values in `nondual_sectors`, multiplicities, and a single
+Stores non-dual `SectorRange` values in `nondual_sectors`, sector lengths, and a single
 `isdual` flag. The `sectors` accessor applies the `isdual` flag on the fly.
 """
 struct GradedOneTo{S <: SectorRange} <: AbstractUnitRange{Int}
     nondual_sectors::Vector{S}
-    multiplicities::Vector{Int}
+    datalengths::Vector{Int}
     isdual::Bool
     function GradedOneTo(
-            sectors::Vector{S}, multiplicities::Vector{Int}, isdual::Bool
+            sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
         ) where {S <: SectorRange}
-        length(sectors) == length(multiplicities) ||
-            throw(ArgumentError("sectors and multiplicities must have the same length"))
-        return new{S}(sectors, multiplicities, isdual)
+        length(sectors) == length(datalengths) ||
+            throw(ArgumentError("sectors and datalengths must have the same length"))
+        return new{S}(sectors, datalengths, isdual)
     end
 end
 function GradedOneTo(
         sectors::Vector{S},
-        multiplicities::Vector{Int}
+        datalengths::Vector{Int}
     ) where {S <: SectorRange}
-    return GradedOneTo(sectors, multiplicities, false)
+    return GradedOneTo(sectors, datalengths, false)
 end
 
 # Primitive accessors
-sector_multiplicities(g::GradedOneTo) = g.multiplicities
+datalengths(g::GradedOneTo) = g.datalengths
 isdual(g::GradedOneTo) = g.isdual
 
 # Derived accessors
 sectors(g::GradedOneTo) = isdual(g) ? dual.(g.nondual_sectors) : g.nondual_sectors
+sectorlengths(g::GradedOneTo) = length.(sectors(g))
 Base.first(::GradedOneTo) = 1
 BlockArrays.blocklength(g::GradedOneTo) = length(g.nondual_sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
@@ -44,7 +45,7 @@ SymmetryStyle(::Type{<:GradedOneTo{S}}) where {S} = SymmetryStyle(S)
 # blocklengths: total length of each block (length(sector) * multiplicity)
 function BlockArrays.blocklengths(g::GradedOneTo)
     return [
-        length(s) * m for (s, m) in zip(g.nondual_sectors, sector_multiplicities(g))
+        length(s) * m for (s, m) in zip(g.nondual_sectors, datalengths(g))
     ]
 end
 dataaxistype(::Type{<:GradedOneTo}) = Base.OneTo{Int}
@@ -73,7 +74,7 @@ end
 function BlockSparseArrays.eachblockaxis(g::GradedOneTo)
     return [
         SectorOneTo(s, m)
-            for (s, m) in zip(sectors(g), sector_multiplicities(g))
+            for (s, m) in zip(sectors(g), datalengths(g))
     ]
 end
 
@@ -86,7 +87,7 @@ function BlockSparseArrays.mortar_axis(axs::AbstractVector{<:SectorOneTo})
     d = isdual(first(axs))
     # Store non-dual sectors; apply isdual via dual() if needed
     ss = [d ? dual(sector(r)) : sector(r) for r in axs]
-    ms = [sector_multiplicity(r) for r in axs]
+    ms = [datalength(r) for r in axs]
     g = GradedOneTo(ss, ms)
     return d ? dual(g) : g
 end
@@ -114,12 +115,12 @@ end
 
 # dual, flip, flip_dual, adjoint
 function dual(g::GradedOneTo)
-    return GradedOneTo(g.nondual_sectors, sector_multiplicities(g), !isdual(g))
+    return GradedOneTo(g.nondual_sectors, datalengths(g), !isdual(g))
 end
 function flip(g::GradedOneTo)
     # Conjugate labels but keep stored sectors non-dual
     new_nondual = [SectorRange(dual(label(s))) for s in g.nondual_sectors]
-    return GradedOneTo(new_nondual, sector_multiplicities(g), !isdual(g))
+    return GradedOneTo(new_nondual, datalengths(g), !isdual(g))
 end
 flip_dual(g::GradedOneTo) = isdual(g) ? flip(g) : g
 Base.adjoint(g::GradedOneTo) = dual(g)
@@ -136,7 +137,7 @@ function Base.getindex(
     ea = eachblockaxis(g)
     dest = map(blocks(I)) do group
         src = [ea[Int(b)] for b in group]
-        total_mult = sum(sector_multiplicity, src)
+        total_mult = sum(datalength, src)
         return SectorOneTo(sector(first(src)), total_mult)
     end
     return mortar_axis(collect(dest))
@@ -167,19 +168,19 @@ end
 # Equality and hashing
 function Base.isequal(a::GradedOneTo, b::GradedOneTo)
     return isequal(a.nondual_sectors, b.nondual_sectors) &&
-        isequal(sector_multiplicities(a), sector_multiplicities(b)) &&
+        isequal(datalengths(a), datalengths(b)) &&
         isequal(isdual(a), isdual(b))
 end
 Base.:(==)(a::GradedOneTo, b::GradedOneTo) = isequal(a, b)
 function Base.hash(g::GradedOneTo, h::UInt)
-    return hash(g.nondual_sectors, hash(sector_multiplicities(g), hash(isdual(g), h)))
+    return hash(g.nondual_sectors, hash(datalengths(g), hash(isdual(g), h)))
 end
 
 # Show
 function Base.show(io::IO, g::GradedOneTo)
     print(io, "GradedOneTo(")
     print(io, "[")
-    for (i, (s, m)) in enumerate(zip(sectors(g), sector_multiplicities(g)))
+    for (i, (s, m)) in enumerate(zip(sectors(g), datalengths(g)))
         i > 1 && print(io, ", ")
         show(io, label(s))
         print(io, " => ", m)

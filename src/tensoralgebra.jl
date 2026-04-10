@@ -84,9 +84,9 @@ end
 
 function sectormergesort(g::GradedOneTo)
     glabels = sectors(g)
-    multiplicities = sector_multiplicities(g)
-    dict = Dict{eltype(glabels), eltype(multiplicities)}()
-    for (l, m) in zip(glabels, multiplicities)
+    slens = datalengths(g)
+    dict = Dict{eltype(glabels), eltype(slens)}()
+    for (l, m) in zip(glabels, slens)
         dict[l] = get(dict, l, 0) + m
     end
 

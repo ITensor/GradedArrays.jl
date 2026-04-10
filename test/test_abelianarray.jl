@@ -1,8 +1,8 @@
 using BlockArrays: BlockArrays, Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
-    AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data, dual,
-    gradedrange, isdual, sector_multiplicities, sector_type, sectoraxes, sectors
+    AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
+    datalengths, dual, gradedrange, isdual, sector_type, sectoraxes, sectors
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 

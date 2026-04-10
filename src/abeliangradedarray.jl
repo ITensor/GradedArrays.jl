@@ -6,7 +6,7 @@
     AbelianGradedArray{T,N,D<:AbstractArray{T,N},S<:SectorRange} <: AbstractGradedArray{T,N}
 
 A graded array that stores non-zero blocks in a dictionary keyed by block indices.
-Each axis is a [`GradedOneTo`](@ref) carrying sectors, multiplicities, and a dual flag.
+Each axis is a [`GradedOneTo`](@ref) carrying sectors, sector lengths, and a dual flag.
 
 Blocks are stored as plain dense arrays of type `D` (default `Array{T,N}`).
 Accessing a block via `a[Block(i,j)]` returns a [`AbelianSectorArray`](@ref) wrapping the data

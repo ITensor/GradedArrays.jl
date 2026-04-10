@@ -12,9 +12,8 @@ export FusedGradedMatrix
 export gradedrange
 
 export dual, flip, gradedrange, isdual,
-    data, dataaxes, dataaxes1,
-    sector, sectoraxes, sectoraxes1,
-    sector_multiplicities, sector_multiplicity,
+    data, dataaxes, dataaxes1, datalength, datalengths,
+    sector, sectoraxes, sectoraxes1, sectorlength, sectorlengths,
     sectorrange, sectors, sector_type
 
 # imports

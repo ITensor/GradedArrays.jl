@@ -23,7 +23,7 @@ sector_type(T::Type) = throw(MethodError(sector_type, T))
 
 # ===================================  Base interface  =====================================
 
-Base.length(r::SectorRange) = quantum_dimension(r)
+Base.length(r::SectorRange) = TKS.dim(label(r))
 
 Base.isless(r1::SectorRange, r2::SectorRange) = isless(label(r1), label(r2))
 Base.isless(r1::SectorRange, r2::TKS.Sector) = isless(label(r1), r2)
@@ -77,9 +77,6 @@ function sector_label(c::TKS.Sector)
         return getfield(c, f)
     end
 end
-
-quantum_dimension(r::SectorRange) = TKS.dim(label(r))
-quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 
 to_sector(x::TKS.Sector) = SectorRange(x)
 

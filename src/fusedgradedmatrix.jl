@@ -13,9 +13,9 @@ Fields:
   - `sectors::Vector{S}` — coupled sectors, sorted and unique (always non-dual, codomain convention)
   - `blocks::Vector{D}` — diagonal blocks, one per sector
 
-The codomain (row) axis is non-dual with sectors `sectors[i]` and multiplicities
+The codomain (row) axis is non-dual with sectors `sectors[i]` and sector lengths
 derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
-`dual(sectors[i])` and multiplicities from `size(blocks[i], 2)`.
+`dual(sectors[i])` and sector lengths from `size(blocks[i], 2)`.
 """
 struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
     AbstractGradedArray{T, 2}

@@ -3,7 +3,7 @@ using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorMatrix, SectorOneTo,
-    SectorRange, U1, data, dual, flip, gradedrange, isdual, sector, sector_multiplicities,
+    SectorRange, U1, data, datalengths, dual, flip, gradedrange, isdual, sector,
     sector_type, sectoraxes, sectormergesort, sectorrange, sectors, tensor_product
 using Random: randn!
 using TensorAlgebra:
@@ -132,9 +132,9 @@ end
 
     # Sectors should be sorted and unique after merge
     @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]
-    @test sector_multiplicities(axes(a_merged, 1)) == [1, 5]
+    @test datalengths(axes(a_merged, 1)) == [1, 5]
     @test sectors(axes(a_merged, 2)) == [U1(-1), U1(0)]
-    @test sector_multiplicities(axes(a_merged, 2)) == [2, 1]
+    @test datalengths(axes(a_merged, 2)) == [2, 1]
 
     # The merged U1(1) block should stack the two source blocks (2×2 + 3×2 → 5×2)
     merged_block = a_merged[Block(2, 1)]
