@@ -131,4 +131,21 @@ using Test: @test, @testset
         @test label(sm) == TKS.U1Irrep(1)
         @test data(sm) === d
     end
+
+    @testset "SectorMatrix linear broadcasting" begin
+        using GradedArrays: AbelianSectorArray, ⊗
+        sm = SectorMatrix(TKS.U1Irrep(0), [1.0 2.0; 3.0 4.0])
+
+        # Scalar multiply should work
+        sm2 = 2.0 .* sm
+        @test sm2 isa SectorMatrix
+        @test data(sm2) ≈ [2.0 4.0; 6.0 8.0]
+
+        # Cross-type broadcast: AbelianSectorArray .= SectorMatrix
+        sa = AbelianSectorArray(
+            (TKS.U1Irrep(0), TKS.U1Irrep(0)), (false, true), zeros(2, 2)
+        )
+        sa .= sm
+        @test data(sa) ≈ data(sm)
+    end
 end

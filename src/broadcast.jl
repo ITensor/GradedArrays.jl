@@ -7,13 +7,16 @@ SectorStyle{N}(::Val{M}) where {N, M} = SectorStyle{M}()
 
 BC.BroadcastStyle(::Type{<:AbelianSectorDelta{<:Any, N}}) where {N} = SectorStyle{N}()
 BC.BroadcastStyle(::Type{<:AbelianSectorArray{<:Any, N}}) where {N} = SectorStyle{N}()
+BC.BroadcastStyle(::Type{<:SectorMatrix{<:Any}}) = SectorStyle{2}()
+BC.BroadcastStyle(::Type{<:SectorIdentity{<:Any}}) = SectorStyle{2}()
 BC.BroadcastStyle(style::SectorStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = style
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type, ax)
     bc′ = BC.flatten(bc)
-    arg = bc′.args[findfirst(arg -> arg isa AbelianSectorArray, bc′.args)]
+    idx = findfirst(arg -> arg isa AbstractSectorArray, bc′.args)
+    arg = bc′.args[idx]
     return similar(arg, elt, axes(arg))
 end
 

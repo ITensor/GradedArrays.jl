@@ -84,8 +84,8 @@ function Base.similar(
         ::Type{T},
         axes::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
-    sects = map(sectoraxes1, axes)
-    data_ax = map(dataaxes1, axes)
+    sects = sector.(axes)
+    data_ax = data.(axes)
     return AbelianSectorArray(sects, similar(data(a), T, data_ax))
 end
 
