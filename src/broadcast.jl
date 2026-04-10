@@ -54,7 +54,9 @@ function BC.BroadcastStyle(
 end
 BC.BroadcastStyle(s1::AbelianGradedStyle{N}, ::AbelianGradedStyle{N}) where {N} = s1
 
-function Base.similar(bc::BC.Broadcasted{<:AbelianGradedStyle}, elt::Type, ax)
+# TODO: Ideally this would incorporate information from all broadcast arguments
+# (or their blocktypes) when computing similar, rather than picking one argument.
+function Base.similar(bc::BC.Broadcasted{<:AbelianGradedStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbelianGradedArray, bc′.args)]
     return similar(arg, elt)

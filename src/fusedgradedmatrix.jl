@@ -59,12 +59,19 @@ Base.eltype(::Type{<:FusedGradedMatrix{T}}) where {T} = T
 
 # ========================  Block indexing  ========================
 
-function Base.getindex(m::FusedGradedMatrix{T}, I::Block{2}) where {T}
+function Base.view(m::FusedGradedMatrix, I::Block{2})
     i, j = Int.(Tuple(I))
-    i == j || return zeros(T, 0, 0)
-    return m.blocks[i]
+    i == j ||
+        error("Off-diagonal access not supported for block-diagonal FusedGradedMatrix")
+    return SectorMatrix(m.labels[i], m.blocks[i])
+end
+function Base.view(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
+    return view(m, Block(Int(i), Int(j)))
 end
 
+function Base.getindex(m::FusedGradedMatrix, I::Block{2})
+    return copy(view(m, I))
+end
 function Base.getindex(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
     return m[Block(Int(i), Int(j))]
 end
@@ -78,7 +85,10 @@ end
 # ========================  blocks  ========================
 
 using LinearAlgebra: Diagonal
-BlockArrays.blocks(m::FusedGradedMatrix) = Diagonal(m.blocks)
+function BlockArrays.blocks(m::FusedGradedMatrix)
+    sector_blocks = [SectorMatrix(l, b) for (l, b) in zip(m.labels, m.blocks)]
+    return Diagonal(sector_blocks)
+end
 
 # ========================  fill! / zero!  ========================
 
