@@ -70,9 +70,11 @@ using Test: @test, @testset
     end
 
     @testset "axes returns SectorOneTo (SU2 j=1/2, dim=2)" begin
-        d = ones(4, 6)
+        # SectorMatrix data is multiplicity-sized. For SU2(1/2) with mult=2 × mult=3:
+        d = ones(2, 3)
         sm = SectorMatrix(TKS.SU2Irrep(1 // 2), d)
         a1, a2 = axes(sm)
+        # length = quantum_dimension * multiplicity = 2 * 2 = 4, 2 * 3 = 6
         @test length(a1) == 4
         @test length(a2) == 6
         @test GradedArrays.sector_multiplicity(a1) == 2

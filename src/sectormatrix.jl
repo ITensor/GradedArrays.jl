@@ -35,12 +35,9 @@ sector_type(::Type{<:SectorMatrix{T, D, I}}) where {T, D, I} = SectorRange{I}
 datatype(::Type{SectorMatrix{T, D, I}}) where {T, D, I} = D
 
 function Base.axes(sm::SectorMatrix)
-    d = TKS.dim(sm.label)
-    m1 = div(size(data(sm), 1), d)
-    m2 = div(size(data(sm), 2), d)
     return (
-        sectorrange(SectorRange(sm.label, false), m1),
-        sectorrange(SectorRange(sm.label, true), m2),
+        sectorrange(SectorRange(sm.label, false), size(data(sm), 1)),
+        sectorrange(SectorRange(sm.label, true), size(data(sm), 2)),
     )
 end
 

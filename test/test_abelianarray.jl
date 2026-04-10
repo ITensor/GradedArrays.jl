@@ -1,8 +1,8 @@
 using BlockArrays: BlockArrays, Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
-    AbstractGradedArray, GradedOneTo, SectorRange, U1, dual, gradedrange, isdual, labels,
-    sector_multiplicities, sector_type, sectors
+    AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SectorRange, U1, dual, gradedrange,
+    isdual, labels, sector_multiplicities, sector_type, sectors
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -152,29 +152,21 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "SU2 (non-abelian dimensions)" begin
-        # SU2 j=1/2 has dim=2, j=1 has dim=3
-        g_su2 = GradedOneTo(
-            [TKS.SU2Irrep(1 // 2), TKS.SU2Irrep(1)],
-            [1, 1],
-            false
-        )
-        # Block lengths: dim(1/2)*1 = 2, dim(1)*1 = 3 => total 5
-        @test length(g_su2) == 5
+        # SU2 j=1/2 has quantum dim=2, j=1 has quantum dim=3.
+        # FusedGradedMatrix blocks store multiplicity data (without quantum dim).
+        labels_su2 = [TKS.SU2Irrep(1 // 2), TKS.SU2Irrep(1)]
+        blocks_su2 = [[1.0 2.0; 3.0 4.0], ones(3, 3)]
+        m = FusedGradedMatrix(labels_su2, blocks_su2)
+        # size = sum(quantum_dim * multiplicity) per side = 2*2 + 3*3 = 13
+        @test size(m) == (13, 13)
 
-        a = AbelianGradedArray{Float64}(undef, g_su2, g_su2)
-        @test size(a) == (5, 5)
+        # Block (1,1): SU2(1/2) with mult=2, quantum dim=2 → size 2*2 = 4
+        blk = m[Block(1, 1)]
+        @test size(blk) == (4, 4)
 
-        # Block (1,1) is 2x2
-        a[Block(1, 1)] = [1.0 2.0; 3.0 4.0]
-        blk = a[Block(1, 1)]
-        @test size(blk) == (2, 2)
-        @test labels(blk) == (TKS.SU2Irrep(1 // 2), TKS.SU2Irrep(1 // 2))
-
-        # Block (2,2) is 3x3
-        a[Block(2, 2)] = ones(3, 3)
-        blk2 = a[Block(2, 2)]
-        @test size(blk2) == (3, 3)
-        @test labels(blk2) == (TKS.SU2Irrep(1), TKS.SU2Irrep(1))
+        # Block (2,2): SU2(1) with mult=3, quantum dim=3 → size 3*3 = 9
+        blk2 = m[Block(2, 2)]
+        @test size(blk2) == (9, 9)
     end
 
     @testset "show" begin

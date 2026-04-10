@@ -240,37 +240,10 @@ end
 
 function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
     N == 0 && return Block{0, Int}[Block()]
-    codomain_axs = (axs[1],)
-    domain_axs = Base.tail(axs)
-
-    brfusion = BlockReshapeFusion()
-    init_cod = trivial_gradedrange(axs)
-    unfused_cod = reduce(codomain_axs; init = init_cod) do ax1, ax2
-        return tensor_product_axis(brfusion, Val(:codomain), ax1, ax2)
+    @assert SymmetryStyle(SectorRange{I}) === AbelianStyle()
+    unfused = reduce(axs; init = trivial_gradedrange(axs)) do ax1, ax2
+        return unmerged_tensor_product(ax1, ax2)
     end
-    init_dom = flip(trivial_gradedrange(axs))
-    unfused_dom = reduce(domain_axs; init = init_dom) do ax1, ax2
-        return tensor_product_axis(brfusion, Val(:domain), ax1, ax2)
-    end
-
-    # Group unfused domain blocks by dual(sector) for fast lookup
-    dom_secs = sectors(unfused_dom)
-    cod_secs = sectors(unfused_cod)
-    dom_by_sector = Dict{eltype(cod_secs), Vector{Int}}()
-    for (j, s) in enumerate(dom_secs)
-        push!(get!(dom_by_sector, dual(s), Int[]), j)
-    end
-
-    # Map 2D (codomain_block, domain_block) to N-d Block indices
-    codomain_nblocks = Tuple(blocklength.(codomain_axs))
-    domain_nblocks = Tuple(blocklength.(domain_axs))
-    cod_cart = CartesianIndices(codomain_nblocks)
-    dom_cart = CartesianIndices(domain_nblocks)
-    bks = Block{N, Int}[]
-    for (i, s) in enumerate(cod_secs)
-        for j in get(dom_by_sector, s, Int[])
-            push!(bks, Block((Tuple(cod_cart[i])..., Tuple(dom_cart[j])...)))
-        end
-    end
-    return bks
+    cart = CartesianIndices(Tuple(blocklength.(axs)))
+    return Block.(Tuple.(cart[findall(istrivial, sectors(unfused))]))
 end
