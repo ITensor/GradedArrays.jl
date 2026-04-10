@@ -154,24 +154,3 @@ function KroneckerArrays.:(⊗)(
     ) where {N}
     return AbelianSectorArray(A, data)
 end
-
-function TensorAlgebra.add!(
-        dest::AbstractArray,
-        src::AbelianSectorArray,
-        α::Number,
-        β::Number
-    )
-    TensorAlgebra.add!(dest, data(src), α, β)
-    return dest
-end
-
-function TensorAlgebra.add!(
-        dest::AbelianSectorArray,
-        src::AbelianSectorArray,
-        α::Number,
-        β::Number
-    )
-    size(dest) == size(src) || throw(DimensionMismatch())
-    TensorAlgebra.add!(data(dest), data(src), α, β)
-    return dest
-end

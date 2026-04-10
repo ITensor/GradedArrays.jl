@@ -309,15 +309,6 @@ end
 # ---------------------------------------------------------------------------
 
 scale!(a::AbstractArray, β::Number) = (a .*= β; a)
-function scale!(a::AbelianSectorArray, β::Number)
-    scale!(data(a), β)
-    return a
-end
-function FI.zero!(a::AbelianSectorArray)
-    FI.zero!(data(a))
-    return a
-end
-
 function scale!(a::AbstractGradedArray, β::Number)
     for bI in eachblockstoredindex(a)
         scale!(view(a, bI), β)
