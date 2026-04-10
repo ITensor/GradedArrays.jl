@@ -58,3 +58,7 @@ function Base.convert(
     D === E && return x
     return SectorMatrix(x.label, convert(D, data(x)))
 end
+
+function KroneckerArrays.:(⊗)(A::SectorIdentity, data::AbstractMatrix)
+    return SectorMatrix(label(A), data)
+end

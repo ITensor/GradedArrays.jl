@@ -121,4 +121,14 @@ using Test: @test, @testset
         @test isdual(sm, 1) == false
         @test isdual(sm, 2) == true
     end
+
+    @testset "⊗ constructor (SectorIdentity ⊗ data → SectorMatrix)" begin
+        using GradedArrays: ⊗
+        si = SectorIdentity{Float64}(TKS.U1Irrep(1))
+        d = [1.0 2.0; 3.0 4.0]
+        sm = si ⊗ d
+        @test sm isa SectorMatrix
+        @test label(sm) == TKS.U1Irrep(1)
+        @test data(sm) === d
+    end
 end
