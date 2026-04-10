@@ -3,53 +3,50 @@
 # ===========================================================================
 
 """
-    FusedGradedMatrix{T,D<:AbstractMatrix{T},I<:TKS.Sector}
+    FusedGradedMatrix{T,D<:AbstractMatrix{T},S<:SectorRange}
 
 Block-diagonal matrix produced by matricizing an `AbstractGradedArray`.
 Each diagonal block corresponds to a coupled sector from fusing codomain/domain legs.
 
 Fields:
 
-  - `labels::Vector{I}` — coupled sector labels, sorted and unique
+  - `sectors::Vector{S}` — coupled sectors, sorted and unique (always non-dual, codomain convention)
   - `blocks::Vector{D}` — diagonal blocks, one per sector
 
-The codomain (row) axis is non-dual with sectors `labels[i]` and multiplicities
+The codomain (row) axis is non-dual with sectors `sectors[i]` and multiplicities
 derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
-`dual(labels[i])` and multiplicities from `size(blocks[i], 2)`.
+`dual(sectors[i])` and multiplicities from `size(blocks[i], 2)`.
 """
-struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, I <: TKS.Sector} <:
+struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
     AbstractGradedArray{T, 2}
-    labels::Vector{I}
+    sectors::Vector{S}
     blocks::Vector{D}
     function FusedGradedMatrix(
-            labels::Vector{I},
+            sectors::Vector{S},
             blocks::Vector{D}
-        ) where {T, I, D <: AbstractMatrix{T}}
-        length(labels) == length(blocks) ||
-            throw(ArgumentError("labels and blocks must have the same length"))
-        issorted(SectorRange.(labels)) ||
-            throw(ArgumentError("labels must be sorted"))
-        allunique(SectorRange.(labels)) ||
-            throw(ArgumentError("labels must be unique"))
-        return new{T, D, I}(labels, blocks)
+        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+        length(sectors) == length(blocks) ||
+            throw(ArgumentError("sectors and blocks must have the same length"))
+        issorted(sectors) ||
+            throw(ArgumentError("sectors must be sorted"))
+        allunique(sectors) ||
+            throw(ArgumentError("sectors must be unique"))
+        return new{T, D, S}(sectors, blocks)
     end
 end
 
 # ========================  Accessors  ========================
 
-labels(m::FusedGradedMatrix) = m.labels
-BlockArrays.blocklength(m::FusedGradedMatrix) = length(m.labels)
-function BlockSparseArrays.blocktype(::Type{<:FusedGradedMatrix{T, D, I}}) where {T, D, I}
-    return SectorMatrix{T, D, I}
+BlockArrays.blocklength(m::FusedGradedMatrix) = length(m.sectors)
+function BlockSparseArrays.blocktype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S}
+    return SectorMatrix{T, D, S}
 end
 BlockSparseArrays.blocktype(m::FusedGradedMatrix) = BlockSparseArrays.blocktype(typeof(m))
-sector_type(::Type{<:FusedGradedMatrix{T, D, I}}) where {T, D, I} = SectorRange{I}
+sector_type(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = S
 
 function Base.axes(m::FusedGradedMatrix)
-    codomain_sectors = SectorRange.(m.labels)
-    domain_sectors = dual.(codomain_sectors)
-    codomain = gradedrange(codomain_sectors .=> size.(m.blocks, 1))
-    domain = gradedrange(domain_sectors .=> size.(m.blocks, 2))
+    codomain = gradedrange(m.sectors .=> size.(m.blocks, 1))
+    domain = gradedrange(dual.(m.sectors) .=> size.(m.blocks, 2))
     return (codomain, domain)
 end
 
@@ -63,7 +60,7 @@ function Base.view(m::FusedGradedMatrix, I::Block{2})
     i, j = Int.(Tuple(I))
     i == j ||
         error("Off-diagonal access not supported for block-diagonal FusedGradedMatrix")
-    return SectorMatrix(m.labels[i], m.blocks[i])
+    return SectorMatrix(m.sectors[i], m.blocks[i])
 end
 function Base.view(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
     return view(m, Block(Int(i), Int(j)))
@@ -79,14 +76,14 @@ end
 # ========================  eachblockstoredindex  ========================
 
 function BlockSparseArrays.eachblockstoredindex(m::FusedGradedMatrix)
-    return (Block(i, i) for i in eachindex(m.labels))
+    return (Block(i, i) for i in eachindex(m.sectors))
 end
 
 # ========================  blocks  ========================
 
 using LinearAlgebra: Diagonal
 function BlockArrays.blocks(m::FusedGradedMatrix)
-    sector_blocks = [SectorMatrix(l, b) for (l, b) in zip(m.labels, m.blocks)]
+    sector_blocks = [SectorMatrix(s, b) for (s, b) in zip(m.sectors, m.blocks)]
     return Diagonal(sector_blocks)
 end
 
@@ -112,7 +109,7 @@ function LinearAlgebra.mul!(
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix,
         α::Number, β::Number
     )
-    C.labels == A.labels == B.labels ||
+    C.sectors == A.sectors == B.sectors ||
         throw(DimensionMismatch("FusedGradedMatrix sectors must match"))
     for i in eachindex(C.blocks)
         mul!(C.blocks[i], A.blocks[i], B.blocks[i], α, β)
@@ -121,32 +118,32 @@ function LinearAlgebra.mul!(
 end
 
 function Base.:(*)(A::FusedGradedMatrix{T₁}, B::FusedGradedMatrix{T₂}) where {T₁, T₂}
-    A.labels == B.labels || throw(DimensionMismatch("sectors must match"))
+    A.sectors == B.sectors || throw(DimensionMismatch("sectors must match"))
     T = Base.promote_op(LinearAlgebra.matprod, T₁, T₂)
     result_blocks = [A.blocks[i] * B.blocks[i] for i in eachindex(A.blocks)]
-    return FusedGradedMatrix(copy(A.labels), result_blocks)
+    return FusedGradedMatrix(copy(A.sectors), result_blocks)
 end
 
 # ========================  similar  ========================
 
-function Base.similar(m::FusedGradedMatrix{<:Any, I}, ::Type{T}) where {T, I}
+function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
     new_blocks = [similar(b, T) for b in m.blocks]
-    return FusedGradedMatrix(copy(m.labels), new_blocks)
+    return FusedGradedMatrix(copy(m.sectors), new_blocks)
 end
 
 # ========================  show  ========================
 
 function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix{T}) where {T}
-    nblocks = length(m.labels)
+    nblocks = length(m.sectors)
     print(io, nblocks, "-block FusedGradedMatrix{", T, "} with sectors ")
     print(io, "[")
-    join(io, m.labels, ", ")
+    join(io, label.(m.sectors), ", ")
     print(io, "]")
     return nothing
 end
 
 function Base.show(io::IO, m::FusedGradedMatrix{T}) where {T}
-    nblocks = length(m.labels)
+    nblocks = length(m.sectors)
     print(io, nblocks, "-block FusedGradedMatrix{", T, "}")
     return nothing
 end
@@ -183,7 +180,7 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
         )
     )
 
-    sector_labels = collect(labels(row_ax))
+    fused_sectors = collect(row_sectors)
     # Default: zero blocks with the right dimensions from row/col axes
     row_bls = blocklengths(row_ax)
     col_bls = blocklengths(col_ax)
@@ -192,7 +189,7 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
         i = Int(Tuple(bI)[1])
         diag_blocks[i] = Array(a[bI])
     end
-    return FusedGradedMatrix(sector_labels, diag_blocks)
+    return FusedGradedMatrix(fused_sectors, diag_blocks)
 end
 
 """

@@ -1,25 +1,16 @@
 """
-    AbelianSectorDelta{T,N,I<:TKS.Sector} <: AbstractSectorDelta{T, N}
+    AbelianSectorDelta{T,N,S<:SectorRange} <: AbstractSectorDelta{T, N}
 
-Unfused N-D structural tensor for abelian symmetries. Stores one sector label and
-dual flag per axis. For abelian symmetries, every element equals `one(T)` (the
-Kronecker delta selection rule).
+Unfused N-D structural tensor for abelian symmetries. Stores one `SectorRange` per axis.
+For abelian symmetries, every element equals `one(T)` (the Kronecker delta selection rule).
 """
-struct AbelianSectorDelta{T, N, I <: TKS.Sector} <: AbstractSectorDelta{T, N}
-    labels::NTuple{N, I}
-    isduals::NTuple{N, Bool}
+struct AbelianSectorDelta{T, N, S <: SectorRange} <: AbstractSectorDelta{T, N}
+    sectors::NTuple{N, S}
 end
 function AbelianSectorDelta{T}(
-        labels::NTuple{N, I}, isduals::NTuple{N, Bool}
-    ) where {T, N, I <: TKS.Sector}
-    return AbelianSectorDelta{T, N, I}(labels, isduals)
-end
-
-# Convenience: construct from SectorRange tuples (backward compat bridge)
-function AbelianSectorDelta{T}(sranges::NTuple{N, SectorRange}) where {T, N}
-    ls = map(label, sranges)
-    ds = map(GradedArrays.isdual, sranges)
-    return AbelianSectorDelta{T}(ls, ds)
+        sectors::NTuple{N, S}
+    ) where {T, N, S <: SectorRange}
+    return AbelianSectorDelta{T, N, S}(sectors)
 end
 
 # ========================  AbstractArray interface  ========================
@@ -33,9 +24,7 @@ Base.@propagate_inbounds function Base.getindex(
     return one(T)
 end
 
-function Base.axes(A::AbelianSectorDelta)
-    return ntuple(d -> SectorRange(A.labels[d], A.isduals[d]), Val(ndims(A)))
-end
+Base.axes(A::AbelianSectorDelta) = A.sectors
 
 function Base.similar(
         ::AbelianSectorDelta,
@@ -52,23 +41,17 @@ function Base.similar(
     return AbelianSectorDelta{T}(sranges)
 end
 
-# ========================  Primitive accessors  ========================
-
-labels(x::AbelianSectorDelta) = x.labels
-label(x::AbelianSectorDelta, d::Int) = x.labels[d]
-
-# ========================  Derived accessors  ========================
+# ========================  Accessors  ========================
 
 isdual(x, d::Int) = isdual(axes(x, d))
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
-sector_type(::Type{<:AbelianSectorDelta{T, N, I}}) where {T, N, I} = SectorRange{I}
+sector_type(::Type{<:AbelianSectorDelta{T, N, S}}) where {T, N, S} = S
 
 # ========================  permutedims  ========================
 
 function Base.permutedims(x::AbelianSectorDelta, perm)
-    new_labels = ntuple(n -> label(x, perm[n]), Val(ndims(x)))
-    new_isdual = ntuple(n -> isdual(x, perm[n]), Val(ndims(x)))
-    return AbelianSectorDelta{eltype(x)}(new_labels, new_isdual)
+    new_sectors = ntuple(n -> x.sectors[perm[n]], Val(ndims(x)))
+    return AbelianSectorDelta{eltype(x)}(new_sectors)
 end
 function FI.permuteddims(x::AbelianSectorDelta, perm)
     return permutedims(x, perm)

@@ -1,31 +1,26 @@
 """
-    SectorOneTo{I<:TKS.Sector}
+    SectorOneTo{S<:SectorRange}
 
-Represents one sector's index space — a sector label paired with a multiplicity count
-and a dual flag. This is the building block for `GradedOneTo`.
+Represents one sector's index space — a `SectorRange` (sector label + dual flag) paired
+with a multiplicity count. This is the building block for `GradedOneTo`.
 
-Stores the raw label, multiplicity, and dual flag as primitives. The `sector` accessor
-returns a `SectorRange` on the fly.
+Stores a `SectorRange` and a multiplicity. The `label` and `isdual` accessors are
+derived from the stored `SectorRange`.
 """
-struct SectorOneTo{I <: TKS.Sector} <: AbstractUnitRange{Int}
-    label::I
+struct SectorOneTo{S <: SectorRange} <: AbstractUnitRange{Int}
+    sector::S
     multiplicity::Int
-    isdual::Bool
 end
-function SectorOneTo(label::TKS.Sector, multiplicity::Integer)
-    return SectorOneTo(label, Int(multiplicity), false)
-end
-function SectorOneTo(label::TKS.Sector)
-    return SectorOneTo(label, 1)
-end
+
+# Convenience: SectorRange with default multiplicity
+SectorOneTo(s::SectorRange) = SectorOneTo(s, 1)
 
 # Primitive accessors
-label(si::SectorOneTo) = si.label
+sector(si::SectorOneTo) = si.sector
 sector_multiplicity(si::SectorOneTo) = si.multiplicity
-isdual(si::SectorOneTo) = si.isdual
 
 # Derived accessors
-sector(si::SectorOneTo) = SectorRange(label(si), isdual(si))
+isdual(si::SectorOneTo) = isdual(sector(si))
 
 # Kronecker factor decomposition:
 # SectorOneTo = tensor_product(SectorRange (sector axis), OneTo (data axis))
@@ -41,8 +36,7 @@ dataaxes1(a) = first(dataaxes(a))
 dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
 
 # Duck-typed interface matching GradedOneTo
-labels(si::SectorOneTo) = [label(si)]
-sectors(si::SectorOneTo) = [SectorRange(label(si), isdual(si))]
+sectors(si::SectorOneTo) = [sector(si)]
 sector_multiplicities(si::SectorOneTo) = [sector_multiplicity(si)]
 BlockArrays.blocklength(si::SectorOneTo) = 1
 Base.first(::SectorOneTo) = 1
@@ -50,25 +44,22 @@ Base.last(si::SectorOneTo) = length(si)
 Base.length(si::SectorOneTo) = quantum_dimension(sector(si)) * sector_multiplicity(si)
 
 # sector_type, SymmetryStyle
-sector_type(::Type{SectorOneTo{I}}) where {I} = SectorRange{I}
-SymmetryStyle(::Type{<:SectorOneTo{I}}) where {I} = SymmetryStyle(SectorRange{I})
+sector_type(::Type{SectorOneTo{S}}) where {S} = S
+SymmetryStyle(::Type{<:SectorOneTo{S}}) where {S} = SymmetryStyle(S)
 
 # dual, flip, flip_dual
-dual(si::SectorOneTo) = SectorOneTo(label(si), sector_multiplicity(si), !isdual(si))
-function flip(si::SectorOneTo)
-    return SectorOneTo(dual(label(si)), sector_multiplicity(si), !isdual(si))
-end
+dual(si::SectorOneTo) = SectorOneTo(dual(sector(si)), sector_multiplicity(si))
+flip(si::SectorOneTo) = SectorOneTo(flip(sector(si)), sector_multiplicity(si))
 flip_dual(si::SectorOneTo) = isdual(si) ? flip(si) : si
 
 # Equality and hashing
 function Base.isequal(a::SectorOneTo, b::SectorOneTo)
-    return isequal(label(a), label(b)) &&
-        isequal(sector_multiplicity(a), sector_multiplicity(b)) &&
-        isequal(isdual(a), isdual(b))
+    return isequal(sector(a), sector(b)) &&
+        isequal(sector_multiplicity(a), sector_multiplicity(b))
 end
 Base.:(==)(a::SectorOneTo, b::SectorOneTo) = isequal(a, b)
 function Base.hash(si::SectorOneTo, h::UInt)
-    return hash(label(si), hash(sector_multiplicity(si), hash(isdual(si), h)))
+    return hash(sector(si), hash(sector_multiplicity(si), h))
 end
 
 # ========================  sectorrange constructors  ========================
@@ -79,7 +70,7 @@ end
 
 Construct a [`SectorOneTo`](@ref) for the given sector and multiplicity.
 """
-sectorrange(s::SectorRange, dim::Integer) = SectorOneTo(label(s), Int(dim), isdual(s))
+sectorrange(s::SectorRange, dim::Integer) = SectorOneTo(s, Int(dim))
 sectorrange(s::SectorRange, range::AbstractUnitRange) = sectorrange(s, length(range))
 function sectorrange(
         sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}},
@@ -126,7 +117,7 @@ end
 
 function Base.show(io::IO, si::SectorOneTo)
     print(io, "SectorOneTo(")
-    show(io, label(si))
+    show(io, label(sector(si)))
     print(io, ", ", sector_multiplicity(si))
     print(io, ")")
     isdual(si) && print(io, "'")

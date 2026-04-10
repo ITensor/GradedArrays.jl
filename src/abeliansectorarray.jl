@@ -1,37 +1,25 @@
 """
-    AbelianSectorArray{T,N,A,I} <: AbstractSectorArray{T, N}
+    AbelianSectorArray{T,N,A,S} <: AbstractSectorArray{T, N}
 
-Unfused N-D data tensor for abelian symmetries. Stores one sector label and dual
-flag per axis, plus a dense data array. Implements the Wigner-Eckart decomposition:
+Unfused N-D data tensor for abelian symmetries. Stores one `SectorRange` per axis,
+plus a dense data array. Implements the Wigner-Eckart decomposition:
 the full tensor is the Kronecker product of an [`AbelianSectorDelta`](@ref) (structural)
 with the data array (reduced matrix elements).
 """
-struct AbelianSectorArray{T, N, A <: AbstractArray{T, N}, I <: TKS.Sector} <:
+struct AbelianSectorArray{T, N, A <: AbstractArray{T, N}, S <: SectorRange} <:
     AbstractSectorArray{T, N}
-    labels::NTuple{N, I}
-    isduals::NTuple{N, Bool}
+    sectors::NTuple{N, S}
     data::A
 end
 
 # Constructors
 function AbelianSectorArray{T}(
         ::UndefInitializer,
-        labels::NTuple{N, I},
-        isduals::NTuple{N, Bool},
+        sectors::NTuple{N, S},
         dims::NTuple{N, Int}
-    ) where {T, N, I <: TKS.Sector}
+    ) where {T, N, S <: SectorRange}
     data = Array{T, N}(undef, dims)
-    return AbelianSectorArray{T, N, Array{T, N}, I}(labels, isduals, data)
-end
-
-# Convenience: construct from SectorRange tuples (backward compat bridge)
-function AbelianSectorArray(
-        sranges::NTuple{N, SectorRange},
-        data::AbstractArray{T, N}
-    ) where {T, N}
-    ls = map(label, sranges)
-    ds = map(GradedArrays.isdual, sranges)
-    return AbelianSectorArray(ls, ds, data)
+    return AbelianSectorArray{T, N, Array{T, N}, S}(sectors, data)
 end
 
 # Construct from AbelianSectorDelta (inverse of sector/data decomposition)
@@ -39,22 +27,14 @@ function AbelianSectorArray(
         delta::AbelianSectorDelta{<:Any, N},
         data::AbstractArray{<:Any, N}
     ) where {N}
-    return AbelianSectorArray(delta.labels, delta.isduals, data)
+    return AbelianSectorArray(delta.sectors, data)
 end
 
-const AbelianSectorMatrix{T, A <: AbstractMatrix{T}, I <: TKS.Sector} =
-    AbelianSectorArray{T, 2, A, I}
+const AbelianSectorMatrix{T, A <: AbstractMatrix{T}, S <: SectorRange} =
+    AbelianSectorArray{T, 2, A, S}
 
-# Primitive accessors
-# -------------------
-labels(sa::AbelianSectorArray) = sa.labels
-label(sa::AbelianSectorArray, d::Int) = sa.labels[d]
-
-# Derived accessors
-# -----------------
-function sectoraxes(sa::AbelianSectorArray)
-    return ntuple(d -> SectorRange(sa.labels[d], sa.isduals[d]), Val(ndims(sa)))
-end
+# Accessors
+sectoraxes(sa::AbelianSectorArray) = sa.sectors
 function sector_multiplicities(sa::AbelianSectorArray)
     return ntuple(
         d -> div(size(data(sa), d), quantum_dimension(sectoraxes(sa, d))), Val(ndims(sa))
@@ -62,11 +42,11 @@ function sector_multiplicities(sa::AbelianSectorArray)
 end
 
 # Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data
-sector(sa::AbelianSectorArray) = AbelianSectorDelta{eltype(sa)}(sa.labels, sa.isduals)
+sector(sa::AbelianSectorArray) = AbelianSectorDelta{eltype(sa)}(sa.sectors)
 dataaxes(sa::AbelianSectorArray) = axes(data(sa))
 
-sector_type(::Type{<:AbelianSectorArray{T, N, A, I}}) where {T, N, A, I} = SectorRange{I}
-datatype(::Type{AbelianSectorArray{T, N, A, I}}) where {T, N, A, I} = A
+sector_type(::Type{<:AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = S
+datatype(::Type{AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = A
 
 # AbstractArray interface
 # -----------------------
@@ -99,9 +79,9 @@ function Base.fill!(A::AbelianSectorArray, v)
 end
 
 function Base.convert(
-        ::Type{AbelianSectorArray{T₁, N, A, I}},
-        x::AbelianSectorArray{T₂, N, B, I}
-    )::AbelianSectorArray{T₁, N, A, I} where {T₁, T₂, N, A, B, I}
+        ::Type{AbelianSectorArray{T₁, N, A, S}},
+        x::AbelianSectorArray{T₂, N, B, S}
+    )::AbelianSectorArray{T₁, N, A, S} where {T₁, T₂, N, A, B, S}
     A === B && return x
     return AbelianSectorArray(sector(x), convert(A, data(x)))
 end

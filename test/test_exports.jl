@@ -17,7 +17,6 @@ using Test: @test, @testset
         :GradedArrays,
         :GradedOneTo,
         :Ising,
-        :labels,
         :data,
         :dataaxes,
         :dataaxes1,

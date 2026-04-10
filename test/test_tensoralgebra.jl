@@ -3,7 +3,7 @@ using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorMatrix, SectorOneTo,
-    SectorRange, U1, dual, flip, gradedrange, isdual, label, sector_multiplicities,
+    SectorRange, U1, data, dual, flip, gradedrange, isdual, sector, sector_multiplicities,
     sector_type, sectoraxes, sectormergesort, sectorrange, sectors, tensor_product
 using Random: randn!
 using TensorAlgebra:
@@ -27,13 +27,13 @@ using Test: @test, @test_throws, @testset
 
     st = α .* s .+ β .* t
     @test st isa AbelianSectorArray
-    @test st.data isa Matrix
+    @test data(st) isa Matrix
     @test Array(st) ≈ α .* Array(s) .+ β .* Array(t)
     @test axes(st) == axes(s)
 
     conjdiff = conj.(s) .- t ./ β
     @test conjdiff isa AbelianSectorArray
-    @test conjdiff.data isa Matrix
+    @test data(conjdiff) isa Matrix
     @test Array(conjdiff) ≈ conj.(Array(s)) .- Array(t) ./ β
     @test axes(conjdiff) == axes(s)
 
@@ -49,13 +49,13 @@ end
 
     materialized = 2 .* s
     @test materialized isa AbelianSectorArray
-    @test materialized.data isa Matrix
+    @test data(materialized) isa Matrix
     @test materialized[1, 1] == 2 * s[1, 1]
     @test Array(materialized) ≈ 2 .* Array(s)
 
     scaled_mul = 2 * s
     @test scaled_mul isa AbelianSectorArray
-    @test scaled_mul.data isa Matrix
+    @test data(scaled_mul) isa Matrix
     @test scaled_mul[1, 1] == 2 * s[1, 1]
     @test Array(scaled_mul) ≈ 2 .* Array(s)
 end
@@ -65,8 +65,8 @@ end
     s = AbelianSectorArray((U1(0), dual(U1(1))), data)
     sp = permutedims(s, (2, 1))
     @test sp isa AbelianSectorArray
-    @test label(sp, 1) == label(U1(1))
-    @test label(sp, 2) == label(U1(0))
+    @test sectoraxes(sp, 1) == dual(U1(1))
+    @test sectoraxes(sp, 2) == U1(0)
     @test Array(sp) ≈ permutedims(data)
 end
 
@@ -131,21 +131,21 @@ end
     a_merged = sectormergesort(a)
 
     # Sectors should be sorted and unique after merge
-    @test sectors(a_merged.axes[1]) == [U1(0), U1(1)]
-    @test sector_multiplicities(a_merged.axes[1]) == [1, 5]
-    @test sectors(a_merged.axes[2]) == [U1(-1), U1(0)]
-    @test sector_multiplicities(a_merged.axes[2]) == [2, 1]
+    @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]
+    @test sector_multiplicities(axes(a_merged, 1)) == [1, 5]
+    @test sectors(axes(a_merged, 2)) == [U1(-1), U1(0)]
+    @test sector_multiplicities(axes(a_merged, 2)) == [2, 1]
 
     # The merged U1(1) block should stack the two source blocks (2×2 + 3×2 → 5×2)
     merged_block = a_merged[Block(2, 1)]
     @test size(merged_block) == (5, 2)
-    @test merged_block.data[1:2, :] ≈ ones(2, 2)
-    @test merged_block.data[3:5, :] ≈ 2 * ones(3, 2)
+    @test data(merged_block)[1:2, :] ≈ ones(2, 2)
+    @test data(merged_block)[3:5, :] ≈ 2 * ones(3, 2)
 
     # U1(0) block should be empty (no stored data)
     empty_block = a_merged[Block(1, 2)]
     @test size(empty_block) == (1, 1)
-    @test all(iszero, empty_block.data)
+    @test all(iszero, data(empty_block))
 end
 
 @testset "matricize 2D AbelianGradedArray → FusedGradedMatrix" begin
@@ -160,10 +160,10 @@ end
 
     fsm = matricize(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
-    @test fsm.labels == [label(U1(0)), label(U1(1))]
-    @test length(fsm.blocks) == 2
-    @test fsm.blocks[1] ≈ block_11
-    @test fsm.blocks[2] ≈ block_22
+    @test fsm.sectors == [U1(0), U1(1)]
+    @test blocklength(fsm) == 2
+    @test data(fsm[Block(1, 1)]) ≈ block_11
+    @test data(fsm[Block(2, 2)]) ≈ block_22
 
     a_matrix = AbelianGradedArray(fsm)
     @test a_matrix isa AbelianGradedMatrix
@@ -204,12 +204,12 @@ end
 
     fsm = matricize(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
-    @test fsm.labels == [label(U1(0)), label(U1(1)), label(U1(2))]
-    @test length(fsm.blocks) == 3
+    @test fsm.sectors == [U1(0), U1(1), U1(2)]
+    @test blocklength(fsm) == 3
 
-    @test fsm.blocks[1] ≈ ones(1, 1)
-    @test fsm.blocks[2] ≈ zeros(2, 2)
-    @test fsm.blocks[3] ≈ 2 * ones(1, 1)
+    @test data(fsm[Block(1, 1)]) ≈ ones(1, 1)
+    @test data(fsm[Block(2, 2)]) ≈ zeros(2, 2)
+    @test data(fsm[Block(3, 3)]) ≈ 2 * ones(1, 1)
 end
 
 @testset "FusedGradedMatrix(::AbelianGradedMatrix) requires canonical fused axes" begin
@@ -221,8 +221,8 @@ end
     a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), block_22)
 
     fsm = FusedGradedMatrix(a)
-    @test fsm.blocks[1] ≈ block_11
-    @test fsm.blocks[2] ≈ block_22
+    @test data(fsm[Block(1, 1)]) ≈ block_11
+    @test data(fsm[Block(2, 2)]) ≈ block_22
 
     nonsorted_ax = gradedrange([U1(1) => 3, U1(0) => 2])
     a_nonsorted = AbelianGradedArray{Float64}(undef, nonsorted_ax, dual(nonsorted_ax))
@@ -264,20 +264,19 @@ end
 
     result, dimnames = contract(a, (1, -1), b, (-1, 2))
     @test result isa AbelianGradedArray{Float64, 2}
-    @test result[Block(1, 1)].data ≈ a_11 * b_11
-    @test result[Block(2, 2)].data ≈ a_22 * b_22
+    @test data(result[Block(1, 1)]) ≈ a_11 * b_11
+    @test data(result[Block(2, 2)]) ≈ a_22 * b_22
 end
 
 @testset "unmatricize AbelianSectorMatrix with SectorOneTo axes" begin
     # Create a 3D AbelianSectorArray, matricize it, then unmatricize and verify roundtrip
-    codomain_ax = SectorOneTo(label(U1(0)), 2, false)
-    domain_ax1 = SectorOneTo(label(U1(0)), 3, true)
-    domain_ax2 = SectorOneTo(label(U1(1)), 4, true)
+    codomain_ax = SectorOneTo(U1(0), 2)
+    domain_ax1 = SectorOneTo(U1(0)', 3)
+    domain_ax2 = SectorOneTo(U1(1)', 4)
 
     data_3d = randn!(Array{Float64}(undef, 2, 3, 4))
     s = AbelianSectorArray(
-        (codomain_ax.label, domain_ax1.label, domain_ax2.label),
-        (codomain_ax.isdual, domain_ax1.isdual, domain_ax2.isdual),
+        (sector(codomain_ax), sector(domain_ax1), sector(domain_ax2)),
         data_3d
     )
 

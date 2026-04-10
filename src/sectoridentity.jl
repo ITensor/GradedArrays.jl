@@ -1,21 +1,16 @@
 """
-    SectorIdentity{T,I<:TKS.Sector} <: AbstractSectorDelta{T, 2}
+    SectorIdentity{T,S<:SectorRange} <: AbstractSectorDelta{T, 2}
 
 Fused 2D structural factor for a single coupled sector. By Schur's lemma, the
 structural part of each block in the fused (matricized) basis is the identity
-matrix for the irrep. Carries no free data — completely determined by the sector
-label. The codomain axis is non-dual, the domain axis is dual.
+matrix for the irrep. Carries no free data — completely determined by the sector.
+The codomain axis is non-dual, the domain axis is dual.
 """
-struct SectorIdentity{T, I <: TKS.Sector} <: AbstractSectorDelta{T, 2}
-    label::I
+struct SectorIdentity{T, S <: SectorRange} <: AbstractSectorDelta{T, 2}
+    sector::S
 end
-function SectorIdentity{T}(l::I) where {T, I <: TKS.Sector}
-    return SectorIdentity{T, I}(l)
-end
-
-# Convenience: construct from SectorRange (extracts label, ignores dual flag)
-function SectorIdentity{T}(sr::SectorRange{I}) where {T, I}
-    return SectorIdentity{T}(label(sr))
+function SectorIdentity{T}(s::S) where {T, S <: SectorRange}
+    return SectorIdentity{T, S}(s)
 end
 
 Base.@propagate_inbounds function Base.getindex(
@@ -26,14 +21,12 @@ Base.@propagate_inbounds function Base.getindex(
 end
 
 function Base.axes(A::SectorIdentity)
-    return (SectorRange(A.label), dual(SectorRange(A.label)))
+    return (A.sector, dual(A.sector))
 end
 
-labels(x::SectorIdentity) = (x.label, x.label)
-label(x::SectorIdentity) = x.label
-sector_type(::Type{<:SectorIdentity{T, I}}) where {T, I} = SectorRange{I}
+sector_type(::Type{<:SectorIdentity{T, S}}) where {T, S} = S
 
 function Base.permutedims(a::SectorIdentity, perm)
     perm == ntuple(identity, ndims(a)) && return a
-    return SectorIdentity{eltype(a)}(dual(a.label))
+    return SectorIdentity{eltype(a)}(dual(a.sector))
 end

@@ -1,5 +1,5 @@
 """
-    SectorMatrix{T,D<:AbstractMatrix{T},I<:TKS.Sector} <: AbstractSectorArray{T, 2}
+    SectorMatrix{T,D<:AbstractMatrix{T},S<:SectorRange} <: AbstractSectorArray{T, 2}
 
 Fused 2D data matrix for a single coupled sector. One block of a
 [`FusedGradedMatrix`](@ref). In the representation-theoretic sense, this is an
@@ -8,42 +8,37 @@ element of Hom_G(V_c, W_c) for coupled sector c — the reduced matrix element
 structural part ([`SectorIdentity`](@ref)).
 
 The codomain (row) axis is non-dual; the domain (column) axis is dual.
+The stored `SectorRange` is always non-dual (codomain convention).
 """
-struct SectorMatrix{T, D <: AbstractMatrix{T}, I <: TKS.Sector} <: AbstractSectorArray{T, 2}
-    label::I
+struct SectorMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
+    AbstractSectorArray{T, 2}
+    sector::S
     data::D
-end
-
-# Convenience: construct from SectorRange
-function SectorMatrix(sr::SectorRange, data::AbstractMatrix)
-    return SectorMatrix(label(sr), data)
 end
 
 # ---- accessors ----
 
-labels(sm::SectorMatrix) = (sm.label, sm.label)
-label(sm::SectorMatrix) = sm.label
-
 function sectoraxes(sm::SectorMatrix)
-    s = SectorRange(sm.label)
-    return (s, dual(s))
+    return (sm.sector, dual(sm.sector))
 end
 
-sector(sm::SectorMatrix) = SectorIdentity{eltype(sm)}(sm.label)
+# Kronecker factor decomposition: SectorMatrix = sector ⊗ data
+# sector() returns the structural delta factor (SectorIdentity), not the stored SectorRange.
+# Access the stored SectorRange via sm.sector or sectoraxes(sm)[1].
+sector(sm::SectorMatrix) = SectorIdentity{eltype(sm)}(sm.sector)
 dataaxes(sm::SectorMatrix) = axes(data(sm))
 
-sector_type(::Type{<:SectorMatrix{T, D, I}}) where {T, D, I} = SectorRange{I}
-datatype(::Type{SectorMatrix{T, D, I}}) where {T, D, I} = D
+sector_type(::Type{<:SectorMatrix{T, D, S}}) where {T, D, S} = S
+datatype(::Type{SectorMatrix{T, D, S}}) where {T, D, S} = D
 
 function Base.axes(sm::SectorMatrix)
-    s = SectorRange(sm.label)
     return (
-        sectorrange(s, size(data(sm), 1)),
-        sectorrange(dual(s), size(data(sm), 2)),
+        sectorrange(sm.sector, size(data(sm), 1)),
+        sectorrange(dual(sm.sector), size(data(sm), 2)),
     )
 end
 
-Base.copy(sm::SectorMatrix) = SectorMatrix(sm.label, copy(data(sm)))
+Base.copy(sm::SectorMatrix) = SectorMatrix(sm.sector, copy(data(sm)))
 
 function Base.fill!(sm::SectorMatrix, v)
     fill!(data(sm), v)
@@ -51,17 +46,17 @@ function Base.fill!(sm::SectorMatrix, v)
 end
 
 function Base.convert(
-        ::Type{SectorMatrix{T₁, D, I}},
-        x::SectorMatrix{T₂, E, I}
-    )::SectorMatrix{T₁, D, I} where {T₁, T₂, D, E, I}
+        ::Type{SectorMatrix{T₁, D, S}},
+        x::SectorMatrix{T₂, E, S}
+    )::SectorMatrix{T₁, D, S} where {T₁, T₂, D, E, S}
     D === E && return x
-    return SectorMatrix(x.label, convert(D, data(x)))
+    return SectorMatrix(x.sector, convert(D, data(x)))
 end
 
 function Base.similar(sm::SectorMatrix, ::Type{T}) where {T}
-    return SectorMatrix(sm.label, similar(data(sm), T))
+    return SectorMatrix(sm.sector, similar(data(sm), T))
 end
 
 function KroneckerArrays.:(⊗)(A::SectorIdentity, data::AbstractMatrix)
-    return SectorMatrix(label(A), data)
+    return SectorMatrix(A.sector, data)
 end

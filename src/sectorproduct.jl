@@ -197,9 +197,9 @@ end
 
 function KroneckerArrays.:×(si1::SectorOneTo, si2::SectorOneTo)
     isdual(si1) == isdual(si2) || throw(ArgumentError("SectorProduct duality must match"))
-    new_label = label(si1) × label(si2)
+    new_label = label(sector(si1)) × label(sector(si2))
     new_mult = sector_multiplicity(si1) * sector_multiplicity(si2)
-    return SectorOneTo(new_label, new_mult, isdual(si1))
+    return SectorOneTo(SectorRange(new_label, isdual(si1)), new_mult)
 end
 
 # TODO: type piracy?

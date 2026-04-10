@@ -3,19 +3,19 @@
 # ===========================================================================
 
 """
-    AbelianGradedArray{T,N,D<:AbstractArray{T,N},I<:TKS.Sector} <: AbstractGradedArray{T,N}
+    AbelianGradedArray{T,N,D<:AbstractArray{T,N},S<:SectorRange} <: AbstractGradedArray{T,N}
 
 A graded array that stores non-zero blocks in a dictionary keyed by block indices.
-Each axis is a [`GradedOneTo`](@ref) carrying sector labels, multiplicities, and a dual flag.
+Each axis is a [`GradedOneTo`](@ref) carrying sectors, multiplicities, and a dual flag.
 
 Blocks are stored as plain dense arrays of type `D` (default `Array{T,N}`).
 Accessing a block via `a[Block(i,j)]` returns a [`AbelianSectorArray`](@ref) wrapping the data
-with the appropriate sector labels and dual flags.
+with the appropriate sectors.
 """
-struct AbelianGradedArray{T, N, D <: AbstractArray{T, N}, I <: TKS.Sector} <:
+struct AbelianGradedArray{T, N, D <: AbstractArray{T, N}, S <: SectorRange} <:
     AbstractGradedArray{T, N}
     blockdata::Dict{NTuple{N, Int}, D}
-    axes::NTuple{N, GradedOneTo{I}}
+    axes::NTuple{N, GradedOneTo{S}}
 end
 
 # ---------------------------------------------------------------------------
@@ -24,28 +24,28 @@ end
 
 # Fully-parameterized undef constructor: finds allowed blocks, allocates, calls inner.
 # (allowedblocks is defined in fusion.jl)
-function AbelianGradedArray{T, N, D, I}(
-        ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
-    ) where {T, N, D <: AbstractArray{T, N}, I <: TKS.Sector}
+function AbelianGradedArray{T, N, D, S}(
+        ::UndefInitializer, axs::NTuple{N, GradedOneTo{S}}
+    ) where {T, N, D <: AbstractArray{T, N}, S <: SectorRange}
     bks = allowedblocks(axs)
     blockdata = Dict{NTuple{N, Int}, D}(
         Int.(Tuple(bk)) =>
             D(undef, ntuple(d -> blocklengths(axs[d])[Int(Tuple(bk)[d])], Val(N)))
             for bk in bks
     )
-    return AbelianGradedArray{T, N, D, I}(blockdata, axs)
+    return AbelianGradedArray{T, N, D, S}(blockdata, axs)
 end
 
-# Convenience: infer D = Array{T,N} and I from axes.
+# Convenience: infer D = Array{T,N} and S from axes.
 function AbelianGradedArray{T}(
-        ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
-    ) where {T, N, I <: TKS.Sector}
-    return AbelianGradedArray{T, N, Array{T, N}, I}(undef, axs)
+        ::UndefInitializer, axs::NTuple{N, GradedOneTo{S}}
+    ) where {T, N, S <: SectorRange}
+    return AbelianGradedArray{T, N, Array{T, N}, S}(undef, axs)
 end
 
 function AbelianGradedArray{T}(
-        init::UndefInitializer, axs::Vararg{GradedOneTo{I}, N}
-    ) where {T, N, I <: TKS.Sector}
+        init::UndefInitializer, axs::Vararg{GradedOneTo{S}, N}
+    ) where {T, N, S <: SectorRange}
     return AbelianGradedArray{T}(init, axs)
 end
 
@@ -56,9 +56,9 @@ end
 Base.size(a::AbelianGradedArray) = map(length, a.axes)
 Base.axes(a::AbelianGradedArray) = a.axes
 function BlockSparseArrays.blocktype(
-        ::Type{<:AbelianGradedArray{T, N, D, I}}
-    ) where {T, N, D, I}
-    return AbelianSectorArray{T, N, D, I}
+        ::Type{<:AbelianGradedArray{T, N, D, S}}
+    ) where {T, N, D, S}
+    return AbelianSectorArray{T, N, D, S}
 end
 BlockSparseArrays.blocktype(a::AbelianGradedArray) = BlockSparseArrays.blocktype(typeof(a))
 
@@ -257,23 +257,23 @@ end
 # Defined on AbstractGradedArray so FusedGradedMatrix can use it too.
 function Base.similar(
         a::AbstractGradedArray,
-        ::Type{S},
-        axes::Tuple{GradedOneTo{I}, Vararg{GradedOneTo{I}}}
-    ) where {S, I}
+        ::Type{T},
+        axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+    ) where {T, S}
     N = length(axes)
     D = datatype(BlockSparseArrays.blocktype(a))
     data_ax_types = Tuple{ntuple(d -> dataaxistype(typeof(axes[d])), Val(N))...}
-    D_N = Base.promote_op(similar, D, Type{S}, data_ax_types)
-    D_N′ = isconcretetype(D_N) ? D_N : Array{S, N}
-    return AbelianGradedArray{S, N, D_N′, I}(undef, axes)
+    D_N = Base.promote_op(similar, D, Type{T}, data_ax_types)
+    D_N′ = isconcretetype(D_N) ? D_N : Array{T, N}
+    return AbelianGradedArray{T, N, D_N′, S}(undef, axes)
 end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
     ) where {T}
     return similar(a, T, axes)
 end
-function Base.similar(a::AbelianGradedArray{T}, ::Type{S}) where {T, S}
-    return similar(a, S, axes(a))
+function Base.similar(a::AbelianGradedArray{T}, ::Type{Tv}) where {T, Tv}
+    return similar(a, Tv, axes(a))
 end
 function Base.similar(a::AbelianGradedArray{T}) where {T}
     return similar(a, T)
@@ -283,7 +283,7 @@ end
 #  sector_type
 # ---------------------------------------------------------------------------
 
-sector_type(::Type{<:AbelianGradedArray{T, N, D, I}}) where {T, N, D, I} = SectorRange{I}
+sector_type(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = S
 
 # ---------------------------------------------------------------------------
 #  permutedims
@@ -332,8 +332,8 @@ end
 #  Matrix multiplication (block-diagonal)
 # ---------------------------------------------------------------------------
 
-const AbelianGradedVector{T, D, I} = AbelianGradedArray{T, 1, D, I}
-const AbelianGradedMatrix{T, D, I} = AbelianGradedArray{T, 2, D, I}
+const AbelianGradedVector{T, D, S} = AbelianGradedArray{T, 1, D, S}
+const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
 
 # ---------------------------------------------------------------------------
 #  show
@@ -364,7 +364,7 @@ end
 
 Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with zeros.
 """
-function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
+function Base.zeros(::Type{T}, axs::GradedOneTo{S}...) where {T, S <: SectorRange}
     return FI.zero!(AbelianGradedArray{T}(undef, axs...))
 end
 
@@ -373,7 +373,7 @@ function Base.zeros(axs::GradedOneTo...)
 end
 
 function Base.zeros(
-        ::Type{T}, axs::NTuple{N, GradedOneTo{I}}
-    ) where {T, N, I <: TKS.Sector}
+        ::Type{T}, axs::NTuple{N, GradedOneTo{S}}
+    ) where {T, N, S <: SectorRange}
     return zeros(T, axs...)
 end

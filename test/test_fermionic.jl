@@ -1,5 +1,5 @@
 import GradedArrays
-using GradedArrays: AbelianSectorArray, AbelianSectorDelta, SectorRange, dual, sectors
+using GradedArrays: AbelianSectorArray, AbelianSectorDelta, SectorRange, U1, dual, sectors
 using Random: randn!
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
@@ -42,52 +42,32 @@ end
     fpp = GradedArrays.fermion_permutation_phase
 
     # Bosonic: always +1
-    delta_bos = AbelianSectorDelta{Float64}(
-        (TKS.U1Irrep(0), TKS.U1Irrep(1)),
-        (false, false)
-    )
+    delta_bos = AbelianSectorDelta{Float64}((U1(0), U1(1)))
     @test fpp(delta_bos, (2, 1)) == true  # Bosonic returns `true` (== 1)
 
     # Fermionic: even parity swap → +1
-    delta_even = AbelianSectorDelta{Float64}(
-        (TKS.FermionParity(false), TKS.FermionParity(false)),
-        (false, false)
-    )
+    delta_even = AbelianSectorDelta{Float64}((fP0, fP0))
     @test fpp(delta_even, (2, 1)) == 1
 
     # Fermionic: two odd parity swap → -1
-    delta_odd = AbelianSectorDelta{Float64}(
-        (TKS.FermionParity(true), TKS.FermionParity(true)),
-        (false, false)
-    )
+    delta_odd = AbelianSectorDelta{Float64}((fP1, fP1))
     @test fpp(delta_odd, (2, 1)) == -1
 
     # Fermionic: one odd one even swap → +1
-    delta_mixed = AbelianSectorDelta{Float64}(
-        (TKS.FermionParity(true), TKS.FermionParity(false)),
-        (false, false)
-    )
+    delta_mixed = AbelianSectorDelta{Float64}((fP1, fP0))
     @test fpp(delta_mixed, (2, 1)) == 1
 end
 
 @testset "AbelianSectorArray permutedims applies fermionic phase" begin
     # Two odd-parity legs: permuting should negate
-    data = randn!(Matrix{Float64}(undef, 1, 1))
-    s = AbelianSectorArray(
-        (TKS.FermionParity(true), TKS.FermionParity(true)),
-        (false, false),
-        copy(data)
-    )
+    d = randn!(Matrix{Float64}(undef, 1, 1))
+    s = AbelianSectorArray((fP1, fP1), copy(d))
     sp = permutedims(s, (2, 1))
-    @test sp[1, 1] ≈ -data[1, 1]
+    @test sp[1, 1] ≈ -d[1, 1]
 
     # Two even-parity legs: no phase
-    data_even = randn!(Matrix{Float64}(undef, 1, 1))
-    s_even = AbelianSectorArray(
-        (TKS.FermionParity(false), TKS.FermionParity(false)),
-        (false, false),
-        copy(data_even)
-    )
+    d_even = randn!(Matrix{Float64}(undef, 1, 1))
+    s_even = AbelianSectorArray((fP0, fP0), copy(d_even))
     sp_even = permutedims(s_even, (2, 1))
-    @test sp_even[1, 1] ≈ data_even[1, 1]
+    @test sp_even[1, 1] ≈ d_even[1, 1]
 end
