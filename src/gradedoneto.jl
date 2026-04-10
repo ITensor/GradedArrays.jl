@@ -35,13 +35,7 @@ sectors(g::GradedOneTo) = isdual(g) ? dual.(g.nondual_sectors) : g.nondual_secto
 Base.first(::GradedOneTo) = 1
 BlockArrays.blocklength(g::GradedOneTo) = length(g.nondual_sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
-function Base.length(g::GradedOneTo)
-    return sum(
-        i -> quantum_dimension(g.nondual_sectors[i]) * sector_multiplicities(g)[i],
-        eachindex(g.nondual_sectors);
-        init = 0
-    )
-end
+Base.length(g::GradedOneTo) = sum(blocklengths(g); init = 0)
 
 # sector_type, SymmetryStyle
 sector_type(::Type{GradedOneTo{S}}) where {S} = S
@@ -51,7 +45,7 @@ SymmetryStyle(::Type{<:GradedOneTo{S}}) where {S} = SymmetryStyle(S)
 function BlockArrays.blocklengths(g::GradedOneTo)
     return [
         quantum_dimension(s) * m
-            for (s, m) in zip(sectors(g), sector_multiplicities(g))
+            for (s, m) in zip(g.nondual_sectors, sector_multiplicities(g))
     ]
 end
 
