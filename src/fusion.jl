@@ -335,7 +335,7 @@ end
 # ========================  permutedimsopadd!  ========================
 
 function TensorAlgebra.permutedimsopadd!(
-        y::AbelianSectorArray, op, x::AbelianSectorArray, perm,
+        y::AbstractSectorArray, op, x::AbstractSectorArray, perm,
         α::Number, β::Number
     )
     sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())

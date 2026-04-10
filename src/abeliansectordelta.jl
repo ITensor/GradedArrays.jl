@@ -123,7 +123,7 @@ function masked_inversion_parity(mask::NTuple{N, Bool}, perm::NTuple{N, Int}) wh
 end
 
 function fermion_permutation_phase(
-        x::AbelianSectorDelta{<:Any, N},
+        x::AbstractSectorDelta{<:Any, N},
         perm::NTuple{N, Int}
     ) where {N}
     require_unique_fusion(x)
@@ -136,7 +136,7 @@ function fermion_permutation_phase(
 end
 
 function fermion_contraction_phase(
-        x::AbelianSectorDelta{<:Any, N},
+        x::AbstractSectorDelta{<:Any, N},
         length_codomain::Int
     ) where {N}
     require_unique_fusion(x)

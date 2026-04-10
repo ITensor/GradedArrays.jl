@@ -36,3 +36,8 @@ sector_type(::Type{<:SectorIdentity{T, I}}) where {T, I} = SectorRange{I}
 function sectoraxes(x::SectorIdentity)
     return (SectorRange(x.label, false), SectorRange(x.label, true))
 end
+
+# Permuting axes may change dual flags, so delegate to AbelianSectorDelta.
+function Base.permutedims(x::SectorIdentity, perm)
+    return permutedims(AbelianSectorDelta{eltype(x)}(labels(x), map(isdual, axes(x))), perm)
+end

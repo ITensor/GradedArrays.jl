@@ -31,29 +31,25 @@ broadcasted_data(x) = x
 # Extract and validate the common sector factor across all sector array arguments.
 function broadcasted_sector(bc::BC.Broadcasted{<:SectorStyle})
     bc′ = BC.flatten(bc)
-    sects = [sector(arg) for arg in bc′.args if arg isa AbstractSectorArray]
-    isempty(sects) && throw(ArgumentError("No AbstractSectorArray found in broadcast"))
+    sector_args = filter(arg -> arg isa AbstractSectorArray, bc′.args)
+    isempty(sector_args) &&
+        throw(ArgumentError("No AbstractSectorArray found in broadcast"))
+    sects = sector.(sector_args)
     s = first(sects)
     all(==(s), sects) || throw(DimensionMismatch("sector mismatch in broadcast"))
     return s
 end
 
-function _find_data(bc::BC.Broadcasted{<:SectorStyle})
-    bc′ = BC.flatten(bc)
-    idx = findfirst(arg -> arg isa AbstractSectorArray, bc′.args)
-    return data(bc′.args[idx])
-end
-
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
     s = broadcasted_sector(bc)
-    return s ⊗ similar(_find_data(bc), elt)
+    return s ⊗ similar(broadcasted_data(bc), elt)
 end
 
 function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:SectorStyle})
-    isnothing(tryflattenlinear(bc)) &&
+    lb = tryflattenlinear(bc)
+    isnothing(lb) &&
         throw(ArgumentError("SectorArray broadcasting requires linear operations"))
-    data_bc = broadcasted_data(bc)
-    copyto!(data(dest), data_bc)
+    copyto!(dest, lb)
     return dest
 end
 
