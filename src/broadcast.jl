@@ -13,12 +13,14 @@ BC.BroadcastStyle(style::SectorStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = 
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 
-function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type, ax)
+function Base.similar(
+        bc::BC.Broadcasted{<:SectorStyle}, elt::Type,
+        ax::Tuple{SectorOneTo, Vararg{SectorOneTo}}
+    )
     bc′ = BC.flatten(bc)
     idx = findfirst(arg -> arg isa AbstractSectorArray, bc′.args)
     arg = bc′.args[idx]
-    sects = sectoraxes(arg)
-    return AbelianSectorArray(sects, similar(data(arg), elt))
+    return AbelianSectorArray(sector.(ax), similar(data(arg), elt, Tuple(data.(ax))))
 end
 
 function Base.copyto!(dest::AbelianSectorArray, bc::BC.Broadcasted{<:SectorStyle})

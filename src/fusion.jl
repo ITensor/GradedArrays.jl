@@ -2,9 +2,9 @@ using TensorAlgebra: tensor_product_axis, trivial_axis
 
 struct SectorFusion <: FusionStyle end
 
-TensorAlgebra.FusionStyle(::Type{<:AbelianSectorDelta}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:AbelianSectorArray}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:AbelianGradedArray}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:AbstractSectorDelta}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:AbstractSectorArray}) = SectorFusion()
+TensorAlgebra.FusionStyle(::Type{<:AbstractGradedArray}) = SectorFusion()
 
 # ========================  trivial_axis  ========================
 
@@ -176,19 +176,20 @@ end
 # ========================  AbelianGradedArray unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::AbelianSectorDelta,
+        ::SectorFusion, m::AbstractSectorDelta,
         codomain_axes::Tuple{Vararg{SectorRange}},
         domain_axes::Tuple{Vararg{SectorRange}}
     )
     return AbelianSectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
 end
 
-# Unmatricize an AbelianSectorMatrix back to an N-D AbelianSectorArray. Decomposes into
-# sector (AbelianSectorDelta) and data (plain matrix) components, unmatricizes each
+# Unmatricize a 2D sector array back to an N-D AbelianSectorArray. Decomposes into
+# sector (delta) and data (plain matrix) components, unmatricizes each
 # independently, applies the fermionic contraction phase, and recombines.
 # The codomain/domain axes must be SectorOneTo (carrying multiplicity info).
+# Works for both AbelianSectorMatrix and SectorMatrix.
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::AbelianSectorMatrix,
+        ::SectorFusion, m::AbstractSectorArray{<:Any, 2},
         codomain_axes::Tuple{Vararg{SectorOneTo}},
         domain_axes::Tuple{Vararg{SectorOneTo}}
     )
