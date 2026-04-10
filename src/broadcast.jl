@@ -25,7 +25,6 @@ function broadcasted_data(bc::BC.Broadcasted{<:SectorStyle})
     return BC.broadcasted(bc.f, broadcasted_data.(bc.args)...)
 end
 broadcasted_data(a::AbstractSectorArray) = data(a)
-broadcasted_data(a::AbstractSectorDelta) = a
 broadcasted_data(x) = x
 
 # Extract and validate the common sector factor across all sector array arguments.

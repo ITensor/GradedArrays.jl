@@ -74,16 +74,8 @@ function FI.permuteddims(x::AbelianSectorDelta, perm)
     return permutedims(x, perm)
 end
 
-# ========================  copy / broadcasting  ========================
+# ========================  adjoint / broadcasting  ========================
 
-function Base.copy!(C::AbelianSectorDelta, A::AbelianSectorDelta)
-    axes(C) == axes(A) || throw(DimensionMismatch())
-    return C
-end
-function Base.copyto!(C::AbelianSectorDelta, A::AbelianSectorDelta)
-    axes(C) == axes(A) || throw(DimensionMismatch())
-    return C
-end
 function Base.copy(A::Adjoint{T, <:AbelianSectorDelta{T, 2}}) where {T}
     return AbelianSectorDelta{T}(reverse(dual.(axes(adjoint(A)))))
 end
