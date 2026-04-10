@@ -2,9 +2,9 @@ import GradedArrays
 using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
-    AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorOneTo, SectorRange, U1, dual,
-    flip, gradedrange, isdual, label, sector_multiplicities, sector_type, sectoraxes,
-    sectormergesort, sectorrange, sectors, tensor_product
+    AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorMatrix, SectorOneTo,
+    SectorRange, U1, dual, flip, gradedrange, isdual, label, sector_multiplicities,
+    sector_type, sectoraxes, sectormergesort, sectorrange, sectors, tensor_product
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, linearbroadcasted, matricize, unmatricize
 using Test: @test, @test_throws, @testset
@@ -282,7 +282,7 @@ end
 
     # Matricize with 1 codomain leg
     sm = matricize(s, Val(1))
-    @test sm isa AbelianSectorArray
+    @test sm isa SectorMatrix
     @test ndims(sm) == 2
 
     # Unmatricize back to 3D

@@ -98,9 +98,7 @@ function TensorAlgebra.matricize(
     ax_codomain, ax_domain = blocks(axes(a)[biperm])
     ax_codomain =
         isempty(ax_codomain) ? trivial(sector_type(a)) : tensor_product(ax_codomain...)
-    ax_domain =
-        isempty(ax_domain) ? trivial(sector_type(a)) : flip(tensor_product(ax_domain...))
-    return AbelianSectorDelta{eltype(a)}((ax_codomain, ax_domain))
+    return SectorIdentity{eltype(a)}(ax_codomain)
 end
 
 # ========================  AbelianSectorArray matricize  ========================
@@ -120,7 +118,7 @@ function TensorAlgebra.matricize(
     adata_reshaped = matricize(data(a), Val(K))
     isone(phase) || (adata_reshaped = phase .* adata_reshaped)
 
-    return AbelianSectorArray(asectors_reshaped, adata_reshaped)
+    return asectors_reshaped ⊗ adata_reshaped
 end
 
 # ========================  AbelianGradedArray matricize  ========================
