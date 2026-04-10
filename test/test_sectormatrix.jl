@@ -136,9 +136,9 @@ using Test: @test, @testset
         using GradedArrays: AbelianSectorArray, ⊗
         sm = SectorMatrix(TKS.U1Irrep(0), [1.0 2.0; 3.0 4.0])
 
-        # Scalar multiply should work
+        # Scalar multiply produces AbelianSectorArray (like Diagonal → Matrix)
         sm2 = 2.0 .* sm
-        @test sm2 isa SectorMatrix
+        @test sm2 isa AbelianSectorArray
         @test data(sm2) ≈ [2.0 4.0; 6.0 8.0]
 
         # Cross-type broadcast: AbelianSectorArray .= SectorMatrix

@@ -59,12 +59,8 @@ function Base.convert(
     return SectorMatrix(x.label, convert(D, data(x)))
 end
 
-function Base.similar(
-        sm::SectorMatrix, ::Type{T}, ax::Tuple{SectorOneTo, SectorOneTo}
-    ) where {T}
-    sects = sector.(ax)
-    data_ax = data.(ax)
-    return SectorMatrix(label(first(sects)), similar(data(sm), T, data_ax))
+function Base.similar(sm::SectorMatrix, ::Type{T}) where {T}
+    return SectorMatrix(sm.label, similar(data(sm), T))
 end
 
 function KroneckerArrays.:(⊗)(A::SectorIdentity, data::AbstractMatrix)

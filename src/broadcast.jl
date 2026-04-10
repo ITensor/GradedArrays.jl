@@ -17,7 +17,8 @@ function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type, ax)
     bc′ = BC.flatten(bc)
     idx = findfirst(arg -> arg isa AbstractSectorArray, bc′.args)
     arg = bc′.args[idx]
-    return similar(arg, elt, axes(arg))
+    sects = sectoraxes(arg)
+    return AbelianSectorArray(sects, similar(data(arg), elt))
 end
 
 function Base.copyto!(dest::AbelianSectorArray, bc::BC.Broadcasted{<:SectorStyle})
