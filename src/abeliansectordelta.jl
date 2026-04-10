@@ -122,7 +122,7 @@ function fermion_contraction_phase(
         throw(ArgumentError(lazy"Cannot contract more than ndim legs ($N > $(ndims(x))"))
 
     parity = mapreduce(⊻, enumerate(axes(x))) do (n, ax)
-        return n <= length_codomain & isdual(ax) & fermionparity(ax)
+        return (n <= length_codomain) & isdual(ax) & fermionparity(ax)
     end
     return ifelse(parity, -1, 1)
 end

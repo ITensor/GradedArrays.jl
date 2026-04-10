@@ -18,7 +18,7 @@ label(r::SectorRange) = r.label
 isdual(r::SectorRange) = r.isdual
 
 sector_type(x) = sector_type(typeof(x))
-sector_type(I::Type{<:SectorRange}) = I
+sector_type(S::Type{<:SectorRange}) = S
 sector_type(T::Type) = throw(MethodError(sector_type, T))
 
 # ===================================  Base interface  =====================================
@@ -76,7 +76,6 @@ function sector_label(c::TKS.Sector)
     return map(fieldnames(typeof(c))) do f
         return getfield(c, f)
     end
-    return c
 end
 
 quantum_dimension(r::SectorRange) = TKS.dim(label(r))

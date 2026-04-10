@@ -4,7 +4,7 @@
 Represents one sector's index space — a `SectorRange` (sector label + dual flag) paired
 with a multiplicity count. This is the building block for `GradedOneTo`.
 
-Stores a `SectorRange` and a multiplicity. The `label` and `isdual` accessors are
+Stores a `SectorRange` and a multiplicity. The `isdual` accessor is
 derived from the stored `SectorRange`.
 """
 struct SectorOneTo{S <: SectorRange} <: AbstractUnitRange{Int}
