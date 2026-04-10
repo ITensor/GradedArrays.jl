@@ -6,7 +6,8 @@ using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     SectorRange, U1, dual, flip, gradedrange, isdual, label, sector_multiplicities,
     sector_type, sectoraxes, sectormergesort, sectorrange, sectors, tensor_product
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, contract, linearbroadcasted, matricize, unmatricize
+using TensorAlgebra:
+    TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize, unmatricize
 using Test: @test, @test_throws, @testset
 
 @testset "AbelianSectorArray linear broadcasting" begin
@@ -180,7 +181,7 @@ end
     a[Block(1, 1)] = AbelianSectorArray((U1(0), U1(0)), block_11)
     a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_22)
 
-    a_reshaped = GradedArrays.block_reshape(a, Val(1))
+    a_reshaped = matricize(GradedArrays.BlockReshapeFusion(), a, Val(1))
     a_merged = sectormergesort(a_reshaped)
 
     @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]

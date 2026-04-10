@@ -34,7 +34,9 @@ isdual(g::GradedOneTo) = g.isdual
 
 # Derived accessors
 sectors(g::GradedOneTo) = SectorRange.(labels(g), isdual(g))
+Base.first(::GradedOneTo) = 1
 BlockArrays.blocklength(g::GradedOneTo) = length(labels(g))
+BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
 function Base.length(g::GradedOneTo)
     return sum(
         i -> quantum_dimension(sectors(g)[i]) * sector_multiplicities(g)[i],
