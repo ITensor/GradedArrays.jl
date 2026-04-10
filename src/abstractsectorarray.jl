@@ -53,26 +53,3 @@ function FI.zero!(a::AbstractSectorArray)
     FI.zero!(data(a))
     return a
 end
-
-# ========================  TensorAlgebra.add!  ========================
-
-function TensorAlgebra.add!(
-        dest::AbstractArray,
-        src::AbstractSectorArray,
-        α::Number,
-        β::Number
-    )
-    TensorAlgebra.add!(dest, data(src), α, β)
-    return dest
-end
-
-function TensorAlgebra.add!(
-        dest::AbstractSectorArray,
-        src::AbstractSectorArray,
-        α::Number,
-        β::Number
-    )
-    size(dest) == size(src) || throw(DimensionMismatch())
-    TensorAlgebra.add!(data(dest), data(src), α, β)
-    return dest
-end
