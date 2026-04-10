@@ -354,3 +354,26 @@ function Base.show(io::IO, a::AbelianGradedArray{T, N}) where {T, N}
     print(io, block_str, "-blocked ", size_str, " AbelianGradedArray{", T, "}")
     return nothing
 end
+
+# ---------------------------------------------------------------------------
+#  zeros / rand  (allowedblocks is defined in fusion.jl)
+# ---------------------------------------------------------------------------
+
+"""
+    zeros(T, axs::GradedOneTo...)
+
+Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with zeros.
+"""
+function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
+    return FI.zero!(AbelianGradedArray{T}(undef, axs...))
+end
+
+function Base.zeros(axs::GradedOneTo...)
+    return zeros(Float64, axs...)
+end
+
+function Base.zeros(
+        ::Type{T}, axs::NTuple{N, GradedOneTo{I}}
+    ) where {T, N, I <: TKS.Sector}
+    return zeros(T, axs...)
+end

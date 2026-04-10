@@ -280,8 +280,9 @@ function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
     codomain_axs = (axs[1],)
     domain_axs = Base.tail(axs)
 
-    # Compute unfused 2D axes via the fusion tree.
-    # We need a dummy array for trivial_axis dispatch; an empty AbelianGradedArray suffices.
+    # TODO: The dummy array is only needed because TensorAlgebra.trivial_axis dispatches
+    # on an array argument. Adding a trivial_axis overload that takes just the axes would
+    # eliminate this.
     dummy = AbelianGradedArray{Float64, N, Array{Float64, N}, I}(
         Dict{NTuple{N, Int}, Array{Float64, N}}(), axs
     )
@@ -309,52 +310,4 @@ function allowedblocks(axs::NTuple{N, GradedOneTo{I}}) where {N, I}
         end
     end
     return bks
-end
-
-# ========================  zeros / rand  ========================
-
-"""
-    zeros(T, axs::GradedOneTo...)
-
-Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with zeros.
-"""
-function Base.zeros(::Type{T}, axs::GradedOneTo{I}...) where {T, I <: TKS.Sector}
-    return FI.zero!(AbelianGradedArray{T}(undef, axs...))
-end
-
-function Base.zeros(axs::GradedOneTo...)
-    return zeros(Float64, axs...)
-end
-
-function Base.zeros(
-        ::Type{T}, axs::NTuple{N, GradedOneTo{I}}
-    ) where {T, N, I <: TKS.Sector}
-    return zeros(T, axs...)
-end
-
-# ========================  permutedimsopadd!  ========================
-
-function TensorAlgebra.permutedimsopadd!(
-        y::AbstractSectorArray, op, x::AbstractSectorArray, perm,
-        α::Number, β::Number
-    )
-    sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())
-    phase = fermion_permutation_phase(sector(x), perm)
-    TensorAlgebra.permutedimsopadd!(data(y), op, data(x), perm, phase * α, β)
-    return y
-end
-
-function TensorAlgebra.permutedimsopadd!(
-        y::AbelianGradedArray{<:Any, N}, op, x::AbelianGradedArray{<:Any, N}, perm,
-        α::Number, β::Number
-    ) where {N}
-    iszero(β) || scale!(y, β)
-    for bI in eachblockstoredindex(x)
-        b = Tuple(bI)
-        b_dest = Block(ntuple(i -> b[perm[i]], N))
-        y_b = view!(y, Tuple(b_dest)...)
-        x_b = x[bI]
-        TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, true)
-    end
-    return y
 end

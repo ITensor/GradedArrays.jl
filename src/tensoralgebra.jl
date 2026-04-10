@@ -150,3 +150,30 @@ end
 function tensor_product(si::SectorOneTo, s::TKS.Sector)
     return tensor_product(to_gradedrange(si), to_gradedrange(s))
 end
+
+# ========================  permutedimsopadd!  ========================
+
+function TensorAlgebra.permutedimsopadd!(
+        y::AbstractSectorArray, op, x::AbstractSectorArray, perm,
+        α::Number, β::Number
+    )
+    sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())
+    phase = fermion_permutation_phase(sector(x), perm)
+    TensorAlgebra.permutedimsopadd!(data(y), op, data(x), perm, phase * α, β)
+    return y
+end
+
+function TensorAlgebra.permutedimsopadd!(
+        y::AbelianGradedArray{<:Any, N}, op, x::AbelianGradedArray{<:Any, N}, perm,
+        α::Number, β::Number
+    ) where {N}
+    iszero(β) || scale!(y, β)
+    for bI in eachblockstoredindex(x)
+        b = Tuple(bI)
+        b_dest = Block(ntuple(i -> b[perm[i]], N))
+        y_b = view!(y, Tuple(b_dest)...)
+        x_b = x[bI]
+        TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, true)
+    end
+    return y
+end
