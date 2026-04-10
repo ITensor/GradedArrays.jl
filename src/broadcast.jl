@@ -13,14 +13,16 @@ BC.BroadcastStyle(style::SectorStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = 
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 
-function Base.similar(
-        bc::BC.Broadcasted{<:SectorStyle}, elt::Type,
-        ax::Tuple{SectorOneTo, Vararg{SectorOneTo}}
-    )
+# TODO: Redesign broadcasting to decompose through the Kronecker structure:
+# broadcasted_data(bc) strips sector wrappers, rebuilds a plain broadcast on raw data;
+# broadcasted_sector(bc) extracts/validates the common sector factor;
+# similar uses sector ⊗ similar(broadcasted_data(bc), elt).
+# Current implementation is a placeholder that only handles same-shape linear ops.
+function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     idx = findfirst(arg -> arg isa AbstractSectorArray, bc′.args)
     arg = bc′.args[idx]
-    return AbelianSectorArray(sector.(ax), similar(data(arg), elt, Tuple(data.(ax))))
+    return AbelianSectorArray(sectoraxes(arg), similar(data(arg), elt))
 end
 
 function Base.copyto!(dest::AbelianSectorArray, bc::BC.Broadcasted{<:SectorStyle})
