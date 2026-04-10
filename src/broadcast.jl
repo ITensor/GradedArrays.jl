@@ -1,6 +1,11 @@
 using Base.Broadcast: Broadcast as BC
 
-# ========================  AbelianSectorArray / AbelianSectorDelta broadcasting  ========================
+# ========================  SectorStyle broadcasting  ========================
+#
+# Decomposes broadcasts through the Kronecker structure (sector ⊗ data):
+# - broadcasted_data(bc) strips sector wrappers, rebuilds a plain broadcast on raw data
+# - broadcasted_sector(bc) extracts and validates the common sector factor
+# - similar recombines via sector ⊗ similar(broadcasted_data, elt)
 
 struct SectorStyle{N} <: BC.AbstractArrayStyle{N} end
 SectorStyle{N}(::Val{M}) where {N, M} = SectorStyle{M}()
@@ -13,23 +18,43 @@ BC.BroadcastStyle(style::SectorStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = 
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 
-# TODO: Redesign broadcasting to decompose through the Kronecker structure:
-# broadcasted_data(bc) strips sector wrappers, rebuilds a plain broadcast on raw data;
-# broadcasted_sector(bc) extracts/validates the common sector factor;
-# similar uses sector ⊗ similar(broadcasted_data(bc), elt).
-# Current implementation is a placeholder that only handles same-shape linear ops.
-function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
+# ---- Kronecker decomposition of broadcasts ----
+
+# Strip sector wrappers and rebuild a plain broadcast on raw data arrays.
+function broadcasted_data(bc::BC.Broadcasted{<:SectorStyle})
+    return BC.broadcasted(bc.f, broadcasted_data.(bc.args)...)
+end
+broadcasted_data(a::AbstractSectorArray) = data(a)
+broadcasted_data(a::AbstractSectorDelta) = a
+broadcasted_data(x) = x
+
+# Extract and validate the common sector factor across all sector array arguments.
+function broadcasted_sector(bc::BC.Broadcasted{<:SectorStyle})
     bc′ = BC.flatten(bc)
-    idx = findfirst(arg -> arg isa AbstractSectorArray, bc′.args)
-    arg = bc′.args[idx]
-    return AbelianSectorArray(sectoraxes(arg), similar(data(arg), elt))
+    sects = [sector(arg) for arg in bc′.args if arg isa AbstractSectorArray]
+    isempty(sects) && throw(ArgumentError("No AbstractSectorArray found in broadcast"))
+    s = first(sects)
+    all(==(s), sects) || throw(DimensionMismatch("sector mismatch in broadcast"))
+    return s
 end
 
-function Base.copyto!(dest::AbelianSectorArray, bc::BC.Broadcasted{<:SectorStyle})
-    lb = tryflattenlinear(bc)
-    isnothing(lb) &&
-        throw(ArgumentError("AbelianSectorArray broadcasting requires linear operations"))
-    return copyto!(dest, lb)
+function _find_data(bc::BC.Broadcasted{<:SectorStyle})
+    bc′ = BC.flatten(bc)
+    idx = findfirst(arg -> arg isa AbstractSectorArray, bc′.args)
+    return data(bc′.args[idx])
+end
+
+function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
+    s = broadcasted_sector(bc)
+    return s ⊗ similar(_find_data(bc), elt)
+end
+
+function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:SectorStyle})
+    isnothing(tryflattenlinear(bc)) &&
+        throw(ArgumentError("SectorArray broadcasting requires linear operations"))
+    data_bc = broadcasted_data(bc)
+    copyto!(data(dest), data_bc)
+    return dest
 end
 
 # ========================  AbelianGradedArray broadcasting  ========================
