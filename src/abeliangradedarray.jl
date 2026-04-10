@@ -22,10 +22,8 @@ end
 #  Constructors
 # ---------------------------------------------------------------------------
 
-# Forward declaration — implementation in fusion.jl (needs fusion machinery)
-function allowedblocks end
-
 # Fully-parameterized undef constructor: finds allowed blocks, allocates, calls inner.
+# (allowedblocks is defined in fusion.jl)
 function AbelianGradedArray{T, N, D, I}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{I}}
     ) where {T, N, D <: AbstractArray{T, N}, I <: TKS.Sector}
