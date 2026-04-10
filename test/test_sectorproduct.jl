@@ -64,7 +64,7 @@ using TestExtras: @constinferred
 
     @testset "Quantum dimension and GradedOneTo" begin
         g = gradedrange([(U1(0) × Z{2}(0)) => 1, (U1(1) × Z{2}(0)) => 2])  # abelian
-        @test (@constinferred quantum_dimension(g)) == 3
+        @test (@constinferred length(g)) == 3
 
         g = gradedrange(
             [  # non-abelian
@@ -74,7 +74,7 @@ using TestExtras: @constinferred
                 (SU2(1) × SU2(1)) => 1,
             ]
         )
-        @test (@constinferred quantum_dimension(g)) == 16
+        @test (@constinferred length(g)) == 16
         @test (@constinferred blocklengths(g)) == [1, 3, 3, 9]
 
         @test gradedrange([U1(1) => 2]) × SU2(1) == gradedrange([U1(1) × SU2(1) => 2])
@@ -82,7 +82,7 @@ using TestExtras: @constinferred
 
         # mixed group
         g = gradedrange([(U1(2) × SU2(0) × Z{2}(0)) => 1, (U1(2) × SU2(1) × Z{2}(0)) => 1])
-        @test (@constinferred quantum_dimension(g)) == 4
+        @test (@constinferred length(g)) == 4
         @test (@constinferred blocklengths(g)) == [1, 3]
         g = gradedrange(
             [
@@ -90,7 +90,7 @@ using TestExtras: @constinferred
                 (SU2(0) × U1(1) × SU2(1 // 2)) => 1,
             ]
         )
-        @test (@constinferred quantum_dimension(g)) == 4
+        @test (@constinferred length(g)) == 4
         @test (@constinferred blocklengths(g)) == [2, 2]
     end
 
@@ -249,7 +249,7 @@ end
                 (; A = U1(1)) × (; B = Z{2}(0)) => 2,
             ]
         )  # abelian
-        @test (@constinferred quantum_dimension(g)) == 3
+        @test (@constinferred length(g)) == 3
 
         g = gradedrange(
             [  # non-abelian
@@ -259,7 +259,7 @@ end
                 (; A = SU2(1)) × (; B = SU2(1)) => 1,
             ]
         )
-        @test (@constinferred quantum_dimension(g)) == 16
+        @test (@constinferred length(g)) == 16
 
         # mixed group
         g = gradedrange(
@@ -268,14 +268,14 @@ end
                 (; A = U1(2)) × (; B = SU2(1)) × (; C = Z{2}(0)) => 1,
             ]
         )
-        @test (@constinferred quantum_dimension(g)) == 4
+        @test (@constinferred length(g)) == 4
         g = gradedrange(
             [
                 (; A = SU2(0)) × (; B = Z{2}(0)) × (; C = SU2(1 // 2)) => 1,
                 (; A = SU2(0)) × (; B = Z{2}(1)) × (; C = SU2(1 // 2)) => 1,
             ]
         )
-        @test (@constinferred quantum_dimension(g)) == 4
+        @test (@constinferred length(g)) == 4
     end
 
     @testset "Fusion of Abelian products" begin

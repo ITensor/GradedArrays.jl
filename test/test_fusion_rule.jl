@@ -28,7 +28,7 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         @test tensor_product(z0, z0, z0) == z0
         @test tensor_product(z0, z0, z0, z0) == z0
 
-        @test (@constinferred quantum_dimension(gradedrange([z1 => 1]))) == 1
+        @test (@constinferred length(gradedrange([z1 => 1]))) == 1
     end
     @testset "U(1) fusion rules" begin
         q1 = U1(1)
@@ -67,7 +67,7 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         @test (@constinferred tensor_product(s12, s12)) ==
             gradedrange([s0e => 1, s0o => 1, s1 => 1])
 
-        @test (@constinferred quantum_dimension(tensor_product(s0o, s1))) == 2
+        @test (@constinferred length(tensor_product(s0o, s1))) == 2
     end
 
     @testset "SU2 fusion rules" begin
@@ -82,7 +82,7 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         @test tensor_product(j2, j3) == gradedrange([j2 => 1, j4 => 1])
         @test tensor_product(j3, j3) == gradedrange([j1 => 1, j3 => 1, j5 => 1])
         @test (@constinferred tensor_product(j1, j2)) == gradedrange([j2 => 1])
-        @test (@constinferred quantum_dimension(tensor_product(j1, j2))) == 2
+        @test (@constinferred length(tensor_product(j1, j2))) == 2
 
         @test tensor_product(j2) == j2
         @test tensor_product(j2, j1) == gradedrange([j2 => 1])

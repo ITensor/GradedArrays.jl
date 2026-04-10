@@ -195,11 +195,11 @@ function KroneckerArrays.:×(pairs::Pair...)
     return ×(NamedTuple{keys}(vals))
 end
 
-function KroneckerArrays.:×(si1::SectorOneTo, si2::SectorOneTo)
-    isdual(si1) == isdual(si2) || throw(ArgumentError("SectorProduct duality must match"))
-    new_label = label(sector(si1)) × label(sector(si2))
-    new_mult = sector_multiplicity(si1) * sector_multiplicity(si2)
-    return SectorOneTo(SectorRange(new_label, isdual(si1)), new_mult)
+function KroneckerArrays.:×(r1::SectorOneTo, r2::SectorOneTo)
+    isdual(r1) == isdual(r2) || throw(ArgumentError("SectorProduct duality must match"))
+    new_label = label(sector(r1)) × label(sector(r2))
+    new_mult = sector_multiplicity(r1) * sector_multiplicity(r2)
+    return SectorOneTo(SectorRange(new_label, isdual(r1)), new_mult)
 end
 
 # TODO: type piracy?
@@ -227,8 +227,8 @@ function arguments_canonicalize(s1::SectorProduct{<:Tuple}, s2::SectorProduct{<:
     s1′ = SectorProduct(
         ntuple(lmax) do i
             if i <= length(arguments(s1))
-                si = arguments(s1)[i]
-                si != TKS.Trivial() && return si
+                arg = arguments(s1)[i]
+                arg != TKS.Trivial() && return arg
             end
             return one(arguments(s2)[i])
         end
@@ -236,8 +236,8 @@ function arguments_canonicalize(s1::SectorProduct{<:Tuple}, s2::SectorProduct{<:
     s2′ = SectorProduct(
         ntuple(lmax) do i
             if i <= length(arguments(s2))
-                si = arguments(s2)[i]
-                si != TKS.Trivial() && return si
+                arg = arguments(s2)[i]
+                arg != TKS.Trivial() && return arg
             end
             return one(arguments(s1)[i])
         end
@@ -269,11 +269,11 @@ function arguments_canonicalize(
         NamedTuple{allkeys}(
             ntuple(length(allkeys)) do i
                 k = allkeys[i]
-                si = get(arguments(s1), k, TKS.Trivial())
-                if si === TKS.Trivial()
+                arg = get(arguments(s1), k, TKS.Trivial())
+                if arg === TKS.Trivial()
                     return one(getproperty(arguments(s2), k))
                 else
-                    return si
+                    return arg
                 end
             end
         )
@@ -282,11 +282,11 @@ function arguments_canonicalize(
         NamedTuple{allkeys}(
             ntuple(length(allkeys)) do i
                 k = allkeys[i]
-                si = get(arguments(s2), k, TKS.Trivial())
-                if si === TKS.Trivial()
+                arg = get(arguments(s2), k, TKS.Trivial())
+                if arg === TKS.Trivial()
                     return one(getproperty(arguments(s1), k))
                 else
-                    return si
+                    return arg
                 end
             end
         )

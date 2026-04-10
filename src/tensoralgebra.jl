@@ -128,11 +128,11 @@ function tensor_product(g::GradedOneTo, s::SectorRange)
 end
 
 # SectorRange ↔ SectorOneTo
-function tensor_product(s::SectorRange, si::SectorOneTo)
-    return tensor_product(to_gradedrange(s), to_gradedrange(si))
+function tensor_product(s::SectorRange, r::SectorOneTo)
+    return tensor_product(to_gradedrange(s), to_gradedrange(r))
 end
-function tensor_product(si::SectorOneTo, s::SectorRange)
-    return tensor_product(to_gradedrange(si), to_gradedrange(s))
+function tensor_product(r::SectorOneTo, s::SectorRange)
+    return tensor_product(to_gradedrange(r), to_gradedrange(s))
 end
 
 # TKS.Sector ↔ GradedOneTo
@@ -144,11 +144,11 @@ function tensor_product(g::GradedOneTo, s::TKS.Sector)
 end
 
 # TKS.Sector ↔ SectorOneTo
-function tensor_product(s::TKS.Sector, si::SectorOneTo)
-    return tensor_product(to_gradedrange(s), to_gradedrange(si))
+function tensor_product(s::TKS.Sector, r::SectorOneTo)
+    return tensor_product(to_gradedrange(s), to_gradedrange(r))
 end
-function tensor_product(si::SectorOneTo, s::TKS.Sector)
-    return tensor_product(to_gradedrange(si), to_gradedrange(s))
+function tensor_product(r::SectorOneTo, s::TKS.Sector)
+    return tensor_product(to_gradedrange(r), to_gradedrange(s))
 end
 
 # ========================  permutedimsopadd!  ========================

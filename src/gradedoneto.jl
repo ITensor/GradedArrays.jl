@@ -41,15 +41,12 @@ Base.length(g::GradedOneTo) = sum(blocklengths(g); init = 0)
 sector_type(::Type{GradedOneTo{S}}) where {S} = S
 SymmetryStyle(::Type{<:GradedOneTo{S}}) where {S} = SymmetryStyle(S)
 
-# blocklengths: total length of each block (quantum_dimension * multiplicity)
+# blocklengths: total length of each block (length(sector) * multiplicity)
 function BlockArrays.blocklengths(g::GradedOneTo)
     return [
-        quantum_dimension(s) * m
-            for (s, m) in zip(g.nondual_sectors, sector_multiplicities(g))
+        length(s) * m for (s, m) in zip(g.nondual_sectors, sector_multiplicities(g))
     ]
 end
-
-quantum_dimension(g::GradedOneTo) = length(g)
 dataaxistype(::Type{<:GradedOneTo}) = Base.OneTo{Int}
 
 function trivial(::Type{GradedOneTo{S}}) where {S}
@@ -88,8 +85,8 @@ function BlockSparseArrays.mortar_axis(axs::AbstractVector{<:SectorOneTo})
         throw(ArgumentError("Cannot combine sectors with different arrows"))
     d = isdual(first(axs))
     # Store non-dual sectors; apply isdual via dual() if needed
-    ss = [d ? dual(sector(si)) : sector(si) for si in axs]
-    ms = [sector_multiplicity(si) for si in axs]
+    ss = [d ? dual(sector(r)) : sector(r) for r in axs]
+    ms = [sector_multiplicity(r) for r in axs]
     g = GradedOneTo(ss, ms)
     return d ? dual(g) : g
 end
@@ -137,12 +134,12 @@ function Base.getindex(
         g::GradedOneTo, I::AbstractBlockVector{<:Block{1}}
     )
     ea = eachblockaxis(g)
-    dest_si = map(blocks(I)) do group
-        src_sis = [ea[Int(b)] for b in group]
-        total_mult = sum(sector_multiplicity, src_sis)
-        return SectorOneTo(sector(first(src_sis)), total_mult)
+    dest = map(blocks(I)) do group
+        src = [ea[Int(b)] for b in group]
+        total_mult = sum(sector_multiplicity, src)
+        return SectorOneTo(sector(first(src)), total_mult)
     end
-    return mortar_axis(collect(dest_si))
+    return mortar_axis(collect(dest))
 end
 
 # Splitting: each BlockIndexRange{1} selects a sub-range within a source block.
@@ -151,16 +148,15 @@ function Base.getindex(
         g::GradedOneTo, I::AbstractVector{<:BlockIndexRange{1}}
     )
     ea = eachblockaxis(g)
-    dest_si = map(I) do bir
+    dest = map(I) do bir
         b = Int(bir.block)
-        r = only(bir.indices)
-        src_si = ea[b]
-        qdim = quantum_dimension(sector(src_si))
-        # multiplicity of the sub-range: sub-range length / quantum dimension
-        sub_mult = div(length(r), qdim)
-        return SectorOneTo(sector(src_si), sub_mult)
+        r_range = only(bir.indices)
+        src = ea[b]
+        # multiplicity of the sub-range: sub-range length / sector length
+        sub_mult = div(length(r_range), length(sector(src)))
+        return SectorOneTo(sector(src), sub_mult)
     end
-    return mortar_axis(collect(dest_si))
+    return mortar_axis(collect(dest))
 end
 
 # Bounds checking (needed for AbstractArray scalar indexing)

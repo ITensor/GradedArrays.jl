@@ -16,17 +16,17 @@ end
 SectorOneTo(s::SectorRange) = SectorOneTo(s, 1)
 
 # Primitive accessors
-sector(si::SectorOneTo) = si.sector
-sector_multiplicity(si::SectorOneTo) = si.multiplicity
+sector(r::SectorOneTo) = r.sector
+sector_multiplicity(r::SectorOneTo) = r.multiplicity
 
 # Derived accessors
-isdual(si::SectorOneTo) = isdual(sector(si))
+isdual(r::SectorOneTo) = isdual(sector(r))
 
 # Kronecker factor decomposition:
 # SectorOneTo = tensor_product(SectorRange (sector axis), OneTo (data axis))
-data(si::SectorOneTo) = Base.OneTo(sector_multiplicity(si))
-sectoraxes(si::SectorOneTo) = (sector(si),)
-dataaxes(si::SectorOneTo) = (data(si),)
+data(r::SectorOneTo) = Base.OneTo(sector_multiplicity(r))
+sectoraxes(r::SectorOneTo) = (sector(r),)
+dataaxes(r::SectorOneTo) = (data(r),)
 
 # Generic single-axis accessors (like axes1 = first ∘ axes)
 sectoraxes1(a) = first(sectoraxes(a))
@@ -36,21 +36,21 @@ dataaxes1(a) = first(dataaxes(a))
 dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
 
 # Duck-typed interface matching GradedOneTo
-sectors(si::SectorOneTo) = [sector(si)]
-sector_multiplicities(si::SectorOneTo) = [sector_multiplicity(si)]
-BlockArrays.blocklength(si::SectorOneTo) = 1
+sectors(r::SectorOneTo) = [sector(r)]
+sector_multiplicities(r::SectorOneTo) = [sector_multiplicity(r)]
+BlockArrays.blocklength(::SectorOneTo) = 1
 Base.first(::SectorOneTo) = 1
-Base.last(si::SectorOneTo) = length(si)
-Base.length(si::SectorOneTo) = quantum_dimension(sector(si)) * sector_multiplicity(si)
+Base.last(r::SectorOneTo) = length(r)
+Base.length(r::SectorOneTo) = length(sector(r)) * length(data(r))
 
 # sector_type, SymmetryStyle
 sector_type(::Type{SectorOneTo{S}}) where {S} = S
 SymmetryStyle(::Type{<:SectorOneTo{S}}) where {S} = SymmetryStyle(S)
 
 # dual, flip, flip_dual
-dual(si::SectorOneTo) = SectorOneTo(dual(sector(si)), sector_multiplicity(si))
-flip(si::SectorOneTo) = SectorOneTo(flip(sector(si)), sector_multiplicity(si))
-flip_dual(si::SectorOneTo) = isdual(si) ? flip(si) : si
+dual(r::SectorOneTo) = SectorOneTo(dual(sector(r)), sector_multiplicity(r))
+flip(r::SectorOneTo) = SectorOneTo(flip(sector(r)), sector_multiplicity(r))
+flip_dual(r::SectorOneTo) = isdual(r) ? flip(r) : r
 
 # Equality and hashing
 function Base.isequal(a::SectorOneTo, b::SectorOneTo)
@@ -58,8 +58,8 @@ function Base.isequal(a::SectorOneTo, b::SectorOneTo)
         isequal(sector_multiplicity(a), sector_multiplicity(b))
 end
 Base.:(==)(a::SectorOneTo, b::SectorOneTo) = isequal(a, b)
-function Base.hash(si::SectorOneTo, h::UInt)
-    return hash(sector(si), hash(sector_multiplicity(si), h))
+function Base.hash(r::SectorOneTo, h::UInt)
+    return hash(sector(r), hash(sector_multiplicity(r), h))
 end
 
 # ========================  sectorrange constructors  ========================
@@ -79,33 +79,33 @@ function sectorrange(
     return sectorrange(to_sector(sector), args...)
 end
 
-to_gradedrange(si::SectorOneTo) = gradedrange([sector(si) => sector_multiplicity(si)])
+to_gradedrange(r::SectorOneTo) = gradedrange([sector(r) => sector_multiplicity(r)])
 
 # ========================  BlockSparseArrays interface  ========================
 
-BlockSparseArrays.eachblockaxis(si::SectorOneTo) = [si]
+BlockSparseArrays.eachblockaxis(r::SectorOneTo) = [r]
 
 # ========================  tensor_product  ========================
 
-function tensor_product(si::SectorOneTo)
-    return isdual(si) ? flip(si) : si
+function tensor_product(r::SectorOneTo)
+    return isdual(r) ? flip(r) : r
 end
 
-function tensor_product(sr1::SectorOneTo, sr2::SectorOneTo)
+function tensor_product(r1::SectorOneTo, r2::SectorOneTo)
     return tensor_product(
-        combine_styles(SymmetryStyle(sr1), SymmetryStyle(sr2)), sr1, sr2
+        combine_styles(SymmetryStyle(r1), SymmetryStyle(r2)), r1, r2
     )
 end
 
-function tensor_product(::AbelianStyle, sr1::SectorOneTo, sr2::SectorOneTo)
-    s = tensor_product(sector(flip_dual(sr1)), sector(flip_dual(sr2)))
-    return sectorrange(s, sector_multiplicity(sr1) * sector_multiplicity(sr2))
+function tensor_product(::AbelianStyle, r1::SectorOneTo, r2::SectorOneTo)
+    s = tensor_product(sector(flip_dual(r1)), sector(flip_dual(r2)))
+    return sectorrange(s, sector_multiplicity(r1) * sector_multiplicity(r2))
 end
 
-function tensor_product(::NotAbelianStyle, sr1::SectorOneTo, sr2::SectorOneTo)
-    g = tensor_product(sector(flip_dual(sr1)), sector(flip_dual(sr2)))
-    d₁ = sector_multiplicity(sr1)
-    d₂ = sector_multiplicity(sr2)
+function tensor_product(::NotAbelianStyle, r1::SectorOneTo, r2::SectorOneTo)
+    g = tensor_product(sector(flip_dual(r1)), sector(flip_dual(r2)))
+    d₁ = sector_multiplicity(r1)
+    d₂ = sector_multiplicity(r2)
     return gradedrange(
         [
             c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), sector_multiplicities(g))
@@ -115,11 +115,11 @@ end
 
 # ========================  Show  ========================
 
-function Base.show(io::IO, si::SectorOneTo)
+function Base.show(io::IO, r::SectorOneTo)
     print(io, "SectorOneTo(")
-    show(io, label(sector(si)))
-    print(io, ", ", sector_multiplicity(si))
+    show(io, label(sector(r)))
+    print(io, ", ", sector_multiplicity(r))
     print(io, ")")
-    isdual(si) && print(io, "'")
+    isdual(r) && print(io, "'")
     return nothing
 end

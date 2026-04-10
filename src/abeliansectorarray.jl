@@ -37,7 +37,7 @@ const AbelianSectorMatrix{T, A <: AbstractMatrix{T}, S <: SectorRange} =
 sectoraxes(sa::AbelianSectorArray) = sa.sectors
 function sector_multiplicities(sa::AbelianSectorArray)
     return ntuple(
-        d -> div(size(data(sa), d), quantum_dimension(sectoraxes(sa, d))), Val(ndims(sa))
+        d -> div(size(data(sa), d), length(sectoraxes(sa, d))), Val(ndims(sa))
     )
 end
 
