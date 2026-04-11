@@ -159,11 +159,21 @@ function LinearAlgebra.mul!(
     return C
 end
 
-function Base.:(*)(A::FusedGradedMatrix{T₁}, B::FusedGradedMatrix{T₂}) where {T₁, T₂}
-    axes(A, 2) == dual(axes(B, 1)) || throw(DimensionMismatch("sectors must match"))
-    T = Base.promote_op(LinearAlgebra.matprod, T₁, T₂)
-    result_blocks = [view(A, Data(I)) * view(B, Data(I)) for I in blockdiagindices(A)]
+function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
+    cod_axes = data.(eachblockaxis(axes(A, 1)))
+    dom_axes = data.(eachblockaxis(axes(B, 2)))
+    result_blocks = [
+        similar(
+                Base.promote_op(*, typeof(view(A, Data(I))), typeof(view(B, Data(I)))),
+                (cod_axes[Int(Tuple(I)[1])], dom_axes[Int(Tuple(I)[2])])
+            ) for I in blockdiagindices(A)
+    ]
     return FusedGradedMatrix(copy(A.sectors), result_blocks)
+end
+
+function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    C = allocate_output(*, A, B)
+    return mul!(C, A, B, true, false)
 end
 
 # ========================  similar  ========================
