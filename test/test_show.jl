@@ -1,6 +1,7 @@
-using BlockArrays: BlockedOneTo, BlockedUnitRange
-using GradedArrays: GradedArrays, Fib, GradedUnitRange, Ising, O2, SU2, SectorUnitRange,
-    TrivialSector, U1, dual, gradedrange, sectorrange, ×
+using GradedArrays:
+    GradedArrays, Fib, GradedOneTo, Ising, O2, SU2, TrivialSector, U1, dual, gradedrange
+using KroneckerArrays: ×
+using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
 @testset "show SymmetrySector" begin
@@ -30,56 +31,18 @@ using Test: @test, @testset
     @test sprint(show, s) == "($TrivialSector() × $U1(3) × $SU2(1/2))"
 end
 
-@testset "show GradedUnitRange" begin
+@testset "show GradedOneTo" begin
     x = U1(0)
     y = U1(1)
     z = U1(2)
     g1 = gradedrange([x => 2, y => 3, z => 2])
-    @test sprint(show, g1) == "GradedUnitRange[$x => 2, $y => 3, $z => 2]"
-    @test sprint(show, MIME("text/plain"), g1) ==
-        "GradedUnitRange{$U1}\n" *
-        "sectorrange($x, Base.OneTo(2))\n" *
-        "sectorrange($y, Base.OneTo(3)) .+ 2\n" *
-        "sectorrange($z, Base.OneTo(2)) .+ 5"
+    @test g1 isa GradedOneTo
+
+    lx = repr(TKS.U1Irrep(0))
+    ly = repr(TKS.U1Irrep(1))
+    lz = repr(TKS.U1Irrep(2))
+    @test sprint(show, g1) == "GradedOneTo([$lx => 2, $ly => 3, $lz => 2])"
 
     g1d = dual(g1)
-    @test sprint(show, g1d) == "GradedUnitRange[$x' => 2, $y' => 3, $z' => 2]"
-    @test sprint(show, MIME("text/plain"), g1d) ==
-        "GradedUnitRange{$U1}\n" *
-        "sectorrange($x', Base.OneTo(2))\n" *
-        "sectorrange($y', Base.OneTo(3)) .+ 2\n" *
-        "sectorrange($z', Base.OneTo(2)) .+ 5"
-end
-
-@testset "show GradedArray" begin
-    elt = Float64
-    r = gradedrange([U1(0) => 2, U1(1) => 2])
-
-    a = zeros(elt, r)
-    a[1] = one(elt)
-    @test sprint(show, "text/plain", a) ==
-        "2-blocked 4-element GradedVector{$(elt), …, …, …}:\n" *
-        " $(one(elt))\n $(zero(elt))\n ───\n  ⋅ \n  ⋅ "
-
-    a = zeros(elt, r, r)
-    a[1, 1] = one(elt)
-    @test sprint(show, "text/plain", a) ==
-        "2×2-blocked 4×4 GradedMatrix{$(elt), …, …, …}:\n" *
-        " $(one(elt))  $(zero(elt))  │   ⋅    ⋅ \n" *
-        " $(zero(elt))  $(zero(elt))  │   ⋅    ⋅ \n" *
-        " ──────────┼──────────\n  ⋅    ⋅   │   ⋅    ⋅ \n  ⋅    ⋅   │   ⋅    ⋅ "
-
-    a = zeros(elt, r, r, r)
-    a[1, 1, 1] = one(elt)
-    @test sprint(show, "text/plain", a) ==
-        "2×2×2-blocked 4×4×4 GradedArray{$(elt), 3, …, …, …}:\n" *
-        "[:, :, 1] =\n $(one(elt))  $(zero(elt))   ⋅    ⋅ \n" *
-        " $(zero(elt))  $(zero(elt))   ⋅    ⋅ \n" *
-        "  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n" *
-        "\n[:, :, 2] =\n $(zero(elt))  $(zero(elt))   ⋅    ⋅ \n" *
-        " $(zero(elt))  $(zero(elt))   ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n" *
-        "  ⋅    ⋅    ⋅    ⋅ \n\n[:, :, 3] =\n  ⋅    ⋅    ⋅    ⋅ \n" *
-        "  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n" *
-        "\n[:, :, 4] =\n  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ \n" *
-        "  ⋅    ⋅    ⋅    ⋅ \n  ⋅    ⋅    ⋅    ⋅ "
+    @test sprint(show, g1d) == "GradedOneTo([$lx => 2, $ly => 3, $lz => 2])'"
 end

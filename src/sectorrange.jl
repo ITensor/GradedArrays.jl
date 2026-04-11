@@ -16,15 +16,14 @@ SectorRange(label::TKS.Sector) = SectorRange(label, false)
 
 label(r::SectorRange) = r.label
 isdual(r::SectorRange) = r.isdual
-isdual(x::AbstractUnitRange) = false
 
 sector_type(x) = sector_type(typeof(x))
-sector_type(I::Type{<:SectorRange}) = I
+sector_type(S::Type{<:SectorRange}) = S
 sector_type(T::Type) = throw(MethodError(sector_type, T))
 
 # ===================================  Base interface  =====================================
 
-Base.length(r::SectorRange) = quantum_dimension(r)
+Base.length(r::SectorRange) = TKS.dim(label(r))
 
 Base.isless(r1::SectorRange, r2::SectorRange) = isless(label(r1), label(r2))
 Base.isless(r1::SectorRange, r2::TKS.Sector) = isless(label(r1), r2)
@@ -77,12 +76,7 @@ function sector_label(c::TKS.Sector)
     return map(fieldnames(typeof(c))) do f
         return getfield(c, f)
     end
-    return c
 end
-
-quantum_dimension(g::AbstractUnitRange) = length(g)
-quantum_dimension(r::SectorRange) = TKS.dim(label(r))
-quantum_dimension(s::TKS.Sector) = TKS.dim(s)
 
 to_sector(x::TKS.Sector) = SectorRange(x)
 
@@ -97,6 +91,7 @@ end
 dual(c::TKS.Sector) = TKS.dual(c)
 dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
 flip(r1::SectorRange) = typeof(r1)(dual(r1.label), !isdual(r1))
+flip_dual(r::SectorRange) = isdual(r) ? flip(r) : r
 
 fermionparity(c::SectorRange) = TKS.fermionparity(c.label)
 twist(c::SectorRange) = TKS.twist(c.label)
@@ -123,7 +118,7 @@ struct NotAbelianStyle <: SymmetryStyle end
 SymmetryStyle(x) = SymmetryStyle(typeof(x))
 
 # default SymmetryStyle to AbelianStyle
-# allows for abelian-like slicing style for GradedUnitRange: assume length(::label) = 1
+# allows for abelian-like slicing style for GradedOneTo: assume length(::label) = 1
 # and preserve labels in any slicing operation
 SymmetryStyle(T::Type) = AbelianStyle()
 function SymmetryStyle(::Type{T}) where {T <: SectorRange}
@@ -139,8 +134,10 @@ combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
 combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()
 
 function fusion_rule(r1::SectorRange, r2::SectorRange)
-    a = label(r1)
-    b = label(r2)
+    r1′ = flip_dual(r1)
+    r2′ = flip_dual(r2)
+    a = label(r1′)
+    b = label(r2′)
     fstyle = TKS.FusionStyle(typeof(r1)) & TKS.FusionStyle(typeof(r2))
     fstyle === TKS.UniqueFusion() && return SectorRange(only(TKS.otimes(a, b)))
     return gradedrange(
@@ -161,8 +158,6 @@ end
 function tensor_product(c1::TKS.Sector, c2::SectorRange)
     return tensor_product(to_sector(c1), c2)
 end
-const ⊗ = tensor_product
-
 # =====================================  Sectors ===========================================
 
 const TrivialSector = SectorRange{TKS.Trivial}

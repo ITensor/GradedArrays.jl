@@ -3,46 +3,52 @@ module GradedArrays
 # exports
 # -------
 export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
-export SectorRange, SectorDelta
-export SectorUnitRange, SectorOneTo, SectorArray, SectorMatrix
-export GradedUnitRange, GradedOneTo, GradedArray
+export SectorRange, SectorOneTo, GradedOneTo
+export AbstractSectorDelta, AbelianSectorDelta, SectorIdentity
+export AbstractSectorArray, AbelianSectorArray, AbelianSectorMatrix, SectorMatrix
+export AbstractGradedArray, AbstractGradedMatrix
+export AbelianGradedArray, AbelianGradedVector, AbelianGradedMatrix
+export FusedGradedMatrix
 export gradedrange
 
 export dual, flip, gradedrange, isdual,
-    sector, sector_multiplicities, sector_multiplicity,
-    sectorrange, sectors, sector_type,
-    ungrade
+    data, dataaxes, dataaxes1, datalength, datalengths,
+    sector, sectoraxes, sectoraxes1, sectorlength, sectorlengths,
+    sectorrange, sectors, sector_type
 
 # imports
 # -------
 import FunctionImplementations as FI
-using ArrayLayouts: ArrayLayouts
-using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
-    AbstractBlockedUnitRange, Block, BlockIndexRange, BlockedOneTo, blockisequal, blocks,
-    blocksize, eachblockaxes1
-using BlockSparseArrays: BlockSparseArrays, @view!, AbstractBlockSparseArray,
-    AnyAbstractBlockSparseArray, BlockOneTo, BlockSparseArray, BlockUnitRange, blockrange,
-    blockreshape, blocktype, eachblockstoredindex, sparsemortar
-using KroneckerArrays: KroneckerArrays, AbstractKroneckerArray, CartesianProductUnitRange,
-    cartesianrange, kroneckerfactors, unproduct, ×
+using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector, Block,
+    BlockIndexRange, BlockVector, blocklength, blocklengths, blocks, eachblockaxes1
+using BlockSparseArrays:
+    BlockSparseArrays, eachblockaxis, eachblockstoredindex, mortar_axis, view!
+using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
-using SparseArraysBase: isstored
-using TensorAlgebra: TensorAlgebra, AbstractBlockPermutation, BlockedTuple, FusionStyle,
-    ReshapeFusion, matricize, matricize_axes, tensor_product_axis, trivialbiperm,
-    tuplemortar, unmatricize
+using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, matricize_axes,
+    permutedimsadd!, permutedimsopadd!, tensor_product_axis, trivial_axis, trivialbiperm,
+    tryflattenlinear, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
-using TypeParameterAccessors:
-    similartype, type_parameters, unspecify_type_parameters, unwrap_array_type
+using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
 include("sectorrange.jl")
-include("sectorarray.jl")
-include("gradedarray.jl")
-include("broadcast.jl")
+include("sectoroneto.jl")
+include("gradedoneto.jl")
+include("abstractsectordelta.jl")
+include("abstractsectorarray.jl")
+include("abeliansectordelta.jl")
+include("abeliansectorarray.jl")
+include("sectoridentity.jl")
+include("sectormatrix.jl")
+include("abstractgradedarray.jl")
+include("abeliangradedarray.jl")
+
+include("fusedgradedmatrix.jl")
 
 include("sectorproduct.jl")
 
+include("broadcast.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
-include("factorizations.jl")
 
 end
