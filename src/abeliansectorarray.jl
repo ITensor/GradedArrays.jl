@@ -36,6 +36,12 @@ function AbelianSectorArray(
     ) where {N}
     return AbelianSectorArray(delta.sectors, data)
 end
+function AbelianSectorArray{T, N, A, S}(
+        delta::AbelianSectorDelta{<:Any, N, S},
+        data::A
+    ) where {T, N, A <: AbstractArray{T, N}, S <: SectorRange}
+    return AbelianSectorArray{T, N, A, S}(delta.sectors, data)
+end
 
 const AbelianSectorVector{T, A <: AbstractVector{T}, S <: SectorRange} =
     AbelianSectorArray{T, 1, A, S}
@@ -84,7 +90,7 @@ function Base.convert(
         x::AbelianSectorArray{T₂, N, B, S}
     )::AbelianSectorArray{T₁, N, A, S} where {T₁, T₂, N, A, B, S}
     A === B && return x
-    return AbelianSectorArray{T₁, N, A, S}(x.sectors, convert(A, data(x)))
+    return AbelianSectorArray{T₁, N, A, S}(sector(x), convert(A, data(x)))
 end
 
 # ========================  permutedims  ========================

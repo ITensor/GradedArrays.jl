@@ -11,3 +11,4 @@ end
 Data(n::Vararg{Int, N}) where {N} = Data{N}(n)
 BlockArrays.Block(I::Data) = Block(I.n)
 Data(I::Block) = Data(Int.(Tuple(I)))
+Base.Tuple(I::Data) = I.n
