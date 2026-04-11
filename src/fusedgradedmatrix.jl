@@ -203,26 +203,12 @@ Convert a 2D block-diagonal `AbelianGradedArray` (as produced by `matricize`) in
 """
 function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
     row_ax, col_ax = axes(a)
-    n = blocklength(row_ax)
-    blocklength(col_ax) == n ||
-        throw(
-        ArgumentError("AbelianGradedMatrix must have matching row/column block counts")
-    )
-
-    row_sectors = sectors(row_ax)
-    col_sectors = sectors(col_ax)
-    row_sectors == dual.(col_sectors) || throw(
+    sectors(row_ax) == dual.(sectors(col_ax)) || throw(
         ArgumentError(
             "AbelianGradedMatrix axes must be canonical duals to convert to FusedGradedMatrix"
         )
     )
-    BlockSparseArrays.isblockdiagonal(a) || throw(
-        ArgumentError(
-            "AbelianGradedMatrix must be block-diagonal to convert to FusedGradedMatrix"
-        )
-    )
-
-    fused_sectors = collect(row_sectors)
+    fused_sectors = collect(sectors(row_ax))
     fused_axes = blockedrange.((datalengths(row_ax), datalengths(col_ax)))
     m = FusedGradedMatrix{T}(undef, fused_sectors, fused_axes)
     for I in blockdiagindices(m)
