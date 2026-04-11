@@ -35,6 +35,57 @@ struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
     end
 end
 
+# ========================  undef constructors  ========================
+
+function _check_undef_args(sectors, axes::Tuple{BlockedOneTo, BlockedOneTo})
+    n = length(sectors)
+    length(blocklengths(axes[1])) == n && length(blocklengths(axes[2])) == n ||
+        throw(
+        ArgumentError(
+            "sectors length ($n) must match block count in axes"
+        )
+    )
+    return nothing
+end
+
+# Innermost: fully parameterized, takes (BlockedOneTo, BlockedOneTo) axes.
+function FusedGradedMatrix{T, D, S}(
+        ::UndefInitializer,
+        sectors::Vector{S},
+        axes::Tuple{BlockedOneTo, BlockedOneTo}
+    ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
+    _check_undef_args(sectors, axes)
+    cod_bls = blocklengths(axes[1])
+    dom_bls = blocklengths(axes[2])
+    blks = [
+        similar(D, (Base.OneTo(cod_bls[i]), Base.OneTo(dom_bls[i])))
+            for i in eachindex(sectors)
+    ]
+    return FusedGradedMatrix(sectors, blks)
+end
+
+# Convenience: default D = Matrix{T}.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer,
+        sectors::Vector{S},
+        axes::Tuple{BlockedOneTo, BlockedOneTo}
+    ) where {T, S <: SectorRange}
+    return FusedGradedMatrix{T, Matrix{T}, S}(undef, sectors, axes)
+end
+
+# Vector{Int} convenience: wraps into BlockedOneTo and delegates.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer,
+        sectors::Vector{<:SectorRange},
+        codomain_blocklengths::Vector{Int},
+        domain_blocklengths::Vector{Int}
+    ) where {T}
+    return FusedGradedMatrix{T}(
+        undef, sectors,
+        (blockedrange(codomain_blocklengths), blockedrange(domain_blocklengths))
+    )
+end
+
 # ========================  Accessors  ========================
 
 BlockArrays.blocklength(m::FusedGradedMatrix) = length(m.sectors)
@@ -73,6 +124,40 @@ function Base.getindex(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
     return m[Block(Int(i), Int(j))]
 end
 
+function Base.setindex!(m::FusedGradedMatrix, value::SectorMatrix, I::Block{2})
+    i, j = Int.(Tuple(I))
+    i == j ||
+        error("Off-diagonal access not supported for block-diagonal FusedGradedMatrix")
+    value.sector == m.sectors[i] ||
+        error("Sector mismatch: block has $(m.sectors[i]) but value has $(value.sector)")
+    size(data(value)) == size(m.blocks[i]) ||
+        throw(
+        DimensionMismatch(
+            "data size $(size(data(value))) does not match block size $(size(m.blocks[i]))"
+        )
+    )
+    copyto!(m.blocks[i], data(value))
+    return m
+end
+function Base.setindex!(m::FusedGradedMatrix, value::SectorMatrix, i::Block{1}, j::Block{1})
+    return setindex!(m, value, Block(Int(i), Int(j)))
+end
+
+# ========================  Data indexing  ========================
+
+function Base.view(m::FusedGradedMatrix, I::Data{2})
+    return data(view(m, Block(I)))
+end
+
+function Base.getindex(m::FusedGradedMatrix, I::Data{2})
+    return copy(view(m, I))
+end
+
+function Base.setindex!(m::FusedGradedMatrix, value::AbstractMatrix, I::Data{2})
+    view(m, I) .= value
+    return m
+end
+
 # ========================  eachblockstoredindex  ========================
 
 function BlockSparseArrays.eachblockstoredindex(m::FusedGradedMatrix)
@@ -83,8 +168,8 @@ end
 
 using LinearAlgebra: Diagonal
 function BlockArrays.blocks(m::FusedGradedMatrix)
-    sector_blocks = [SectorMatrix(s, b) for (s, b) in zip(m.sectors, m.blocks)]
-    return Diagonal(sector_blocks)
+    diagblocks = map(b -> view(m, b), blockdiagindices(m))
+    return Diagonal(collect(diagblocks))
 end
 
 # ========================  fill! / zero!  ========================

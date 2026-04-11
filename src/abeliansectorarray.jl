@@ -55,9 +55,7 @@ datatype(::Type{AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = A
 # AbstractArray interface
 # -----------------------
 function Base.axes(sa::AbelianSectorArray)
-    sa_axes = sectoraxes(sa)
-    da_axes = dataaxes(sa)
-    return ntuple(d -> SectorOneTo(sa_axes[d], length(da_axes[d])), Val(ndims(sa)))
+    return map(SectorOneTo, sectoraxes(sa), dataaxes(sa))
 end
 
 Base.copy(A::AbelianSectorArray) = AbelianSectorArray(sector(A), copy(data(A)))
@@ -65,13 +63,11 @@ Base.copy(A::AbelianSectorArray) = AbelianSectorArray(sector(A), copy(data(A)))
 # similar for AbelianSectorArray with SectorOneTo axes.
 # Delegates to similar on the data array for the data dimensions.
 function Base.similar(
-        a::AbelianSectorArray,
+        ::AbelianSectorArray,
         ::Type{T},
         axes::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
-    sects = sector.(axes)
-    data_ax = data.(axes)
-    return AbelianSectorArray(sects, similar(data(a), T, data_ax))
+    return AbelianSectorArray{T}(undef, axes)
 end
 
 function Base.fill!(A::AbelianSectorArray, v)
@@ -88,7 +84,7 @@ function Base.convert(
         x::AbelianSectorArray{T₂, N, B, S}
     )::AbelianSectorArray{T₁, N, A, S} where {T₁, T₂, N, A, B, S}
     A === B && return x
-    return AbelianSectorArray(sector(x), convert(A, data(x)))
+    return AbelianSectorArray{T₁, N, A, S}(x.sectors, convert(A, data(x)))
 end
 
 # ========================  permutedims  ========================

@@ -13,6 +13,7 @@ using Test: @test, @testset
         :AbelianSectorDelta,
         :AbelianSectorMatrix,
         :AbelianSectorVector,
+        :Data,
         :FusedGradedMatrix,
         :Fib,
         :GradedArrays,

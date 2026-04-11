@@ -30,7 +30,10 @@ function AbelianGradedArray{T, N, D, S}(
     bks = allowedblocks(axs)
     blockdata = Dict{NTuple{N, Int}, D}(
         Int.(Tuple(bk)) =>
-            D(undef, ntuple(d -> blocklengths(axs[d])[Int(Tuple(bk)[d])], Val(N)))
+            similar(
+                D,
+                ntuple(d -> Base.OneTo(blocklengths(axs[d])[Int(Tuple(bk)[d])]), Val(N))
+            )
             for bk in bks
     )
     return AbelianGradedArray{T, N, D, S}(blockdata, axs)
@@ -131,6 +134,25 @@ function Base.setindex!(
         a::AbelianGradedArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Vararg{Block{1}, N}
     ) where {N}
     view(a, I...) .= value
+    return a
+end
+
+# ---------------------------------------------------------------------------
+#  Data indexing — raw block data without sector wrappers
+# ---------------------------------------------------------------------------
+
+function Base.view(a::AbelianGradedArray{T, N}, I::Data{N}) where {T, N}
+    return data(view(a, Block(I)))
+end
+
+function Base.getindex(a::AbelianGradedArray{T, N}, I::Data{N}) where {T, N}
+    return copy(view(a, I))
+end
+
+function Base.setindex!(
+        a::AbelianGradedArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Data{N}
+    ) where {N}
+    view(a, I) .= value
     return a
 end
 

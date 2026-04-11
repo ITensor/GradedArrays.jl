@@ -14,6 +14,7 @@ end
 
 # Convenience: SectorRange with default data length
 SectorOneTo(s::SectorRange) = SectorOneTo(s, 1)
+SectorOneTo(s::SectorRange, r::Base.OneTo) = SectorOneTo(s, last(r))
 
 # Primitive accessors
 sector(r::SectorOneTo) = r.sector

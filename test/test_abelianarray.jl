@@ -1,4 +1,4 @@
-using BlockArrays: BlockArrays, Block, blocklength
+using BlockArrays: BlockArrays, Block, blockedrange, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
@@ -211,5 +211,55 @@ using Test: @test, @test_throws, @testset
         GradedArrays.FI.zero!(a)
         @test !isempty(a.blockdata)
         @test all(iszero, a.blockdata[(1, 1)])
+    end
+end
+
+@testset "FusedGradedMatrix undef constructor" begin
+    sectors = [U1(0), U1(1)]
+    cod_bls = [2, 3]
+    dom_bls = [1, 2]
+
+    @testset "Convenience constructor (defaults D = Matrix{T})" begin
+        m = FusedGradedMatrix{Float64}(undef, sectors, cod_bls, dom_bls)
+        @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
+        @test length(m.sectors) == 2
+        @test m.sectors == sectors
+        @test size(m.blocks[1]) == (2, 1)
+        @test size(m.blocks[2]) == (3, 2)
+    end
+
+    @testset "Fully parameterized constructor" begin
+        m = FusedGradedMatrix{Float64, Matrix{Float64}, U1}(
+            undef, sectors, (blockedrange(cod_bls), blockedrange(dom_bls))
+        )
+        @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
+        @test size(m.blocks[1]) == (2, 1)
+    end
+
+    @testset "Tuple BlockedOneTo form" begin
+        m = FusedGradedMatrix{Float64}(
+            undef, sectors, (blockedrange([2, 3]), blockedrange([1, 2]))
+        )
+        @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
+        @test size(m.blocks[1]) == (2, 1)
+        @test size(m.blocks[2]) == (3, 2)
+    end
+
+    @testset "Rejects mismatched lengths" begin
+        @test_throws ArgumentError FusedGradedMatrix{Float64}(
+            undef, sectors, cod_bls, [1]
+        )
+    end
+
+    @testset "Rejects unsorted sectors" begin
+        @test_throws ArgumentError FusedGradedMatrix{Float64}(
+            undef, [U1(1), U1(0)], cod_bls, dom_bls
+        )
+    end
+
+    @testset "Rejects non-unique sectors" begin
+        @test_throws ArgumentError FusedGradedMatrix{Float64}(
+            undef, [U1(0), U1(0)], [2, 3], [1, 2]
+        )
     end
 end
