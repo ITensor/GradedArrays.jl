@@ -18,13 +18,13 @@ derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
 `dual(sectors[i])` and sector lengths from `size(blocks[i], 2)`.
 """
 struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
-    AbstractGradedArray{T, 2}
+    AbstractGradedMatrix{T}
     sectors::Vector{S}
     blocks::Vector{D}
-    function FusedGradedMatrix(
+    function FusedGradedMatrix{T, D, S}(
             sectors::Vector{S},
             blocks::Vector{D}
-        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+        ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
         length(sectors) == length(blocks) ||
             throw(ArgumentError("sectors and blocks must have the same length"))
         issorted(sectors) ||
@@ -33,6 +33,49 @@ struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
             throw(ArgumentError("sectors must be unique"))
         return new{T, D, S}(sectors, blocks)
     end
+end
+function FusedGradedMatrix(
+        sectors::Vector{S},
+        blocks::Vector{D}
+    ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+    return FusedGradedMatrix{T, D, S}(sectors, blocks)
+end
+
+# ========================  undef constructors  ========================
+
+function FusedGradedMatrix{T, D, S}(
+        ::UndefInitializer,
+        sectors::Vector{S},
+        axes::Tuple{BlockedOneTo, BlockedOneTo}
+    ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
+    cod_axes = eachblockaxis(axes[1])
+    dom_axes = eachblockaxis(axes[2])
+    length(cod_axes) == length(dom_axes) == length(sectors) ||
+        throw(ArgumentError("axes block counts must match sectors length"))
+    blks = [similar(D, (cod_axes[i], dom_axes[i])) for i in eachindex(sectors)]
+    return FusedGradedMatrix{T, D, S}(sectors, blks)
+end
+
+# Convenience: default D = Matrix{T}.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer,
+        sectors::Vector{S},
+        axes::Tuple{BlockedOneTo, BlockedOneTo}
+    ) where {T, S <: SectorRange}
+    return FusedGradedMatrix{T, Matrix{T}, S}(undef, sectors, axes)
+end
+
+# Vector{Int} convenience: wraps into BlockedOneTo and delegates.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer,
+        sectors::Vector{<:SectorRange},
+        codomain_blocklengths::Vector{Int},
+        domain_blocklengths::Vector{Int}
+    ) where {T}
+    return FusedGradedMatrix{T}(
+        undef, sectors,
+        blockedrange.((codomain_blocklengths, domain_blocklengths))
+    )
 end
 
 # ========================  Accessors  ========================
@@ -54,23 +97,13 @@ Base.size(m::FusedGradedMatrix) = map(length, axes(m))
 Base.eltype(::Type{FusedGradedMatrix{T}}) where {T} = T
 Base.eltype(::Type{<:FusedGradedMatrix{T}}) where {T} = T
 
-# ========================  Block indexing  ========================
+# ========================  Block indexing (primitive)  ========================
 
 function Base.view(m::FusedGradedMatrix, I::Block{2})
     i, j = Int.(Tuple(I))
     i == j ||
         error("Off-diagonal access not supported for block-diagonal FusedGradedMatrix")
     return SectorMatrix(m.sectors[i], m.blocks[i])
-end
-function Base.view(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
-    return view(m, Block(Int(i), Int(j)))
-end
-
-function Base.getindex(m::FusedGradedMatrix, I::Block{2})
-    return copy(view(m, I))
-end
-function Base.getindex(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
-    return m[Block(Int(i), Int(j))]
 end
 
 # ========================  eachblockstoredindex  ========================
@@ -83,8 +116,8 @@ end
 
 using LinearAlgebra: Diagonal
 function BlockArrays.blocks(m::FusedGradedMatrix)
-    sector_blocks = [SectorMatrix(s, b) for (s, b) in zip(m.sectors, m.blocks)]
-    return Diagonal(sector_blocks)
+    diagblocks = map(I -> view(m, I), eachblockstoredindex(m))
+    return Diagonal(collect(diagblocks))
 end
 
 # ========================  fill! / zero!  ========================
@@ -105,23 +138,42 @@ end
 
 # ========================  mul!  ========================
 
+function check_mul_axes(
+        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
+    )
+    axes(A, 2) == dual(axes(B, 1)) ||
+        throw(DimensionMismatch("sector mismatch in contracted dimension"))
+    axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
+    axes(C, 2) == axes(B, 2) || throw(DimensionMismatch())
+    return nothing
+end
+
 function LinearAlgebra.mul!(
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix,
         α::Number, β::Number
     )
-    C.sectors == A.sectors == B.sectors ||
-        throw(DimensionMismatch("FusedGradedMatrix sectors must match"))
-    for i in eachindex(C.blocks)
-        mul!(C.blocks[i], A.blocks[i], B.blocks[i], α, β)
+    check_mul_axes(C, A, B)
+    for I in blockdiagindices(C)
+        mul!(view(C, Data(I)), view(A, Data(I)), view(B, Data(I)), α, β)
     end
     return C
 end
 
-function Base.:(*)(A::FusedGradedMatrix{T₁}, B::FusedGradedMatrix{T₂}) where {T₁, T₂}
-    A.sectors == B.sectors || throw(DimensionMismatch("sectors must match"))
-    T = Base.promote_op(LinearAlgebra.matprod, T₁, T₂)
-    result_blocks = [A.blocks[i] * B.blocks[i] for i in eachindex(A.blocks)]
+function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
+    cod_axes = eachdataaxis(axes(A, 1))
+    dom_axes = eachdataaxis(axes(B, 2))
+    result_blocks = [
+        similar(
+                Base.promote_op(*, typeof(view(A, Data(I))), typeof(view(B, Data(I)))),
+                (cod_axes[Int(Tuple(I)[1])], dom_axes[Int(Tuple(I)[2])])
+            ) for I in blockdiagindices(A)
+    ]
     return FusedGradedMatrix(copy(A.sectors), result_blocks)
+end
+
+function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    C = allocate_output(*, A, B)
+    return mul!(C, A, B)
 end
 
 # ========================  similar  ========================
@@ -160,36 +212,18 @@ Convert a 2D block-diagonal `AbelianGradedArray` (as produced by `matricize`) in
 `FusedGradedMatrix`. Extracts diagonal blocks from the stored entries.
 """
 function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
-    row_ax, col_ax = axes(a)
-    n = blocklength(row_ax)
-    blocklength(col_ax) == n ||
-        throw(
-        ArgumentError("AbelianGradedMatrix must have matching row/column block counts")
-    )
-
-    row_sectors = sectors(row_ax)
-    col_sectors = sectors(col_ax)
-    row_sectors == dual.(col_sectors) || throw(
+    sectors(axes(a, 1)) == dual.(sectors(axes(a, 2))) || throw(
         ArgumentError(
             "AbelianGradedMatrix axes must be canonical duals to convert to FusedGradedMatrix"
         )
     )
-    BlockSparseArrays.isblockdiagonal(a) || throw(
-        ArgumentError(
-            "AbelianGradedMatrix must be block-diagonal to convert to FusedGradedMatrix"
-        )
-    )
-
-    fused_sectors = collect(row_sectors)
-    # Default: zero blocks with the right dimensions from row/col axes
-    row_bls = blocklengths(row_ax)
-    col_bls = blocklengths(col_ax)
-    diag_blocks = [zeros(T, row_bls[i], col_bls[i]) for i in 1:n]
-    for bI in eachblockstoredindex(a)
-        i = Int(Tuple(bI)[1])
-        diag_blocks[i] = Array(a[bI])
+    fused_sectors = collect(sectors(axes(a, 1)))
+    fused_axes = blockedrange.(datalengths.(axes(a)))
+    m = FusedGradedMatrix{T}(undef, fused_sectors, fused_axes)
+    for I in blockdiagindices(m)
+        m[Data(I)] = view(a, Data(I))
     end
-    return FusedGradedMatrix(fused_sectors, diag_blocks)
+    return m
 end
 
 """
@@ -199,13 +233,9 @@ Convert a `FusedGradedMatrix` to a 2D `AbelianGradedArray`.
 Inverse of `FusedGradedMatrix(::AbelianGradedArray)`.
 """
 function AbelianGradedArray(m::FusedGradedMatrix{T}) where {T}
-    codomain, domain = axes(m)
-    a = similar(m, (codomain, domain))
-    for (i, block) in enumerate(m.blocks)
-        iszero(block) && continue
-        row_sector = sectors(codomain)[i]
-        col_sector = sectors(domain)[i]
-        a[Block(i, i)] = AbelianSectorArray((row_sector, col_sector), block)
+    a = similar(m, axes(m))
+    for I in blockdiagindices(m)
+        a[Data(I)] = view(m, Data(I))
     end
     return a
 end

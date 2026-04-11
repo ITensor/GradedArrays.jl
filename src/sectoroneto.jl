@@ -14,6 +14,7 @@ end
 
 # Convenience: SectorRange with default data length
 SectorOneTo(s::SectorRange) = SectorOneTo(s, 1)
+SectorOneTo(s::SectorRange, r::Base.OneTo) = SectorOneTo(s, last(r))
 
 # Primitive accessors
 sector(r::SectorOneTo) = r.sector
@@ -68,6 +69,8 @@ to_gradedrange(r::SectorOneTo) = gradedrange([sector(r) => datalength(r)])
 # ========================  BlockSparseArrays interface  ========================
 
 BlockSparseArrays.eachblockaxis(r::SectorOneTo) = [r]
+eachdataaxis(r::SectorOneTo) = [data(r)]
+eachsectoraxis(r::SectorOneTo) = [sector(r)]
 
 # ========================  tensor_product  ========================
 

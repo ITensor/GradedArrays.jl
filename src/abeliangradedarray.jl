@@ -27,11 +27,14 @@ end
 function AbelianGradedArray{T, N, D, S}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{S}}
     ) where {T, N, D <: AbstractArray{T, N}, S <: SectorRange}
+    block_axes = map(eachdataaxis, axs)
+    function allocate_block(bk)
+        bk_inds = Int.(Tuple(bk))
+        return similar(D, ntuple(d -> block_axes[d][bk_inds[d]], Val(N)))
+    end
     bks = allowedblocks(axs)
     blockdata = Dict{NTuple{N, Int}, D}(
-        Int.(Tuple(bk)) =>
-            D(undef, ntuple(d -> blocklengths(axs[d])[Int(Tuple(bk)[d])], Val(N)))
-            for bk in bks
+        Int.(Tuple(bk)) => allocate_block(bk) for bk in bks
     )
     return AbelianGradedArray{T, N, D, S}(blockdata, axs)
 end
@@ -66,15 +69,11 @@ BlockSparseArrays.blocktype(a::AbelianGradedArray) = BlockSparseArrays.blocktype
 #  view (primitive): returns AbelianSectorArray sharing data with blockdata
 # ---------------------------------------------------------------------------
 
-# view: returns a AbelianSectorArray sharing data (errors for unstored blocks)
-function Base.view(a::AbelianGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
+function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
+    bk = Int.(Tuple(I))
     haskey(a.blockdata, bk) || error("Block $bk is not stored.")
     sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
     return AbelianSectorArray(sects, a.blockdata[bk])
-end
-function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
-    return view(a, Tuple(I)...)
 end
 
 # ---------------------------------------------------------------------------
@@ -106,32 +105,6 @@ function Base.setindex!(
     dest = view(b.parent, Block.(I)...)
     copyto!(dest, value)
     return b
-end
-
-# ---------------------------------------------------------------------------
-#  getindex / setindex! on AbelianGradedArray with Block — convenience wrappers
-# ---------------------------------------------------------------------------
-
-# getindex: returns a copy (errors for unstored blocks)
-function Base.getindex(a::AbelianGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
-    return copy(view(a, I...))
-end
-function Base.getindex(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
-    return a[Tuple(I)...]
-end
-
-# setindex!: Block{N} unpacks to Vararg{Block{1}, N} (following BlockArrays convention)
-function Base.setindex!(a::AbelianGradedArray{<:Any, N}, value, I::Block{N}) where {N}
-    return setindex!(a, value, Tuple(I)...)
-end
-
-# Primitive: view existing block, then broadcast in.
-# Handles both AbelianSectorArray and raw data values.
-function Base.setindex!(
-        a::AbelianGradedArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Vararg{Block{1}, N}
-    ) where {N}
-    view(a, I...) .= value
-    return a
 end
 
 # ---------------------------------------------------------------------------

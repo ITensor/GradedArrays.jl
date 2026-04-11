@@ -2,7 +2,7 @@ using GradedArrays: GradedArrays, AbelianSectorArray, SU2, SectorIdentity, Secto
     SectorOneTo, SectorRange, U1, data, dataaxes, dual, isdual, sector, sectoraxes,
     sectortype, ⊗
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "SectorMatrix" begin
     @testset "Construction from SectorRange + data" begin
@@ -135,5 +135,27 @@ using Test: @test, @testset
         sa = AbelianSectorArray((U1(0), U1(0)'), zeros(2, 2))
         sa .= sm
         @test data(sa) ≈ data(sm)
+    end
+
+    @testset "Undef constructor (Int dims)" begin
+        sm = SectorMatrix{Float64}(undef, U1(0), 3, 4)
+        @test sm isa SectorMatrix{Float64, Matrix{Float64}, U1}
+        @test size(data(sm)) == (3, 4)
+        @test sectoraxes(sm, 1) == U1(0)
+    end
+
+    @testset "Undef constructor (AbstractUnitRange dims)" begin
+        sm = SectorMatrix{Float64}(undef, U1(1), Base.OneTo(2), Base.OneTo(5))
+        @test sm isa SectorMatrix{Float64, Matrix{Float64}, U1}
+        @test size(data(sm)) == (2, 5)
+        @test sectoraxes(sm, 1) == U1(1)
+    end
+
+    @testset "Undef constructor (fully parameterized)" begin
+        sm = SectorMatrix{Float64, Matrix{Float64}, U1}(
+            undef, U1(0), Base.OneTo(3), Base.OneTo(4)
+        )
+        @test sm isa SectorMatrix{Float64, Matrix{Float64}, U1}
+        @test size(data(sm)) == (3, 4)
     end
 end

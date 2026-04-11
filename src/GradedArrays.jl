@@ -11,19 +11,22 @@ export AbstractSectorArray,
 export AbstractGradedArray, AbstractGradedMatrix
 export AbelianGradedArray, AbelianGradedVector, AbelianGradedMatrix
 export FusedGradedMatrix
-export gradedrange
 
 export dual, flip, gradedrange, isdual,
     data, dataaxes, dataaxes1, datalength, datalengths,
+    eachdataaxis, eachsectoraxis,
     sector, sectoraxes, sectoraxes1, sectorlength, sectorlengths,
-    sectors, sectortype
+    sectors, sectortype,
+    Data
 
 # imports
 # -------
 import FunctionImplementations as FI
 using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector, Block,
-    BlockIndexRange, BlockVector, blocklength, blocklengths, blocks, eachblockaxes1
-using BlockSparseArrays: BlockSparseArrays, eachblockaxis, eachblockstoredindex, mortar_axis
+    BlockIndexRange, BlockVector, BlockedOneTo, blockedrange, blocklength, blocklengths,
+    blocks, eachblockaxes1
+using BlockSparseArrays:
+    BlockSparseArrays, blockdiagindices, eachblockaxis, eachblockstoredindex, mortar_axis
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, matricize_axes,
@@ -33,6 +36,7 @@ using TensorKitSectors: TensorKitSectors as TKS
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
 include("sectorrange.jl")
+include("data.jl")
 include("sectoroneto.jl")
 include("gradedoneto.jl")
 include("abstractsectordelta.jl")
