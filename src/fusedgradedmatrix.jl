@@ -224,9 +224,9 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
 
     fused_sectors = collect(row_sectors)
     fused_axes = blockedrange.((datalengths(row_ax), datalengths(col_ax)))
-    m = FI.zero!(FusedGradedMatrix{T}(undef, fused_sectors, fused_axes))
-    for bI in eachblockstoredindex(a)
-        m[Data(bI)] = view(a, Data(bI))
+    m = FusedGradedMatrix{T}(undef, fused_sectors, fused_axes)
+    for I in eachblockstoredindex(a)
+        m[Data(I)] = view(a, Data(I))
     end
     return m
 end
@@ -238,9 +238,8 @@ Convert a `FusedGradedMatrix` to a 2D `AbelianGradedArray`.
 Inverse of `FusedGradedMatrix(::AbelianGradedArray)`.
 """
 function AbelianGradedArray(m::FusedGradedMatrix{T}) where {T}
-    a = FI.zero!(similar(m, axes(m)))
+    a = similar(m, axes(m))
     for I in blockdiagindices(m)
-        iszero(view(m, Data(I))) && continue
         a[Data(I)] = view(m, Data(I))
     end
     return a
