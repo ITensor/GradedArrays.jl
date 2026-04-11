@@ -18,13 +18,13 @@ derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
 `dual(sectors[i])` and sector lengths from `size(blocks[i], 2)`.
 """
 struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
-    AbstractGradedArray{T, 2}
+    AbstractGradedMatrix{T}
     sectors::Vector{S}
     blocks::Vector{D}
-    function FusedGradedMatrix(
+    function FusedGradedMatrix{T, D, S}(
             sectors::Vector{S},
             blocks::Vector{D}
-        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+        ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
         length(sectors) == length(blocks) ||
             throw(ArgumentError("sectors and blocks must have the same length"))
         issorted(sectors) ||
@@ -34,34 +34,26 @@ struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
         return new{T, D, S}(sectors, blocks)
     end
 end
+function FusedGradedMatrix(
+        sectors::Vector{S},
+        blocks::Vector{D}
+    ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+    return FusedGradedMatrix{T, D, S}(sectors, blocks)
+end
 
 # ========================  undef constructors  ========================
 
-function _check_undef_args(sectors, axes::Tuple{BlockedOneTo, BlockedOneTo})
-    n = length(sectors)
-    length(blocklengths(axes[1])) == n && length(blocklengths(axes[2])) == n ||
-        throw(
-        ArgumentError(
-            "sectors length ($n) must match block count in axes"
-        )
-    )
-    return nothing
-end
-
-# Innermost: fully parameterized, takes (BlockedOneTo, BlockedOneTo) axes.
 function FusedGradedMatrix{T, D, S}(
         ::UndefInitializer,
         sectors::Vector{S},
         axes::Tuple{BlockedOneTo, BlockedOneTo}
     ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
-    _check_undef_args(sectors, axes)
-    cod_bls = blocklengths(axes[1])
-    dom_bls = blocklengths(axes[2])
-    blks = [
-        similar(D, (Base.OneTo(cod_bls[i]), Base.OneTo(dom_bls[i])))
-            for i in eachindex(sectors)
-    ]
-    return FusedGradedMatrix(sectors, blks)
+    cod_axes = eachblockaxis(axes[1])
+    dom_axes = eachblockaxis(axes[2])
+    length(cod_axes) == length(dom_axes) == length(sectors) ||
+        throw(ArgumentError("axes block counts must match sectors length"))
+    blks = [similar(D, (cod_axes[i], dom_axes[i])) for i in eachindex(sectors)]
+    return FusedGradedMatrix{T, D, S}(sectors, blks)
 end
 
 # Convenience: default D = Matrix{T}.
@@ -82,7 +74,7 @@ function FusedGradedMatrix{T}(
     ) where {T}
     return FusedGradedMatrix{T}(
         undef, sectors,
-        (blockedrange(codomain_blocklengths), blockedrange(domain_blocklengths))
+        blockedrange.((codomain_blocklengths, domain_blocklengths))
     )
 end
 
@@ -105,57 +97,13 @@ Base.size(m::FusedGradedMatrix) = map(length, axes(m))
 Base.eltype(::Type{FusedGradedMatrix{T}}) where {T} = T
 Base.eltype(::Type{<:FusedGradedMatrix{T}}) where {T} = T
 
-# ========================  Block indexing  ========================
+# ========================  Block indexing (primitive)  ========================
 
 function Base.view(m::FusedGradedMatrix, I::Block{2})
     i, j = Int.(Tuple(I))
     i == j ||
         error("Off-diagonal access not supported for block-diagonal FusedGradedMatrix")
     return SectorMatrix(m.sectors[i], m.blocks[i])
-end
-function Base.view(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
-    return view(m, Block(Int(i), Int(j)))
-end
-
-function Base.getindex(m::FusedGradedMatrix, I::Block{2})
-    return copy(view(m, I))
-end
-function Base.getindex(m::FusedGradedMatrix, i::Block{1}, j::Block{1})
-    return m[Block(Int(i), Int(j))]
-end
-
-function Base.setindex!(m::FusedGradedMatrix, value::SectorMatrix, I::Block{2})
-    i, j = Int.(Tuple(I))
-    i == j ||
-        error("Off-diagonal access not supported for block-diagonal FusedGradedMatrix")
-    value.sector == m.sectors[i] ||
-        error("Sector mismatch: block has $(m.sectors[i]) but value has $(value.sector)")
-    size(data(value)) == size(m.blocks[i]) ||
-        throw(
-        DimensionMismatch(
-            "data size $(size(data(value))) does not match block size $(size(m.blocks[i]))"
-        )
-    )
-    copyto!(m.blocks[i], data(value))
-    return m
-end
-function Base.setindex!(m::FusedGradedMatrix, value::SectorMatrix, i::Block{1}, j::Block{1})
-    return setindex!(m, value, Block(Int(i), Int(j)))
-end
-
-# ========================  Data indexing  ========================
-
-function Base.view(m::FusedGradedMatrix, I::Data{2})
-    return data(view(m, Block(I)))
-end
-
-function Base.getindex(m::FusedGradedMatrix, I::Data{2})
-    return copy(view(m, I))
-end
-
-function Base.setindex!(m::FusedGradedMatrix, value::AbstractMatrix, I::Data{2})
-    view(m, I) .= value
-    return m
 end
 
 # ========================  eachblockstoredindex  ========================

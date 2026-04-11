@@ -26,3 +26,54 @@ function Base.setindex!(::AbstractGradedArray, _, ::Vararg{Int})
         "Scalar indexing is not supported for AbstractGradedArray. Use block indexing."
     )
 end
+
+# ---------------------------------------------------------------------------
+#  Block indexing interface
+#
+#  Concrete subtypes must implement:
+#    view(a::ConcreteType, ::Block{N})  → sector-wrapped view (e.g. SectorMatrix)
+#
+#  Everything else is derived here.
+# ---------------------------------------------------------------------------
+
+function Base.view(a::AbstractGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
+    return view(a, Block(Int.(I)))
+end
+
+function Base.getindex(a::AbstractGradedArray{T, N}, I::Block{N}) where {T, N}
+    return copy(view(a, I))
+end
+function Base.getindex(a::AbstractGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
+    return a[Block(Int.(I))]
+end
+
+function Base.setindex!(a::AbstractGradedArray{<:Any, N}, value, I::Block{N}) where {N}
+    return setindex!(a, value, Tuple(I)...)
+end
+function Base.setindex!(
+        a::AbstractGradedArray{<:Any, N}, value, I::Vararg{Block{1}, N}
+    ) where {N}
+    view(a, I...) .= value
+    return a
+end
+
+# ---------------------------------------------------------------------------
+#  Data indexing — raw block data without sector wrappers
+#
+#  Built on top of Block view: view(a, Data(I)) = data(view(a, Block(I)))
+# ---------------------------------------------------------------------------
+
+function Base.view(a::AbstractGradedArray{T, N}, I::Data{N}) where {T, N}
+    return data(view(a, Block(I)))
+end
+
+function Base.getindex(a::AbstractGradedArray{T, N}, I::Data{N}) where {T, N}
+    return copy(view(a, I))
+end
+
+function Base.setindex!(
+        a::AbstractGradedArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Data{N}
+    ) where {N}
+    view(a, I) .= value
+    return a
+end

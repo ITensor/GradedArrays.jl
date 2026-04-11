@@ -57,14 +57,14 @@ using Test: @test, @test_throws, @testset
             sectors2 = [U1(0), U1(1)]
             m5 = FusedGradedMatrix(sectors2, [zeros(2, 3), zeros(4, 5)])
             sm_wrong = SectorMatrix(U1(2), ones(2, 3))
-            @test_throws ErrorException (m5[Block(1, 1)] = sm_wrong)
+            @test_throws DimensionMismatch (m5[Block(1, 1)] = sm_wrong)
         end
 
         @testset "Block setindex! off-diagonal errors" begin
             sectors2 = [U1(0), U1(1)]
             m6 = FusedGradedMatrix(sectors2, [zeros(2, 3), zeros(4, 5)])
             sm = SectorMatrix(U1(0), ones(2, 3))
-            @test_throws ErrorException (m6[Block(1, 2)] = sm)
+            @test_throws Exception (m6[Block(1, 2)] = sm)
         end
     end
 

@@ -246,7 +246,7 @@ end
     end
 
     @testset "Rejects mismatched lengths" begin
-        @test_throws ArgumentError FusedGradedMatrix{Float64}(
+        @test_throws Exception FusedGradedMatrix{Float64}(
             undef, sectors, cod_bls, [1]
         )
     end

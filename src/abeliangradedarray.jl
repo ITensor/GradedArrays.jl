@@ -69,15 +69,11 @@ BlockSparseArrays.blocktype(a::AbelianGradedArray) = BlockSparseArrays.blocktype
 #  view (primitive): returns AbelianSectorArray sharing data with blockdata
 # ---------------------------------------------------------------------------
 
-# view: returns a AbelianSectorArray sharing data (errors for unstored blocks)
-function Base.view(a::AbelianGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
+function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
+    bk = Int.(Tuple(I))
     haskey(a.blockdata, bk) || error("Block $bk is not stored.")
     sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
     return AbelianSectorArray(sects, a.blockdata[bk])
-end
-function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
-    return view(a, Tuple(I)...)
 end
 
 # ---------------------------------------------------------------------------
@@ -109,51 +105,6 @@ function Base.setindex!(
     dest = view(b.parent, Block.(I)...)
     copyto!(dest, value)
     return b
-end
-
-# ---------------------------------------------------------------------------
-#  getindex / setindex! on AbelianGradedArray with Block — convenience wrappers
-# ---------------------------------------------------------------------------
-
-# getindex: returns a copy (errors for unstored blocks)
-function Base.getindex(a::AbelianGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
-    return copy(view(a, I...))
-end
-function Base.getindex(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
-    return a[Tuple(I)...]
-end
-
-# setindex!: Block{N} unpacks to Vararg{Block{1}, N} (following BlockArrays convention)
-function Base.setindex!(a::AbelianGradedArray{<:Any, N}, value, I::Block{N}) where {N}
-    return setindex!(a, value, Tuple(I)...)
-end
-
-# Primitive: view existing block, then broadcast in.
-# Handles both AbelianSectorArray and raw data values.
-function Base.setindex!(
-        a::AbelianGradedArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Vararg{Block{1}, N}
-    ) where {N}
-    view(a, I...) .= value
-    return a
-end
-
-# ---------------------------------------------------------------------------
-#  Data indexing — raw block data without sector wrappers
-# ---------------------------------------------------------------------------
-
-function Base.view(a::AbelianGradedArray{T, N}, I::Data{N}) where {T, N}
-    return data(view(a, Block(I)))
-end
-
-function Base.getindex(a::AbelianGradedArray{T, N}, I::Data{N}) where {T, N}
-    return copy(view(a, I))
-end
-
-function Base.setindex!(
-        a::AbelianGradedArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Data{N}
-    ) where {N}
-    view(a, I) .= value
-    return a
 end
 
 # ---------------------------------------------------------------------------
