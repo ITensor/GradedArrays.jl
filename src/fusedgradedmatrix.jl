@@ -116,7 +116,7 @@ end
 
 using LinearAlgebra: Diagonal
 function BlockArrays.blocks(m::FusedGradedMatrix)
-    diagblocks = map(b -> view(m, b), blockdiagindices(m))
+    diagblocks = map(I -> view(m, I), eachblockstoredindex(m))
     return Diagonal(collect(diagblocks))
 end
 
@@ -138,22 +138,31 @@ end
 
 # ========================  mul!  ========================
 
+function check_mul_axes(
+        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
+    )
+    axes(A, 2) == dual(axes(B, 1)) ||
+        throw(DimensionMismatch("sector mismatch in contracted dimension"))
+    axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
+    axes(C, 2) == axes(B, 2) || throw(DimensionMismatch())
+    return nothing
+end
+
 function LinearAlgebra.mul!(
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix,
         α::Number, β::Number
     )
-    C.sectors == A.sectors == B.sectors ||
-        throw(DimensionMismatch("FusedGradedMatrix sectors must match"))
-    for i in eachindex(C.blocks)
-        mul!(C.blocks[i], A.blocks[i], B.blocks[i], α, β)
+    check_mul_axes(C, A, B)
+    for I in blockdiagindices(C)
+        mul!(view(C, Data(I)), view(A, Data(I)), view(B, Data(I)), α, β)
     end
     return C
 end
 
 function Base.:(*)(A::FusedGradedMatrix{T₁}, B::FusedGradedMatrix{T₂}) where {T₁, T₂}
-    A.sectors == B.sectors || throw(DimensionMismatch("sectors must match"))
+    axes(A, 2) == dual(axes(B, 1)) || throw(DimensionMismatch("sectors must match"))
     T = Base.promote_op(LinearAlgebra.matprod, T₁, T₂)
-    result_blocks = [A.blocks[i] * B.blocks[i] for i in eachindex(A.blocks)]
+    result_blocks = [view(A, Data(I)) * view(B, Data(I)) for I in blockdiagindices(A)]
     return FusedGradedMatrix(copy(A.sectors), result_blocks)
 end
 
@@ -214,15 +223,12 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
     )
 
     fused_sectors = collect(row_sectors)
-    # Default: zero blocks with the right dimensions from row/col axes
-    row_bls = blocklengths(row_ax)
-    col_bls = blocklengths(col_ax)
-    diag_blocks = [zeros(T, row_bls[i], col_bls[i]) for i in 1:n]
+    fused_axes = blockedrange.((datalengths(row_ax), datalengths(col_ax)))
+    m = FI.zero!(FusedGradedMatrix{T}(undef, fused_sectors, fused_axes))
     for bI in eachblockstoredindex(a)
-        i = Int(Tuple(bI)[1])
-        diag_blocks[i] = Array(a[bI])
+        m[Data(bI)] = view(a, Data(bI))
     end
-    return FusedGradedMatrix(fused_sectors, diag_blocks)
+    return m
 end
 
 """
@@ -232,13 +238,10 @@ Convert a `FusedGradedMatrix` to a 2D `AbelianGradedArray`.
 Inverse of `FusedGradedMatrix(::AbelianGradedArray)`.
 """
 function AbelianGradedArray(m::FusedGradedMatrix{T}) where {T}
-    codomain, domain = axes(m)
-    a = similar(m, (codomain, domain))
-    for (i, block) in enumerate(m.blocks)
-        iszero(block) && continue
-        row_sector = sectors(codomain)[i]
-        col_sector = sectors(domain)[i]
-        a[Block(i, i)] = AbelianSectorArray((row_sector, col_sector), block)
+    a = FI.zero!(similar(m, axes(m)))
+    for I in blockdiagindices(m)
+        iszero(view(m, Data(I))) && continue
+        a[Data(I)] = view(m, Data(I))
     end
     return a
 end
