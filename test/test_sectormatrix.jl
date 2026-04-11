@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, SU2, SectorIdentity, SectorMatrix,
-    SectorOneTo, SectorRange, U1, data, dataaxes, dual, isdual, sector, sector_type,
-    sectoraxes, ⊗
+    SectorOneTo, SectorRange, U1, data, dataaxes, dual, isdual, sector, sectoraxes,
+    sectortype, ⊗
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -35,9 +35,9 @@ using Test: @test, @testset
         @test si isa SectorIdentity{Float64, U1}
     end
 
-    @testset "sector_type and datatype" begin
+    @testset "sectortype and datatype" begin
         T = SectorMatrix{Float64, Matrix{Float64}, U1}
-        @test sector_type(T) == U1
+        @test sectortype(T) == U1
         @test GradedArrays.datatype(T) == Matrix{Float64}
     end
 

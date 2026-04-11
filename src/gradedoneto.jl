@@ -38,8 +38,8 @@ BlockArrays.blocklength(g::GradedOneTo) = length(g.nondual_sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
 Base.length(g::GradedOneTo) = sum(blocklengths(g); init = 0)
 
-# sector_type, SymmetryStyle
-sector_type(::Type{GradedOneTo{S}}) where {S} = S
+# sectortype, SymmetryStyle
+sectortype(::Type{GradedOneTo{S}}) where {S} = S
 SymmetryStyle(::Type{<:GradedOneTo{S}}) where {S} = SymmetryStyle(S)
 
 # blocklengths: total length of each block (length(sector) * multiplicity)

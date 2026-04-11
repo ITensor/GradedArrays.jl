@@ -24,7 +24,7 @@ function Base.axes(A::SectorIdentity)
     return (A.sector, dual(A.sector))
 end
 
-sector_type(::Type{<:SectorIdentity{T, S}}) where {T, S} = S
+sectortype(::Type{<:SectorIdentity{T, S}}) where {T, S} = S
 
 function Base.permutedims(a::SectorIdentity, perm)
     perm == ntuple(identity, ndims(a)) && return a

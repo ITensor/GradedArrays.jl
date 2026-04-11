@@ -1,5 +1,5 @@
 using GradedArrays: Fib, Ising, O2, SU2, SectorRange, TrivialSector, U1, Z, dual, flip,
-    istrivial, modulus, sector_type, trivial, zero_odd
+    istrivial, modulus, sectortype, trivial, zero_odd
 using SUNRepresentations: SUNRepresentations
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
@@ -11,8 +11,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     @testset "TrivialSector" begin
         q = TrivialSector()
 
-        @test sector_type(q) === TrivialSector
-        @test sector_type(typeof(q)) === TrivialSector
+        @test sectortype(q) === TrivialSector
+        @test sectortype(typeof(q)) === TrivialSector
         @test (@constinferred length(q)) == 1
         @test q == q
         @test trivial(q) == q
@@ -27,8 +27,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         q2 = U1(2)
         q3 = U1(3)
 
-        @test sector_type(q1) === U1
-        @test sector_type(typeof(q1)) === U1
+        @test sectortype(q1) === U1
+        @test sectortype(typeof(q1)) === U1
         @test length(q1) == 1
         @test length(q2) == 1
         @test (@constinferred length(q1)) == 1

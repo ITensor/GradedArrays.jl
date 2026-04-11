@@ -1,5 +1,5 @@
 using GradedArrays:
-    SU2, SectorIdentity, SectorRange, U1, dual, isdual, sector_type, sectoraxes
+    SU2, SectorIdentity, SectorRange, U1, dual, isdual, sectoraxes, sectortype
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -38,8 +38,8 @@ using Test: @test, @testset
         @test axes(si, 2) == U1(1)'
     end
 
-    @testset "sector_type" begin
-        @test sector_type(SectorIdentity{Float64, U1}) == U1
+    @testset "sectortype" begin
+        @test sectortype(SectorIdentity{Float64, U1}) == U1
     end
 
     @testset "getindex — identity matrix (U1, 1×1)" begin

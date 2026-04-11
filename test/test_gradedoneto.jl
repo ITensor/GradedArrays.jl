@@ -1,6 +1,6 @@
 using BlockArrays: blocklength
 using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorRange, U1, datalengths, dual,
-    flip, gradedrange, isdual, sector_type, sectors, tensor_product
+    flip, gradedrange, isdual, sectors, sectortype, tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -110,9 +110,9 @@ using Test: @test, @test_throws, @testset
         @test d[g2] == "value"
     end
 
-    @testset "sector_type" begin
-        @test sector_type(GradedOneTo{U1}) == U1
-        @test sector_type(GradedOneTo{SU2}) == SU2
+    @testset "sectortype" begin
+        @test sectortype(GradedOneTo{U1}) == U1
+        @test sectortype(GradedOneTo{SU2}) == SU2
     end
 
     @testset "show" begin

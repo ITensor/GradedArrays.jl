@@ -2,7 +2,7 @@ using BlockArrays: BlockArrays, Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
-    datalengths, dual, gradedrange, isdual, sector_type, sectoraxes, sectors
+    datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -57,12 +57,9 @@ using Test: @test, @test_throws, @testset
         @test sectoraxes(blk) == (U1(0)', U1(0))
     end
 
-    @testset "Block getindex for unstored block returns zeros" begin
+    @testset "Block getindex for unstored block errors" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
-        blk = a[Block(2, 1)]
-        @test blk isa AbelianSectorArray
-        @test all(iszero, data(blk))
-        @test size(blk) == (3, 1)
+        @test_throws ErrorException a[Block(2, 1)]
     end
 
     @testset "Single Block{N} argument" begin
@@ -128,21 +125,22 @@ using Test: @test, @test_throws, @testset
         @test size(a3) == size(a)
     end
 
-    @testset "sector_type" begin
+    @testset "sectortype" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
-        @test sector_type(typeof(a)) == U1
+        @test sectortype(typeof(a)) == U1
     end
 
-    @testset "Multiple block insertions" begin
+    @testset "Stored block insertions" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         a[Block(1, 1)] = ones(2, 1)
-        a[Block(1, 2)] = 2.0 * ones(2, 2)
-        a[Block(2, 1)] = 3.0 * ones(3, 1)
         a[Block(2, 2)] = 4.0 * ones(3, 2)
 
-        @test length(collect(eachblockstoredindex(a))) == 4
-        @test data(a[Block(1, 2)]) == 2.0 * ones(2, 2)
-        @test data(a[Block(2, 1)]) == 3.0 * ones(3, 1)
+        @test length(collect(eachblockstoredindex(a))) == 2
+        @test data(a[Block(1, 1)]) == ones(2, 1)
+        @test data(a[Block(2, 2)]) == 4.0 * ones(3, 2)
+
+        # Setting unstored (non-allowed) blocks errors
+        @test_throws ErrorException (a[Block(1, 2)] = 2.0 * ones(2, 2))
     end
 
     @testset "SU2 (non-abelian dimensions)" begin

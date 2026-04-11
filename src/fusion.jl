@@ -85,7 +85,7 @@ function TensorAlgebra.matricize(
     biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
     ax_codomain, ax_domain = blocks(axes(a)[biperm])
     ax_codomain =
-        isempty(ax_codomain) ? trivial(sector_type(a)) : tensor_product(ax_codomain...)
+        isempty(ax_codomain) ? trivial(sectortype(a)) : tensor_product(ax_codomain...)
     return SectorIdentity{eltype(a)}(ax_codomain)
 end
 
@@ -96,7 +96,7 @@ function TensorAlgebra.matricize(
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))
 
-    T = TKS.sectorscalartype(sector_type(a))
+    T = TKS.sectorscalartype(sectortype(a))
     phase = prod(
         ntuple(K) do i
             return ifelse(isdual(a, i), twist(sectoraxes(a, i)), one(T))
