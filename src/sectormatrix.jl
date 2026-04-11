@@ -28,13 +28,13 @@ end
 sector(sm::SectorMatrix) = SectorIdentity{eltype(sm)}(sm.sector)
 dataaxes(sm::SectorMatrix) = axes(data(sm))
 
-sector_type(::Type{<:SectorMatrix{T, D, S}}) where {T, D, S} = S
+sectortype(::Type{<:SectorMatrix{T, D, S}}) where {T, D, S} = S
 datatype(::Type{SectorMatrix{T, D, S}}) where {T, D, S} = D
 
 function Base.axes(sm::SectorMatrix)
     return (
-        sectorrange(sm.sector, size(data(sm), 1)),
-        sectorrange(dual(sm.sector), size(data(sm), 2)),
+        SectorOneTo(sm.sector, size(data(sm), 1)),
+        SectorOneTo(dual(sm.sector), size(data(sm), 2)),
     )
 end
 
@@ -57,6 +57,6 @@ function Base.similar(sm::SectorMatrix, ::Type{T}) where {T}
     return SectorMatrix(sm.sector, similar(data(sm), T))
 end
 
-function KroneckerArrays.:(⊗)(A::SectorIdentity, data::AbstractMatrix)
-    return SectorMatrix(A.sector, data)
+function KroneckerArrays.:(⊗)(s::SectorIdentity, data::AbstractMatrix)
+    return SectorMatrix(s.sector, data)
 end

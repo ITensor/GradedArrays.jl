@@ -12,6 +12,7 @@ using Test: @test, @testset
         :AbelianSectorArray,
         :AbelianSectorDelta,
         :AbelianSectorMatrix,
+        :AbelianSectorVector,
         :FusedGradedMatrix,
         :Fib,
         :GradedArrays,
@@ -41,9 +42,8 @@ using Test: @test, @testset
         :sectoraxes1,
         :sectorlength,
         :sectorlengths,
-        :sectorrange,
         :sectors,
-        :sector_type,
+        :sectortype,
     ]
     @test issetequal(names(GradedArrays), exports)
 end

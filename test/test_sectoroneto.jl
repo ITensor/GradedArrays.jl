@@ -1,7 +1,7 @@
 using BlockArrays: blocklength
 using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorOneTo, SectorRange, U1,
-    datalength, datalengths, dual, flip, gradedrange, isdual, sector, sector_type,
-    sectorrange, sectors, tensor_product
+    datalength, datalengths, dual, flip, gradedrange, isdual, sector, sectors, sectortype,
+    tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -106,9 +106,9 @@ using Test: @test, @testset
         @test d[si2] == "hello"
     end
 
-    @testset "sector_type" begin
-        @test sector_type(SectorOneTo{U1}) == U1
-        @test sector_type(SectorOneTo{SU2}) == SU2
+    @testset "sectortype" begin
+        @test sectortype(SectorOneTo{U1}) == U1
+        @test sectortype(SectorOneTo{SU2}) == SU2
     end
 
     @testset "show" begin
@@ -128,8 +128,8 @@ using Test: @test, @testset
     end
 
     @testset "tensor_product (abelian)" begin
-        si0 = sectorrange(U1(0), 2)
-        si1 = sectorrange(U1(1), 3)
+        si0 = SectorOneTo(U1(0), 2)
+        si1 = SectorOneTo(U1(1), 3)
 
         tp = tensor_product(si0, si1)
         @test tp isa SectorOneTo
@@ -138,17 +138,17 @@ using Test: @test, @testset
 
         @test tensor_product(si1) == si1
 
-        si1d = sectorrange(U1(1)', 3)
+        si1d = SectorOneTo(U1(1)', 3)
         tp1 = tensor_product(si1d)
         @test !isdual(tp1)
 
-        si = sectorrange(U1(1), 1)
-        @test tensor_product(si, si, si) == sectorrange(U1(3), 1)
-        @test tensor_product(si, si, si, si) == sectorrange(U1(4), 1)
+        si = SectorOneTo(U1(1), 1)
+        @test tensor_product(si, si, si) == SectorOneTo(U1(3), 1)
+        @test tensor_product(si, si, si, si) == SectorOneTo(U1(4), 1)
     end
 
     @testset "tensor_product (non-abelian)" begin
-        si_half = sectorrange(SU2(1 // 2), 1)
+        si_half = SectorOneTo(SU2(1 // 2), 1)
         tp = tensor_product(si_half, si_half)
         @test tp isa GradedOneTo
         @test datalengths(tp) == [1, 1]

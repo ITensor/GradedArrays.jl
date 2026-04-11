@@ -42,7 +42,7 @@ function BlockSparseArrays.blocktype(::Type{<:FusedGradedMatrix{T, D, S}}) where
     return SectorMatrix{T, D, S}
 end
 BlockSparseArrays.blocktype(m::FusedGradedMatrix) = BlockSparseArrays.blocktype(typeof(m))
-sector_type(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = S
+sectortype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = S
 
 function Base.axes(m::FusedGradedMatrix)
     codomain = gradedrange(m.sectors .=> size.(m.blocks, 1))

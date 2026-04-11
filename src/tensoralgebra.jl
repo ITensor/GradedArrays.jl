@@ -171,7 +171,7 @@ function TensorAlgebra.permutedimsopadd!(
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
         b_dest = Block(ntuple(i -> b[perm[i]], N))
-        y_b = view!(y, Tuple(b_dest)...)
+        y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
         TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, true)
     end

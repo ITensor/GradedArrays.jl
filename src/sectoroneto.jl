@@ -44,8 +44,8 @@ Base.first(::SectorOneTo) = 1
 Base.last(r::SectorOneTo) = length(r)
 Base.length(r::SectorOneTo) = sectorlength(r) * datalength(r)
 
-# sector_type, SymmetryStyle
-sector_type(::Type{SectorOneTo{S}}) where {S} = S
+# sectortype, SymmetryStyle
+sectortype(::Type{SectorOneTo{S}}) where {S} = S
 SymmetryStyle(::Type{<:SectorOneTo{S}}) where {S} = SymmetryStyle(S)
 
 # dual, flip, flip_dual
@@ -61,23 +61,6 @@ end
 Base.:(==)(a::SectorOneTo, b::SectorOneTo) = isequal(a, b)
 function Base.hash(r::SectorOneTo, h::UInt)
     return hash(sector(r), hash(datalength(r), h))
-end
-
-# ========================  sectorrange constructors  ========================
-
-"""
-    sectorrange(sector, dim)
-    sectorrange(sector, range)
-
-Construct a [`SectorOneTo`](@ref) for the given sector and data length.
-"""
-sectorrange(s::SectorRange, dim::Integer) = SectorOneTo(s, Int(dim))
-sectorrange(s::SectorRange, range::AbstractUnitRange) = sectorrange(s, length(range))
-function sectorrange(
-        sector::NamedTuple{<:Any, <:Tuple{SectorRange, Vararg{SectorRange}}},
-        args...
-    )
-    return sectorrange(to_sector(sector), args...)
 end
 
 to_gradedrange(r::SectorOneTo) = gradedrange([sector(r) => datalength(r)])
@@ -100,7 +83,7 @@ end
 
 function tensor_product(::AbelianStyle, r1::SectorOneTo, r2::SectorOneTo)
     s = tensor_product(sector(flip_dual(r1)), sector(flip_dual(r2)))
-    return sectorrange(s, datalength(r1) * datalength(r2))
+    return SectorOneTo(s, datalength(r1) * datalength(r2))
 end
 
 function tensor_product(::NotAbelianStyle, r1::SectorOneTo, r2::SectorOneTo)

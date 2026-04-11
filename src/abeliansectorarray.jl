@@ -13,13 +13,20 @@ struct AbelianSectorArray{T, N, A <: AbstractArray{T, N}, S <: SectorRange} <:
 end
 
 # Constructors
+
+# Fully-parameterized undef constructor: accepts SectorOneTo axes.
+function AbelianSectorArray{T, N, A, S}(
+        ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
+    ) where {T, N, A <: AbstractArray{T, N}, S <: SectorRange}
+    sects = sector.(axs)
+    return AbelianSectorArray{T, N, A, S}(sects, similar(A, data.(axs)))
+end
+
+# Convenience: infer A = Array{T,N} and S from axes.
 function AbelianSectorArray{T}(
-        ::UndefInitializer,
-        sectors::NTuple{N, S},
-        dims::NTuple{N, Int}
+        ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
     ) where {T, N, S <: SectorRange}
-    data = Array{T, N}(undef, dims)
-    return AbelianSectorArray{T, N, Array{T, N}, S}(sectors, data)
+    return AbelianSectorArray{T, N, Array{T, N}, S}(undef, axs)
 end
 
 # Construct from AbelianSectorDelta (inverse of sector/data decomposition)
@@ -30,29 +37,27 @@ function AbelianSectorArray(
     return AbelianSectorArray(delta.sectors, data)
 end
 
+const AbelianSectorVector{T, A <: AbstractVector{T}, S <: SectorRange} =
+    AbelianSectorArray{T, 1, A, S}
 const AbelianSectorMatrix{T, A <: AbstractMatrix{T}, S <: SectorRange} =
     AbelianSectorArray{T, 2, A, S}
 
 # Accessors
-sectoraxes(sa::AbelianSectorArray) = sa.sectors
-function datalengths(sa::AbelianSectorArray)
-    return ntuple(
-        d -> div(size(data(sa), d), length(sectoraxes(sa, d))), Val(ndims(sa))
-    )
-end
 
 # Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data
 sector(sa::AbelianSectorArray) = AbelianSectorDelta{eltype(sa)}(sa.sectors)
+sectoraxes(sa::AbelianSectorArray) = axes(sector(sa))
 dataaxes(sa::AbelianSectorArray) = axes(data(sa))
 
-sector_type(::Type{<:AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = S
+sectortype(::Type{<:AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = S
 datatype(::Type{AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = A
 
 # AbstractArray interface
 # -----------------------
 function Base.axes(sa::AbelianSectorArray)
-    mults = datalengths(sa)
-    return ntuple(d -> sectorrange(sectoraxes(sa, d), mults[d]), Val(ndims(sa)))
+    sa_axes = sectoraxes(sa)
+    da_axes = dataaxes(sa)
+    return ntuple(d -> SectorOneTo(sa_axes[d], length(da_axes[d])), Val(ndims(sa)))
 end
 
 Base.copy(A::AbelianSectorArray) = AbelianSectorArray(sector(A), copy(data(A)))
@@ -129,8 +134,8 @@ end
 # ========================  Other  ========================
 
 function KroneckerArrays.:(⊗)(
-        A::AbelianSectorDelta{<:Any, N},
+        s::AbelianSectorDelta{<:Any, N},
         data::AbstractArray{<:Any, N}
     ) where {N}
-    return AbelianSectorArray(A, data)
+    return AbelianSectorArray(s, data)
 end

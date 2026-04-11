@@ -17,9 +17,9 @@ SectorRange(label::TKS.Sector) = SectorRange(label, false)
 label(r::SectorRange) = r.label
 isdual(r::SectorRange) = r.isdual
 
-sector_type(x) = sector_type(typeof(x))
-sector_type(S::Type{<:SectorRange}) = S
-sector_type(T::Type) = throw(MethodError(sector_type, T))
+sectortype(x) = sectortype(typeof(x))
+sectortype(S::Type{<:SectorRange}) = S
+sectortype(T::Type) = throw(MethodError(sectortype, T))
 
 # ===================================  Base interface  =====================================
 
@@ -60,7 +60,7 @@ Base.axes(r::SectorRange) = (r,)
 
 trivial(x) = trivial(typeof(x))
 function trivial(axis_type::Type{<:AbstractUnitRange})
-    return gradedrange([trivial(sector_type(axis_type)) => 1])  # always returns nondual
+    return gradedrange([trivial(sectortype(axis_type)) => 1])  # always returns nondual
 end
 function trivial(type::Type)
     return error("`trivial` not defined for type $(type).")
@@ -128,7 +128,7 @@ function SymmetryStyle(::Type{T}) where {T <: SectorRange}
         return NotAbelianStyle()
     end
 end
-SymmetryStyle(G::Type{<:AbstractUnitRange}) = SymmetryStyle(sector_type(G))
+SymmetryStyle(G::Type{<:AbstractUnitRange}) = SymmetryStyle(sectortype(G))
 
 combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
 combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()

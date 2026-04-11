@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, AbelianSectorDelta,
-    AbelianSectorMatrix, SU2, SectorRange, U1, data, datalengths, dual, isdual, sector,
-    sector_type, sectoraxes
+    AbelianSectorMatrix, AbelianSectorVector, SU2, SectorOneTo, SectorRange, U1, data, dual,
+    isdual, sector, sectoraxes, sectortype
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -19,11 +19,10 @@ using Test: @test, @test_throws, @testset
         @test sectoraxes(sa) == (U1(1), U1(-1)')
     end
 
-    @testset "Undef constructor" begin
+    @testset "Undef constructor (SectorOneTo)" begin
         sa = AbelianSectorArray{Float64}(
             undef,
-            (U1(0), U1(1)),
-            (3, 4)
+            (SectorOneTo(U1(0), 3), SectorOneTo(U1(1), 4))
         )
         @test size(sa) == (3, 4)
         @test eltype(sa) == Float64
@@ -59,24 +58,10 @@ using Test: @test, @test_throws, @testset
         @test axes(sd) == sectoraxes(sa)
     end
 
-    @testset "Derived accessors — datalengths (U1, dim=1)" begin
-        data = ones(3, 5)
-        sa = AbelianSectorArray((U1(1), U1(0)), data)
-        @test datalengths(sa) == (3, 5)
-    end
-
-    @testset "Derived accessors — datalengths (SU2)" begin
-        data = ones(4, 6)
-        sa = AbelianSectorArray(
-            (SU2(1 // 2), SU2(1 // 2)), data
-        )
-        @test datalengths(sa) == (2, 3)
-    end
-
-    @testset "sector_type" begin
+    @testset "sectortype" begin
         data = ones(2, 2)
         sa = AbelianSectorArray((U1(1), U1(0)), data)
-        @test sector_type(typeof(sa)) == U1
+        @test sectortype(typeof(sa)) == U1
     end
 
     @testset "AbstractArray interface — size, getindex, setindex!" begin
@@ -116,6 +101,12 @@ using Test: @test, @test_throws, @testset
         data = [1.0 2.0; 3.0 4.0]
         sa = AbelianSectorArray((U1(1), U1(0)), data)
         @test sa isa AbelianSectorMatrix
+    end
+
+    @testset "AbelianSectorVector alias" begin
+        data = [1.0, 2.0, 3.0]
+        sa = AbelianSectorArray((U1(1),), data)
+        @test sa isa AbelianSectorVector
     end
 
     @testset "1D AbelianSectorArray" begin

@@ -3,8 +3,8 @@ using BlockArrays: Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorMatrix, SectorOneTo,
-    SectorRange, U1, data, datalengths, dual, flip, gradedrange, isdual, sector,
-    sector_type, sectoraxes, sectormergesort, sectorrange, sectors, tensor_product
+    SectorRange, U1, data, datalengths, dual, flip, gradedrange, isdual, sector, sectoraxes,
+    sectormergesort, sectors, sectortype, tensor_product
 using Random: randn!
 using TensorAlgebra:
     TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize, unmatricize
@@ -86,17 +86,17 @@ end
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
     a = AbelianGradedArray{Float64}(undef, g1, g2)
 
-    # Set a block
-    block_data = randn!(Matrix{Float64}(undef, 2, 2))
-    a[Block(1, 2)] = AbelianSectorArray((U1(0), U1(-1)), block_data)
+    # Set allowed block (2,2): U1(1) × U1(-1) = 0
+    block_data = randn!(Matrix{Float64}(undef, 3, 2))
+    a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_data)
 
     ap = permutedims(a, (2, 1))
     @test ap isa AbelianGradedArray
     @test axes(ap, 1) == g2
     @test axes(ap, 2) == g1
 
-    # The block (1,2) in a should map to block (2,1) in ap
-    ap_block = ap[Block(2, 1)]
+    # The block (2,2) in a should map to block (2,2) in ap
+    ap_block = ap[Block(2, 2)]
     @test Array(ap_block) ≈ permutedims(block_data)
 end
 
@@ -106,16 +106,17 @@ end
     a = AbelianGradedArray{Float64}(undef, g1, g2)
     b = AbelianGradedArray{Float64}(undef, g1, g2)
 
-    block_a = randn!(Matrix{Float64}(undef, 2, 2))
-    block_b = randn!(Matrix{Float64}(undef, 2, 2))
-    a[Block(1, 2)] = AbelianSectorArray((U1(0), U1(-1)), block_a)
-    b[Block(1, 2)] = AbelianSectorArray((U1(0), U1(-1)), block_b)
+    # Use allowed block (2,2): U1(1) × U1(-1) = 0
+    block_a = randn!(Matrix{Float64}(undef, 3, 2))
+    block_b = randn!(Matrix{Float64}(undef, 3, 2))
+    a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_a)
+    b[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_b)
 
     α = 2.0
     β = -3.0
     c = α .* a .+ β .* b
     @test c isa AbelianGradedArray
-    c_block = c[Block(1, 2)]
+    c_block = c[Block(2, 2)]
     @test Array(c_block) ≈ α .* block_a .+ β .* block_b
 end
 
@@ -232,19 +233,16 @@ end
 
     mismatched_col_ax = gradedrange([U1(-1) => 3, U1(0) => 2])
     a_mismatched = AbelianGradedArray{Float64}(undef, row_ax, mismatched_col_ax)
-    a_mismatched[Block(1, 1)] =
-        AbelianSectorArray((U1(0), U1(-1)), randn!(Matrix{Float64}(undef, 2, 3)))
-    a_mismatched[Block(2, 2)] =
-        AbelianSectorArray((U1(1), U1(0)), randn!(Matrix{Float64}(undef, 3, 2)))
     @test_throws ArgumentError FusedGradedMatrix(a_mismatched)
 end
 
-@testset "FusedGradedMatrix(::AbelianGradedMatrix) rejects off-diagonal stored blocks" begin
+@testset "Off-diagonal block setindex! errors" begin
     ax = gradedrange([U1(0) => 2, U1(1) => 3])
     a = AbelianGradedArray{Float64}(undef, ax, dual(ax))
-    a[Block(1, 2)] =
-        AbelianSectorArray((U1(0), dual(U1(1))), randn!(Matrix{Float64}(undef, 2, 3)))
-    @test_throws ArgumentError FusedGradedMatrix(a)
+    @test_throws ErrorException (
+        a[Block(1, 2)] =
+            AbelianSectorArray((U1(0), dual(U1(1))), randn!(Matrix{Float64}(undef, 2, 3)))
+    )
 end
 
 @testset "contract 2D AbelianGradedArray (matrix-matrix)" begin

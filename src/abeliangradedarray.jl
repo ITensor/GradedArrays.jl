@@ -69,28 +69,12 @@ BlockSparseArrays.blocktype(a::AbelianGradedArray) = BlockSparseArrays.blocktype
 # view: returns a AbelianSectorArray sharing data (errors for unstored blocks)
 function Base.view(a::AbelianGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     bk = ntuple(d -> Int(I[d]), Val(N))
-    haskey(a.blockdata, bk) || error("Block $bk is not stored. Use view! to create it.")
+    haskey(a.blockdata, bk) || error("Block $bk is not stored.")
     sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
     return AbelianSectorArray(sects, a.blockdata[bk])
 end
 function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
     return view(a, Tuple(I)...)
-end
-
-# view!: get or create, then view
-function BlockSparseArrays.view!(
-        a::AbelianGradedArray{T, N}, I::Vararg{Block{1}, N}
-    ) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
-    if !haskey(a.blockdata, bk)
-        block_dims = ntuple(d -> blocklengths(axes(a, d))[bk[d]], Val(N))
-        a.blockdata[bk] = zeros(T, block_dims)
-    end
-    sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
-    return AbelianSectorArray(sects, a.blockdata[bk])
-end
-function BlockSparseArrays.view!(a::AbelianGradedArray{<:Any, N}, I::Block{N}) where {N}
-    return BlockSparseArrays.view!(a, Tuple(I)...)
 end
 
 # ---------------------------------------------------------------------------
@@ -119,8 +103,7 @@ end
 function Base.setindex!(
         b::AbelianBlocks{T, N}, value, I::Vararg{Int, N}
     ) where {T, N}
-    # Use view! to get-or-create, then copyto! (following BlockSparseArrays pattern)
-    dest = view!(b.parent, Block.(I)...)
+    dest = view(b.parent, Block.(I)...)
     copyto!(dest, value)
     return b
 end
@@ -129,16 +112,9 @@ end
 #  getindex / setindex! on AbelianGradedArray with Block — convenience wrappers
 # ---------------------------------------------------------------------------
 
-# getindex: returns a copy (unstored blocks return zeros)
+# getindex: returns a copy (errors for unstored blocks)
 function Base.getindex(a::AbelianGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
-    bk = ntuple(d -> Int(I[d]), Val(N))
-    if haskey(a.blockdata, bk)
-        return copy(view(a, I...))
-    else
-        block_dims = ntuple(d -> blocklengths(axes(a, d))[bk[d]], Val(N))
-        sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
-        return AbelianSectorArray(sects, zeros(T, block_dims))
-    end
+    return copy(view(a, I...))
 end
 function Base.getindex(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
     return a[Tuple(I)...]
@@ -149,12 +125,12 @@ function Base.setindex!(a::AbelianGradedArray{<:Any, N}, value, I::Block{N}) whe
     return setindex!(a, value, Tuple(I)...)
 end
 
-# Primitive: get-or-create block view, then broadcast in.
+# Primitive: view existing block, then broadcast in.
 # Handles both AbelianSectorArray and raw data values.
 function Base.setindex!(
         a::AbelianGradedArray{<:Any, N}, value::AbstractArray{<:Any, N}, I::Vararg{Block{1}, N}
     ) where {N}
-    BlockSparseArrays.view!(a, I...) .= value
+    view(a, I...) .= value
     return a
 end
 
@@ -280,10 +256,10 @@ function Base.similar(a::AbelianGradedArray{T}) where {T}
 end
 
 # ---------------------------------------------------------------------------
-#  sector_type
+#  sectortype
 # ---------------------------------------------------------------------------
 
-sector_type(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = S
+sectortype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = S
 
 # ---------------------------------------------------------------------------
 #  permutedims

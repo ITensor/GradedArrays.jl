@@ -26,26 +26,11 @@ end
 
 Base.axes(A::AbelianSectorDelta) = A.sectors
 
-function Base.similar(
-        ::AbelianSectorDelta,
-        ::Type{T},
-        sranges::Tuple{SectorRange, Vararg{SectorRange}}
-    ) where {T}
-    return AbelianSectorDelta{T}(sranges)
-end
-
-function Base.similar(
-        ::Type{<:AbstractArray{T}},
-        sranges::Tuple{SectorRange, Vararg{SectorRange}}
-    ) where {T}
-    return AbelianSectorDelta{T}(sranges)
-end
-
 # ========================  Accessors  ========================
 
 isdual(x, d::Int) = isdual(axes(x, d))
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
-sector_type(::Type{<:AbelianSectorDelta{T, N, S}}) where {T, N, S} = S
+sectortype(::Type{<:AbelianSectorDelta{T, N, S}}) where {T, N, S} = S
 
 # ========================  permutedims  ========================
 
@@ -102,7 +87,7 @@ function fermion_permutation_phase(
         perm::NTuple{N, Int}
     ) where {N}
     require_unique_fusion(x)
-    BS = TKS.BraidingStyle(sector_type(x))
+    BS = TKS.BraidingStyle(sectortype(x))
     BS isa TKS.Bosonic && return true
     @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
 
@@ -115,7 +100,7 @@ function fermion_contraction_phase(
         length_codomain::Int
     ) where {N}
     require_unique_fusion(x)
-    BS = TKS.BraidingStyle(sector_type(x))
+    BS = TKS.BraidingStyle(sectortype(x))
     BS isa TKS.Bosonic && return true
     @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
     length_codomain <= ndims(x) ||

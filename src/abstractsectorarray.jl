@@ -38,7 +38,7 @@ end
 # ========================  Shared utilities  ========================
 
 function require_unique_fusion(A)
-    return TKS.FusionStyle(sector_type(A)) === TKS.UniqueFusion() ||
+    return TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion() ||
         error("not implemented for non-abelian tensors")
 end
 
