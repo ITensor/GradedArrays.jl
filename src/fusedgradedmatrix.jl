@@ -225,7 +225,7 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
     fused_sectors = collect(row_sectors)
     fused_axes = blockedrange.((datalengths(row_ax), datalengths(col_ax)))
     m = FusedGradedMatrix{T}(undef, fused_sectors, fused_axes)
-    for I in eachblockstoredindex(a)
+    for I in blockdiagindices(m)
         m[Data(I)] = view(a, Data(I))
     end
     return m
