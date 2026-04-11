@@ -212,14 +212,13 @@ Convert a 2D block-diagonal `AbelianGradedArray` (as produced by `matricize`) in
 `FusedGradedMatrix`. Extracts diagonal blocks from the stored entries.
 """
 function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
-    row_ax, col_ax = axes(a)
-    sectors(row_ax) == dual.(sectors(col_ax)) || throw(
+    sectors(axes(a, 1)) == dual.(sectors(axes(a, 2))) || throw(
         ArgumentError(
             "AbelianGradedMatrix axes must be canonical duals to convert to FusedGradedMatrix"
         )
     )
-    fused_sectors = collect(sectors(row_ax))
-    fused_axes = blockedrange.((datalengths(row_ax), datalengths(col_ax)))
+    fused_sectors = collect(sectors(axes(a, 1)))
+    fused_axes = blockedrange.(datalengths.(axes(a)))
     m = FusedGradedMatrix{T}(undef, fused_sectors, fused_axes)
     for I in blockdiagindices(m)
         m[Data(I)] = view(a, Data(I))
