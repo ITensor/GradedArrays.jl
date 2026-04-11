@@ -69,6 +69,8 @@ to_gradedrange(r::SectorOneTo) = gradedrange([sector(r) => datalength(r)])
 # ========================  BlockSparseArrays interface  ========================
 
 BlockSparseArrays.eachblockaxis(r::SectorOneTo) = [r]
+eachdataaxis(r::SectorOneTo) = [data(r)]
+eachsectoraxis(r::SectorOneTo) = [sector(r)]
 
 # ========================  tensor_product  ========================
 

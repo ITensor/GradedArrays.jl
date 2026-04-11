@@ -27,7 +27,7 @@ end
 function AbelianGradedArray{T, N, D, S}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{S}}
     ) where {T, N, D <: AbstractArray{T, N}, S <: SectorRange}
-    block_axes = map(ax -> data.(eachblockaxis(ax)), axs)
+    block_axes = map(eachdataaxis, axs)
     function allocate_block(bk)
         bk_inds = Int.(Tuple(bk))
         return similar(D, ntuple(d -> block_axes[d][bk_inds[d]], Val(N)))

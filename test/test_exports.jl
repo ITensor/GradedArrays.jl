@@ -24,6 +24,8 @@ using Test: @test, @testset
         :dataaxes1,
         :datalength,
         :datalengths,
+        :eachdataaxis,
+        :eachsectoraxis,
         :O2,
         :SectorIdentity,
         :SectorMatrix,

@@ -160,8 +160,8 @@ function LinearAlgebra.mul!(
 end
 
 function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
-    cod_axes = data.(eachblockaxis(axes(A, 1)))
-    dom_axes = data.(eachblockaxis(axes(B, 2)))
+    cod_axes = eachdataaxis(axes(A, 1))
+    dom_axes = eachdataaxis(axes(B, 2))
     result_blocks = [
         similar(
                 Base.promote_op(*, typeof(view(A, Data(I))), typeof(view(B, Data(I)))),

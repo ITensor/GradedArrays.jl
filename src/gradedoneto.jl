@@ -77,6 +77,8 @@ function BlockSparseArrays.eachblockaxis(g::GradedOneTo)
             for (s, m) in zip(sectors(g), datalengths(g))
     ]
 end
+eachdataaxis(g::GradedOneTo) = data.(eachblockaxis(g))
+eachsectoraxis(g::GradedOneTo) = sector.(eachblockaxis(g))
 
 function BlockSparseArrays.mortar_axis(axs::AbstractVector{<:SectorOneTo})
     isempty(axs) && throw(
