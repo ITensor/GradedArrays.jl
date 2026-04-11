@@ -173,7 +173,7 @@ end
 
 function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     C = allocate_output(*, A, B)
-    return mul!(C, A, B, true, false)
+    return mul!(C, A, B)
 end
 
 # ========================  similar  ========================
