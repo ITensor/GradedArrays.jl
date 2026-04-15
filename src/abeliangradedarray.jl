@@ -129,6 +129,9 @@ function Base.getindex(
         a::AbelianGradedArray{T, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
+    # `zero!` is needed: we only copy sub-ranges from stored source blocks,
+    # so destination block regions outside those sub-ranges (and destination
+    # blocks with no source counterpart) must start at 0.
     a_dest = FI.zero!(similar(a, ax_dest))
     # Map source block b → list of (dest BlockIndexRange, src subrange).
     src_to_dests = ntuple(Val(N)) do d
@@ -171,6 +174,9 @@ function Base.getindex(
         a::AbelianGradedArray{T, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
+    # `zero!` is needed: each source block writes into a sub-range of one
+    # destination block, so remaining sub-ranges (and destination blocks
+    # with no source counterpart) must start at 0.
     a_dest = FI.zero!(similar(a, ax_dest))
     ax = axes(a)
     # Map source Block → BlockIndexRange encoding dest block + subrange within it
@@ -264,7 +270,9 @@ sectortype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = S
 
 function Base.permutedims(a::AbelianGradedArray{<:Any, N}, perm) where {N}
     dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
-    a_dest = FI.zero!(similar(a, dest_axes))
+    # No `zero!` here: `permutedims!` → `permutedimsopadd!(β=0)` already
+    # zeros the destination before writing.
+    a_dest = similar(a, dest_axes)
     return permutedims!(a_dest, a, perm)
 end
 

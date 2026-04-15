@@ -115,6 +115,10 @@ function TensorAlgebra.matricize(
         style::BlockReshapeFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
     ax_2d = matricize_axes(style, a, ndims_codomain)
+    # `similar` allocates every allowed 2D block; the loop below only writes
+    # those coming from stored blocks of `a`. For a sparse input, allowed
+    # destination blocks with no source counterpart stay at their initial
+    # value, so we must explicitly zero them.
     a_2d = FI.zero!(similar(a, ax_2d))
 
     codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
@@ -176,7 +180,13 @@ function insert_missing_sectors(a::AbelianGradedMatrix)
     cod′ = gradedrange([s => get(cod_lens, s, 0) for s in canonical])
     dom′ = gradedrange([dual(s) => get(dom_lens, dual(s), 0) for s in canonical])
 
-    a′ = FI.zero!(similar(a, (cod′, dom′)))
+    # No `zero!` needed: every allowed block of `a′` that is non-empty on
+    # both axes corresponds to a sector that exists on both `cod` and `dom`
+    # of `a`, i.e. to a stored block of `a` (assuming `a` is the output of
+    # `sectormergesort`, where all allowed blocks are stored). Blocks coming
+    # purely from padding have multiplicity 0 on one axis — zero-size
+    # allocations with no data to clean up.
+    a′ = similar(a, (cod′, dom′))
     pos = Dict(s => i for (i, s) in pairs(canonical))
     for I in eachblockstoredindex(a)
         aI = view(a, I)
@@ -243,6 +253,10 @@ function TensorAlgebra.unmatricize(
     K = length(codomain_axes)
     N = K + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
+    # `similar` allocates every allowed N-D block; the loop only writes those
+    # coming from stored 2D blocks of `m`. For a sparse input, allowed
+    # destination blocks with no source counterpart must be explicitly
+    # zeroed.
     a = FI.zero!(similar(m, dest_axes))
 
     cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
@@ -321,6 +335,8 @@ function delete_missing_sectors(
         m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
     )
     check_input(delete_missing_sectors, m, cod_ax, dom_ax)
+    # `zero!` is needed: the target axes can have sectors absent from `m`, so
+    # some allowed blocks of the result never get written by the loop below.
     a = FI.zero!(similar(m, (cod_ax, dom_ax)))
     cod_pos = Dict(s => i for (i, s) in pairs(sectors(cod_ax)))
     dom_pos = Dict(s => j for (j, s) in pairs(sectors(dom_ax)))
