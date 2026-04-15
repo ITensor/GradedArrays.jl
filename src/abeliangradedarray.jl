@@ -255,7 +255,14 @@ end
 #  fill! / zero! / scale!
 # ---------------------------------------------------------------------------
 
-scale!(a::AbstractArray, β::Number) = (a .*= β; a)
+function scale!(a::AbstractArray, β::Number)
+    if iszero(β)
+        fill!(a, zero(eltype(a)))
+    else
+        a .*= β
+    end
+    return a
+end
 function scale!(a::AbstractGradedArray, β::Number)
     for bI in eachblockstoredindex(a)
         scale!(view(a, bI), β)

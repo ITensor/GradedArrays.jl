@@ -320,3 +320,26 @@ end
     result_dense, _ = contract(a_dense, (1, -1, 2, -2), b_dense, (2, -3, 1, -4))
     @test size(result) == size(result_dense)
 end
+
+@testset "scale! with β=0 zeros uninitialized blocks" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    GradedArrays.scale!(a, false)
+    @test all(iszero, data(a[Block(1, 1)]))
+    @test all(iszero, data(a[Block(2, 2)]))
+end
+
+@testset "allocating broadcast produces correct results" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = zeros(Float64, (g, dual(g)))
+    a[Block(1, 1)] = [1.0 0.0; 0.0 1.0]
+    a[Block(2, 2)] = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+
+    b = 3 .* a
+    @test data(b[Block(1, 1)]) == [3.0 0.0; 0.0 3.0]
+    @test data(b[Block(2, 2)]) == [3.0 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 3.0]
+
+    c = a - a
+    @test all(iszero, data(c[Block(1, 1)]))
+    @test all(iszero, data(c[Block(2, 2)]))
+end
