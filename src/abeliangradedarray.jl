@@ -288,31 +288,32 @@ const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
 #  show
 # ---------------------------------------------------------------------------
 
-function Base.summary(io::IO, a::AbelianGradedArray{T, N}) where {T, N}
+function Base.summary(io::IO, a::AbelianGradedArray)
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
     nstored = length(collect(eachblockstoredindex(a)))
-    print(io, block_str, "-blocked ", size_str, " AbelianGradedArray{", T, "}")
+    print(io, block_str, "-blocked ", size_str, " ", typeof(a))
     print(io, " with ", nstored, " stored block", nstored == 1 ? "" : "s")
-    for (d, g) in enumerate(axes(a))
-        print(io, "\n  Dim $d: ")
-        show(io, g)
-    end
     return nothing
 end
 
 function Base.show(io::IO, ::MIME"text/plain", a::AbelianGradedArray)
     summary(io, a)
-    isempty(a) && return nothing
     println(io, ":")
+    for (d, g) in enumerate(axes(a))
+        print(io, "  Dim $d: ")
+        show(io, g)
+        println(io)
+    end
+    isempty(a) && return nothing
     Base.print_array(io, a)
     return nothing
 end
 
-function Base.show(io::IO, a::AbelianGradedArray{T, N}) where {T, N}
+function Base.show(io::IO, a::AbelianGradedArray)
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
-    print(io, block_str, "-blocked ", size_str, " AbelianGradedArray{", T, "}")
+    print(io, block_str, "-blocked ", size_str, " ", typeof(a))
     return nothing
 end
 

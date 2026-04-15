@@ -210,10 +210,9 @@ end
 
 # ========================  show  ========================
 
-function Base.summary(io::IO, m::FusedGradedMatrix{T}) where {T}
+function Base.summary(io::IO, m::FusedGradedMatrix)
     nblocks = length(m.sectors)
-    print(io, nblocks, "-block FusedGradedMatrix{", T, "} with sectors ")
-    print(io, "[")
+    print(io, nblocks, "-block ", typeof(m), " with sectors [")
     join(io, m.sectors, ", ")
     print(io, "]")
     return nothing
@@ -227,9 +226,9 @@ function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
     return nothing
 end
 
-function Base.show(io::IO, m::FusedGradedMatrix{T}) where {T}
+function Base.show(io::IO, m::FusedGradedMatrix)
     nblocks = length(m.sectors)
-    print(io, nblocks, "-block FusedGradedMatrix{", T, "}")
+    print(io, nblocks, "-block ", typeof(m))
     return nothing
 end
 

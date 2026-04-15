@@ -116,10 +116,13 @@ using Test: @test, @testset
         str = sprint(show, si)
         @test contains(str, "SectorOneTo")
         @test contains(str, "3")
+        @test !contains(str, "'")
 
+        # Duality shows on the inner sector, not as a trailing `'` on the range.
         sid = SectorOneTo(U1(1)', 3)
         strd = sprint(show, sid)
-        @test endswith(strd, "'")
+        @test contains(strd, "U1(1)'")
+        @test !endswith(strd, "'")
     end
 
     @testset "dual sectors accessor for collection interface" begin

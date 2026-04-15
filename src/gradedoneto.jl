@@ -178,17 +178,13 @@ function Base.hash(g::GradedOneTo, h::UInt)
     return hash(g.nondual_sectors, hash(datalengths(g), hash(isdual(g), h)))
 end
 
-# Show
+# Show. Show dual axes by displaying a `'` on each individual sector rather
+# than as a trailing `'` on the whole range — this matches the form accepted
+# by the `gradedrange` constructor.
 function Base.show(io::IO, g::GradedOneTo)
-    print(io, "GradedOneTo(")
-    print(io, "[")
-    for (i, ba) in enumerate(eachblockaxis(g))
-        i > 1 && print(io, ", ")
-        show(io, nondual(sector(ba)))
-        print(io, " => ", datalength(ba))
-    end
+    print(io, "gradedrange([")
+    join(io, (sector(ba) => datalength(ba) for ba in eachblockaxis(g)), ", ")
     print(io, "])")
-    isdual(g) && print(io, "'")
     return nothing
 end
 

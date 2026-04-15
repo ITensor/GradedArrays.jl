@@ -165,7 +165,8 @@ using Test: @test, @test_throws, @testset
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         a[Block(1, 1)] = ones(2, 1)
         s = sprint(show, MIME("text/plain"), a)
-        @test occursin("AbelianGradedArray", s)
+        # Uses the `AbelianGradedMatrix` alias for 2D arrays.
+        @test occursin("AbelianGradedMatrix", s)
         @test occursin("2×2-blocked", s)
         @test occursin("5×3", s)
         @test occursin("2 stored block", s)

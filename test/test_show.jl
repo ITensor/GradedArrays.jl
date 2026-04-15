@@ -41,18 +41,20 @@ end
     @test g1 isa GradedOneTo
 
     @test sprint(show, g1) ==
-        "GradedOneTo([$U1(0) => 2, $U1(1) => 3, $U1(2) => 2])"
+        "gradedrange([$U1(0) => 2, $U1(1) => 3, $U1(2) => 2])"
 
+    # Duality is shown on each individual sector so the printed form
+    # matches a valid `gradedrange` constructor call.
     g1d = dual(g1)
     @test sprint(show, g1d) ==
-        "GradedOneTo([$U1(0) => 2, $U1(1) => 3, $U1(2) => 2])'"
+        "gradedrange([$U1(0)' => 2, $U1(1)' => 3, $U1(2)' => 2])"
 end
 
 @testset "GradedOneTo show uses compact sector format" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     s = sprint(show, g)
-    @test s == "GradedOneTo([$U1(0) => 2, $U1(1) => 3])"
-    @test sprint(show, dual(g)) == "GradedOneTo([$U1(0) => 2, $U1(1) => 3])'"
+    @test s == "gradedrange([$U1(0) => 2, $U1(1) => 3])"
+    @test sprint(show, dual(g)) == "gradedrange([$U1(0)' => 2, $U1(1)' => 3])"
     @test !occursin("Irrep", s)
 end
 
@@ -98,7 +100,7 @@ end
     a[Block(2, 2)] = [5.0 6.0; 7.0 8.0]
 
     s = sprint(show, MIME("text/plain"), a)
-    @test occursin("AbelianGradedArray", s)
+    @test occursin("AbelianGradedMatrix", s)
     # Unstored blocks show as dots
     @test occursin("⋅", s)
     # Block separators

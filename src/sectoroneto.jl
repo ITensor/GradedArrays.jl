@@ -102,11 +102,15 @@ end
 
 # ========================  Show  ========================
 
+# Duality is carried on the stored `SectorRange` and is already shown by its
+# own `show` method (via a trailing `'`), so we don't add another `'` on the
+# outer `SectorOneTo(...)`.
 function Base.show(io::IO, r::SectorOneTo)
     print(io, "SectorOneTo(")
     show(io, sector(r))
     print(io, ", ", datalength(r))
     print(io, ")")
-    isdual(r) && print(io, "'")
     return nothing
 end
+
+Base.adjoint(r::SectorOneTo) = dual(r)
