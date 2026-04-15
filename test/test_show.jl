@@ -1,5 +1,5 @@
-using GradedArrays: GradedArrays, Fib, FusedGradedMatrix, GradedOneTo, Ising, O2, SU2,
-    SectorOneTo, TrivialSector, U1, dual, gradedrange
+using GradedArrays: GradedArrays, AbelianSectorArray, Fib, FusedGradedMatrix, GradedOneTo,
+    Ising, O2, SU2, SectorMatrix, SectorOneTo, TrivialSector, U1, dual, gradedrange
 using KroneckerArrays: ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
@@ -66,4 +66,25 @@ end
     s = sprint(show, r)
     @test occursin("$U1", s)
     @test !occursin("Irrep", s)
+end
+
+@testset "AbelianSectorArray display shows Kronecker structure" begin
+    sa = AbelianSectorArray((U1(0), dual(U1(1))), [1.0 2.0; 3.0 4.0])
+    s = sprint(show, sa)
+    @test occursin("⊗", s)
+
+    s_plain = sprint(show, MIME("text/plain"), sa)
+    @test occursin("⊗", s_plain)
+    @test occursin("AbelianSectorMatrix", s_plain)
+end
+
+@testset "SectorMatrix display shows Kronecker structure" begin
+    sm = SectorMatrix(U1(1), [1.0 2.0; 3.0 4.0])
+    s = sprint(show, sm)
+    @test occursin("⊗", s)
+
+    s_plain = sprint(show, MIME("text/plain"), sm)
+    @test occursin("⊗", s_plain)
+    @test occursin("SectorMatrix", s_plain)
+    @test occursin("U1(1)", s_plain)
 end
