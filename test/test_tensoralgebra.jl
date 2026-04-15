@@ -216,7 +216,7 @@ end
 @testset "matricize 3D AbelianGradedArray and unmatricize round-trip" begin
     # 3D case where the merged codomain (tensor product of two `r`s) has
     # sectors absent from the dual domain — this exercises
-    # `pad_to_canonical_duals` (codomain has U1(2), domain has only U1(0)
+    # `insert_missing_sectors` (codomain has U1(2), domain has only U1(0)
     # and U1(1)).
     r = gradedrange([U1(0) => 1, U1(1) => 2])
     a = zeros(Float64, (r, r, dual(r)))

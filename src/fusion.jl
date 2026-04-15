@@ -139,15 +139,32 @@ function TensorAlgebra.matricize(
     return a_2d
 end
 
-# ========================  pad_to_canonical_duals  ========================
+# ========================  insert_missing_sectors  ========================
 
-# Pad an `AbelianGradedMatrix` so the codomain and domain axes carry the same
-# (non-dual) sector list — i.e. `sectors(axes(a,1)) == dual.(sectors(axes(a,2)))`.
-# Sectors that appear only on one side get a multiplicity-0 entry on the other.
-# Stored blocks are re-placed at their new sector indices.
-function pad_to_canonical_duals(a::AbelianGradedMatrix)
+# Reshape an `AbelianGradedMatrix` so the codomain and domain axes carry the
+# same (non-dual) sector list — i.e. `sectors(axes(a,1)) == dual.(sectors(axes(a,2)))`
+# — by inserting a multiplicity-0 entry wherever a sector is present on one
+# axis but not the other. Stored blocks are re-placed at the corresponding
+# sector indices (which may involve both insertion and permutation if the
+# input axes aren't already sorted consistently with `dual`).
+#
+# Requires each axis to have sorted, unique sectors (as produced by
+# `sectormergesort`); repeated sectors on one axis would be silently collapsed
+# by the dict-based multiplicity lookup below, and the sorted-insertion logic
+# (via `sort!(vcat(...))`) would reorder blocks unexpectedly otherwise.
+function insert_missing_sectors(a::AbelianGradedMatrix)
     cod_sects = sectors(axes(a, 1))
     dom_sects = sectors(axes(a, 2))
+    (issorted(cod_sects) && allunique(cod_sects)) ||
+        throw(
+        ArgumentError(
+            "insert_missing_sectors requires sorted, unique codomain sectors"
+        )
+    )
+    (issorted(dual.(dom_sects)) && allunique(dom_sects)) ||
+        throw(
+        ArgumentError("insert_missing_sectors requires sorted, unique domain sectors")
+    )
     cod_sects == dual.(dom_sects) && return a
 
     canonical = sort!(unique!(vcat(collect(cod_sects), dual.(collect(dom_sects)))))
@@ -173,8 +190,7 @@ function TensorAlgebra.matricize(
     ) where {K}
     a_reshaped = matricize(BlockReshapeFusion(), a, ndims_codomain)
     a_merged = sectormergesort(a_reshaped)
-    a_padded = pad_to_canonical_duals(a_merged)
-    return FusedGradedMatrix(a_padded)
+    return FusedGradedMatrix(insert_missing_sectors(a_merged))
 end
 
 # ========================  AbelianGradedArray unmatricize  ========================
