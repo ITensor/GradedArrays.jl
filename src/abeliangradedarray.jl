@@ -198,6 +198,18 @@ function BlockSparseArrays.eachblockstoredindex(a::AbelianGradedArray{T, N}) whe
     return (Block(k) for k in keys(a.blockdata))
 end
 
+# Implement the `SparseArraysBase` interface on `AbelianBlocks` (the lazy
+# block view) so that `storedlength(blocks(a))` — and by extension
+# `blockstoredlength(a)` — reflects the dict-of-keys storage rather than
+# treating every slot as stored.
+function SparseArraysBase.eachstoredindex(b::AbelianBlocks{T, N}) where {T, N}
+    return (CartesianIndex(k) for k in keys(b.parent.blockdata))
+end
+SparseArraysBase.storedvalues(b::AbelianBlocks) = values(b.parent.blockdata)
+function SparseArraysBase.isstored(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
+    return haskey(b.parent.blockdata, I)
+end
+
 # ---------------------------------------------------------------------------
 #  similar
 # ---------------------------------------------------------------------------
@@ -291,7 +303,7 @@ const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
 function Base.summary(io::IO, a::AbelianGradedArray)
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
-    nstored = length(collect(eachblockstoredindex(a)))
+    nstored = blockstoredlength(a)
     print(io, block_str, "-blocked ", size_str, " ", typeof(a))
     print(io, " with ", nstored, " stored block", nstored == 1 ? "" : "s")
     return nothing

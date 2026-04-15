@@ -43,18 +43,20 @@ end
     @test sprint(show, g1) ==
         "gradedrange([$U1(0) => 2, $U1(1) => 3, $U1(2) => 2])"
 
-    # Duality is shown on each individual sector so the printed form
-    # matches a valid `gradedrange` constructor call.
+    # Duality is factored to the outside as `dual(gradedrange([...]))` rather
+    # than decorated on each sector; we don't reuse `'` because Julia already
+    # uses `'` for range adjoints.
     g1d = dual(g1)
     @test sprint(show, g1d) ==
-        "gradedrange([$U1(0)' => 2, $U1(1)' => 3, $U1(2)' => 2])"
+        "dual(gradedrange([$U1(0) => 2, $U1(1) => 3, $U1(2) => 2]))"
 end
 
 @testset "GradedOneTo show uses compact sector format" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     s = sprint(show, g)
     @test s == "gradedrange([$U1(0) => 2, $U1(1) => 3])"
-    @test sprint(show, dual(g)) == "gradedrange([$U1(0)' => 2, $U1(1)' => 3])"
+    @test sprint(show, dual(g)) ==
+        "dual(gradedrange([$U1(0) => 2, $U1(1) => 3]))"
     @test !occursin("Irrep", s)
 end
 

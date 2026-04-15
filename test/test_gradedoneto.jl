@@ -122,13 +122,14 @@ using Test: @test, @test_throws, @testset
         @test contains(str, "=> 2")
         @test contains(str, "=> 3")
         @test !contains(str, "'")
+        @test !contains(str, "dual")
 
-        # Dual axes show `'` on each individual sector, not as a trailing `'`.
+        # Dual axes factor the `dual` to the outside.
         gd = g'
         strd = sprint(show, gd)
         @test !endswith(strd, "'")
-        @test contains(strd, "U1(0)' => 2")
-        @test contains(strd, "U1(1)' => 3")
+        @test startswith(strd, "dual(gradedrange(")
+        @test endswith(strd, "))")
     end
 
     @testset "repeated sectors allowed" begin

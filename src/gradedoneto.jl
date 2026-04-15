@@ -178,13 +178,36 @@ function Base.hash(g::GradedOneTo, h::UInt)
     return hash(g.nondual_sectors, hash(datalengths(g), hash(isdual(g), h)))
 end
 
-# Show. Show dual axes by displaying a `'` on each individual sector rather
-# than as a trailing `'` on the whole range — this matches the form accepted
-# by the `gradedrange` constructor.
+# Show. Factor the `dual` to the outside — `dual(gradedrange([...]))` — rather
+# than decorating each sector, so the printed form is compact and round-trips
+# through the constructor.
 function Base.show(io::IO, g::GradedOneTo)
+    isdual(g) && print(io, "dual(")
     print(io, "gradedrange([")
-    join(io, (sector(ba) => datalength(ba) for ba in eachblockaxis(g)), ", ")
+    join(
+        io,
+        (s => m for (s, m) in zip(g.nondual_sectors, datalengths(g))),
+        ", "
+    )
     print(io, "])")
+    isdual(g) && print(io, ")")
+    return nothing
+end
+
+# Show a "sectors: ..." line between the default AbstractArray summary and the
+# block-separated element listing inherited from AbstractBlockedUnitRange. For
+# dual axes the sectors are shown as `dual.([...])`.
+function Base.show(io::IO, ::MIME"text/plain", g::GradedOneTo)
+    summary(io, g)
+    isempty(g) && return nothing
+    print(io, ":\n  sectors: ")
+    isdual(g) && print(io, "dual.(")
+    print(io, "[")
+    join(io, g.nondual_sectors, ", ")
+    print(io, "]")
+    isdual(g) && print(io, ")")
+    println(io)
+    Base.print_array(io, g)
     return nothing
 end
 

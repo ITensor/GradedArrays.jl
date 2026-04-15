@@ -117,12 +117,14 @@ using Test: @test, @testset
         @test contains(str, "SectorOneTo")
         @test contains(str, "3")
         @test !contains(str, "'")
+        @test !contains(str, "dual")
 
-        # Duality shows on the inner sector, not as a trailing `'` on the range.
+        # Duality is factored to the outside: `dual(SectorOneTo(...))`.
         sid = SectorOneTo(U1(1)', 3)
         strd = sprint(show, sid)
-        @test contains(strd, "U1(1)'")
-        @test !endswith(strd, "'")
+        @test startswith(strd, "dual(SectorOneTo(")
+        @test endswith(strd, "))")
+        @test !contains(strd, "'")
     end
 
     @testset "dual sectors accessor for collection interface" begin

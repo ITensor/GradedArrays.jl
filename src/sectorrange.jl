@@ -45,12 +45,20 @@ Base.first(r::SectorRange) = first(Base.OneTo(r))
 Base.last(r::SectorRange) = last(Base.OneTo(r))
 
 function Base.show(io::IO, r::SectorRange{I}) where {I}
+    # Print duals as `dual(...)` rather than using a trailing `'`: Julia already
+    # uses `'` for adjoint of ranges (`(1:4)'` returns a 1×N adjoint matrix), so
+    # reusing `'` here is ambiguous.
+    if isdual(r)
+        print(io, "dual(")
+        show(io, nondual(r))
+        print(io, ")")
+        return nothing
+    end
     show(io, typeof(r))
     print(io, '(')
     l = sector_label(r)
     isnothing(l) || show(io, l)
     print(io, ')')
-    isdual(r) && print(io, "'")
     return nothing
 end
 

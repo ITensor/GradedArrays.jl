@@ -102,14 +102,15 @@ end
 
 # ========================  Show  ========================
 
-# Duality is carried on the stored `SectorRange` and is already shown by its
-# own `show` method (via a trailing `'`), so we don't add another `'` on the
-# outer `SectorOneTo(...)`.
+# Factor the `dual` to the outside — `dual(SectorOneTo(sector, n))` — rather
+# than decorating the inner sector, mirroring the `GradedOneTo` convention.
 function Base.show(io::IO, r::SectorOneTo)
+    isdual(r) && print(io, "dual(")
     print(io, "SectorOneTo(")
-    show(io, sector(r))
+    show(io, nondual(sector(r)))
     print(io, ", ", datalength(r))
     print(io, ")")
+    isdual(r) && print(io, ")")
     return nothing
 end
 
