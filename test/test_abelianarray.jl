@@ -214,6 +214,13 @@ using Test: @test, @test_throws, @testset
     end
 end
 
+@testset "FusedGradedMatrix Pair constructor" begin
+    m = FusedGradedMatrix([U1(0) => [1.0 2.0; 3.0 4.0], U1(1) => ones(3, 3)])
+    @test m isa FusedGradedMatrix{Float64}
+    @test data(m[Block(1, 1)]) == [1.0 2.0; 3.0 4.0]
+    @test data(m[Block(2, 2)]) == ones(3, 3)
+end
+
 @testset "FusedGradedMatrix undef constructor" begin
     sectors = [U1(0), U1(1)]
     cod_bls = [2, 3]

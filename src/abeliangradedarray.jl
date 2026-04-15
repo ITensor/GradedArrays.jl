@@ -255,14 +255,7 @@ end
 #  fill! / zero! / scale!
 # ---------------------------------------------------------------------------
 
-function scale!(a::AbstractArray, β::Number)
-    if iszero(β)
-        fill!(a, zero(eltype(a)))
-    else
-        a .*= β
-    end
-    return a
-end
+scale!(a::AbstractArray, β::Number) = (a .*= β; a)
 function scale!(a::AbstractGradedArray, β::Number)
     for bI in eachblockstoredindex(a)
         scale!(view(a, bI), β)
@@ -295,12 +288,20 @@ const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
 #  show
 # ---------------------------------------------------------------------------
 
-function Base.show(io::IO, ::MIME"text/plain", a::AbelianGradedArray{T, N}) where {T, N}
+function Base.summary(io::IO, a::AbelianGradedArray{T, N}) where {T, N}
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
     nstored = length(collect(eachblockstoredindex(a)))
     print(io, block_str, "-blocked ", size_str, " AbelianGradedArray{", T, "}")
     print(io, " with ", nstored, " stored block", nstored == 1 ? "" : "s")
+    return nothing
+end
+
+function Base.show(io::IO, ::MIME"text/plain", a::AbelianGradedArray)
+    summary(io, a)
+    isempty(a) && return nothing
+    println(io, ":")
+    Base.print_array(io, a)
     return nothing
 end
 

@@ -40,6 +40,11 @@ function FusedGradedMatrix(
     ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
     return FusedGradedMatrix{T, D, S}(sectors, blocks)
 end
+function FusedGradedMatrix(pairs::AbstractVector{<:Pair})
+    sectors = first.(pairs)
+    blocks = last.(pairs)
+    return FusedGradedMatrix(sectors, blocks)
+end
 
 # ========================  undef constructors  ========================
 
