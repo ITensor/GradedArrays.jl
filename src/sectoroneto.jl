@@ -104,7 +104,7 @@ end
 
 function Base.show(io::IO, r::SectorOneTo)
     print(io, "SectorOneTo(")
-    show(io, label(sector(r)))
+    show(io, sector(r))
     print(io, ", ", datalength(r))
     print(io, ")")
     isdual(r) && print(io, "'")

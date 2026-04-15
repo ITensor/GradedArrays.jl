@@ -1,5 +1,5 @@
-using GradedArrays:
-    GradedArrays, Fib, GradedOneTo, Ising, O2, SU2, TrivialSector, U1, dual, gradedrange
+using GradedArrays: GradedArrays, Fib, FusedGradedMatrix, GradedOneTo, Ising, O2, SU2,
+    SectorOneTo, TrivialSector, U1, dual, gradedrange
 using KroneckerArrays: ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
@@ -38,11 +38,32 @@ end
     g1 = gradedrange([x => 2, y => 3, z => 2])
     @test g1 isa GradedOneTo
 
-    lx = repr(TKS.U1Irrep(0))
-    ly = repr(TKS.U1Irrep(1))
-    lz = repr(TKS.U1Irrep(2))
-    @test sprint(show, g1) == "GradedOneTo([$lx => 2, $ly => 3, $lz => 2])"
+    @test sprint(show, g1) ==
+        "GradedOneTo([$U1(0) => 2, $U1(1) => 3, $U1(2) => 2])"
 
     g1d = dual(g1)
-    @test sprint(show, g1d) == "GradedOneTo([$lx => 2, $ly => 3, $lz => 2])'"
+    @test sprint(show, g1d) ==
+        "GradedOneTo([$U1(0) => 2, $U1(1) => 3, $U1(2) => 2])'"
+end
+
+@testset "GradedOneTo show uses compact sector format" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    s = sprint(show, g)
+    @test s == "GradedOneTo([$U1(0) => 2, $U1(1) => 3])"
+    @test sprint(show, dual(g)) == "GradedOneTo([$U1(0) => 2, $U1(1) => 3])'"
+    @test !occursin("Irrep", s)
+end
+
+@testset "FusedGradedMatrix show uses compact sector format" begin
+    m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(3, 3)])
+    s = sprint(show, MIME("text/plain"), m)
+    @test occursin("$U1", s)
+    @test !occursin("Irrep", s)
+end
+
+@testset "SectorOneTo show uses compact sector format" begin
+    r = SectorOneTo(U1(1), 3)
+    s = sprint(show, r)
+    @test occursin("$U1", s)
+    @test !occursin("Irrep", s)
 end

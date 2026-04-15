@@ -189,7 +189,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix{T}) where {T
     nblocks = length(m.sectors)
     print(io, nblocks, "-block FusedGradedMatrix{", T, "} with sectors ")
     print(io, "[")
-    join(io, label.(m.sectors), ", ")
+    join(io, m.sectors, ", ")
     print(io, "]")
     return nothing
 end

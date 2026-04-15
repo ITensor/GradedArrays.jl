@@ -182,10 +182,10 @@ end
 function Base.show(io::IO, g::GradedOneTo)
     print(io, "GradedOneTo(")
     print(io, "[")
-    for (i, (s, m)) in enumerate(zip(sectors(g), datalengths(g)))
+    for (i, ba) in enumerate(eachblockaxis(g))
         i > 1 && print(io, ", ")
-        show(io, label(s))
-        print(io, " => ", m)
+        show(io, nondual(sector(ba)))
+        print(io, " => ", datalength(ba))
     end
     print(io, "])")
     isdual(g) && print(io, "'")

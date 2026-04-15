@@ -92,6 +92,7 @@ dual(c::TKS.Sector) = TKS.dual(c)
 dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
 flip(r1::SectorRange) = typeof(r1)(dual(r1.label), !isdual(r1))
 flip_dual(r::SectorRange) = isdual(r) ? flip(r) : r
+nondual(r::SectorRange) = isdual(r) ? dual(r) : r
 
 fermionparity(c::SectorRange) = TKS.fermionparity(c.label)
 twist(c::SectorRange) = TKS.twist(c.label)
