@@ -279,54 +279,57 @@ end
 
 # ========================  delete_missing_sectors  ========================
 
-# Embed an `AbstractGradedMatrix` in target `(cod_ax, dom_ax)` axes: stored
-# blocks of `m` are re-placed at the corresponding sector position in the
-# target, and sectors of `m` absent from the target are dropped. Target
-# sectors absent from `m` simply become unstored blocks.
+# Reverse `insert_missing_sectors`: given a matrix `m` with canonical-dual
+# axes (as produced by `insert_missing_sectors`) and target axes
+# `(cod_ax, dom_ax)` whose allowed-block sectors are a subset of `m`'s, drop
+# `m`'s sectors that are absent from the target. In the canonical matricize
+# → unmatricize round-trip, the dropped sectors are exactly the
+# zero-multiplicity entries `insert_missing_sectors` added, so nothing is
+# actually lost.
 #
 # Each axis (on both `m` and the target) must have sorted, unique sectors,
 # and `m` must have canonical-dual codomain/domain axes
 # (`sectors(cod_m) == dual.(sectors(dom_m))`). The target axes are not
-# required to be canonical duals — `unmatricize` takes the unfused target
-# axes which can have asymmetric sector sets.
+# required to be canonical duals (`unmatricize` takes the unfused target
+# axes, which can have asymmetric sector sets).
 #
-# Sectors of `m` dropped from the target must have multiplicity 0 on both
-# axes, otherwise silent data loss would occur.
+# Preconditions:
+#   - sectors of `m` absent from the target have multiplicity 0 on at least
+#     one side (empty block → safe to drop);
+#   - every allowed block of the target has a corresponding sector in `m`
+#     (otherwise we'd be inventing data out of thin air, which is a user
+#     error — they've passed target axes incompatible with `m`).
 function delete_missing_sectors end
 
 function check_input(
         ::typeof(delete_missing_sectors),
         m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
     )
-    cod_m = sectors(axes(m, 1))
-    dom_m = sectors(axes(m, 2))
-    cod_t = sectors(cod_ax)
-    dom_t = sectors(dom_ax)
-
-    (issorted(cod_m) && allunique(cod_m)) ||
-        throw(ArgumentError("m's codomain sectors must be sorted and unique"))
-    (issorted(dual.(dom_m)) && allunique(dom_m)) ||
-        throw(ArgumentError("m's domain sectors must have sorted, unique duals"))
-    (issorted(cod_t) && allunique(cod_t)) ||
-        throw(ArgumentError("target codomain sectors must be sorted and unique"))
-    (issorted(dual.(dom_t)) && allunique(dom_t)) ||
-        throw(ArgumentError("target domain sectors must have sorted, unique duals"))
-    cod_m == dual.(dom_m) ||
-        throw(ArgumentError("m must have canonical-dual codomain/domain axes"))
-
-    # Sectors of `m` absent from either target axis must have multiplicity 0
-    # on at least one side (empty block → safe to drop, no data loss).
-    cod_t_set = Set(cod_t)
-    dom_t_set = Set(dom_t)
-    cod_m_lens = datalengths(axes(m, 1))
-    dom_m_lens = datalengths(axes(m, 2))
-    for (i, s) in pairs(cod_m)
-        (s ∈ cod_t_set && dual(s) ∈ dom_t_set) && continue
-        (iszero(cod_m_lens[i]) || iszero(dom_m_lens[i])) || throw(
+    axs = (
+        ("m codomain", sectors(axes(m, 1)), datalengths(axes(m, 1)), sectors(cod_ax)),
+        ("m domain", sectors(axes(m, 2)), datalengths(axes(m, 2)), sectors(dom_ax)),
+    )
+    for (name, m_sects, m_lens, t_sects) in axs
+        # 1. Input (m) and output (target) axes are sorted and unique.
+        (issorted(m_sects) && allunique(m_sects)) ||
+            throw(ArgumentError("$name sectors must be sorted and unique"))
+        (issorted(t_sects) && allunique(t_sects)) ||
+            throw(ArgumentError("target $name sectors must be sorted and unique"))
+        # 2. Target sectors are a subset of `m`'s sectors.
+        issubset(t_sects, m_sects) || throw(
             ArgumentError(
-                "sector $s would be dropped by the target axes but has non-zero multiplicity in m"
+                "target $name sectors $(setdiff(t_sects, m_sects)) are missing from m"
             )
         )
+        # 3. `m` sectors dropped by the target have multiplicity 0.
+        for (i, s) in pairs(m_sects)
+            s ∈ t_sects && continue
+            iszero(m_lens[i]) || throw(
+                ArgumentError(
+                    "$name sector $s would be dropped by the target but has non-zero multiplicity in m"
+                )
+            )
+        end
     end
     return nothing
 end
@@ -335,9 +338,10 @@ function delete_missing_sectors(
         m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
     )
     check_input(delete_missing_sectors, m, cod_ax, dom_ax)
-    # `zero!` is needed: the target axes can have sectors absent from `m`, so
-    # some allowed blocks of the result never get written by the loop below.
-    a = FI.zero!(similar(m, (cod_ax, dom_ax)))
+    # No `zero!` needed: `check_input` guarantees every allowed-block sector
+    # of the target is present in `m`, so every allocation below is
+    # overwritten by the loop.
+    a = similar(m, (cod_ax, dom_ax))
     cod_pos = Dict(s => i for (i, s) in pairs(sectors(cod_ax)))
     dom_pos = Dict(s => j for (j, s) in pairs(sectors(dom_ax)))
     for I in eachblockstoredindex(m)
