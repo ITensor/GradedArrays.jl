@@ -52,6 +52,16 @@ function AbelianGradedArray{T}(
     return AbelianGradedArray{T}(init, axs)
 end
 
+# Convert any `AbstractGradedMatrix` (e.g. a `FusedGradedMatrix`) to an
+# `AbelianGradedArray` with the same axes and stored blocks.
+function AbelianGradedArray(m::AbstractGradedMatrix)
+    a = FI.zero!(similar(m, axes(m)))
+    for I in eachblockstoredindex(m)
+        a[Data(I)] = view(m, Data(I))
+    end
+    return a
+end
+
 # ---------------------------------------------------------------------------
 #  AbstractArray interface
 # ---------------------------------------------------------------------------
@@ -312,7 +322,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", a::AbelianGradedArray)
     summary(io, a)
     println(io, ":")
-    for (d, g) in enumerate(axes(a))
+    for (d, g) in pairs(axes(a))
         print(io, "  Dim $d: ")
         show(io, g)
         println(io)

@@ -208,7 +208,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
     summary(io, m)
     println(io, ":")
-    for (d, g) in enumerate(axes(m))
+    for (d, g) in pairs(axes(m))
         print(io, "  Dim $d: ")
         show(io, g)
         println(io)
@@ -249,26 +249,3 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
     end
     return m
 end
-
-"""
-    AbelianGradedArray(m::FusedGradedMatrix)
-    AbelianGradedArray(m::FusedGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo)
-
-Convert a `FusedGradedMatrix` to a 2D `AbelianGradedArray`. With explicit
-axes given, the result has those axes; sectors of `m` whose dual is absent
-from `dom_ax` (or whose sector is absent from `cod_ax`) are dropped, and
-target sectors absent from `m` become unstored blocks.
-"""
-function AbelianGradedArray(m::FusedGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo)
-    a = FI.zero!(similar(m, (cod_ax, dom_ax)))
-    cod_pos = Dict(s => i for (i, s) in enumerate(sectors(cod_ax)))
-    dom_pos = Dict(s => j for (j, s) in enumerate(sectors(dom_ax)))
-    for (k, s) in enumerate(m.sectors)
-        i = get(cod_pos, s, nothing)
-        j = get(dom_pos, dual(s), nothing)
-        (isnothing(i) || isnothing(j)) && continue
-        a[Data(i, j)] = m.blocks[k]
-    end
-    return a
-end
-AbelianGradedArray(m::FusedGradedMatrix) = AbelianGradedArray(m, axes(m)...)

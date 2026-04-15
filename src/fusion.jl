@@ -174,7 +174,7 @@ function insert_missing_sectors(a::AbelianGradedMatrix)
     dom′ = gradedrange([dual(s) => get(dom_lens, dual(s), 0) for s in canonical])
 
     a′ = FI.zero!(similar(a, (cod′, dom′)))
-    pos = Dict(s => i for (i, s) in enumerate(canonical))
+    pos = Dict(s => i for (i, s) in pairs(canonical))
     for I in eachblockstoredindex(a)
         aI = view(a, I)
         s_cod, s_dom = sectoraxes(aI)
@@ -260,6 +260,68 @@ function TensorAlgebra.unmatricize(
     return a
 end
 
+# ========================  delete_missing_sectors  ========================
+
+# Embed an `AbstractGradedMatrix` in target `(cod_ax, dom_ax)` axes: stored
+# blocks of `m` are re-placed at the corresponding sector position in the
+# target, and sectors of `m` absent from the target are dropped. Target
+# sectors absent from `m` simply become unstored blocks.
+#
+# Each axis (on both `m` and the target) must have sorted, unique sectors,
+# and `m` must have canonical-dual codomain/domain axes
+# (`sectors(cod_m) == dual.(sectors(dom_m))`). The target axes are not
+# required to be canonical duals — `unmatricize` takes the unfused target
+# axes which can have asymmetric sector sets.
+#
+# Sectors of `m` dropped from the target must have multiplicity 0 on both
+# axes, otherwise silent data loss would occur.
+function delete_missing_sectors(
+        m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
+    )
+    cod_m = sectors(axes(m, 1))
+    dom_m = sectors(axes(m, 2))
+    cod_t = sectors(cod_ax)
+    dom_t = sectors(dom_ax)
+
+    (issorted(cod_m) && allunique(cod_m)) ||
+        throw(ArgumentError("m's codomain sectors must be sorted and unique"))
+    (issorted(dual.(dom_m)) && allunique(dom_m)) ||
+        throw(ArgumentError("m's domain sectors must have sorted, unique duals"))
+    (issorted(cod_t) && allunique(cod_t)) ||
+        throw(ArgumentError("target codomain sectors must be sorted and unique"))
+    (issorted(dual.(dom_t)) && allunique(dom_t)) ||
+        throw(ArgumentError("target domain sectors must have sorted, unique duals"))
+    cod_m == dual.(dom_m) ||
+        throw(ArgumentError("m must have canonical-dual codomain/domain axes"))
+
+    cod_t_set = Set(cod_t)
+    dom_t_set = Set(dom_t)
+    cod_m_lens = datalengths(axes(m, 1))
+    dom_m_lens = datalengths(axes(m, 2))
+    for (i, s) in pairs(cod_m)
+        (s ∈ cod_t_set && dual(s) ∈ dom_t_set) && continue
+        # Safe to drop only if the block is empty (either axis has multiplicity 0).
+        (iszero(cod_m_lens[i]) || iszero(dom_m_lens[i])) || throw(
+            ArgumentError(
+                "sector $s would be dropped by the target axes but has non-zero multiplicity in m"
+            )
+        )
+    end
+
+    a = FI.zero!(similar(m, (cod_ax, dom_ax)))
+    cod_pos = Dict(s => i for (i, s) in pairs(cod_t))
+    dom_pos = Dict(s => j for (j, s) in pairs(dom_t))
+    for I in eachblockstoredindex(m)
+        aI = view(m, I)
+        s_cod, s_dom = sectoraxes(aI)
+        i = get(cod_pos, s_cod, nothing)
+        j = get(dom_pos, s_dom, nothing)
+        (isnothing(i) || isnothing(j)) && continue
+        a[Data(i, j)] = data(aI)
+    end
+    return a
+end
+
 # ========================  SectorFusion FusedGradedMatrix unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
@@ -274,9 +336,9 @@ function TensorAlgebra.unmatricize(
     unfused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
     merged_cod = sectormergesort(unfused_axes[1])
     merged_dom = sectormergesort(unfused_axes[2])
-    # Build an `AbelianGradedMatrix` directly with those merged axes (sectors
+    # Embed `m` into an `AbelianGradedMatrix` with those merged axes (sectors
     # in `merged_*` but not in `m.sectors` simply land as unstored blocks).
-    m_abelian = AbelianGradedArray(m, merged_cod, merged_dom)
+    m_abelian = delete_missing_sectors(m, merged_cod, merged_dom)
     blockperms = sectorsortperm.(unfused_axes)
     J = map(invblockmergeperm, unfused_axes, blockperms, axes(m_abelian))
     m_split = m_abelian[J...]
