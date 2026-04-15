@@ -40,6 +40,11 @@ function FusedGradedMatrix(
     ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
     return FusedGradedMatrix{T, D, S}(sectors, blocks)
 end
+function FusedGradedMatrix(pairs::AbstractVector{<:Pair})
+    sectors = first.(pairs)
+    blocks = last.(pairs)
+    return FusedGradedMatrix(sectors, blocks)
+end
 
 # ========================  undef constructors  ========================
 
@@ -138,11 +143,17 @@ end
 
 # ========================  mul!  ========================
 
-function check_mul_axes(
-        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
-    )
+function check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
     axes(A, 2) == dual(axes(B, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
+    return nothing
+end
+
+function check_input(
+        ::typeof(mul!),
+        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
+    )
+    check_input(*, A, B)
     axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
     axes(C, 2) == axes(B, 2) || throw(DimensionMismatch())
     return nothing
@@ -152,7 +163,7 @@ function LinearAlgebra.mul!(
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix,
         α::Number, β::Number
     )
-    check_mul_axes(C, A, B)
+    check_input(mul!, C, A, B)
     for I in blockdiagindices(C)
         mul!(view(C, Data(I)), view(A, Data(I)), view(B, Data(I)), α, β)
     end
@@ -172,6 +183,7 @@ function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix
 end
 
 function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    check_input(*, A, B)
     C = allocate_output(*, A, B)
     return mul!(C, A, B)
 end
@@ -185,18 +197,30 @@ end
 
 # ========================  show  ========================
 
-function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix{T}) where {T}
+function Base.summary(io::IO, m::FusedGradedMatrix)
     nblocks = length(m.sectors)
-    print(io, nblocks, "-block FusedGradedMatrix{", T, "} with sectors ")
-    print(io, "[")
-    join(io, label.(m.sectors), ", ")
+    print(io, nblocks, "-block ", typeof(m), " with sectors [")
+    join(io, m.sectors, ", ")
     print(io, "]")
     return nothing
 end
 
-function Base.show(io::IO, m::FusedGradedMatrix{T}) where {T}
+function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
+    summary(io, m)
+    println(io, ":")
+    for (d, g) in pairs(axes(m))
+        print(io, "  Dim $d: ")
+        show(io, g)
+        println(io)
+    end
+    isempty(m.sectors) && return nothing
+    Base.print_array(io, m)
+    return nothing
+end
+
+function Base.show(io::IO, m::FusedGradedMatrix)
     nblocks = length(m.sectors)
-    print(io, nblocks, "-block FusedGradedMatrix{", T, "}")
+    print(io, nblocks, "-block ", typeof(m))
     return nothing
 end
 
@@ -224,18 +248,4 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
         m[Data(I)] = view(a, Data(I))
     end
     return m
-end
-
-"""
-    AbelianGradedArray(m::FusedGradedMatrix)
-
-Convert a `FusedGradedMatrix` to a 2D `AbelianGradedArray`.
-Inverse of `FusedGradedMatrix(::AbelianGradedArray)`.
-"""
-function AbelianGradedArray(m::FusedGradedMatrix{T}) where {T}
-    a = similar(m, axes(m))
-    for I in blockdiagindices(m)
-        a[Data(I)] = view(m, Data(I))
-    end
-    return a
 end

@@ -52,6 +52,19 @@ function AbelianGradedArray{T}(
     return AbelianGradedArray{T}(init, axs)
 end
 
+# Convert any `AbstractGradedMatrix` (e.g. a `FusedGradedMatrix`) to an
+# `AbelianGradedArray` with the same axes and stored blocks.
+function AbelianGradedArray(m::AbstractGradedMatrix)
+    # Assumes each allowed block of the target is also stored in `m` — every
+    # `similar` allocation is overwritten by the loop below, so no `zero!`
+    # is needed.
+    a = similar(m, axes(m))
+    for I in eachblockstoredindex(m)
+        a[Data(I)] = view(m, Data(I))
+    end
+    return a
+end
+
 # ---------------------------------------------------------------------------
 #  AbstractArray interface
 # ---------------------------------------------------------------------------
@@ -117,6 +130,9 @@ function Base.getindex(
         a::AbelianGradedArray{T, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
+    # `zero!` is needed: we only copy sub-ranges from stored source blocks,
+    # so destination block regions outside those sub-ranges (and destination
+    # blocks with no source counterpart) must start at 0.
     a_dest = FI.zero!(similar(a, ax_dest))
     # Map source block b → list of (dest BlockIndexRange, src subrange).
     src_to_dests = ntuple(Val(N)) do d
@@ -159,6 +175,9 @@ function Base.getindex(
         a::AbelianGradedArray{T, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
+    # `zero!` is needed: each source block writes into a sub-range of one
+    # destination block, so remaining sub-ranges (and destination blocks
+    # with no source counterpart) must start at 0.
     a_dest = FI.zero!(similar(a, ax_dest))
     ax = axes(a)
     # Map source Block → BlockIndexRange encoding dest block + subrange within it
@@ -196,6 +215,18 @@ end
 
 function BlockSparseArrays.eachblockstoredindex(a::AbelianGradedArray{T, N}) where {T, N}
     return (Block(k) for k in keys(a.blockdata))
+end
+
+# Implement the `SparseArraysBase` interface on `AbelianBlocks` (the lazy
+# block view) so that `storedlength(blocks(a))` — and by extension
+# `blockstoredlength(a)` — reflects the dict-of-keys storage rather than
+# treating every slot as stored.
+function SparseArraysBase.eachstoredindex(b::AbelianBlocks{T, N}) where {T, N}
+    return (CartesianIndex(k) for k in keys(b.parent.blockdata))
+end
+SparseArraysBase.storedvalues(b::AbelianBlocks) = values(b.parent.blockdata)
+function SparseArraysBase.isstored(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
+    return haskey(b.parent.blockdata, I)
 end
 
 # ---------------------------------------------------------------------------
@@ -240,7 +271,9 @@ sectortype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = S
 
 function Base.permutedims(a::AbelianGradedArray{<:Any, N}, perm) where {N}
     dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
-    a_dest = FI.zero!(similar(a, dest_axes))
+    # No `zero!` here: `permutedims!` → `permutedimsopadd!(β=0)` already
+    # zeros the destination before writing.
+    a_dest = similar(a, dest_axes)
     return permutedims!(a_dest, a, perm)
 end
 
@@ -288,19 +321,32 @@ const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
 #  show
 # ---------------------------------------------------------------------------
 
-function Base.show(io::IO, ::MIME"text/plain", a::AbelianGradedArray{T, N}) where {T, N}
+function Base.summary(io::IO, a::AbelianGradedArray)
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
-    nstored = length(collect(eachblockstoredindex(a)))
-    print(io, block_str, "-blocked ", size_str, " AbelianGradedArray{", T, "}")
+    nstored = blockstoredlength(a)
+    print(io, block_str, "-blocked ", size_str, " ", typeof(a))
     print(io, " with ", nstored, " stored block", nstored == 1 ? "" : "s")
     return nothing
 end
 
-function Base.show(io::IO, a::AbelianGradedArray{T, N}) where {T, N}
+function Base.show(io::IO, ::MIME"text/plain", a::AbelianGradedArray)
+    summary(io, a)
+    println(io, ":")
+    for (d, g) in pairs(axes(a))
+        print(io, "  Dim $d: ")
+        show(io, g)
+        println(io)
+    end
+    isempty(a) && return nothing
+    Base.print_array(io, a)
+    return nothing
+end
+
+function Base.show(io::IO, a::AbelianGradedArray)
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
-    print(io, block_str, "-blocked ", size_str, " AbelianGradedArray{", T, "}")
+    print(io, block_str, "-blocked ", size_str, " ", typeof(a))
     return nothing
 end
 

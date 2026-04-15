@@ -116,10 +116,15 @@ using Test: @test, @testset
         str = sprint(show, si)
         @test contains(str, "SectorOneTo")
         @test contains(str, "3")
+        @test !contains(str, "'")
+        @test !contains(str, "dual")
 
+        # Duality is factored to the outside: `dual(SectorOneTo(...))`.
         sid = SectorOneTo(U1(1)', 3)
         strd = sprint(show, sid)
-        @test endswith(strd, "'")
+        @test startswith(strd, "dual(SectorOneTo(")
+        @test endswith(strd, "))")
+        @test !contains(strd, "'")
     end
 
     @testset "dual sectors accessor for collection interface" begin

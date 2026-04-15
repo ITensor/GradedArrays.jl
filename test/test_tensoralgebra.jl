@@ -213,6 +213,30 @@ end
     @test data(fsm[Block(3, 3)]) ≈ 2 * ones(1, 1)
 end
 
+@testset "matricize 3D AbelianGradedArray and unmatricize round-trip" begin
+    # 3D case where the merged codomain (tensor product of two `r`s) has
+    # sectors absent from the dual domain — this exercises
+    # `insert_missing_sectors` (codomain has U1(2), domain has only U1(0)
+    # and U1(1)).
+    r = gradedrange([U1(0) => 1, U1(1) => 2])
+    a = zeros(Float64, (r, r, dual(r)))
+    a[Block(1, 1, 1)] = fill(1.0, 1, 1, 1)
+    a[Block(1, 2, 2)] = fill(2.0, 1, 2, 2)
+    a[Block(2, 1, 2)] = fill(3.0, 2, 1, 2)
+
+    fsm = matricize(a, (1, 2), (3,))
+    @test fsm isa FusedGradedMatrix{Float64}
+    @test fsm.sectors == [U1(0), U1(1), U1(2)]
+
+    # Round-trip through `unmatricize` recovers the original blocks.
+    a_back = unmatricize(fsm, (r, r), (dual(r),))
+    @test a_back isa AbelianGradedArray
+    @test ndims(a_back) == 3
+    for I in eachblockstoredindex(a)
+        @test data(a[I]) ≈ data(a_back[I])
+    end
+end
+
 @testset "FusedGradedMatrix(::AbelianGradedMatrix) requires canonical fused axes" begin
     row_ax = gradedrange([U1(0) => 2, U1(1) => 3])
     a = AbelianGradedArray{Float64}(undef, row_ax, dual(row_ax))
@@ -319,4 +343,45 @@ end
     b_dense[1:2, 1:2, 1:2, 1:2] = b_data
     result_dense, _ = contract(a_dense, (1, -1, 2, -2), b_dense, (2, -3, 1, -4))
     @test size(result) == size(result_dense)
+end
+
+@testset "scale! with β=0 zeros uninitialized blocks" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    GradedArrays.scale!(a, false)
+    @test all(iszero, data(a[Block(1, 1)]))
+    @test all(iszero, data(a[Block(2, 2)]))
+end
+
+@testset "allocating broadcast produces correct results" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = zeros(Float64, (g, dual(g)))
+    a[Block(1, 1)] = [1.0 0.0; 0.0 1.0]
+    a[Block(2, 2)] = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+
+    b = 3 .* a
+    @test data(b[Block(1, 1)]) == [3.0 0.0; 0.0 3.0]
+    @test data(b[Block(2, 2)]) == [3.0 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 3.0]
+
+    c = a - a
+    @test all(iszero, data(c[Block(1, 1)]))
+    @test all(iszero, data(c[Block(2, 2)]))
+end
+
+@testset "FusedGradedMatrix broadcasting" begin
+    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
+
+    m2 = 3 * m
+    @test data(m2[Block(1, 1)]) == [3.0 6.0; 9.0 12.0]
+    @test data(m2[Block(2, 2)]) == [15.0 0.0; 0.0 18.0]
+
+    n = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(2, 2)])
+    s = m + n
+    @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
+    @test data(s[Block(2, 2)]) == [6.0 1.0; 1.0 7.0]
+
+    c = similar(m, Float64)
+    c .= 3 .* m .+ 2 .* n
+    @test data(c[Block(1, 1)]) == [5.0 8.0; 11.0 14.0]
+    @test data(c[Block(2, 2)]) == [17.0 2.0; 2.0 20.0]
 end

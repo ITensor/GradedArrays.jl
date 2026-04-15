@@ -115,6 +115,10 @@ function TensorAlgebra.matricize(
         style::BlockReshapeFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
     ax_2d = matricize_axes(style, a, ndims_codomain)
+    # `similar` allocates every allowed 2D block; the loop below only writes
+    # those coming from stored blocks of `a`. For a sparse input, allowed
+    # destination blocks with no source counterpart stay at their initial
+    # value, so we must explicitly zero them.
     a_2d = FI.zero!(similar(a, ax_2d))
 
     codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
@@ -139,6 +143,59 @@ function TensorAlgebra.matricize(
     return a_2d
 end
 
+# ========================  insert_missing_sectors  ========================
+
+# Reshape an `AbelianGradedMatrix` so the codomain and domain axes carry the
+# same (non-dual) sector list — i.e. `sectors(axes(a,1)) == dual.(sectors(axes(a,2)))`
+# — by inserting a multiplicity-0 entry wherever a sector is present on one
+# axis but not the other. Stored blocks are re-placed at the corresponding
+# sector indices (which may involve both insertion and permutation if the
+# input axes aren't already sorted consistently with `dual`).
+#
+# Requires each axis to have sorted, unique sectors (as produced by
+# `sectormergesort`); repeated sectors on one axis would be silently collapsed
+# by the dict-based multiplicity lookup below, and the sorted-insertion logic
+# (via `sort!(vcat(...))`) would reorder blocks unexpectedly otherwise.
+function insert_missing_sectors end
+
+function check_input(::typeof(insert_missing_sectors), a::AbelianGradedMatrix)
+    cod_sects = sectors(axes(a, 1))
+    dom_sects = sectors(axes(a, 2))
+    (issorted(cod_sects) && allunique(cod_sects)) ||
+        throw(ArgumentError("codomain sectors must be sorted and unique"))
+    (issorted(dual.(dom_sects)) && allunique(dom_sects)) ||
+        throw(ArgumentError("domain sectors must have sorted, unique duals"))
+    return nothing
+end
+
+function insert_missing_sectors(a::AbelianGradedMatrix)
+    check_input(insert_missing_sectors, a)
+    cod_sects = sectors(axes(a, 1))
+    dom_sects = sectors(axes(a, 2))
+    cod_sects == dual.(dom_sects) && return a
+
+    canonical = sort!(unique!(vcat(collect(cod_sects), dual.(collect(dom_sects)))))
+    cod_lens = Dict(zip(cod_sects, datalengths(axes(a, 1))))
+    dom_lens = Dict(zip(dom_sects, datalengths(axes(a, 2))))
+    cod′ = gradedrange([s => get(cod_lens, s, 0) for s in canonical])
+    dom′ = gradedrange([dual(s) => get(dom_lens, dual(s), 0) for s in canonical])
+
+    # No `zero!` needed: every allowed block of `a′` that is non-empty on
+    # both axes corresponds to a sector that exists on both `cod` and `dom`
+    # of `a`, i.e. to a stored block of `a` (assuming `a` is the output of
+    # `sectormergesort`, where all allowed blocks are stored). Blocks coming
+    # purely from padding have multiplicity 0 on one axis — zero-size
+    # allocations with no data to clean up.
+    a′ = similar(a, (cod′, dom′))
+    pos = Dict(s => i for (i, s) in pairs(canonical))
+    for I in eachblockstoredindex(a)
+        aI = view(a, I)
+        s_cod, s_dom = sectoraxes(aI)
+        a′[Data(pos[s_cod], pos[dual(s_dom)])] = data(aI)
+    end
+    return a′
+end
+
 # ========================  SectorFusion AbelianGradedArray matricize  ========================
 
 function TensorAlgebra.matricize(
@@ -146,7 +203,7 @@ function TensorAlgebra.matricize(
     ) where {K}
     a_reshaped = matricize(BlockReshapeFusion(), a, ndims_codomain)
     a_merged = sectormergesort(a_reshaped)
-    return FusedGradedMatrix(a_merged)
+    return FusedGradedMatrix(insert_missing_sectors(a_merged))
 end
 
 # ========================  AbelianGradedArray unmatricize  ========================
@@ -186,7 +243,7 @@ function TensorAlgebra.unmatricize(
     return AbelianSectorArray(msectors, mdata)
 end
 
-# ========================  BlockReshapeFusion AbelianGradedArray unmatricize  ========================
+# ========================  BlockReeshapeFusion AbelianGradedArray unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
         ::BlockReshapeFusion, m::AbelianGradedMatrix{T},
@@ -196,6 +253,10 @@ function TensorAlgebra.unmatricize(
     K = length(codomain_axes)
     N = K + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
+    # `similar` allocates every allowed N-D block; the loop only writes those
+    # coming from stored 2D blocks of `m`. For a sparse input, allowed
+    # destination blocks with no source counterpart must be explicitly
+    # zeroed.
     a = FI.zero!(similar(m, dest_axes))
 
     cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
@@ -216,6 +277,84 @@ function TensorAlgebra.unmatricize(
     return a
 end
 
+# ========================  delete_missing_sectors  ========================
+
+# Reverse `insert_missing_sectors`: given a matrix `m` with canonical-dual
+# axes (as produced by `insert_missing_sectors`) and target axes
+# `(cod_ax, dom_ax)` whose allowed-block sectors are a subset of `m`'s, drop
+# `m`'s sectors that are absent from the target. In the canonical matricize
+# → unmatricize round-trip, the dropped sectors are exactly the
+# zero-multiplicity entries `insert_missing_sectors` added, so nothing is
+# actually lost.
+#
+# Each axis (on both `m` and the target) must have sorted, unique sectors,
+# and `m` must have canonical-dual codomain/domain axes
+# (`sectors(cod_m) == dual.(sectors(dom_m))`). The target axes are not
+# required to be canonical duals (`unmatricize` takes the unfused target
+# axes, which can have asymmetric sector sets).
+#
+# Preconditions:
+#   - sectors of `m` absent from the target have multiplicity 0 on at least
+#     one side (empty block → safe to drop);
+#   - every allowed block of the target has a corresponding sector in `m`
+#     (otherwise we'd be inventing data out of thin air, which is a user
+#     error — they've passed target axes incompatible with `m`).
+function delete_missing_sectors end
+
+function check_input(
+        ::typeof(delete_missing_sectors),
+        m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
+    )
+    axs = (
+        ("m codomain", sectors(axes(m, 1)), datalengths(axes(m, 1)), sectors(cod_ax)),
+        ("m domain", sectors(axes(m, 2)), datalengths(axes(m, 2)), sectors(dom_ax)),
+    )
+    for (name, m_sects, m_lens, t_sects) in axs
+        # 1. Input (m) and output (target) axes are sorted and unique.
+        (issorted(m_sects) && allunique(m_sects)) ||
+            throw(ArgumentError("$name sectors must be sorted and unique"))
+        (issorted(t_sects) && allunique(t_sects)) ||
+            throw(ArgumentError("target $name sectors must be sorted and unique"))
+        # 2. Target sectors are a subset of `m`'s sectors.
+        issubset(t_sects, m_sects) || throw(
+            ArgumentError(
+                "target $name sectors $(setdiff(t_sects, m_sects)) are missing from m"
+            )
+        )
+        # 3. `m` sectors dropped by the target have multiplicity 0.
+        for (i, s) in pairs(m_sects)
+            s ∈ t_sects && continue
+            iszero(m_lens[i]) || throw(
+                ArgumentError(
+                    "$name sector $s would be dropped by the target but has non-zero multiplicity in m"
+                )
+            )
+        end
+    end
+    return nothing
+end
+
+function delete_missing_sectors(
+        m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
+    )
+    check_input(delete_missing_sectors, m, cod_ax, dom_ax)
+    # No `zero!` needed: `check_input` guarantees every allowed-block sector
+    # of the target is present in `m`, so every allocation below is
+    # overwritten by the loop.
+    a = similar(m, (cod_ax, dom_ax))
+    cod_pos = Dict(s => i for (i, s) in pairs(sectors(cod_ax)))
+    dom_pos = Dict(s => j for (j, s) in pairs(sectors(dom_ax)))
+    for I in eachblockstoredindex(m)
+        aI = view(m, I)
+        s_cod, s_dom = sectoraxes(aI)
+        i = get(cod_pos, s_cod, nothing)
+        j = get(dom_pos, s_dom, nothing)
+        (isnothing(i) || isnothing(j)) && continue
+        a[Data(i, j)] = data(aI)
+    end
+    return a
+end
+
 # ========================  SectorFusion FusedGradedMatrix unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
@@ -223,13 +362,16 @@ function TensorAlgebra.unmatricize(
         codomain_axes::Tuple{Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
-    blocked_axes = (codomain_axes..., domain_axes...)
-    if isempty(blocked_axes)
+    isempty((codomain_axes..., domain_axes...)) &&
         error("Scalar unmatricize not yet supported for FusedGradedMatrix")
-    end
-
+    # Compute the unfused 2D axes the N-D blocked axes produce, then their
+    # sector-merged form (the axes matricize would have produced).
     unfused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
-    m_abelian = AbelianGradedArray(m)
+    merged_cod = sectormergesort(unfused_axes[1])
+    merged_dom = sectormergesort(unfused_axes[2])
+    # Embed `m` into an `AbelianGradedMatrix` with those merged axes (sectors
+    # in `merged_*` but not in `m.sectors` simply land as unstored blocks).
+    m_abelian = delete_missing_sectors(m, merged_cod, merged_dom)
     blockperms = sectorsortperm.(unfused_axes)
     J = map(invblockmergeperm, unfused_axes, blockperms, axes(m_abelian))
     m_split = m_abelian[J...]

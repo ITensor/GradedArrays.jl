@@ -77,3 +77,23 @@ function Base.setindex!(
     view(a, I) .= value
     return a
 end
+
+# ---------------------------------------------------------------------------
+#  Display — convert to BlockSparseArray for printing
+# ---------------------------------------------------------------------------
+
+using BlockSparseArrays: BlockSparseArray
+
+function _to_blocksparsearray(a::AbstractGradedArray{T, N}) where {T, N}
+    blocked_axes = map(g -> blockedrange(blocklengths(g)), axes(a))
+    bsa = BlockSparseArray{T}(undef, blocked_axes)
+    for bI in eachblockstoredindex(a)
+        blk = view(a, bI)
+        bsa[bI] = collect(Array(sector(blk)) ⊗ data(blk))
+    end
+    return bsa
+end
+
+function Base.print_array(io::IO, a::AbstractGradedArray)
+    return Base.print_array(io, _to_blocksparsearray(a))
+end

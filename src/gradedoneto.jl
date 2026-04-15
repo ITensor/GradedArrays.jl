@@ -7,7 +7,7 @@ This is the axis type for `AbelianGradedArray`.
 Stores non-dual `SectorRange` values in `nondual_sectors`, sector lengths, and a single
 `isdual` flag. The `sectors` accessor applies the `isdual` flag on the fly.
 """
-struct GradedOneTo{S <: SectorRange} <: AbstractUnitRange{Int}
+struct GradedOneTo{S <: SectorRange} <: AbstractBlockedUnitRange{Int, Vector{Int}}
     nondual_sectors::Vector{S}
     datalengths::Vector{Int}
     isdual::Bool
@@ -34,9 +34,9 @@ isdual(g::GradedOneTo) = g.isdual
 sectors(g::GradedOneTo) = isdual(g) ? dual.(g.nondual_sectors) : g.nondual_sectors
 sectorlengths(g::GradedOneTo) = length.(sectors(g))
 Base.first(::GradedOneTo) = 1
+BlockArrays.blocklasts(g::GradedOneTo) = cumsum(blocklengths(g))
 BlockArrays.blocklength(g::GradedOneTo) = length(g.nondual_sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
-Base.length(g::GradedOneTo) = sum(blocklengths(g); init = 0)
 
 # sectortype, SymmetryStyle
 sectortype(::Type{GradedOneTo{S}}) where {S} = S
@@ -178,17 +178,36 @@ function Base.hash(g::GradedOneTo, h::UInt)
     return hash(g.nondual_sectors, hash(datalengths(g), hash(isdual(g), h)))
 end
 
-# Show
+# Show. Factor the `dual` to the outside — `dual(gradedrange([...]))` — rather
+# than decorating each sector, so the printed form is compact and round-trips
+# through the constructor.
 function Base.show(io::IO, g::GradedOneTo)
-    print(io, "GradedOneTo(")
-    print(io, "[")
-    for (i, (s, m)) in enumerate(zip(sectors(g), datalengths(g)))
-        i > 1 && print(io, ", ")
-        show(io, label(s))
-        print(io, " => ", m)
-    end
+    isdual(g) && print(io, "dual(")
+    print(io, "gradedrange([")
+    join(
+        io,
+        (s => m for (s, m) in zip(g.nondual_sectors, datalengths(g))),
+        ", "
+    )
     print(io, "])")
-    isdual(g) && print(io, "'")
+    isdual(g) && print(io, ")")
+    return nothing
+end
+
+# Show a "sectors: ..." line between the default AbstractArray summary and the
+# block-separated element listing inherited from AbstractBlockedUnitRange. For
+# dual axes the sectors are shown as `dual.([...])`.
+function Base.show(io::IO, ::MIME"text/plain", g::GradedOneTo)
+    summary(io, g)
+    isempty(g) && return nothing
+    print(io, ":\n  sectors: ")
+    isdual(g) && print(io, "dual.(")
+    print(io, "[")
+    join(io, g.nondual_sectors, ", ")
+    print(io, "]")
+    isdual(g) && print(io, ")")
+    println(io)
+    Base.print_array(io, g)
     return nothing
 end
 

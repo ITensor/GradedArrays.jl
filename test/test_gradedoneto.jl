@@ -118,14 +118,18 @@ using Test: @test, @test_throws, @testset
     @testset "show" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         str = sprint(show, g)
-        @test contains(str, "GradedOneTo")
+        @test contains(str, "gradedrange")
         @test contains(str, "=> 2")
         @test contains(str, "=> 3")
-        @test !endswith(str, "'")
+        @test !contains(str, "'")
+        @test !contains(str, "dual")
 
+        # Dual axes factor the `dual` to the outside.
         gd = g'
         strd = sprint(show, gd)
-        @test endswith(strd, "'")
+        @test !endswith(strd, "'")
+        @test startswith(strd, "dual(gradedrange(")
+        @test endswith(strd, "))")
     end
 
     @testset "repeated sectors allowed" begin

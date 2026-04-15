@@ -102,11 +102,16 @@ end
 
 # ========================  Show  ========================
 
+# Factor the `dual` to the outside — `dual(SectorOneTo(sector, n))` — rather
+# than decorating the inner sector, mirroring the `GradedOneTo` convention.
 function Base.show(io::IO, r::SectorOneTo)
+    isdual(r) && print(io, "dual(")
     print(io, "SectorOneTo(")
-    show(io, label(sector(r)))
+    show(io, nondual(sector(r)))
     print(io, ", ", datalength(r))
     print(io, ")")
-    isdual(r) && print(io, "'")
+    isdual(r) && print(io, ")")
     return nothing
 end
+
+Base.adjoint(r::SectorOneTo) = dual(r)

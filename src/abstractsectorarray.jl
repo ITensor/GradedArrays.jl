@@ -53,3 +53,26 @@ function FI.zero!(a::AbstractSectorArray)
     FI.zero!(data(a))
     return a
 end
+
+# ========================  display  ========================
+
+function Base.print_array(io::IO, sa::AbstractSectorArray)
+    Base.print_array(io, sector(sa))
+    println(io, "\n ⊗")
+    Base.print_array(io, data(sa))
+    return nothing
+end
+
+function Base.show(io::IO, sa::AbstractSectorArray)
+    show(io, sector(sa))
+    print(io, " ⊗ ")
+    show(io, data(sa))
+    return nothing
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sa::AbstractSectorArray)
+    summary(io, sa)
+    println(io, ":")
+    Base.print_array(io, sa)
+    return nothing
+end
