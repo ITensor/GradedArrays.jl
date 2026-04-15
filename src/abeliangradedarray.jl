@@ -53,9 +53,11 @@ function AbelianGradedArray{T}(
 end
 
 # Convert any `AbstractGradedMatrix` (e.g. a `FusedGradedMatrix`) to an
-# `AbelianGradedArray` with the same axes and stored blocks.
+# `AbelianGradedArray` with the same axes and stored blocks. Assumes each
+# allowed block of the target is also stored in `m` — every `similar`
+# allocation is overwritten by the loop below, so no `zero!` is needed.
 function AbelianGradedArray(m::AbstractGradedMatrix)
-    a = FI.zero!(similar(m, axes(m)))
+    a = similar(m, axes(m))
     for I in eachblockstoredindex(m)
         a[Data(I)] = view(m, Data(I))
     end

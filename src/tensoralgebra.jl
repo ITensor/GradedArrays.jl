@@ -167,6 +167,15 @@ function TensorAlgebra.permutedimsopadd!(
         y::AbstractGradedArray{<:Any, N}, op, x::AbstractGradedArray{<:Any, N}, perm,
         α::Number, β::Number
     ) where {N}
+    # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
+    # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
+    # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent
+    # `permutedimsopadd!(..., α, one(α))` calls on a block of `y` that
+    # doesn't get visited by the loop below would leak that garbage into the
+    # result. Allocating broadcasts like `3 * a` go through this path (they
+    # call with β == 0 on a fresh `similar`-allocated array); before this
+    # fix they occasionally produced `NaN`s in unstored-block slots. Call
+    # `zero!` explicitly for β == 0 to avoid the NaN-propagation trap.
     iszero(β) ? FI.zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
