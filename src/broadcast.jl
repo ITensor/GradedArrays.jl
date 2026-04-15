@@ -52,39 +52,39 @@ function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:SectorStyl
     return dest
 end
 
-# ========================  AbelianGradedArray broadcasting  ========================
+# ========================  GradedArray broadcasting  ========================
 
-struct AbelianGradedStyle{N} <: BC.AbstractArrayStyle{N} end
-AbelianGradedStyle{N}(::Val{M}) where {N, M} = AbelianGradedStyle{M}()
+struct GradedStyle{N} <: BC.AbstractArrayStyle{N} end
+GradedStyle{N}(::Val{M}) where {N, M} = GradedStyle{M}()
 
-function BC.BroadcastStyle(::Type{<:AbelianGradedArray{<:Any, N}}) where {N}
-    return AbelianGradedStyle{N}()
+function BC.BroadcastStyle(::Type{<:AbstractGradedArray{<:Any, N}}) where {N}
+    return GradedStyle{N}()
 end
 function BC.BroadcastStyle(
-        style::AbelianGradedStyle{N},
+        style::GradedStyle{N},
         ::BC.DefaultArrayStyle{0}
     ) where {N}
     return style
 end
 function BC.BroadcastStyle(
         ::BC.DefaultArrayStyle{0},
-        style::AbelianGradedStyle{N}
+        style::GradedStyle{N}
     ) where {N}
     return style
 end
-BC.BroadcastStyle(s1::AbelianGradedStyle{N}, ::AbelianGradedStyle{N}) where {N} = s1
+BC.BroadcastStyle(s1::GradedStyle{N}, ::GradedStyle{N}) where {N} = s1
 
 # TODO: Ideally this would incorporate information from all broadcast arguments
 # (or their blocktypes) when computing similar, rather than picking one argument.
-function Base.similar(bc::BC.Broadcasted{<:AbelianGradedStyle}, elt::Type)
+function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type)
     bc′ = BC.flatten(bc)
-    arg = bc′.args[findfirst(arg -> arg isa AbelianGradedArray, bc′.args)]
+    arg = bc′.args[findfirst(arg -> arg isa AbstractGradedArray, bc′.args)]
     return similar(arg, elt)
 end
 
-function Base.copyto!(dest::AbelianGradedArray, bc::BC.Broadcasted{<:AbelianGradedStyle})
+function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:GradedStyle})
     lb = tryflattenlinear(bc)
     isnothing(lb) &&
-        throw(ArgumentError("AbelianGradedArray broadcasting requires linear operations"))
+        throw(ArgumentError("AbstractGradedArray broadcasting requires linear operations"))
     return copyto!(dest, lb)
 end

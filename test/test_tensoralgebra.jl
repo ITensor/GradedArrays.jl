@@ -343,3 +343,21 @@ end
     @test all(iszero, data(c[Block(1, 1)]))
     @test all(iszero, data(c[Block(2, 2)]))
 end
+
+@testset "FusedGradedMatrix broadcasting" begin
+    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
+
+    m2 = 3 * m
+    @test data(m2[Block(1, 1)]) == [3.0 6.0; 9.0 12.0]
+    @test data(m2[Block(2, 2)]) == [15.0 0.0; 0.0 18.0]
+
+    n = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(2, 2)])
+    s = m + n
+    @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
+    @test data(s[Block(2, 2)]) == [6.0 1.0; 1.0 7.0]
+
+    c = similar(m, Float64)
+    c .= 3 .* m .+ 2 .* n
+    @test data(c[Block(1, 1)]) == [5.0 8.0; 11.0 14.0]
+    @test data(c[Block(2, 2)]) == [17.0 2.0; 2.0 20.0]
+end

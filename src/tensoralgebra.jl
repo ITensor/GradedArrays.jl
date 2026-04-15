@@ -164,7 +164,7 @@ function TensorAlgebra.permutedimsopadd!(
 end
 
 function TensorAlgebra.permutedimsopadd!(
-        y::AbelianGradedArray{<:Any, N}, op, x::AbelianGradedArray{<:Any, N}, perm,
+        y::AbstractGradedArray{<:Any, N}, op, x::AbstractGradedArray{<:Any, N}, perm,
         α::Number, β::Number
     ) where {N}
     scale!(y, β)
