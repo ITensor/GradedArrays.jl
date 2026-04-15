@@ -3,6 +3,7 @@ using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
     datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
+using LinearAlgebra: LinearAlgebra
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -220,6 +221,47 @@ end
     @test m isa FusedGradedMatrix{Float64}
     @test data(m[Block(1, 1)]) == [1.0 2.0; 3.0 4.0]
     @test data(m[Block(2, 2)]) == ones(3, 3)
+
+    # Non-abelian (SU2): the codomain block lengths pick up the irrep
+    # dimension `2j + 1`, so `Block(k, k)` has size
+    # `(sectorlength × datalength)^2`.
+    m_su2 = FusedGradedMatrix(
+        [
+            SU2(0) => [1.0;;],
+            SU2(1 // 2) => [1.0 2.0; 3.0 4.0],
+            SU2(1) => Matrix{Float64}(LinearAlgebra.I, 3, 3),
+        ]
+    )
+    @test m_su2 isa FusedGradedMatrix{Float64, Matrix{Float64}, SU2}
+    @test m_su2.sectors == [SU2(0), SU2(1 // 2), SU2(1)]
+    @test data(m_su2[Block(1, 1)]) == [1.0;;]
+    @test data(m_su2[Block(2, 2)]) == [1.0 2.0; 3.0 4.0]
+    # Block(2, 2) lives in SU2(1/2), which has dim 2 → 4×4 in dense view.
+    @test size(m_su2[Block(2, 2)]) == (4, 4)
+end
+
+@testset "FusedGradedMatrix * FusedGradedMatrix" begin
+    @testset "U1 (abelian)" begin
+        a = FusedGradedMatrix([U1(0) => [2.0;;], U1(1) => [1.0 2.0; 3.0 4.0]])
+        b = FusedGradedMatrix([U1(0) => [3.0;;], U1(1) => [0.0 1.0; 1.0 0.0]])
+        c = a * b
+        @test c.sectors == [U1(0), U1(1)]
+        @test data(c[Block(1, 1)]) == [6.0;;]
+        @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
+    end
+    @testset "SU2 (non-abelian)" begin
+        a = FusedGradedMatrix([SU2(0) => [2.0;;], SU2(1 // 2) => [1.0 2.0; 3.0 4.0]])
+        b = FusedGradedMatrix([SU2(0) => [3.0;;], SU2(1 // 2) => [0.0 1.0; 1.0 0.0]])
+        c = a * b
+        @test c.sectors == [SU2(0), SU2(1 // 2)]
+        @test data(c[Block(1, 1)]) == [6.0;;]
+        @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
+    end
+    @testset "mismatched sectors throws" begin
+        a = FusedGradedMatrix([U1(0) => [2.0;;], U1(1) => [1.0 2.0; 3.0 4.0]])
+        b = FusedGradedMatrix([U1(0) => [3.0;;]])
+        @test_throws DimensionMismatch a * b
+    end
 end
 
 @testset "FusedGradedMatrix undef constructor" begin

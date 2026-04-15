@@ -143,11 +143,17 @@ end
 
 # ========================  mul!  ========================
 
-function check_mul_axes(
-        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
-    )
+function check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
     axes(A, 2) == dual(axes(B, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
+    return nothing
+end
+
+function check_input(
+        ::typeof(mul!),
+        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
+    )
+    check_input(*, A, B)
     axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
     axes(C, 2) == axes(B, 2) || throw(DimensionMismatch())
     return nothing
@@ -157,7 +163,7 @@ function LinearAlgebra.mul!(
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix,
         α::Number, β::Number
     )
-    check_mul_axes(C, A, B)
+    check_input(mul!, C, A, B)
     for I in blockdiagindices(C)
         mul!(view(C, Data(I)), view(A, Data(I)), view(B, Data(I)), α, β)
     end
@@ -177,28 +183,9 @@ function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix
 end
 
 function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    if A.sectors == B.sectors
-        C = allocate_output(*, A, B)
-        return mul!(C, A, B)
-    end
-    return _mul_mismatched(A, B)
-end
-
-# Multiply two FusedGradedMatrix objects whose sector sets may differ.
-# Only sectors present in both A and B contribute; sectors in only one
-# operand produce zero blocks that are dropped from the result.
-function _mul_mismatched(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    T = Base.promote_op(*, eltype(A), eltype(B))
-    b_dict = Dict(s => i for (i, s) in enumerate(B.sectors))
-    result_sectors = empty(A.sectors)
-    result_blocks = Matrix{T}[]
-    for (ia, sa) in enumerate(A.sectors)
-        ib = get(b_dict, sa, nothing)
-        isnothing(ib) && continue
-        push!(result_sectors, sa)
-        push!(result_blocks, A.blocks[ia] * B.blocks[ib])
-    end
-    return FusedGradedMatrix(result_sectors, result_blocks)
+    check_input(*, A, B)
+    C = allocate_output(*, A, B)
+    return mul!(C, A, B)
 end
 
 # ========================  similar  ========================
@@ -265,14 +252,23 @@ end
 
 """
     AbelianGradedArray(m::FusedGradedMatrix)
+    AbelianGradedArray(m::FusedGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo)
 
-Convert a `FusedGradedMatrix` to a 2D `AbelianGradedArray`.
-Inverse of `FusedGradedMatrix(::AbelianGradedArray)`.
+Convert a `FusedGradedMatrix` to a 2D `AbelianGradedArray`. With explicit
+axes given, the result has those axes; sectors of `m` whose dual is absent
+from `dom_ax` (or whose sector is absent from `cod_ax`) are dropped, and
+target sectors absent from `m` become unstored blocks.
 """
-function AbelianGradedArray(m::FusedGradedMatrix{T}) where {T}
-    a = similar(m, axes(m))
-    for I in blockdiagindices(m)
-        a[Data(I)] = view(m, Data(I))
+function AbelianGradedArray(m::FusedGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo)
+    a = FI.zero!(similar(m, (cod_ax, dom_ax)))
+    cod_pos = Dict(s => i for (i, s) in enumerate(sectors(cod_ax)))
+    dom_pos = Dict(s => j for (j, s) in enumerate(sectors(dom_ax)))
+    for (k, s) in enumerate(m.sectors)
+        i = get(cod_pos, s, nothing)
+        j = get(dom_pos, dual(s), nothing)
+        (isnothing(i) || isnothing(j)) && continue
+        a[Data(i, j)] = m.blocks[k]
     end
     return a
 end
+AbelianGradedArray(m::FusedGradedMatrix) = AbelianGradedArray(m, axes(m)...)

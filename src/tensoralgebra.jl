@@ -167,17 +167,13 @@ function TensorAlgebra.permutedimsopadd!(
         y::AbstractGradedArray{<:Any, N}, op, x::AbstractGradedArray{<:Any, N}, perm,
         α::Number, β::Number
     ) where {N}
-    if iszero(β)
-        FI.zero!(y)
-    else
-        scale!(y, β)
-    end
+    iszero(β) ? FI.zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
         b_dest = Block(ntuple(i -> b[perm[i]], N))
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
-        TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, true)
+        TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, one(α))
     end
     return y
 end

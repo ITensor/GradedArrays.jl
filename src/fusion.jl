@@ -141,55 +141,30 @@ end
 
 # ========================  pad_to_canonical_duals  ========================
 
-# Pad an AbelianGradedMatrix so its codomain and domain axes form canonical duals.
-# After sectormergesort, the codomain (non-dual) and domain (dual) axes are sorted
-# but may have different sector sets. This adds zero-multiplicity entries for
-# missing sectors so that `sectors(axis1) == dual.(sectors(axis2))`.
-function pad_to_canonical_duals(a::AbelianGradedMatrix{T}) where {T}
-    ax_cod = axes(a, 1)
-    ax_dom = axes(a, 2)
-
-    cod_sects = sectors(ax_cod)
-    dom_sects = sectors(ax_dom)
-
-    # Fast path: already canonical duals
+# Pad an `AbelianGradedMatrix` so the codomain and domain axes carry the same
+# (non-dual) sector list — i.e. `sectors(axes(a,1)) == dual.(sectors(axes(a,2)))`.
+# Sectors that appear only on one side get a multiplicity-0 entry on the other.
+# Stored blocks are re-placed at their new sector indices.
+function pad_to_canonical_duals(a::AbelianGradedMatrix)
+    cod_sects = sectors(axes(a, 1))
+    dom_sects = sectors(axes(a, 2))
     cod_sects == dual.(dom_sects) && return a
 
-    # Compute the union of codomain sectors and dual(domain sectors), all non-dual.
-    # Both inputs are sorted after sectormergesort.
-    cod_nondual = collect(cod_sects)
-    dom_nondual = collect(dual.(dom_sects))
-    all_sects = sort!(unique!([cod_nondual; dom_nondual]))
+    canonical = sort!(unique!(vcat(collect(cod_sects), dual.(collect(dom_sects)))))
+    cod_lens = Dict(zip(cod_sects, datalengths(axes(a, 1))))
+    dom_lens = Dict(zip(dom_sects, datalengths(axes(a, 2))))
+    cod′ = gradedrange([s => get(cod_lens, s, 0) for s in canonical])
+    dom′ = gradedrange([dual(s) => get(dom_lens, dual(s), 0) for s in canonical])
 
-    # Build padded codomain axis (non-dual): existing datalengths for known sectors,
-    # zero for missing ones.
-    cod_dlens = GradedArrays.datalengths(ax_cod)
-    dom_dlens = GradedArrays.datalengths(ax_dom)
-
-    cod_dict = Dict(zip(cod_sects, cod_dlens))
-    dom_dict = Dict(zip(dom_sects, dom_dlens))
-
-    padded_cod_pairs = [s => get(cod_dict, s, 0) for s in all_sects]
-    padded_dom_pairs = [dual(s) => get(dom_dict, dual(s), 0) for s in all_sects]
-
-    padded_cod = gradedrange(padded_cod_pairs)
-    padded_dom = gradedrange(padded_dom_pairs)
-
-    # Allocate padded matrix with zero-initialized blocks.
-    a_padded = GradedArrays.FI.zero!(similar(a, (padded_cod, padded_dom)))
-
-    # Copy existing blocks. Map old block indices to new block indices via sector lookup.
-    cod_idx = Dict(s => i for (i, s) in enumerate(all_sects))
-    dom_idx = Dict(dual(s) => i for (i, s) in enumerate(all_sects))
-
-    for bI in eachblockstoredindex(a)
-        old_row, old_col = Int.(Tuple(bI))
-        new_row = cod_idx[cod_sects[old_row]]
-        new_col = dom_idx[dom_sects[old_col]]
-        copyto!(data(view(a_padded, Block(new_row, new_col))), data(a[bI]))
+    a′ = FI.zero!(similar(a, (cod′, dom′)))
+    pos = Dict(s => i for (i, s) in enumerate(canonical))
+    for I in eachblockstoredindex(a)
+        i, j = Int.(Tuple(I))
+        new_i = pos[cod_sects[i]]
+        new_j = pos[dual(dom_sects[j])]
+        a′[Data(new_i, new_j)] = data(a[I])
     end
-
-    return a_padded
+    return a′
 end
 
 # ========================  SectorFusion AbelianGradedArray matricize  ========================
@@ -272,54 +247,21 @@ end
 
 # ========================  SectorFusion FusedGradedMatrix unmatricize  ========================
 
-# Pad a FusedGradedMatrix to have the given codomain and domain axes.
-# Existing blocks are copied; missing sectors get zero-size blocks (0xN or Nx0).
-function _pad_fused(
-        m::FusedGradedMatrix{T},
-        cod_ax::GradedOneTo,
-        dom_ax::GradedOneTo
-    ) where {T}
-    expected_sects = sectors(cod_ax)
-    expected_cod_dlens = datalengths(cod_ax)
-    expected_dom_dlens = datalengths(dom_ax)
-
-    # Fast path: already matches
-    m.sectors == expected_sects && return m
-
-    m_dict = Dict(s => i for (i, s) in enumerate(m.sectors))
-    new_sectors = collect(expected_sects)
-    new_blocks = Matrix{T}[]
-    for (i, s) in enumerate(expected_sects)
-        j = get(m_dict, s, nothing)
-        if isnothing(j)
-            push!(new_blocks, zeros(T, expected_cod_dlens[i], expected_dom_dlens[i]))
-        else
-            push!(new_blocks, m.blocks[j])
-        end
-    end
-    return FusedGradedMatrix(new_sectors, new_blocks)
-end
-
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::FusedGradedMatrix,
         codomain_axes::Tuple{Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
-    blocked_axes = (codomain_axes..., domain_axes...)
-    if isempty(blocked_axes)
+    isempty((codomain_axes..., domain_axes...)) &&
         error("Scalar unmatricize not yet supported for FusedGradedMatrix")
-    end
-
-    # Compute the unfused 2D axes that the N-D blocked axes produce.
+    # Compute the unfused 2D axes the N-D blocked axes produce, then their
+    # sector-merged form (the axes matricize would have produced).
     unfused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
-    # Merge-sort the unfused axes to get the expected merged axes.
-    expected_cod = sectormergesort(unfused_axes[1])
-    expected_dom = sectormergesort(unfused_axes[2])
-    # Pad m so its axes match the expected merged axes (adds zero-size blocks
-    # for sectors absent from the multiplication result).
-    m_padded = _pad_fused(m, expected_cod, expected_dom)
-
-    m_abelian = AbelianGradedArray(m_padded)
+    merged_cod = sectormergesort(unfused_axes[1])
+    merged_dom = sectormergesort(unfused_axes[2])
+    # Build an `AbelianGradedMatrix` directly with those merged axes (sectors
+    # in `merged_*` but not in `m.sectors` simply land as unstored blocks).
+    m_abelian = AbelianGradedArray(m, merged_cod, merged_dom)
     blockperms = sectorsortperm.(unfused_axes)
     J = map(invblockmergeperm, unfused_axes, blockperms, axes(m_abelian))
     m_split = m_abelian[J...]

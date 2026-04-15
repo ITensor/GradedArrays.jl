@@ -213,6 +213,30 @@ end
     @test data(fsm[Block(3, 3)]) ≈ 2 * ones(1, 1)
 end
 
+@testset "matricize 3D AbelianGradedArray and unmatricize round-trip" begin
+    # 3D case where the merged codomain (tensor product of two `r`s) has
+    # sectors absent from the dual domain — this exercises
+    # `pad_to_canonical_duals` (codomain has U1(2), domain has only U1(0)
+    # and U1(1)).
+    r = gradedrange([U1(0) => 1, U1(1) => 2])
+    a = zeros(Float64, (r, r, dual(r)))
+    a[Block(1, 1, 1)] = fill(1.0, 1, 1, 1)
+    a[Block(1, 2, 2)] = fill(2.0, 1, 2, 2)
+    a[Block(2, 1, 2)] = fill(3.0, 2, 1, 2)
+
+    fsm = matricize(a, (1, 2), (3,))
+    @test fsm isa FusedGradedMatrix{Float64}
+    @test fsm.sectors == [U1(0), U1(1), U1(2)]
+
+    # Round-trip through `unmatricize` recovers the original blocks.
+    a_back = unmatricize(fsm, (r, r), (dual(r),))
+    @test a_back isa AbelianGradedArray
+    @test ndims(a_back) == 3
+    for I in eachblockstoredindex(a)
+        @test data(a[I]) ≈ data(a_back[I])
+    end
+end
+
 @testset "FusedGradedMatrix(::AbelianGradedMatrix) requires canonical fused axes" begin
     row_ax = gradedrange([U1(0) => 2, U1(1) => 3])
     a = AbelianGradedArray{Float64}(undef, row_ax, dual(row_ax))
