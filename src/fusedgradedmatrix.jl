@@ -177,8 +177,28 @@ function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix
 end
 
 function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    C = allocate_output(*, A, B)
-    return mul!(C, A, B)
+    if A.sectors == B.sectors
+        C = allocate_output(*, A, B)
+        return mul!(C, A, B)
+    end
+    return _mul_mismatched(A, B)
+end
+
+# Multiply two FusedGradedMatrix objects whose sector sets may differ.
+# Only sectors present in both A and B contribute; sectors in only one
+# operand produce zero blocks that are dropped from the result.
+function _mul_mismatched(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    T = Base.promote_op(*, eltype(A), eltype(B))
+    b_dict = Dict(s => i for (i, s) in enumerate(B.sectors))
+    result_sectors = empty(A.sectors)
+    result_blocks = Matrix{T}[]
+    for (ia, sa) in enumerate(A.sectors)
+        ib = get(b_dict, sa, nothing)
+        isnothing(ib) && continue
+        push!(result_sectors, sa)
+        push!(result_blocks, A.blocks[ia] * B.blocks[ib])
+    end
+    return FusedGradedMatrix(result_sectors, result_blocks)
 end
 
 # ========================  similar  ========================
@@ -190,12 +210,20 @@ end
 
 # ========================  show  ========================
 
-function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix{T}) where {T}
+function Base.summary(io::IO, m::FusedGradedMatrix{T}) where {T}
     nblocks = length(m.sectors)
     print(io, nblocks, "-block FusedGradedMatrix{", T, "} with sectors ")
     print(io, "[")
     join(io, m.sectors, ", ")
     print(io, "]")
+    return nothing
+end
+
+function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
+    summary(io, m)
+    isempty(m.sectors) && return nothing
+    println(io, ":")
+    Base.print_array(io, m)
     return nothing
 end
 

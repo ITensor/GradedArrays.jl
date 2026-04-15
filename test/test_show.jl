@@ -1,5 +1,7 @@
-using GradedArrays: GradedArrays, AbelianSectorArray, Fib, FusedGradedMatrix, GradedOneTo,
-    Ising, O2, SU2, SectorMatrix, SectorOneTo, TrivialSector, U1, dual, gradedrange
+using BlockArrays: Block
+using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray, Fib,
+    FusedGradedMatrix, GradedOneTo, Ising, O2, SU2, SectorMatrix, SectorOneTo,
+    TrivialSector, U1, dual, gradedrange
 using KroneckerArrays: ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
@@ -87,4 +89,39 @@ end
     @test occursin("⊗", s_plain)
     @test occursin("SectorMatrix", s_plain)
     @test occursin("U1(1)", s_plain)
+end
+
+@testset "AbelianGradedArray text/plain display" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 2])
+    a = zeros(Float64, g, dual(g))
+    a[Block(1, 1)] = [1.0 2.0; 3.0 4.0]
+    a[Block(2, 2)] = [5.0 6.0; 7.0 8.0]
+
+    s = sprint(show, MIME("text/plain"), a)
+    @test occursin("AbelianGradedArray", s)
+    # Unstored blocks show as dots
+    @test occursin("⋅", s)
+    # Block separators
+    @test occursin("│", s)
+    @test occursin("─", s)
+    @test occursin("┼", s)
+    # Stored values are present
+    @test occursin("1.0", s)
+    @test occursin("8.0", s)
+end
+
+@testset "FusedGradedMatrix text/plain display" begin
+    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 6.0; 7.0 8.0]])
+
+    s = sprint(show, MIME("text/plain"), m)
+    @test occursin("FusedGradedMatrix", s)
+    # Unstored blocks show as dots
+    @test occursin("⋅", s)
+    # Block separators
+    @test occursin("│", s)
+    @test occursin("─", s)
+    @test occursin("┼", s)
+    # Stored values are present
+    @test occursin("1.0", s)
+    @test occursin("8.0", s)
 end

@@ -77,3 +77,60 @@ function Base.setindex!(
     view(a, I) .= value
     return a
 end
+
+# ---------------------------------------------------------------------------
+#  Display — convert to BlockedOneTo axes for block-structured printing
+# ---------------------------------------------------------------------------
+
+function _block_is_stored(a::AbstractGradedArray, bI::Block)
+    return any(==(bI), eachblockstoredindex(a))
+end
+
+# Lightweight wrapper that provides BlockedOneTo axes and scalar getindex
+# for Base/BlockArrays printing infrastructure.
+struct _GradedPrintView{T, A <: AbstractGradedMatrix{T}} <: AbstractMatrix{T}
+    parent::A
+    rowaxis::BlockedOneTo{Int, Vector{Int}}
+    colaxis::BlockedOneTo{Int, Vector{Int}}
+end
+
+function _GradedPrintView(a::AbstractGradedMatrix)
+    rax = blockedrange(blocklengths(axes(a, 1)))
+    cax = blockedrange(blocklengths(axes(a, 2)))
+    return _GradedPrintView{eltype(a), typeof(a)}(a, rax, cax)
+end
+
+Base.size(p::_GradedPrintView) = size(p.parent)
+Base.axes(p::_GradedPrintView) = (p.rowaxis, p.colaxis)
+
+function Base.getindex(p::_GradedPrintView{T}, i::Int, j::Int) where {T}
+    @boundscheck checkbounds(p, i, j)
+    bi = findblockindex(p.rowaxis, i)
+    bj = findblockindex(p.colaxis, j)
+    bI = Block(Int(block(bi)), Int(block(bj)))
+    _block_is_stored(p.parent, bI) || return zero(T)
+    blk = view(p.parent, bI)
+    return @inbounds blk[blockindex(bi), blockindex(bj)]
+end
+
+function Base.replace_in_print_matrix(
+        p::_GradedPrintView, i::Integer, j::Integer, s::AbstractString
+    )
+    bi = findblockindex(p.rowaxis, i)
+    bj = findblockindex(p.colaxis, j)
+    bI = Block(Int(block(bi)), Int(block(bj)))
+    return _block_is_stored(p.parent, bI) ? s : Base.replace_with_centered_mark(s)
+end
+
+# Delegate to BlockArrays' block-structured row printing for separators.
+function Base.print_matrix_row(
+        io::IO, X::_GradedPrintView, A::Vector,
+        i::Integer, cols::AbstractVector, sep::AbstractString,
+        idxlast::Integer = last(axes(X, 2))
+    )
+    return BlockArrays._blockarray_print_matrix_row(io, X, A, i, cols, sep)
+end
+
+function Base.print_array(io::IO, a::AbstractGradedMatrix)
+    return Base.print_array(io, _GradedPrintView(a))
+end
