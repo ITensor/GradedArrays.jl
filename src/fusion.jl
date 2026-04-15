@@ -159,10 +159,9 @@ function pad_to_canonical_duals(a::AbelianGradedMatrix)
     a′ = FI.zero!(similar(a, (cod′, dom′)))
     pos = Dict(s => i for (i, s) in enumerate(canonical))
     for I in eachblockstoredindex(a)
-        i, j = Int.(Tuple(I))
-        new_i = pos[cod_sects[i]]
-        new_j = pos[dual(dom_sects[j])]
-        a′[Data(new_i, new_j)] = data(a[I])
+        aI = view(a, I)
+        s_cod, s_dom = sectoraxes(aI)
+        a′[Data(pos[s_cod], pos[dual(s_dom)])] = data(aI)
     end
     return a′
 end
@@ -215,7 +214,7 @@ function TensorAlgebra.unmatricize(
     return AbelianSectorArray(msectors, mdata)
 end
 
-# ========================  BlockReshapeFusion AbelianGradedArray unmatricize  ========================
+# ========================  BlockReeshapeFusion AbelianGradedArray unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
         ::BlockReshapeFusion, m::AbelianGradedMatrix{T},
