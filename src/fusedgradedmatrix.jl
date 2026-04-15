@@ -220,8 +220,13 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
     summary(io, m)
-    isempty(m.sectors) && return nothing
     println(io, ":")
+    for (d, g) in enumerate(axes(m))
+        print(io, "  Dim $d: ")
+        show(io, g)
+        println(io)
+    end
+    isempty(m.sectors) && return nothing
     Base.print_array(io, m)
     return nothing
 end
