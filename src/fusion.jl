@@ -152,19 +152,22 @@ end
 # `sectormergesort`); repeated sectors on one axis would be silently collapsed
 # by the dict-based multiplicity lookup below, and the sorted-insertion logic
 # (via `sort!(vcat(...))`) would reorder blocks unexpectedly otherwise.
-function insert_missing_sectors(a::AbelianGradedMatrix)
+function insert_missing_sectors end
+
+function check_input(::typeof(insert_missing_sectors), a::AbelianGradedMatrix)
     cod_sects = sectors(axes(a, 1))
     dom_sects = sectors(axes(a, 2))
     (issorted(cod_sects) && allunique(cod_sects)) ||
-        throw(
-        ArgumentError(
-            "insert_missing_sectors requires sorted, unique codomain sectors"
-        )
-    )
+        throw(ArgumentError("codomain sectors must be sorted and unique"))
     (issorted(dual.(dom_sects)) && allunique(dom_sects)) ||
-        throw(
-        ArgumentError("insert_missing_sectors requires sorted, unique domain sectors")
-    )
+        throw(ArgumentError("domain sectors must have sorted, unique duals"))
+    return nothing
+end
+
+function insert_missing_sectors(a::AbelianGradedMatrix)
+    check_input(insert_missing_sectors, a)
+    cod_sects = sectors(axes(a, 1))
+    dom_sects = sectors(axes(a, 2))
     cod_sects == dual.(dom_sects) && return a
 
     canonical = sort!(unique!(vcat(collect(cod_sects), dual.(collect(dom_sects)))))
@@ -275,7 +278,10 @@ end
 #
 # Sectors of `m` dropped from the target must have multiplicity 0 on both
 # axes, otherwise silent data loss would occur.
-function delete_missing_sectors(
+function delete_missing_sectors end
+
+function check_input(
+        ::typeof(delete_missing_sectors),
         m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
     )
     cod_m = sectors(axes(m, 1))
@@ -294,23 +300,30 @@ function delete_missing_sectors(
     cod_m == dual.(dom_m) ||
         throw(ArgumentError("m must have canonical-dual codomain/domain axes"))
 
+    # Sectors of `m` absent from either target axis must have multiplicity 0
+    # on at least one side (empty block → safe to drop, no data loss).
     cod_t_set = Set(cod_t)
     dom_t_set = Set(dom_t)
     cod_m_lens = datalengths(axes(m, 1))
     dom_m_lens = datalengths(axes(m, 2))
     for (i, s) in pairs(cod_m)
         (s ∈ cod_t_set && dual(s) ∈ dom_t_set) && continue
-        # Safe to drop only if the block is empty (either axis has multiplicity 0).
         (iszero(cod_m_lens[i]) || iszero(dom_m_lens[i])) || throw(
             ArgumentError(
                 "sector $s would be dropped by the target axes but has non-zero multiplicity in m"
             )
         )
     end
+    return nothing
+end
 
+function delete_missing_sectors(
+        m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
+    )
+    check_input(delete_missing_sectors, m, cod_ax, dom_ax)
     a = FI.zero!(similar(m, (cod_ax, dom_ax)))
-    cod_pos = Dict(s => i for (i, s) in pairs(cod_t))
-    dom_pos = Dict(s => j for (j, s) in pairs(dom_t))
+    cod_pos = Dict(s => i for (i, s) in pairs(sectors(cod_ax)))
+    dom_pos = Dict(s => j for (j, s) in pairs(sectors(dom_ax)))
     for I in eachblockstoredindex(m)
         aI = view(m, I)
         s_cod, s_dom = sectoraxes(aI)
