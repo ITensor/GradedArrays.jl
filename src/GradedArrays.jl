@@ -22,9 +22,9 @@ export dual, flip, gradedrange, isdual,
 # imports
 # -------
 import FunctionImplementations as FI
-using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector, Block,
-    BlockIndexRange, BlockVector, BlockedOneTo, block, blockedrange, blockindex,
-    blocklength, blocklengths, blocks, eachblockaxes1, findblockindex
+using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
+    AbstractBlockedUnitRange, Block, BlockIndexRange, BlockVector, BlockedOneTo,
+    blockedrange, blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
 using BlockSparseArrays:
     BlockSparseArrays, blockdiagindices, eachblockaxis, eachblockstoredindex, mortar_axis
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗

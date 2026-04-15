@@ -294,6 +294,10 @@ function Base.summary(io::IO, a::AbelianGradedArray{T, N}) where {T, N}
     nstored = length(collect(eachblockstoredindex(a)))
     print(io, block_str, "-blocked ", size_str, " AbelianGradedArray{", T, "}")
     print(io, " with ", nstored, " stored block", nstored == 1 ? "" : "s")
+    for (d, g) in enumerate(axes(a))
+        print(io, "\n  Dim $d: ")
+        show(io, g)
+    end
     return nothing
 end
 

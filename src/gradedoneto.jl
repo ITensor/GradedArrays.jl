@@ -7,7 +7,7 @@ This is the axis type for `AbelianGradedArray`.
 Stores non-dual `SectorRange` values in `nondual_sectors`, sector lengths, and a single
 `isdual` flag. The `sectors` accessor applies the `isdual` flag on the fly.
 """
-struct GradedOneTo{S <: SectorRange} <: AbstractUnitRange{Int}
+struct GradedOneTo{S <: SectorRange} <: AbstractBlockedUnitRange{Int, Vector{Int}}
     nondual_sectors::Vector{S}
     datalengths::Vector{Int}
     isdual::Bool
@@ -34,9 +34,9 @@ isdual(g::GradedOneTo) = g.isdual
 sectors(g::GradedOneTo) = isdual(g) ? dual.(g.nondual_sectors) : g.nondual_sectors
 sectorlengths(g::GradedOneTo) = length.(sectors(g))
 Base.first(::GradedOneTo) = 1
+BlockArrays.blocklasts(g::GradedOneTo) = cumsum(blocklengths(g))
 BlockArrays.blocklength(g::GradedOneTo) = length(g.nondual_sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
-Base.length(g::GradedOneTo) = sum(blocklengths(g); init = 0)
 
 # sectortype, SymmetryStyle
 sectortype(::Type{GradedOneTo{S}}) where {S} = S
