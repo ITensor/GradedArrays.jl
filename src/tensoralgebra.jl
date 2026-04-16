@@ -160,8 +160,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         α::Number, β::Number
     )
     check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
-    perm = (perm_codomain..., perm_domain...)
-    phase = fermion_permutation_phase(sector(x), perm)
+    phase = fermion_permutation_phase(sector(x), (perm_codomain..., perm_domain...))
     bipermutedimsopadd!(
         data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
     )
