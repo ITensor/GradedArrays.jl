@@ -30,9 +30,9 @@ using BlockSparseArrays: BlockSparseArrays, blockdiagindices, blockstoredlength,
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using SparseArraysBase: SparseArraysBase
-using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, matricize, matricize_axes,
-    permutedimsadd!, permutedimsopadd!, tensor_product_axis, trivial_axis, trivialbiperm,
-    tryflattenlinear, unmatricize
+using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, bipermutedimsopadd!,
+    matricize, matricize_axes, permutedimsadd!, permutedimsopadd!, tensor_product_axis,
+    trivial_axis, trivialbiperm, tryflattenlinear, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
 using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
