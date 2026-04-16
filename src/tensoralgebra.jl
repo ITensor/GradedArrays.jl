@@ -173,7 +173,6 @@ function TensorAlgebra.bipermutedimsopadd!(
         α::Number, β::Number
     ) where {N}
     check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
-    perm = (perm_codomain..., perm_domain...)
     # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
     # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
     # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent
@@ -186,7 +185,7 @@ function TensorAlgebra.bipermutedimsopadd!(
     iszero(β) ? FI.zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
-        b_dest = Block(ntuple(i -> b[perm[i]], N))
+        b_dest = Block(ntuple(i -> b[(perm_codomain..., perm_domain...)[i]], N))
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
         bipermutedimsopadd!(y_b, op, x_b, perm_codomain, perm_domain, α, one(β))
