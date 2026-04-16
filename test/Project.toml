@@ -21,11 +21,15 @@ TestExtras = "5ed8adda-3752-4e41-b88a-e8b09835ee3a"
 [sources.GradedArrays]
 path = ".."
 
+[sources.TensorAlgebra]
+rev = "mf/contractopadd"
+url = "https://github.com/ITensor/TensorAlgebra.jl.git"
+
 [compat]
 Aqua = "0.8.11"
 BlockArrays = "1.6"
 BlockSparseArrays = "0.10"
-GradedArrays = "0.8"
+GradedArrays = "0.8.4"
 ITensorPkgSkeleton = "0.3.42"
 KroneckerArrays = "0.3"
 LinearAlgebra = "1.10"
@@ -36,7 +40,7 @@ SUNRepresentations = "0.3"
 SafeTestsets = "0.1"
 SparseArraysBase = "0.9"
 Suppressor = "0.2.8"
-TensorAlgebra = "0.8"
+TensorAlgebra = "0.9"
 TensorKitSectors = "0.3"
 Test = "1.10"
 TestExtras = "0.3.1"
