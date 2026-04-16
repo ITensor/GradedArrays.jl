@@ -28,10 +28,6 @@ TypeParameterAccessors = "7e5a90cf-f82e-492e-a09b-e3e26432c138"
 NamedDimsArrays = "60cbd0c0-df58-4cb7-918c-6f5607b73fde"
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 
-[sources.TensorAlgebra]
-rev = "mf/contractopadd"
-url = "https://github.com/ITensor/TensorAlgebra.jl.git"
-
 [extensions]
 GradedArraysNamedDimsArraysExt = "NamedDimsArrays"
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"

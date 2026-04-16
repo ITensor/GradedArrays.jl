@@ -21,10 +21,6 @@ TestExtras = "5ed8adda-3752-4e41-b88a-e8b09835ee3a"
 [sources.GradedArrays]
 path = ".."
 
-[sources.TensorAlgebra]
-rev = "mf/contractopadd"
-url = "https://github.com/ITensor/TensorAlgebra.jl.git"
-
 [compat]
 Aqua = "0.8.11"
 BlockArrays = "1.6"
