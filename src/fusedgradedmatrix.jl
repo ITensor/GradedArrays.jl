@@ -143,17 +143,17 @@ end
 
 # ========================  mul!  ========================
 
-function check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
+function TensorAlgebra.check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
     axes(A, 2) == dual(axes(B, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
     return nothing
 end
 
-function check_input(
+function TensorAlgebra.check_input(
         ::typeof(mul!),
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
     )
-    check_input(*, A, B)
+    TensorAlgebra.check_input(*, A, B)
     axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
     axes(C, 2) == axes(B, 2) || throw(DimensionMismatch())
     return nothing
@@ -163,7 +163,7 @@ function LinearAlgebra.mul!(
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix,
         α::Number, β::Number
     )
-    check_input(mul!, C, A, B)
+    TensorAlgebra.check_input(mul!, C, A, B)
     for I in blockdiagindices(C)
         mul!(view(C, Data(I)), view(A, Data(I)), view(B, Data(I)), α, β)
     end
@@ -183,7 +183,7 @@ function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix
 end
 
 function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    check_input(*, A, B)
+    TensorAlgebra.check_input(*, A, B)
     C = allocate_output(*, A, B)
     return mul!(C, A, B)
 end
