@@ -151,26 +151,32 @@ function tensor_product(r::SectorOneTo, s::TKS.Sector)
     return tensor_product(to_gradedrange(r), to_gradedrange(s))
 end
 
-# ========================  permutedimsopadd!  ========================
+# ========================  bipermutedimsopadd!  ========================
+# Primary overloads. The flat-perm permutedimsopadd! overloads forward here.
 
-function TensorAlgebra.permutedimsopadd!(
-        y::AbstractSectorArray, op, x::AbstractSectorArray, perm,
+function TensorAlgebra.bipermutedimsopadd!(
+        y::AbstractSectorArray, op, x::AbstractSectorArray,
+        perm_codomain, perm_domain,
         α::Number, β::Number
     )
-    sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())
-    phase = fermion_permutation_phase(sector(x), perm)
-    TensorAlgebra.permutedimsopadd!(data(y), op, data(x), perm, phase * α, β)
+    check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
+    phase = fermion_permutation_phase(sector(x), (perm_codomain..., perm_domain...))
+    bipermutedimsopadd!(
+        data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
+    )
     return y
 end
 
-function TensorAlgebra.permutedimsopadd!(
-        y::AbstractGradedArray{<:Any, N}, op, x::AbstractGradedArray{<:Any, N}, perm,
+function TensorAlgebra.bipermutedimsopadd!(
+        y::AbstractGradedArray{<:Any, N}, op, x::AbstractGradedArray{<:Any, N},
+        perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}
+    check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
     # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
     # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
     # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent
-    # `permutedimsopadd!(..., α, one(α))` calls on a block of `y` that
+    # `bipermutedimsopadd!(..., α, one(β))` calls on a block of `y` that
     # doesn't get visited by the loop below would leak that garbage into the
     # result. Allocating broadcasts like `3 * a` go through this path (they
     # call with β == 0 on a fresh `similar`-allocated array); before this
@@ -179,10 +185,10 @@ function TensorAlgebra.permutedimsopadd!(
     iszero(β) ? FI.zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
-        b_dest = Block(ntuple(i -> b[perm[i]], N))
+        b_dest = Block(ntuple(i -> b[(perm_codomain..., perm_domain...)[i]], N))
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
-        TensorAlgebra.permutedimsopadd!(y_b, op, x_b, perm, α, one(α))
+        bipermutedimsopadd!(y_b, op, x_b, perm_codomain, perm_domain, α, one(β))
     end
     return y
 end

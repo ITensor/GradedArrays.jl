@@ -143,13 +143,13 @@ end
 
 # ========================  mul!  ========================
 
-function check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
+function TensorAlgebra.check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
     axes(A, 2) == dual(axes(B, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
     return nothing
 end
 
-function check_input(
+function TensorAlgebra.check_input(
         ::typeof(mul!),
         C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
     )

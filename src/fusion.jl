@@ -158,7 +158,7 @@ end
 # (via `sort!(vcat(...))`) would reorder blocks unexpectedly otherwise.
 function insert_missing_sectors end
 
-function check_input(::typeof(insert_missing_sectors), a::AbelianGradedMatrix)
+function TensorAlgebra.check_input(::typeof(insert_missing_sectors), a::AbelianGradedMatrix)
     cod_sects = sectors(axes(a, 1))
     dom_sects = sectors(axes(a, 2))
     (issorted(cod_sects) && allunique(cod_sects)) ||
@@ -301,7 +301,7 @@ end
 #     error — they've passed target axes incompatible with `m`).
 function delete_missing_sectors end
 
-function check_input(
+function TensorAlgebra.check_input(
         ::typeof(delete_missing_sectors),
         m::AbstractGradedMatrix, cod_ax::GradedOneTo, dom_ax::GradedOneTo
     )
