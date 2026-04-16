@@ -159,12 +159,10 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain,
         α::Number, β::Number
     )
-    TensorAlgebra.check_input(
-        TensorAlgebra.bipermutedimsopadd!, y, x, perm_codomain, perm_domain
-    )
+    check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
     phase = fermion_permutation_phase(sector(x), perm)
-    TensorAlgebra.bipermutedimsopadd!(
+    bipermutedimsopadd!(
         data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
     )
     return y
@@ -175,9 +173,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}
-    TensorAlgebra.check_input(
-        TensorAlgebra.bipermutedimsopadd!, y, x, perm_codomain, perm_domain
-    )
+    check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
     # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
     # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
@@ -194,9 +190,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         b_dest = Block(ntuple(i -> b[perm[i]], N))
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
-        TensorAlgebra.bipermutedimsopadd!(
-            y_b, op, x_b, perm_codomain, perm_domain, α, one(β)
-        )
+        bipermutedimsopadd!(y_b, op, x_b, perm_codomain, perm_domain, α, one(β))
     end
     return y
 end
