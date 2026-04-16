@@ -201,20 +201,3 @@ function TensorAlgebra.bipermutedimsopadd!(
     end
     return y
 end
-
-# ========================  permutedimsopadd!  ========================
-# Flat-perm overloads forward to bipermutedimsopadd! with perm_domain = ().
-
-function TensorAlgebra.permutedimsopadd!(
-        y::AbstractSectorArray, op, x::AbstractSectorArray, perm,
-        α::Number, β::Number
-    )
-    return TensorAlgebra.bipermutedimsopadd!(y, op, x, perm, (), α, β)
-end
-
-function TensorAlgebra.permutedimsopadd!(
-        y::AbstractGradedArray{<:Any, N}, op, x::AbstractGradedArray{<:Any, N}, perm,
-        α::Number, β::Number
-    ) where {N}
-    return TensorAlgebra.bipermutedimsopadd!(y, op, x, perm, (), α, β)
-end
