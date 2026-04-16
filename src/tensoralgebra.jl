@@ -154,13 +154,24 @@ end
 # ========================  bipermutedimsopadd!  ========================
 # Primary overloads. The flat-perm permutedimsopadd! overloads forward here.
 
+function check_input(
+        ::typeof(TensorAlgebra.bipermutedimsopadd!),
+        y::AbstractArray, x::AbstractArray, perm_codomain, perm_domain
+    )
+    perm = (perm_codomain..., perm_domain...)
+    N = ndims(x)
+    axes(y) == ntuple(d -> axes(x, perm[d]), N) ||
+        throw(DimensionMismatch("destination axes do not match permuted source axes"))
+    return nothing
+end
+
 function TensorAlgebra.bipermutedimsopadd!(
         y::AbstractSectorArray, op, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
     )
+    check_input(TensorAlgebra.bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
-    sector(y) == permutedims(sector(x), perm) || throw(DimensionMismatch())
     phase = fermion_permutation_phase(sector(x), perm)
     TensorAlgebra.bipermutedimsopadd!(
         data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
@@ -173,11 +184,12 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}
+    check_input(TensorAlgebra.bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
     # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
     # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
     # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent
-    # `bipermutedimsopadd!(..., α, one(α))` calls on a block of `y` that
+    # `bipermutedimsopadd!(..., α, one(β))` calls on a block of `y` that
     # doesn't get visited by the loop below would leak that garbage into the
     # result. Allocating broadcasts like `3 * a` go through this path (they
     # call with β == 0 on a fresh `similar`-allocated array); before this
@@ -190,13 +202,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
         TensorAlgebra.bipermutedimsopadd!(
-            y_b,
-            op,
-            x_b,
-            perm_codomain,
-            perm_domain,
-            α,
-            one(α)
+            y_b, op, x_b, perm_codomain, perm_domain, α, one(β)
         )
     end
     return y
