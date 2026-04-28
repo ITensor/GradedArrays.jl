@@ -1,6 +1,6 @@
-using GradedArrays: FusedGradedMatrix, FusedGradedVector, GradedBlockAlgorithm, U1, Z2
-using LinearAlgebra: Diagonal, I, eigvals, norm, istril, istriu, isposdef
 import MatrixAlgebraKit as MAK
+using GradedArrays: FusedGradedMatrix, FusedGradedVector, GradedBlockAlgorithm, U1, Z2
+using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, norm
 using MatrixAlgebraKit: isisometric, isunitary
 using Test: @test, @testset
 
@@ -30,11 +30,13 @@ function has_positive_diagonal(A)
             all(≈(zero(real(T))), imag(diagview(A)))
     end
 end
-isleftnull(N, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
-    isapprox(norm(A' * N), 0; atol = max(atol, norm(A) * rtol))
+function isleftnull(N, A; atol::Real = 0, rtol::Real = precision(eltype(A)))
+    return isapprox(norm(A' * N), 0; atol = max(atol, norm(A) * rtol))
+end
 
-isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
-    isapprox(norm(A * Nᴴ'), 0; atol = max(atol, norm(A) * rtol))
+function isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A)))
+    return isapprox(norm(A * Nᴴ'), 0; atol = max(atol, norm(A) * rtol))
+end
 
 @testset "Factorizations" begin
 
@@ -108,7 +110,7 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
                 @test isapprox(
                     sort(S.blocks[i]; rev = true),
                     sort(MAK.diagview(S2.blocks[i]); rev = true);
-                    atol = 1.0e-10,
+                    atol = 1.0e-10
                 )
             end
         end
@@ -155,7 +157,6 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
             @test isisometric(N)
         end
     end
-
 
     # -----------------------------------------------------------------------
     @testset "LQ" begin
@@ -225,7 +226,7 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
                 @test isapprox(
                     sort(D.blocks[i]; by = real),
                     sort(MAK.diagview(D2.blocks[i]); by = real);
-                    atol = 1.0e-10,
+                    atol = 1.0e-10
                 )
             end
         end
@@ -256,7 +257,7 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
                 @test isapprox(
                     sort(real.(D.blocks[i])),
                     sort(real.(MAK.diagview(D2.blocks[i])));
-                    atol = 1.0e-10,
+                    atol = 1.0e-10
                 )
             end
         end
@@ -295,14 +296,14 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
         using MatrixAlgebraKit: notrunc, truncrank, trunctol, truncerror
 
         @testset "notrunc" begin
-            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=notrunc())
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = notrunc())
             @test U isa FusedGradedMatrix
             @test S isa FusedGradedMatrix
             @test Vᴴ isa FusedGradedMatrix
             @test ε ≈ 0 atol = precision(eltype(A_rect))
             @test A_rect ≈ U * S * Vᴴ
             @test isisometric(U)
-            @test isisometric(Vᴴ; side=:right)
+            @test isisometric(Vᴴ; side = :right)
 
             # same sectors as compact SVD
             U0, S0, Vᴴ0 = MAK.svd_compact(A_rect)
@@ -312,19 +313,19 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
 
         @testset "truncrank" begin
             maxrank = 4
-            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=truncrank(maxrank))
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = truncrank(maxrank))
             @test U isa FusedGradedMatrix
             # total number of kept singular values ≤ maxrank
             @test sum(size(b, 2) for b in U.blocks) <= maxrank
             # reconstruction error ≈ reported truncation error
             @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
             @test isisometric(U)
-            @test isisometric(Vᴴ; side=:right)
+            @test isisometric(Vᴴ; side = :right)
         end
 
         @testset "trunctol" begin
             atol = 0.5
-            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=trunctol(; atol))
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = trunctol(; atol))
             @test U isa FusedGradedMatrix
             # all kept singular values are above the tolerance
             for b in S.blocks
@@ -335,14 +336,15 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
 
         @testset "truncerror" begin
             atol = 0.3
-            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=truncerror(; atol))
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = truncerror(; atol))
             @test U isa FusedGradedMatrix
             @test ε <= atol + precision(eltype(A_rect))
             @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
         end
 
         @testset "combined (truncrank & trunctol)" begin
-            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=truncrank(3) & trunctol(; atol=0.3))
+            U, S, Vᴴ, ε =
+                MAK.svd_trunc(A_rect; trunc = truncrank(3) & trunctol(; atol = 0.3))
             @test U isa FusedGradedMatrix
             @test sum(size(b, 2) for b in U.blocks) <= 3
             for b in S.blocks
@@ -351,7 +353,7 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
         end
 
         @testset "svd_trunc_no_error" begin
-            U, S, Vᴴ = MAK.svd_trunc_no_error(A_rect; trunc=truncrank(3))
+            U, S, Vᴴ = MAK.svd_trunc_no_error(A_rect; trunc = truncrank(3))
             @test U isa FusedGradedMatrix
             @test sum(size(b, 2) for b in U.blocks) <= 3
         end
@@ -362,7 +364,7 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
         using MatrixAlgebraKit: notrunc, truncrank, trunctol, truncerror
 
         @testset "notrunc" begin
-            D, V, ε = MAK.eigh_trunc(A_herm; trunc=notrunc())
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc = notrunc())
             @test D isa FusedGradedMatrix
             @test V isa FusedGradedMatrix
             @test ε ≈ 0 atol = precision(eltype(A_herm))
@@ -373,7 +375,7 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
 
         @testset "truncrank" begin
             maxrank = 5
-            D, V, ε = MAK.eigh_trunc(A_herm; trunc=truncrank(maxrank))
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc = truncrank(maxrank))
             @test D isa FusedGradedMatrix
             @test sum(size(b, 2) for b in V.blocks) <= maxrank
             @test isisometric(V)
@@ -381,7 +383,7 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
 
         @testset "trunctol (keep largest by abs)" begin
             atol = 0.3
-            D, V, ε = MAK.eigh_trunc(A_herm; trunc=trunctol(; atol))
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc = trunctol(; atol))
             @test D isa FusedGradedMatrix
             for b in D.blocks
                 @test all(≥(atol) ∘ abs, MAK.diagview(b))

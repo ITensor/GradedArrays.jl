@@ -211,7 +211,6 @@ LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, A.blocks)
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, A.blocks)
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, A.blocks)
 
-
 # ========================  similar  ========================
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}

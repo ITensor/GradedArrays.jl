@@ -92,7 +92,8 @@ struct FusedGradedVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
             sectors::Vector{S},
             blocks::Vector{D}
         ) where {T, D <: AbstractVector{T}, S <: SectorRange}
-        length(sectors) == length(blocks) || throw(ArgumentError("sectors and blocks must have the same length"))
+        length(sectors) == length(blocks) ||
+            throw(ArgumentError("sectors and blocks must have the same length"))
         issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
         allunique(sectors) || throw(ArgumentError("sectors must be unique"))
         return new{T, D, S}(sectors, blocks)

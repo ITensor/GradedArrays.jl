@@ -14,21 +14,44 @@ for f in [
         :left_polar, :right_polar,
     ]
     f! = Symbol(f, :!)
-    @eval function MAK.default_algorithm(::typeof(MAK.$f!), ::Type{T}; kwargs...) where {T <: FusedGradedMatrix}
-        return GradedBlockAlgorithm(MAK.default_algorithm(MAK.$f!, datatype(BlockSparseArrays.blocktype(T)); kwargs...))
+    @eval function MAK.default_algorithm(
+            ::typeof(MAK.$f!),
+            ::Type{T};
+            kwargs...
+        ) where {T <: FusedGradedMatrix}
+        return GradedBlockAlgorithm(
+            MAK.default_algorithm(
+                MAK.$f!,
+                datatype(BlockSparseArrays.blocktype(T));
+                kwargs...
+            )
+        )
     end
 
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
-        return FusedGradedMatrix(A.sectors, map(Base.Fix1(MAK.copy_input, MAK.$f), A.blocks))
+        return FusedGradedMatrix(
+            A.sectors,
+            map(Base.Fix1(MAK.copy_input, MAK.$f), A.blocks)
+        )
     end
 
-    @eval function MAK.check_input(::typeof(MAK.$f!), A::FusedGradedMatrix, F::Tuple, alg::GradedBlockAlgorithm)
+    @eval function MAK.check_input(
+            ::typeof(MAK.$f!),
+            A::FusedGradedMatrix,
+            F::Tuple,
+            alg::GradedBlockAlgorithm
+        )
         for f in F
             A.sectors == f.sectors || throw(ArgumentError("non-matching sectors"))
         end
         return nothing
     end
-    @eval function MAK.check_input(::typeof(MAK.$f!), A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
+    @eval function MAK.check_input(
+            ::typeof(MAK.$f!),
+            A::FusedGradedMatrix,
+            F,
+            alg::GradedBlockAlgorithm
+        )
         A.sectors == F.sectors || throw(ArgumentError("non-matching sectors"))
         return nothing
     end
@@ -43,14 +66,21 @@ _ensure_inplace!(F::NTuple{N}, F′::NTuple{N}) where {N} = _ensure_inplace!.(F,
 
 # Single-output: null-space functions return FusedGradedMatrix
 for f! in [:qr_null!, :lq_null!]
-    @eval function MAK.initialize_output(::typeof(MAK.$f!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
-        return FusedGradedMatrix(A.sectors, map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks))
+    @eval function MAK.initialize_output(
+            ::typeof(MAK.$f!),
+            A::FusedGradedMatrix,
+            alg::GradedBlockAlgorithm
+        )
+        return FusedGradedMatrix(
+            A.sectors,
+            map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks)
+        )
     end
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
         MAK.check_input(MAK.$f!, A, F, alg)
         foreach(A.blocks, F.blocks) do a, f
             f′ = MAK.$f!(a, f, alg.alg)
-            _ensure_inplace!(f′, f)
+            return _ensure_inplace!(f′, f)
         end
         return F
     end
@@ -58,14 +88,21 @@ end
 
 # Single-output: vals functions return FusedGradedVector
 for f! in [:svd_vals!, :eig_vals!, :eigh_vals!]
-    @eval function MAK.initialize_output(::typeof(MAK.$f!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
-        return FusedGradedVector(A.sectors, map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks))
+    @eval function MAK.initialize_output(
+            ::typeof(MAK.$f!),
+            A::FusedGradedMatrix,
+            alg::GradedBlockAlgorithm
+        )
+        return FusedGradedVector(
+            A.sectors,
+            map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks)
+        )
     end
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
         MAK.check_input(MAK.$f!, A, F, alg)
         foreach(A.blocks, F.blocks) do a, f
             f′ = MAK.$f!(a, f, alg.alg)
-            _ensure_inplace!(f′, f)
+            return _ensure_inplace!(f′, f)
         end
         return F
     end
@@ -77,7 +114,11 @@ for f! in [
         :eig_full!, :eigh_full!, :svd_compact!, :svd_full!,
         :left_polar!, :right_polar!,
     ]
-    @eval function MAK.initialize_output(::typeof(MAK.$f!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    @eval function MAK.initialize_output(
+            ::typeof(MAK.$f!),
+            A::FusedGradedMatrix,
+            alg::GradedBlockAlgorithm
+        )
         sectors = A.sectors
         blocks = map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks)
         narg = $(startswith(string(f!), "svd") ? 3 : 2)
@@ -90,7 +131,7 @@ for f! in [
         MAK.check_input(MAK.$f!, A, F, alg)
         foreach(A.blocks, getproperty.(F, :blocks)...) do a, f...
             f′ = MAK.$f!(a, f, alg.alg)
-            _ensure_inplace!(f′, f)
+            return _ensure_inplace!(f′, f)
         end
         return F
     end
@@ -98,7 +139,14 @@ end
 
 # Matrix properties
 # -----------------
-for f in [:isunitary, :isisometric, :is_left_isometric, :is_right_isometric, :ishermitian, :isantihermitian]
+for f in [
+        :isunitary,
+        :isisometric,
+        :is_left_isometric,
+        :is_right_isometric,
+        :ishermitian,
+        :isantihermitian,
+    ]
     @eval function MAK.$f(A::FusedGradedMatrix; kwargs...)
         return all(x -> MAK.$f(x; kwargs...), A.blocks)
     end
@@ -177,8 +225,9 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder
     return kept
 end
 # SVD values are sorted descending within each block but we still need a cross-block comparison
-MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByOrder) =
-    MAK.findtruncated(v, strategy)
+function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByOrder)
+    return MAK.findtruncated(v, strategy)
+end
 
 # TruncationByError (truncerror): global cumulative error budget, discard smallest first
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError)
@@ -214,8 +263,9 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
 end
 
 # TruncationByError: disambiguate against MAK's findtruncated_svd(::AbstractVector, ::TruncationByError)
-MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByError) =
-    MAK.findtruncated(v, strategy)
+function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByError)
+    return MAK.findtruncated(v, strategy)
+end
 
 # TruncationIntersection: intersect per-block results from each component strategy
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationIntersection)
@@ -238,7 +288,7 @@ end
 function MAK.truncate(
         ::typeof(MAK.svd_trunc!),
         (U, S, Vᴴ)::NTuple{3, FusedGradedMatrix},
-        strategy::MAK.TruncationStrategy,
+        strategy::MAK.TruncationStrategy
     )
     sv = MAK.diagview(S)
     ind = MAK.findtruncated_svd(sv, strategy)
@@ -264,7 +314,7 @@ for f! in (:eigh_trunc!, :eig_trunc!)
     @eval function MAK.truncate(
             ::typeof(MAK.$f!),
             (D, V)::NTuple{2, FusedGradedMatrix},
-            strategy::MAK.TruncationStrategy,
+            strategy::MAK.TruncationStrategy
         )
         ev = MAK.diagview(D)
         ind = MAK.findtruncated(ev, strategy)
