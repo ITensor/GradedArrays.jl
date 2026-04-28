@@ -17,6 +17,7 @@ using Test: @test, @testset
         :FusedGradedMatrix,
         :Fib,
         :GradedArrays,
+        :GradedBlockAlgorithm,
         :GradedOneTo,
         :Ising,
         :data,

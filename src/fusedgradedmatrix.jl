@@ -188,6 +188,30 @@ function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return mul!(C, A, B)
 end
 
+# ======================== LinearAlgebra ======================
+
+Base.adjoint(A::FusedGradedMatrix) = FusedGradedMatrix(A.sectors, map(adjoint, A.blocks))
+# note: not defining transpose here since that has requirements on sectors
+
+function LinearAlgebra.norm(A::FusedGradedMatrix, p::Real = 2)
+    if p == Inf
+        return maximum(Base.Fix2(LinearAlgebra.norm, p), A.blocks)
+    elseif p > 0
+        s = zero(float(real(eltype(A))))
+        for (c, a) in zip(A.sectors, A.blocks)
+            s += length(c) * LinearAlgebra.norm(a, p)^p
+        end
+        return s^inv(p)
+    else
+        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
+    end
+end
+
+LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, A.blocks)
+LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, A.blocks)
+LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, A.blocks)
+
+
 # ========================  similar  ========================
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}

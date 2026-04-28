@@ -11,6 +11,7 @@ export AbstractSectorArray,
 export AbstractGradedArray, AbstractGradedMatrix
 export AbelianGradedArray, AbelianGradedVector, AbelianGradedMatrix
 export FusedGradedMatrix
+export GradedBlockAlgorithm
 
 export dual, flip, gradedrange, isdual,
     data, dataaxes, dataaxes1, datalength, datalengths,
@@ -56,5 +57,7 @@ include("sectorproduct.jl")
 include("broadcast.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
+
+include("matrixalgebrakit.jl")
 
 end
