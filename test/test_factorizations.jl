@@ -290,4 +290,102 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
             @test isposdef(P)
         end
     end
+    # -----------------------------------------------------------------------
+    @testset "Truncated SVD" begin
+        using MatrixAlgebraKit: notrunc, truncrank, trunctol, truncerror
+
+        @testset "notrunc" begin
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=notrunc())
+            @test U isa FusedGradedMatrix
+            @test S isa FusedGradedMatrix
+            @test Vᴴ isa FusedGradedMatrix
+            @test ε ≈ 0 atol = precision(eltype(A_rect))
+            @test A_rect ≈ U * S * Vᴴ
+            @test isisometric(U)
+            @test isisometric(Vᴴ; side=:right)
+
+            # same sectors as compact SVD
+            U0, S0, Vᴴ0 = MAK.svd_compact(A_rect)
+            @test U.sectors == U0.sectors
+            @test all(S.blocks .≈ S0.blocks)
+        end
+
+        @testset "truncrank" begin
+            maxrank = 4
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=truncrank(maxrank))
+            @test U isa FusedGradedMatrix
+            # total number of kept singular values ≤ maxrank
+            @test sum(size(b, 2) for b in U.blocks) <= maxrank
+            # reconstruction error ≈ reported truncation error
+            @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
+            @test isisometric(U)
+            @test isisometric(Vᴴ; side=:right)
+        end
+
+        @testset "trunctol" begin
+            atol = 0.5
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=trunctol(; atol))
+            @test U isa FusedGradedMatrix
+            # all kept singular values are above the tolerance
+            for b in S.blocks
+                @test all(≥(atol), MAK.diagview(b))
+            end
+            @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
+        end
+
+        @testset "truncerror" begin
+            atol = 0.3
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=truncerror(; atol))
+            @test U isa FusedGradedMatrix
+            @test ε <= atol + precision(eltype(A_rect))
+            @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
+        end
+
+        @testset "combined (truncrank & trunctol)" begin
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc=truncrank(3) & trunctol(; atol=0.3))
+            @test U isa FusedGradedMatrix
+            @test sum(size(b, 2) for b in U.blocks) <= 3
+            for b in S.blocks
+                @test all(≥(0.3), MAK.diagview(b))
+            end
+        end
+
+        @testset "svd_trunc_no_error" begin
+            U, S, Vᴴ = MAK.svd_trunc_no_error(A_rect; trunc=truncrank(3))
+            @test U isa FusedGradedMatrix
+            @test sum(size(b, 2) for b in U.blocks) <= 3
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "Truncated EIGH" begin
+        using MatrixAlgebraKit: notrunc, truncrank, trunctol, truncerror
+
+        @testset "notrunc" begin
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc=notrunc())
+            @test D isa FusedGradedMatrix
+            @test V isa FusedGradedMatrix
+            @test ε ≈ 0 atol = precision(eltype(A_herm))
+            @test A_herm ≈ V * D * V'
+            D0, V0 = MAK.eigh_full(A_herm)
+            @test D.sectors == D0.sectors
+        end
+
+        @testset "truncrank" begin
+            maxrank = 5
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc=truncrank(maxrank))
+            @test D isa FusedGradedMatrix
+            @test sum(size(b, 2) for b in V.blocks) <= maxrank
+            @test isisometric(V)
+        end
+
+        @testset "trunctol (keep largest by abs)" begin
+            atol = 0.3
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc=trunctol(; atol))
+            @test D isa FusedGradedMatrix
+            for b in D.blocks
+                @test all(≥(atol) ∘ abs, MAK.diagview(b))
+            end
+        end
+    end
 end  # @testset "Factorizations"

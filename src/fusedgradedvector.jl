@@ -231,6 +231,25 @@ function Base.show(io::IO, v::FusedGradedVector)
     return nothing
 end
 
+# ========================  copy  ========================
+
+Base.copy(v::FusedGradedVector) = FusedGradedVector(copy(v.sectors), map(copy, v.blocks))
+
+# ======================== LinearAlgebra ======================
+function LinearAlgebra.norm(A::FusedGradedVector, p::Real = 2)
+    if p == Inf
+        return maximum(Base.Fix2(LinearAlgebra.norm, p), A.blocks)
+    elseif p > 0
+        s = zero(float(real(eltype(A))))
+        for (c, a) in zip(A.sectors, A.blocks)
+            s += length(c) * LinearAlgebra.norm(a, p)^p
+        end
+        return s^inv(p)
+    else
+        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
+    end
+end
+
 # ========================  Identity constructor  ========================
 
 FusedGradedVector(v::FusedGradedVector) = v
