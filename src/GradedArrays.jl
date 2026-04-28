@@ -7,10 +7,10 @@ export SectorRange, SectorOneTo, GradedOneTo
 export AbstractSectorDelta, AbelianSectorDelta, SectorIdentity
 export AbstractSectorArray,
     AbelianSectorArray, AbelianSectorVector, AbelianSectorMatrix,
-    SectorMatrix
+    SectorMatrix, SectorVector
 export AbstractGradedArray, AbstractGradedMatrix
 export AbelianGradedArray, AbelianGradedVector, AbelianGradedMatrix
-export FusedGradedMatrix
+export FusedGradedMatrix, FusedGradedVector
 export GradedBlockAlgorithm
 
 export dual, flip, gradedrange, isdual,
@@ -51,6 +51,7 @@ include("abstractgradedarray.jl")
 include("abeliangradedarray.jl")
 
 include("fusedgradedmatrix.jl")
+include("fusedgradedvector.jl")
 
 include("sectorproduct.jl")
 

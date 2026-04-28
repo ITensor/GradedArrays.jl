@@ -41,14 +41,25 @@ end
 _ensure_inplace!(F, F′) = F === F′ || copy!(F, F′)
 _ensure_inplace!(F::NTuple{N}, F′::NTuple{N}) where {N} = _ensure_inplace!.(F, F′)
 
-# Single-output
-for f! in [
-        :qr_null!, :lq_null!,
-        :svd_vals!, :eig_vals!, :eigh_vals!,
-    ]
-    # TODO: figure out how to deal with the "vals" functions! (FusedGradedVector?)
+# Single-output: null-space functions return FusedGradedMatrix
+for f! in [:qr_null!, :lq_null!]
     @eval function MAK.initialize_output(::typeof(MAK.$f!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
         return FusedGradedMatrix(A.sectors, map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks))
+    end
+    @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
+        MAK.check_input(MAK.$f!, A, F, alg)
+        foreach(A.blocks, F.blocks) do a, f
+            f′ = MAK.$f!(a, f, alg.alg)
+            _ensure_inplace!(f′, f)
+        end
+        return F
+    end
+end
+
+# Single-output: vals functions return FusedGradedVector
+for f! in [:svd_vals!, :eig_vals!, :eigh_vals!]
+    @eval function MAK.initialize_output(::typeof(MAK.$f!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+        return FusedGradedVector(A.sectors, map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks))
     end
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
         MAK.check_input(MAK.$f!, A, F, alg)

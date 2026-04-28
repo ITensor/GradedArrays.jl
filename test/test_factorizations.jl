@@ -1,4 +1,4 @@
-using GradedArrays: FusedGradedMatrix, U1, Z2
+using GradedArrays: FusedGradedMatrix, FusedGradedVector, GradedBlockAlgorithm, U1, Z2
 using LinearAlgebra: Diagonal, I, eigvals, norm, istril, istriu, isposdef
 import MatrixAlgebraKit as MAK
 using MatrixAlgebraKit: isisometric, isunitary
@@ -97,17 +97,21 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
             end
         end
 
-        # @testset "vals" begin
-        #     S = MAK.svd_vals(A_rect)
-        #     @test S isa FusedGradedMatrix
-        #     @test all(S.blocks[i] isa Diagonal for i in eachindex(S.blocks))
-        #     @test all(all(>=(0), S.blocks[i].diag) for i in eachindex(S.blocks))
-        #     # Singular values match those from compact SVD
-        #     _, S2, _ = MAK.svd_compact(A_rect)
-        #     for i in eachindex(S.blocks)
-        #         @test isapprox(sort(S.blocks[i].diag; rev = true), sort(S2.blocks[i].diag; rev = true); atol = 1.0e-10)
-        #     end
-        # end
+        @testset "vals" begin
+            S = MAK.svd_vals(A_rect)
+            @test S isa FusedGradedVector
+            @test all(S.blocks[i] isa AbstractVector for i in eachindex(S.blocks))
+            @test all(all(>=(0), S.blocks[i]) for i in eachindex(S.blocks))
+            # Singular values match those from compact SVD
+            _, S2, _ = MAK.svd_compact(A_rect)
+            for i in eachindex(S.blocks)
+                @test isapprox(
+                    sort(S.blocks[i]; rev = true),
+                    sort(MAK.diagview(S2.blocks[i]); rev = true);
+                    atol = 1.0e-10,
+                )
+            end
+        end
     end
 
     # -----------------------------------------------------------------------
@@ -207,11 +211,24 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
             @test A_sq * V ≈ V * D
         end
 
-        # @testset "vals" begin
-        #     # TODO: eig_vals returns per-sector eigenvalue vectors; FusedGradedVector representation pending
-        #     D = MAK.eig_vals(A_sq)
-        #     @test D isa FusedGradedMatrix
-        # end
+        @testset "vals" begin
+            D = MAK.eig_vals(A_sq)
+            @test D isa FusedGradedVector
+            @test D.sectors == sectors_u1
+            # One eigenvalue per row of each square block
+            for i in eachindex(D.blocks)
+                @test length(D.blocks[i]) == sq_dims_u1[i]
+            end
+            # Eigenvalues match diagonal of eig_full
+            D2, _ = MAK.eig_full(A_sq)
+            for i in eachindex(D.blocks)
+                @test isapprox(
+                    sort(D.blocks[i]; by = real),
+                    sort(MAK.diagview(D2.blocks[i]); by = real);
+                    atol = 1.0e-10,
+                )
+            end
+        end
     end
 
     # -----------------------------------------------------------------------
@@ -229,11 +246,20 @@ isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A))) =
             @test isunitary(V)
         end
 
-        # @testset "vals" begin
-        #     # TODO: eigh_vals returns per-sector eigenvalue vectors; FusedGradedVector representation pending
-        #     D = MAK.eigh_vals(A_herm)
-        #     @test D isa FusedGradedMatrix
-        # end
+        @testset "vals" begin
+            D = MAK.eigh_vals(A_herm)
+            @test D isa FusedGradedVector
+            @test length(D.sectors) == length(sectors_u1)
+            # Eigenvalues should be real and match eigh_full
+            D2, _ = MAK.eigh_full(A_herm)
+            for i in eachindex(D.blocks)
+                @test isapprox(
+                    sort(real.(D.blocks[i])),
+                    sort(real.(MAK.diagview(D2.blocks[i])));
+                    atol = 1.0e-10,
+                )
+            end
+        end
     end
 
     # -----------------------------------------------------------------------
