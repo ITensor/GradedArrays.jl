@@ -217,10 +217,9 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder
     sort!(all_entries; by = first, strategy.rev)
     kept = [Int[] for _ in v.blocks]
     number_kept = 0
-    for k in 1:howmany
-        _, i, j = all_entries[k]
-        number_kept += dim(v.sectors[i])
-        number_kept > howmany && break
+    for (_, i, j) in all_entries
+        number_kept += length(v.sectors[i])
+        number_kept > strategy.howmany && break
         push!(kept[i], j)
     end
     sort!.(kept)
@@ -236,7 +235,7 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     (isfinite(strategy.p) && strategy.p > 0) ||
         throw(ArgumentError(lazy"p-norm with p=$(strategy.p) not supported"))
     p = strategy.p
-    total_norm_p = LinearAlgebra.norm(v, strategy.p)
+    total_norm_p = LinearAlgebra.norm(v, strategy.p)^p
     ϵᵖmax = max(strategy.atol^p, strategy.rtol^p * total_norm_p)
 
     # Sort all values ascending by abs (smallest first = most likely discarded)
@@ -245,15 +244,15 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
             for (i, b) in enumerate(v.blocks)
             for (j, val) in enumerate(b)
     ]
-    sort!(all_entries; by = first)
+    sort!(all_entries; by = first, rev = true)
 
-    # Greedily discard until error budget is exhausted
+    # Greedily keep until error budget is exhausted
     kept = [Int[] for _ in v.blocks]
-    total_err_p = zero(typeof(ϵᵖmax))
-    for (k, (absval, i, j)) in enumerate(all_entries)
-        total_err_p += absval^p * dim(v.sectors[i])
-        total_err_p > ϵᵖmax && break
+    total_err_p = total_norm_p
+    for (absval, i, j) in all_entries
+        total_err_p -= absval^p * length(v.sectors[i])
         push!(kept[i], j)
+        total_err_p > ϵᵖmax || break
     end
     sort!.(kept)
     return kept
@@ -288,23 +287,20 @@ function MAK.truncate(
         strategy::MAK.TruncationStrategy
     )
     sv = MAK.diagview(S)
-    ind = MAK.findtruncated_svd(sv, strategy)
-    new_sectors = similar(U.sectors, 0)
-    new_U_blocks = similar(U.blocks, 0)
-    new_S_blocks = similar(S.blocks, 0)
-    new_Vh_blocks = similar(Vᴴ.blocks, 0)
-    for (i, sec) in enumerate(U.sectors)
-        iszero(_count_kept(ind[i], size(U.blocks[i], 2))) && continue
-        idx = ind[i]
-        push!(new_sectors, sec)
-        push!(new_U_blocks, U.blocks[i][:, idx])
-        push!(new_S_blocks, Diagonal(MAK.diagview(S.blocks[i])[idx]))
-        push!(new_Vh_blocks, Vᴴ.blocks[i][idx, :])
+    inds = MAK.findtruncated_svd(sv, strategy)
+    U_blocks = map(U.blocks, inds) do u, ind
+        return u[:, ind]
     end
-    Ũ = FusedGradedMatrix(new_sectors, new_U_blocks)
-    S̃ = FusedGradedMatrix(new_sectors, new_S_blocks)
-    Ṽᴴ = FusedGradedMatrix(new_sectors, new_Vh_blocks)
-    return (Ũ, S̃, Ṽᴴ), ind
+    S_blocks = map(S.blocks, inds) do s, ind
+        return Diagonal(MAK.diagview(s)[ind])
+    end
+    Vᴴ_blocks = map(Vᴴ.blocks, inds) do vᴴ, ind
+        return vᴴ[ind, :]
+    end
+    Ũ = FusedGradedMatrix(U.sectors, U_blocks)
+    S̃ = FusedGradedMatrix(S.sectors, S_blocks)
+    Ṽᴴ = FusedGradedMatrix(Vᴴ.sectors, Vᴴ_blocks)
+    return (Ũ, S̃, Ṽᴴ), inds
 end
 
 for f! in (:eigh_trunc!, :eig_trunc!)
@@ -314,19 +310,15 @@ for f! in (:eigh_trunc!, :eig_trunc!)
             strategy::MAK.TruncationStrategy
         )
         ev = MAK.diagview(D)
-        ind = MAK.findtruncated(ev, strategy)
-        new_sectors = similar(D.sectors, 0)
-        new_D_blocks = similar(D.blocks, 0)
-        new_V_blocks = similar(V.blocks, 0)
-        for (i, sec) in enumerate(D.sectors)
-            iszero(_count_kept(ind[i], size(V.blocks[i], 2))) && continue
-            idx = ind[i]
-            push!(new_sectors, sec)
-            push!(new_D_blocks, Diagonal(MAK.diagview(D.blocks[i])[idx]))
-            push!(new_V_blocks, V.blocks[i][:, idx])
+        inds = MAK.findtruncated(ev, strategy)
+        D_blocks = map(D.blocks, inds) do d, ind
+            return Diagonal(MAK.diagview(d)[ind])
         end
-        D̃ = FusedGradedMatrix(new_sectors, new_D_blocks)
-        Ṽ = FusedGradedMatrix(new_sectors, new_V_blocks)
-        return (D̃, Ṽ), ind
+        V_blocks = map(V.blocks, inds) do v, ind
+            return v[:, ind]
+        end
+        D̃ = FusedGradedMatrix(D.sectors, D_blocks)
+        Ṽ = FusedGradedMatrix(V.sectors, V_blocks)
+        return (D̃, Ṽ), inds
     end
 end
