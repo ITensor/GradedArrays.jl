@@ -209,16 +209,18 @@ end
 
 # TruncationByOrder (truncrank k): global top-k across all blocks
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder)
-    howmany = min(strategy.howmany, sum(length, v.blocks; init = 0))
     all_entries = [
         (strategy.by(val), i, j)
             for (i, b) in enumerate(v.blocks)
             for (j, val) in enumerate(b)
     ]
-    partialsort!(all_entries, 1:howmany; by = first, rev = strategy.rev)
+    sort!(all_entries; by = first, strategy.rev)
     kept = [Int[] for _ in v.blocks]
+    number_kept = 0
     for k in 1:howmany
         _, i, j = all_entries[k]
+        number_kept += dim(v.sectors[i])
+        number_kept > howmany && break
         push!(kept[i], j)
     end
     sort!.(kept)
@@ -246,17 +248,12 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     sort!(all_entries; by = first)
 
     # Greedily discard until error budget is exhausted
-    discard = fill(false, length(all_entries))
-    total_err_p = zero(typeof(ϵᵖmax))
-    for (k, (absval, _, _)) in enumerate(all_entries)
-        total_err_p += absval^p
-        total_err_p > ϵᵖmax && break
-        discard[k] = true
-    end
-
     kept = [Int[] for _ in v.blocks]
-    for (k, (_, i, j)) in enumerate(all_entries)
-        discard[k] || push!(kept[i], j)
+    total_err_p = zero(typeof(ϵᵖmax))
+    for (k, (absval, i, j)) in enumerate(all_entries)
+        total_err_p += absval^p * dim(v.sectors[i])
+        total_err_p > ϵᵖmax && break
+        push!(kept[i], j)
     end
     sort!.(kept)
     return kept
