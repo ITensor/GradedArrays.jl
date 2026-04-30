@@ -1,4 +1,393 @@
-# TODO: Re-enable after factorizations are implemented for new types.
-# Original test code preserved in git history.
-using Test: @testset
-@testset "Factorizations (disabled pending type redesign)" begin end
+import MatrixAlgebraKit as MAK
+using GradedArrays: FusedGradedMatrix, FusedGradedVector, GradedBlockAlgorithm, U1, Z2
+using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, norm
+using MatrixAlgebraKit: isisometric, isunitary
+using Test: @test, @testset
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+function random_fgm(sectors, cod_dims, dom_dims; T = Float64)
+    blocks = [randn(T, m, n) for (m, n) in zip(cod_dims, dom_dims)]
+    return FusedGradedMatrix(collect(sectors), blocks)
+end
+
+function random_hermitian_fgm(sectors, dims; T = Float64)
+    blocks = [MAK.project_hermitian!(randn(T, n, n)) for n in dims]
+    return FusedGradedMatrix(collect(sectors), blocks)
+end
+
+precision(::Type{T}) where {T <: Number} = sqrt(eps(real(T)))
+precision(::Type{T}) where {T} = precision(eltype(T))
+
+function has_positive_diagonal(A)
+    T = eltype(A)
+    return if T <: Real
+        all(≥(zero(T)), diagview(A))
+    else
+        all(≥(zero(real(T))), real(diagview(A))) &&
+            all(≈(zero(real(T))), imag(diagview(A)))
+    end
+end
+function isleftnull(N, A; atol::Real = 0, rtol::Real = precision(eltype(A)))
+    return isapprox(norm(A' * N), 0; atol = max(atol, norm(A) * rtol))
+end
+
+function isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A)))
+    return isapprox(norm(A * Nᴴ'), 0; atol = max(atol, norm(A) * rtol))
+end
+
+@testset "Factorizations" begin
+
+    # -----------------------------------------------------------------------
+    # Setup: two test matrices (rectangular and square) with U1 sectors
+    # -----------------------------------------------------------------------
+    sectors_u1 = [U1(0), U1(1), U1(2)]
+    cod_dims_u1 = [3, 4, 2]
+    dom_dims_u1 = [2, 3, 5]
+
+    A_rect = random_fgm(sectors_u1, cod_dims_u1, dom_dims_u1)
+    A_tall = random_fgm(sectors_u1, [4, 5, 3], [2, 3, 2])  # tall: m >= n per block
+    A_wide = random_fgm(sectors_u1, [2, 3, 2], [4, 5, 3])  # wide: n >= m per block
+
+    sq_dims_u1 = [3, 4, 2]
+    A_sq = random_fgm(sectors_u1, sq_dims_u1, sq_dims_u1)
+    A_herm = random_hermitian_fgm(sectors_u1, sq_dims_u1)
+
+    # Z2 sectors for variety
+    sectors_z2 = [Z2(0), Z2(1)]
+    A_z2 = random_fgm(sectors_z2, [3, 4], [3, 4])
+
+    @testset "GradedBlockAlgorithm" begin
+        alg = MAK.select_algorithm(MAK.svd_compact!, A_rect)
+        @test alg isa GradedBlockAlgorithm
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "SVD" begin
+        @testset "compact" begin
+            U, S, Vᴴ = MAK.svd_compact(A_rect)
+            @test U isa FusedGradedMatrix
+            @test S isa FusedGradedMatrix
+            @test Vᴴ isa FusedGradedMatrix
+            @test all(x -> x isa Diagonal, S.blocks)
+
+            # Reconstruction
+            @test A_rect ≈ U * S * Vᴴ
+
+            # Properties
+            @test isisometric(U)
+            @test isisometric(Vᴴ; side = :right)
+            @test isposdef(S)
+        end
+
+        @testset "full" begin
+            U, S, Vᴴ = MAK.svd_full(A_rect)
+            @test U isa FusedGradedMatrix
+            @test S isa FusedGradedMatrix
+            @test Vᴴ isa FusedGradedMatrix
+
+            # Reconstruction
+            @test A_rect ≈ U * S * Vᴴ
+
+            # Properties
+            @test isunitary(U)
+            @test isunitary(Vᴴ)
+            for s in S.blocks
+                @test all(isposdef, MAK.diagview(s))
+            end
+        end
+
+        @testset "vals" begin
+            S = MAK.svd_vals(A_rect)
+            @test S isa FusedGradedVector
+            @test all(S.blocks[i] isa AbstractVector for i in eachindex(S.blocks))
+            @test all(all(>=(0), S.blocks[i]) for i in eachindex(S.blocks))
+            # Singular values match those from compact SVD
+            _, S2, _ = MAK.svd_compact(A_rect)
+            for i in eachindex(S.blocks)
+                @test isapprox(
+                    sort(S.blocks[i]; rev = true),
+                    sort(MAK.diagview(S2.blocks[i]); rev = true);
+                    atol = 1.0e-10
+                )
+            end
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "QR" begin
+        @testset "compact" begin
+            Q, R = MAK.qr_compact(A_rect)
+            @test Q isa FusedGradedMatrix
+            @test R isa FusedGradedMatrix
+
+            # Reconstruction
+            @test Q * R ≈ A_rect
+
+            # Properties
+            @test isisometric(Q)
+            @test istriu(R)
+
+            # TODO: test positive diagonal
+        end
+
+        @testset "full" begin
+            Q, R = MAK.qr_full(A_rect)
+            @test Q isa FusedGradedMatrix
+            @test R isa FusedGradedMatrix
+
+            # Reconstruction
+            @test Q * R ≈ A_rect
+
+            # Properties
+            @test isunitary(Q)
+            @test istriu(R)
+
+            # TODO: test positive diagonal
+        end
+
+        @testset "null" begin
+            # Use tall matrix so null space per block = 0 (m >= n), or wide for non-trivial null
+            N = MAK.qr_null(A_tall)
+            @test N isa FusedGradedMatrix
+
+            @test isleftnull(N, A_tall)
+            @test isisometric(N)
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "LQ" begin
+        @testset "compact" begin
+            L, Q = MAK.lq_compact(A_rect)
+            @test L isa FusedGradedMatrix
+            @test Q isa FusedGradedMatrix
+
+            # Reconstruction
+            @test L * Q ≈ A_rect
+
+            # Properties
+            @test istril(L)
+            @test isisometric(Q; side = :right)
+
+            # TODO: test positive diagonal
+        end
+
+        @testset "full" begin
+            L, Q = MAK.lq_full(A_rect)
+            @test L isa FusedGradedMatrix
+            @test Q isa FusedGradedMatrix
+
+            # Reconstruction
+            @test L * Q ≈ A_rect
+
+            # Properties
+            @test istril(L)
+            @test isunitary(Q)
+
+            # TODO: test positive diagonal
+        end
+
+        @testset "null" begin
+            # Use wide matrix so null space per block is non-trivial (n >= m)
+            N = MAK.lq_null(A_wide)
+            @test N isa FusedGradedMatrix
+
+            @test isrightnull(N, A_wide)
+            @test isisometric(N; side = :right)
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "Eig" begin
+        @testset "full" begin
+            D, V = MAK.eig_full(A_sq)
+            @test D isa FusedGradedMatrix
+            @test V isa FusedGradedMatrix
+            @test all(x -> x isa Diagonal, D.blocks)
+
+            # Reconstruction via eigenvector equation
+            @test A_sq * V ≈ V * D
+        end
+
+        @testset "vals" begin
+            D = MAK.eig_vals(A_sq)
+            @test D isa FusedGradedVector
+            @test D.sectors == sectors_u1
+            # One eigenvalue per row of each square block
+            for i in eachindex(D.blocks)
+                @test length(D.blocks[i]) == sq_dims_u1[i]
+            end
+            # Eigenvalues match diagonal of eig_full
+            D2, _ = MAK.eig_full(A_sq)
+            for i in eachindex(D.blocks)
+                @test isapprox(
+                    sort(D.blocks[i]; by = real),
+                    sort(MAK.diagview(D2.blocks[i]); by = real);
+                    atol = 1.0e-10
+                )
+            end
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "Eigh" begin
+        @testset "full" begin
+            D, V = MAK.eigh_full(A_herm)
+            @test D isa FusedGradedMatrix
+            @test V isa FusedGradedMatrix
+            @test all(x -> x isa Diagonal, D.blocks)
+
+            # Reconstruction
+            @test A_herm ≈ V * D * V'
+
+            # Properties
+            @test isunitary(V)
+        end
+
+        @testset "vals" begin
+            D = MAK.eigh_vals(A_herm)
+            @test D isa FusedGradedVector
+            @test length(D.sectors) == length(sectors_u1)
+            # Eigenvalues should be real and match eigh_full
+            D2, _ = MAK.eigh_full(A_herm)
+            for i in eachindex(D.blocks)
+                @test isapprox(
+                    sort(real.(D.blocks[i])),
+                    sort(real.(MAK.diagview(D2.blocks[i])));
+                    atol = 1.0e-10
+                )
+            end
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "Polar" begin
+        @testset "left" begin
+            W, P = MAK.left_polar(A_sq)
+            @test W isa FusedGradedMatrix
+            @test P isa FusedGradedMatrix
+
+            # Reconstruction
+            @test W * P ≈ A_sq
+
+            # Properties
+            @test isunitary(W)
+            @test isposdef(P)
+        end
+
+        @testset "right" begin
+            P, W = MAK.right_polar(A_sq)
+            @test P isa FusedGradedMatrix
+            @test W isa FusedGradedMatrix
+
+            # Reconstruction
+            @test P * W ≈ A_sq
+
+            # Properties
+            @test isunitary(W)
+            @test isposdef(P)
+        end
+    end
+    # -----------------------------------------------------------------------
+    @testset "Truncated SVD" begin
+        using MatrixAlgebraKit: notrunc, truncrank, trunctol, truncerror
+
+        @testset "notrunc" begin
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = notrunc())
+            @test U isa FusedGradedMatrix
+            @test S isa FusedGradedMatrix
+            @test Vᴴ isa FusedGradedMatrix
+            @test ε ≈ 0 atol = precision(eltype(A_rect))
+            @test A_rect ≈ U * S * Vᴴ
+            @test isisometric(U)
+            @test isisometric(Vᴴ; side = :right)
+
+            # same sectors as compact SVD
+            U0, S0, Vᴴ0 = MAK.svd_compact(A_rect)
+            @test U.sectors == U0.sectors
+            @test all(S.blocks .≈ S0.blocks)
+        end
+
+        @testset "truncrank" begin
+            maxrank = 4
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = truncrank(maxrank))
+            @test U isa FusedGradedMatrix
+            # total number of kept singular values ≤ maxrank
+            @test sum(size(b, 2) for b in U.blocks) <= maxrank
+            # reconstruction error ≈ reported truncation error
+            @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
+            @test isisometric(U)
+            @test isisometric(Vᴴ; side = :right)
+        end
+
+        @testset "trunctol" begin
+            atol = 0.5
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = trunctol(; atol))
+            @test U isa FusedGradedMatrix
+            # all kept singular values are above the tolerance
+            for b in S.blocks
+                @test all(≥(atol), MAK.diagview(b))
+            end
+            @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
+        end
+
+        @testset "truncerror" begin
+            atol = 0.3
+            U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = truncerror(; atol))
+            @test U isa FusedGradedMatrix
+            @test ε <= atol + precision(eltype(A_rect))
+            @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
+        end
+
+        @testset "combined (truncrank & trunctol)" begin
+            U, S, Vᴴ, ε =
+                MAK.svd_trunc(A_rect; trunc = truncrank(3) & trunctol(; atol = 0.3))
+            @test U isa FusedGradedMatrix
+            @test sum(size(b, 2) for b in U.blocks) <= 3
+            for b in S.blocks
+                @test all(≥(0.3), MAK.diagview(b))
+            end
+        end
+
+        @testset "svd_trunc_no_error" begin
+            U, S, Vᴴ = MAK.svd_trunc_no_error(A_rect; trunc = truncrank(3))
+            @test U isa FusedGradedMatrix
+            @test sum(size(b, 2) for b in U.blocks) <= 3
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "Truncated EIGH" begin
+        using MatrixAlgebraKit: notrunc, truncrank, trunctol, truncerror
+
+        @testset "notrunc" begin
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc = notrunc())
+            @test D isa FusedGradedMatrix
+            @test V isa FusedGradedMatrix
+            @test ε ≈ 0 atol = precision(eltype(A_herm))
+            @test A_herm ≈ V * D * V'
+            D0, V0 = MAK.eigh_full(A_herm)
+            @test D.sectors == D0.sectors
+        end
+
+        @testset "truncrank" begin
+            maxrank = 5
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc = truncrank(maxrank))
+            @test D isa FusedGradedMatrix
+            @test sum(size(b, 2) for b in V.blocks) <= maxrank
+            @test isisometric(V)
+        end
+
+        @testset "trunctol (keep largest by abs)" begin
+            atol = 0.3
+            D, V, ε = MAK.eigh_trunc(A_herm; trunc = trunctol(; atol))
+            @test D isa FusedGradedMatrix
+            for b in D.blocks
+                @test all(≥(atol) ∘ abs, MAK.diagview(b))
+            end
+        end
+    end
+end  # @testset "Factorizations"
