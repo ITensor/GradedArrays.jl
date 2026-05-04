@@ -131,17 +131,22 @@ end
 
 # ========================  Accessors  ========================
 
-BlockArrays.blocklength(m::FusedGradedMatrix) = length(m.sectors)
+BlockArrays.blocklength(m::FusedGradedMatrix) = length(m.blocks)
+BlockArrays.blocklength(m::FusedGradedMatrix, dim::Integer) =
+    dim == 1 ? length(m.codomain) : dim == 2 ? length(m.domain) : throw(BoundsError(m, dim))
+
 function BlockSparseArrays.blocktype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S}
     return SectorMatrix{T, D, S}
 end
 BlockSparseArrays.blocktype(m::FusedGradedMatrix) = BlockSparseArrays.blocktype(typeof(m))
 sectortype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = S
+datatype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = D
+datatype(a::FusedGradedMatrix) = datatype(typeof(a))
 
 function Base.axes(m::FusedGradedMatrix)
-    codomain = gradedrange(m.sectors .=> size.(m.blocks, 1))
-    domain = gradedrange(dual.(m.sectors) .=> size.(m.blocks, 2))
-    return (codomain, domain)
+    cod = gradedrange(collect(pairs(m.codomain)))
+    dom = gradedrange([dual(s) => l for (s, l) in pairs(m.domain)])
+    return (cod, dom)
 end
 
 Base.size(m::FusedGradedMatrix) = map(length, axes(m))
@@ -152,30 +157,34 @@ Base.eltype(::Type{<:FusedGradedMatrix{T}}) where {T} = T
 
 function Base.view(m::FusedGradedMatrix, I::Block{2})
     i, j = Int.(Tuple(I))
-    i == j ||
-        error("Off-diagonal access not supported for block-diagonal FusedGradedMatrix")
-    return SectorMatrix(m.sectors[i], m.blocks[i])
+    @boundscheck begin
+        i in 1:length(m.codomain) && j in 1:length(m.domain) ||
+            throw(BoundsError(m, I))
+    end
+    s_cod = gettokenvalue(keys(m.codomain), i)
+    s_dom = gettokenvalue(keys(m.domain), j)
+    s_cod == s_dom ||
+        error("Off-diagonal access not supported for block-sparse FusedGradedMatrix")
+    return SectorMatrix(s_cod, m.blocks[s_cod])
 end
 
 # ========================  eachblockstoredindex  ========================
 
 function BlockSparseArrays.eachblockstoredindex(m::FusedGradedMatrix)
-    return (Block(i, i) for i in eachindex(m.sectors))
+    return (Block(gettoken(m.codomain, c), gettoken(m.domain, c)) for c in keys(m.blocks))
 end
 
 # ========================  blocks  ========================
 
-using LinearAlgebra: Diagonal
 function BlockArrays.blocks(m::FusedGradedMatrix)
-    diagblocks = map(I -> view(m, I), eachblockstoredindex(m))
-    return Diagonal(collect(diagblocks))
+    return [view(m, I) for I in eachblockstoredindex(m)]
 end
 
 # ========================  fill! / zero!  ========================
 
 function FI.zero!(m::FusedGradedMatrix)
-    for b in m.blocks
-        fill!(b, zero(eltype(m)))
+    for b in values(m.blocks)
+        fill!(b, zero(eltype(b)))
     end
     return m
 end
@@ -186,6 +195,7 @@ function Base.fill!(m::FusedGradedMatrix, v)
     )
     return FI.zero!(m)
 end
+
 
 # ========================  mul!  ========================
 
