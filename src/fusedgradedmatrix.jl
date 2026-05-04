@@ -34,7 +34,7 @@ struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
         issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
 
         blocksectors = intersect(keys(codomain), keys(domain))
-        blocks = dictionary(c => similar(D, (codomain[c], domain[c])) for c in blocksectors)
+        blocks = dictionary(c => similar(D, (Base.OneTo(codomain[c]), Base.OneTo(domain[c]))) for c in blocksectors)
 
         return new{T, D, S}(codomain, domain, blocks)
     end
@@ -62,50 +62,71 @@ function FusedGradedMatrix(
     return FusedGradedMatrix{eltype(D), D, S}(codomain, domain, blocks)
 end
 
-    ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
-    return FusedGradedMatrix{T, D, S}(sectors, blocks)
+"""
+    FusedGradedMatrix(sectors::Vector{S}, blocks::Vector{D})
+
+Build a `FusedGradedMatrix` whose codomain and domain carry the same sector list.
+`codomain[sectors[i]]` is `size(blocks[i], 1)` and `domain[sectors[i]]` is `size(blocks[i], 2)`.
+"""
+function FusedGradedMatrix(
+        sectors::AbstractVector{S},
+        blocks::AbstractVector{D},
+    ) where {S <: SectorRange, D <: AbstractMatrix}
+    length(sectors) == length(blocks) ||
+        throw(ArgumentError("sectors and blocks must have the same length"))
+    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
+    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
+    cod = Dictionary{S, Int}(sectors, [size(b, 1) for b in blocks])
+    dom = Dictionary{S, Int}(sectors, [size(b, 2) for b in blocks])
+    blks = Dictionary{S, D}(sectors, collect(blocks))
+    return FusedGradedMatrix(cod, dom, blks)
 end
-function FusedGradedMatrix(pairs::AbstractVector{<:Pair})
-    sectors = first.(pairs)
-    blocks = last.(pairs)
-    return FusedGradedMatrix(sectors, blocks)
-end
+
+FusedGradedMatrix(pairs::AbstractVector{<:Pair{<:SectorRange}}) =
+    FusedGradedMatrix(first.(pairs), last.(pairs))
 
 # ========================  undef constructors  ========================
 
+# Symmetric `undef` constructor: same sector list on both axes.
 function FusedGradedMatrix{T, D, S}(
         ::UndefInitializer,
-        sectors::Vector{S},
+        sectors::AbstractVector{S},
         axes::Tuple{BlockedOneTo, BlockedOneTo}
     ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
-    cod_axes = eachblockaxis(axes[1])
-    dom_axes = eachblockaxis(axes[2])
     length(cod_axes) == length(dom_axes) == length(sectors) ||
         throw(ArgumentError("axes block counts must match sectors length"))
-    blks = [similar(D, (cod_axes[i], dom_axes[i])) for i in eachindex(sectors)]
-    return FusedGradedMatrix{T, D, S}(sectors, blks)
+    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
+    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
+    cod = Dictionary{S, Int}(sectors, map(length, eachblockaxis(axes[1])))
+    dom = Dictionary{S, Int}(sectors, map(length, eachblockaxis(axes[2])))
+    return FusedGradedMatrix{T, D, S}(undef, cod, dom)
 end
 
 # Convenience: default D = Matrix{T}.
 function FusedGradedMatrix{T}(
-        ::UndefInitializer,
-        sectors::Vector{S},
-        axes::Tuple{BlockedOneTo, BlockedOneTo}
-    ) where {T, S <: SectorRange}
+        ::UndefInitializer, sectors::AbstractVector{<:SectorRange}, axes::Tuple{BlockedOneTo, BlockedOneTo}
+    ) where {T}
+    S = eltype(sectors)
     return FusedGradedMatrix{T, Matrix{T}, S}(undef, sectors, axes)
 end
 
 # Vector{Int} convenience: wraps into BlockedOneTo and delegates.
 function FusedGradedMatrix{T}(
         ::UndefInitializer,
-        sectors::Vector{<:SectorRange},
-        codomain_blocklengths::Vector{Int},
-        domain_blocklengths::Vector{Int}
+        sectors::AbstractVector{<:SectorRange},
+        codomain_blocklengths::AbstractVector{Int},
+        domain_blocklengths::AbstractVector{Int}
     ) where {T}
-    return FusedGradedMatrix{T}(
-        undef, sectors,
-        blockedrange.((codomain_blocklengths, domain_blocklengths))
-    )
+    S = eltype(sectors)
+    cod = Dictionary{S, Int}(sectors, codomain_blocklengths)
+    dom = Dictionary{S, Int}(sectors, domain_blocklengths)
+    return FusedGradedMatrix{T}(undef, cod, dom)
+end
+
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int},
+    ) where {T, S <: SectorRange}
+    return FusedGradedMatrix{T, Matrix{T}, S}(undef, codomain, domain)
 end
 
 # ========================  Accessors  ========================
