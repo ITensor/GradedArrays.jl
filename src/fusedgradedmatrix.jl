@@ -46,6 +46,7 @@ struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
         issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
         issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
 
+
         blocksectors = intersect(keys(codomain), keys(domain))
         issetequal(blocksectors, keys(blocks)) || throw(ArgumentError("invalid blocks"))
         for (c, b) in pairs(blocks)
@@ -93,7 +94,7 @@ function FusedGradedMatrix{T, D, S}(
         sectors::AbstractVector{S},
         axes::Tuple{BlockedOneTo, BlockedOneTo}
     ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
-    length(cod_axes) == length(dom_axes) == length(sectors) ||
+    blocklength(axes[1]) == blocklength(axes[2]) == length(sectors) ||
         throw(ArgumentError("axes block counts must match sectors length"))
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
@@ -118,6 +119,8 @@ function FusedGradedMatrix{T}(
         domain_blocklengths::AbstractVector{Int}
     ) where {T}
     S = eltype(sectors)
+    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
+    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     cod = Dictionary{S, Int}(sectors, codomain_blocklengths)
     dom = Dictionary{S, Int}(sectors, domain_blocklengths)
     return FusedGradedMatrix{T}(undef, cod, dom)
@@ -171,7 +174,7 @@ end
 # ========================  eachblockstoredindex  ========================
 
 function BlockSparseArrays.eachblockstoredindex(m::FusedGradedMatrix)
-    return (Block(gettoken(m.codomain, c), gettoken(m.domain, c)) for c in keys(m.blocks))
+    return (Block(gettoken(m.codomain, c)[2][2], gettoken(m.domain, c)[2][2]) for c in keys(m.blocks))
 end
 
 # ========================  blocks  ========================
@@ -221,7 +224,7 @@ function LinearAlgebra.mul!(
     )
     check_input(mul!, C, A, B)
     for (s, c) in pairs(C.blocks)
-        if haskey(A.blocks, c) && haskey(B.blocks, c)
+        if haskey(A.blocks, s) && haskey(B.blocks, s)
             mul!(c, A.blocks[s], B.blocks[s], α, β)
         else
             iszero(β) ? fill!(c, β) : scale!(c, β)

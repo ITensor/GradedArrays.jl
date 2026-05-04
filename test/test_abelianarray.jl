@@ -1,5 +1,6 @@
 using BlockArrays: BlockArrays, Block, blockedrange, blocklength
 using BlockSparseArrays: eachblockstoredindex
+using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
     datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
@@ -51,8 +52,7 @@ using Test: @test, @test_throws, @testset
     @testset "Block getindex returns correct sectors" begin
         g1_dual = gradedrange([U1(0) => 2, U1(1) => 3])'
         a = AbelianGradedArray{Float64}(undef, g1_dual, g2)
-        data = ones(2, 1)
-        a[Block(1, 1)] = data
+        a[Block(1, 1)] = ones(2, 1)
 
         blk = a[Block(1, 1)]
         @test sectoraxes(blk) == (U1(0)', U1(0))
@@ -233,7 +233,7 @@ end
         ]
     )
     @test m_su2 isa FusedGradedMatrix{Float64, Matrix{Float64}, SU2}
-    @test m_su2.sectors == [SU2(0), SU2(1 // 2), SU2(1)]
+    @test collect(keys(m_su2.blocks)) == [SU2(0), SU2(1 // 2), SU2(1)]
     @test data(m_su2[Block(1, 1)]) == [1.0;;]
     @test data(m_su2[Block(2, 2)]) == [1.0 2.0; 3.0 4.0]
     # Block(2, 2) lives in SU2(1/2), which has dim 2 → 4×4 in dense view.
@@ -245,7 +245,7 @@ end
         a = FusedGradedMatrix([U1(0) => [2.0;;], U1(1) => [1.0 2.0; 3.0 4.0]])
         b = FusedGradedMatrix([U1(0) => [3.0;;], U1(1) => [0.0 1.0; 1.0 0.0]])
         c = a * b
-        @test c.sectors == [U1(0), U1(1)]
+        @test collect(keys(c.blocks)) == [U1(0), U1(1)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
@@ -253,7 +253,7 @@ end
         a = FusedGradedMatrix([SU2(0) => [2.0;;], SU2(1 // 2) => [1.0 2.0; 3.0 4.0]])
         b = FusedGradedMatrix([SU2(0) => [3.0;;], SU2(1 // 2) => [0.0 1.0; 1.0 0.0]])
         c = a * b
-        @test c.sectors == [SU2(0), SU2(1 // 2)]
+        @test collect(keys(c.blocks)) == [SU2(0), SU2(1 // 2)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
@@ -272,10 +272,10 @@ end
     @testset "Convenience constructor (defaults D = Matrix{T})" begin
         m = FusedGradedMatrix{Float64}(undef, sectors, cod_bls, dom_bls)
         @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
-        @test length(m.sectors) == 2
-        @test m.sectors == sectors
-        @test size(m.blocks[1]) == (2, 1)
-        @test size(m.blocks[2]) == (3, 2)
+        @test length(m.blocks) == 2
+        @test collect(keys(m.blocks)) == sectors
+        @test size(m.blocks[U1(0)]) == (2, 1)
+        @test size(m.blocks[U1(1)]) == (3, 2)
     end
 
     @testset "Fully parameterized constructor" begin
@@ -283,7 +283,7 @@ end
             undef, sectors, (blockedrange(cod_bls), blockedrange(dom_bls))
         )
         @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
-        @test size(m.blocks[1]) == (2, 1)
+        @test size(m.blocks[U1(0)]) == (2, 1)
     end
 
     @testset "Tuple BlockedOneTo form" begin
@@ -291,8 +291,8 @@ end
             undef, sectors, (blockedrange([2, 3]), blockedrange([1, 2]))
         )
         @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
-        @test size(m.blocks[1]) == (2, 1)
-        @test size(m.blocks[2]) == (3, 2)
+        @test size(m.blocks[U1(0)]) == (2, 1)
+        @test size(m.blocks[U1(1)]) == (3, 2)
     end
 
     @testset "Rejects mismatched lengths" begin
@@ -312,4 +312,90 @@ end
             undef, [U1(0), U1(0)], [2, 3], [1, 2]
         )
     end
+end
+
+@testset "FusedGradedMatrix asymmetric (cod ≠ dom) sectors" begin
+    cod = Dictionary{U1, Int}([U1(0), U1(1), U1(2)], [2, 3, 4])
+    dom = Dictionary{U1, Int}([U1(1), U1(2), U1(3)], [3, 4, 5])
+    blks = Dictionary{U1, Matrix{Float64}}(
+        [U1(1), U1(2)],
+        [ones(3, 3), 2 * ones(4, 4)],
+    )
+    m = FusedGradedMatrix(cod, dom, blks)
+
+    @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
+    @test size(m) == (9, 12)            # 2+3+4 = 9, 3+4+5 = 12
+    @test sectors(axes(m, 1)) == [U1(0), U1(1), U1(2)]
+    @test sectors(axes(m, 2)) == dual.([U1(1), U1(2), U1(3)])
+    @test collect(keys(m.blocks)) == [U1(1), U1(2)]
+
+    # Stored block access by sector key.
+    @test m.blocks[U1(1)] == ones(3, 3)
+    @test m.blocks[U1(2)] == 2 * ones(4, 4)
+
+    # eachblockstoredindex maps sectors to (cod_pos, dom_pos): U1(1) is
+    # cod position 2, dom position 1; U1(2) is cod 3, dom 2.
+    stored = collect(eachblockstoredindex(m))
+    @test Block(2, 1) in stored
+    @test Block(3, 2) in stored
+
+    # Adjoint swaps codomain/domain dicts and adjoints each block.
+    mh = m'
+    @test mh.codomain == m.domain
+    @test mh.domain == m.codomain
+    @test collect(keys(mh.blocks)) == collect(keys(m.blocks))
+    @test mh.blocks[U1(1)] == ones(3, 3)'
+    @test size(mh) == (size(m, 2), size(m, 1))
+
+    # Multiplication: A's domain must match B's codomain (sectors and sizes).
+    cod_A = Dictionary{U1, Int}([U1(0), U1(1)], [2, 3])
+    dom_A = Dictionary{U1, Int}([U1(1), U1(2)], [3, 4])
+    blks_A = Dictionary{U1, Matrix{Float64}}([U1(1)], [ones(3, 3)])
+    A = FusedGradedMatrix(cod_A, dom_A, blks_A)
+
+    cod_B = Dictionary{U1, Int}([U1(1), U1(2)], [3, 4])
+    dom_B = Dictionary{U1, Int}([U1(0), U1(1)], [2, 3])
+    blks_B = Dictionary{U1, Matrix{Float64}}([U1(1)], [2 * ones(3, 3)])
+    B = FusedGradedMatrix(cod_B, dom_B, blks_B)
+
+    C = A * B
+    @test sectors(axes(C, 1)) == [U1(0), U1(1)]
+    @test sectors(axes(C, 2)) == dual.([U1(0), U1(1)])
+    # Every allowed block of C is allocated. U1(0) lives in both C.codomain
+    # and C.domain so it gets a (zero) block — no contraction path through
+    # U1(0) since neither A.domain nor B.codomain carries it. U1(1) carries
+    # the full matrix product.
+    @test collect(keys(C.blocks)) == [U1(0), U1(1)]
+    @test all(iszero, C.blocks[U1(0)])
+    @test C.blocks[U1(1)] ≈ ones(3, 3) * (2 * ones(3, 3))
+end
+
+@testset "FusedGradedMatrix invariant: allowed blocks must be allocated" begin
+    cod = Dictionary{U1, Int}([U1(0), U1(1)], [2, 3])
+    dom = Dictionary{U1, Int}([U1(0), U1(1)], [4, 5])
+
+    # Missing an allowed block (U1(0)) should error.
+    blks_missing = Dictionary{U1, Matrix{Float64}}([U1(1)], [ones(3, 5)])
+    @test_throws ArgumentError FusedGradedMatrix(cod, dom, blks_missing)
+
+    # All allowed blocks present → ok.
+    blks_full = Dictionary{U1, Matrix{Float64}}(
+        [U1(0), U1(1)],
+        [ones(2, 4), ones(3, 5)],
+    )
+    m = FusedGradedMatrix(cod, dom, blks_full)
+    @test collect(keys(m.blocks)) == [U1(0), U1(1)]
+
+    # Sectors with zero size on either side are not "allowed" — no block needed.
+    cod_z = Dictionary{U1, Int}([U1(1)], [3])
+    dom_z = Dictionary{U1, Int}([U1(0), U1(1)], [4, 5])
+    blks_z = Dictionary{U1, Matrix{Float64}}([U1(1)], [ones(3, 5)])
+    m_z = FusedGradedMatrix{Float64}(undef, cod_z, dom_z)
+    @test collect(keys(m_z.blocks)) == [U1(1)]
+
+    # `undef` constructor allocates all allowed blocks automatically.
+    m_undef = FusedGradedMatrix{Float64}(undef, cod, dom)
+    @test collect(keys(m_undef.blocks)) == [U1(0), U1(1)]
+    @test size(m_undef.blocks[U1(0)]) == (2, 4)
+    @test size(m_undef.blocks[U1(1)]) == (3, 5)
 end
