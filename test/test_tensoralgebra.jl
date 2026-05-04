@@ -273,7 +273,6 @@ end
     @test collect(keys(fsm_asym.domain)) == [U1(2), U1(3)]
     # No stored blocks since we didn't write any data and the sectors don't overlap.
     @test isempty(fsm_asym.blocks)
-
 end
 
 @testset "Off-diagonal block setindex! errors" begin

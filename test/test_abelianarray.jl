@@ -319,7 +319,7 @@ end
     dom = Dictionary{U1, Int}([U1(1), U1(2), U1(3)], [3, 4, 5])
     blks = Dictionary{U1, Matrix{Float64}}(
         [U1(1), U1(2)],
-        [ones(3, 3), 2 * ones(4, 4)],
+        [ones(3, 3), 2 * ones(4, 4)]
     )
     m = FusedGradedMatrix(cod, dom, blks)
 
@@ -381,7 +381,7 @@ end
     # All allowed blocks present → ok.
     blks_full = Dictionary{U1, Matrix{Float64}}(
         [U1(0), U1(1)],
-        [ones(2, 4), ones(3, 5)],
+        [ones(2, 4), ones(3, 5)]
     )
     m = FusedGradedMatrix(cod, dom, blks_full)
     @test collect(keys(m.blocks)) == [U1(0), U1(1)]

@@ -92,7 +92,7 @@ struct FusedGradedVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
 
     # Undef constructor
     function FusedGradedVector{T, D, S}(
-            ::UndefInitializer, axis::Dictionary{S, Int},
+            ::UndefInitializer, axis::Dictionary{S, Int}
         ) where {T, D <: AbstractVector{T}, S <: SectorRange}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
 
@@ -103,7 +103,7 @@ struct FusedGradedVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
 
     # Data constructor
     function FusedGradedVector{T, D, S}(
-            axis::Dictionary{S, Int}, blocks::Dictionary{S, D},
+            axis::Dictionary{S, Int}, blocks::Dictionary{S, D}
         ) where {T, D <: AbstractVector{T}, S <: SectorRange}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
 
@@ -118,7 +118,7 @@ struct FusedGradedVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
 end
 
 function FusedGradedVector(
-        axis::Dictionary{S, Int}, blocks::Dictionary{S, D},
+        axis::Dictionary{S, Int}, blocks::Dictionary{S, D}
     ) where {S <: SectorRange, D <: AbstractVector}
     return FusedGradedVector{eltype(D), D, S}(axis, blocks)
 end
@@ -131,7 +131,7 @@ list. `axis[sectors[i]]` is `length(blocks[i])`.
 """
 function FusedGradedVector(
         sectors::AbstractVector{S},
-        blocks::AbstractVector{D},
+        blocks::AbstractVector{D}
     ) where {S <: SectorRange, D <: AbstractVector}
     length(sectors) == length(blocks) ||
         throw(ArgumentError("sectors and blocks must have the same length"))
@@ -142,15 +142,16 @@ function FusedGradedVector(
     return FusedGradedVector(ax, blks)
 end
 
-FusedGradedVector(pairs::AbstractVector{<:Pair{<:SectorRange}}) =
-    FusedGradedVector(first.(pairs), last.(pairs))
+function FusedGradedVector(pairs::AbstractVector{<:Pair{<:SectorRange}})
+    return FusedGradedVector(first.(pairs), last.(pairs))
+end
 
 # ========================  undef constructors  ========================
 
 function FusedGradedVector{T, D, S}(
         ::UndefInitializer,
         sectors::AbstractVector{S},
-        ax::BlockedOneTo,
+        ax::BlockedOneTo
     ) where {T, D <: AbstractVector{T}, S <: SectorRange}
     blocklength(ax) == length(sectors) ||
         throw(ArgumentError("axis block count must match sectors length"))
@@ -161,7 +162,7 @@ function FusedGradedVector{T, D, S}(
 end
 
 function FusedGradedVector{T}(
-        ::UndefInitializer, sectors::AbstractVector{<:SectorRange}, ax::BlockedOneTo,
+        ::UndefInitializer, sectors::AbstractVector{<:SectorRange}, ax::BlockedOneTo
     ) where {T}
     S = eltype(sectors)
     return FusedGradedVector{T, Vector{T}, S}(undef, sectors, ax)
@@ -170,7 +171,7 @@ end
 function FusedGradedVector{T}(
         ::UndefInitializer,
         sectors::AbstractVector{<:SectorRange},
-        blocklengths::AbstractVector{Int},
+        blocklengths::AbstractVector{Int}
     ) where {T}
     S = eltype(sectors)
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
@@ -180,7 +181,7 @@ function FusedGradedVector{T}(
 end
 
 function FusedGradedVector{T}(
-        ::UndefInitializer, axis::Dictionary{S, Int},
+        ::UndefInitializer, axis::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
     return FusedGradedVector{T, Vector{T}, S}(undef, axis)
 end
@@ -253,7 +254,11 @@ end
 function Base.similar(v::FusedGradedVector, axis::Dictionary{S, Int}) where {S}
     return typeof(v)(undef, axis)
 end
-function Base.similar(v::FusedGradedVector, ::Type{T}, axis::Dictionary{S, Int}) where {T, S}
+function Base.similar(
+        v::FusedGradedVector,
+        ::Type{T},
+        axis::Dictionary{S, Int}
+    ) where {T, S}
     if T <: Number
         return FusedGradedVector{T}(undef, axis)
     elseif T <: AbstractVector
