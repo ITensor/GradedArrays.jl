@@ -15,14 +15,11 @@ for f in [
     ]
     f! = Symbol(f, :!)
     @eval function MAK.default_algorithm(
-            ::typeof(MAK.$f!),
-            ::Type{T};
-            kwargs...
+            ::typeof(MAK.$f!), ::Type{T}; kwargs...
         ) where {T <: FusedGradedMatrix}
         return GradedBlockAlgorithm(
             MAK.default_algorithm(
-                MAK.$f!,
-                datatype(BlockSparseArrays.blocktype(T));
+                MAK.$f!, datatype(BlockSparseArrays.blocktype(T));
                 kwargs...
             )
         )
@@ -30,126 +27,196 @@ for f in [
 
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
         return FusedGradedMatrix(
-            A.sectors,
+            A.codomain, A.domain,
             map(Base.Fix1(MAK.copy_input, MAK.$f), A.blocks)
         )
-    end
-
-    @eval function MAK.check_input(
-            ::typeof(MAK.$f!),
-            A::FusedGradedMatrix,
-            F::Tuple,
-            alg::GradedBlockAlgorithm
-        )
-        for f in F
-            A.sectors == f.sectors || throw(ArgumentError("non-matching sectors"))
-        end
-        return nothing
-    end
-    @eval function MAK.check_input(
-            ::typeof(MAK.$f!),
-            A::FusedGradedMatrix,
-            F,
-            alg::GradedBlockAlgorithm
-        )
-        A.sectors == F.sectors || throw(ArgumentError("non-matching sectors"))
-        return nothing
     end
 end
 
 # Generic Implementations
 # -----------------------
+# utility function to do something with each block
+const FusedGradedArray = Union{FusedGradedMatrix, FusedGradedVector}
+
+_blockdataaxes(a::FusedGradedMatrix, c) =
+    (Base.OneTo(get(a.codomain, c, 0)), Base.OneTo(get(a.domain, c, 0)))
+_blockdataaxes(a::FusedGradedVector, c) = (Base.OneTo(get(a.axis, c, 0)),)
+
+function foreachblock(f, A::FusedGradedArray, As::FusedGradedArray...)
+    cs = union(map(keys ∘ Base.Fix2(getproperty, :blocks), (A, As...))...)
+
+    for c in cs
+        bs = map((A, As...)) do a
+            get(a.blocks, c) do
+                return similar(valtype(a.blocks), _blockdataaxes(a, c))
+            end
+        end
+        f(c, bs)
+    end
+
+    return nothing
+end
 
 # in cases where the factorization/alg does not result in in-place, we try to force it by copying.
 _ensure_inplace!(F, F′) = F === F′ || copy!(F, F′)
 _ensure_inplace!(F::NTuple{N}, F′::NTuple{N}) where {N} = _ensure_inplace!.(F, F′)
 
-# Single-output: null-space functions return FusedGradedMatrix
-for f! in [:qr_null!, :lq_null!]
-    @eval function MAK.initialize_output(
-            ::typeof(MAK.$f!),
-            A::FusedGradedMatrix,
-            alg::GradedBlockAlgorithm
-        )
-        return FusedGradedMatrix(
-            A.sectors,
-            map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks)
-        )
-    end
-    @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
-        MAK.check_input(MAK.$f!, A, F, alg)
-        foreach(A.blocks, F.blocks) do a, f
-            f′ = MAK.$f!(a, f, alg.alg)
-            return _ensure_inplace!(f′, f)
-        end
-        return F
-    end
-end
-
-# Single-output: vals functions return FusedGradedVector
-for f! in [:svd_vals!, :eig_vals!, :eigh_vals!]
-    @eval function MAK.initialize_output(
-            ::typeof(MAK.$f!),
-            A::FusedGradedMatrix,
-            alg::GradedBlockAlgorithm
-        )
-        return FusedGradedVector(
-            A.sectors,
-            map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks)
-        )
-    end
-    @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
-        MAK.check_input(MAK.$f!, A, F, alg)
-        foreach(A.blocks, F.blocks) do a, f
-            f′ = MAK.$f!(a, f, alg.alg)
-            return _ensure_inplace!(f′, f)
-        end
-        return F
-    end
-end
-
-# Multi-output
-for f! in [
+for f! in (
         :qr_compact!, :qr_full!, :lq_compact!, :lq_full!,
         :eig_full!, :eigh_full!, :svd_compact!, :svd_full!,
         :left_polar!, :right_polar!,
-    ]
-    @eval function MAK.initialize_output(
-            ::typeof(MAK.$f!),
-            A::FusedGradedMatrix,
-            alg::GradedBlockAlgorithm
-        )
-        sectors = A.sectors
-        blocks = map(a -> MAK.initialize_output(MAK.$f!, a, alg.alg), A.blocks)
-        narg = $(startswith(string(f!), "svd") ? 3 : 2)
-        return ntuple(narg) do n
-            return FusedGradedMatrix(sectors, getindex.(blocks, n))
-        end
-    end
-
+    )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
-        MAK.check_input(MAK.$f!, A, F, alg)
-        foreach(A.blocks, getproperty.(F, :blocks)...) do a, f...
-            f′ = MAK.$f!(a, f, alg.alg)
-            return _ensure_inplace!(f′, f)
+        $(f! in (:eig_full!, :eigh_full!) && :(LinearAlgebra.checksquare(A)))
+        foreachblock(A, F...) do _, (Ablock, Fblocks...)
+            Fblocks′ = MAK.$f!(Ablock, Fblocks, alg.alg)
+            _ensure_inplace!(Fblocks, Fblocks′)
         end
         return F
     end
 end
 
-# Matrix properties
-# -----------------
+# Handle these separately because single output instead of tuple
+for f! in (
+        :qr_null!, :lq_null!,
+        :svd_vals!, :eig_vals!, :eigh_vals!,
+        :project_hermitian!, :project_antihermitian!, :project_isometric!,
+    )
+    @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::GradedBlockAlgorithm)
+        $(f! in (:eig_vals!, :eigh_vals!, :project_hermitian!, :project_antihermitian!) && :(LinearAlgebra.checksquare(A)))
+        foreachblock(A, N) do _, (Ablock, Nblock)
+            Nblock′ = MAK.$f!(Ablock, Nblock, alg.alg)
+            _ensure_inplace!(Nblock, Nblock′)
+        end
+        return N
+    end
+end
+
+# Boolean output
 for f in [
-        :isunitary,
-        :isisometric,
-        :is_left_isometric,
-        :is_right_isometric,
-        :ishermitian,
-        :isantihermitian,
+        :isunitary, :isisometric, :is_left_isometric, :is_right_isometric,
+        :ishermitian, :isantihermitian,
     ]
     @eval function MAK.$f(A::FusedGradedMatrix; kwargs...)
         return all(x -> MAK.$f(x; kwargs...), A.blocks)
     end
+end
+
+# initialize_outputs: have to compute the correct sizes for all sectors
+# since these might be present or missing
+# =====================================================================
+
+# helper
+function similar_diagonal(A::FusedGradedMatrix, ::Type{T}, V) where {T}
+    blocks = map(V) do d
+        return Diagonal(similar(Vector{T}, d))
+    end
+    return FusedGradedMatrix(V, V, blocks)
+end
+
+# Singular value decomposition
+# ----------------------------
+function MAK.initialize_output(::typeof(MAK.svd_full!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    U = similar(A, A.codomain, A.codomain)
+    S = similar(A, real(eltype(A)), A.codomain, A.domain)
+    Vᴴ = similar(A, A.domain, A.domain)
+    return U, S, Vᴴ
+end
+function MAK.initialize_output(::typeof(MAK.svd_compact!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    V_S = map(x -> min(size(x)...), A.blocks)
+    U = similar(A, A.codomain, V_S)
+    Tr = real(eltype(A))
+    S = similar_diagonal(A, Tr, V_S)
+    Vᴴ = similar(A, V_S, A.domain)
+    return U, S, Vᴴ
+end
+function MAK.initialize_output(::typeof(MAK.svd_vals!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    V_S = map(x -> min(size(x)...), A.blocks)
+    Tr = real(eltype(A))
+    return similar(A, Vector{Tr}, V_S) # TODO: don't hardcode type
+end
+
+# Eigenvalue decomposition
+# ------------------------
+function MAK.initialize_output(::typeof(MAK.eig_full!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    Tc = complex(eltype(A))
+    D = similar_diagonal(A, Tc, A.domain)
+    V = similar(A, Tc)
+    return D, V
+end
+function MAK.initialize_output(::typeof(MAK.eig_vals!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    Tc = complex(eltype(A))
+    return similar(A, Vector{Tc}, A.domain) # TODO: don't hardcode type
+end
+
+function MAK.initialize_output(::typeof(MAK.eigh_full!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    Tr = real(eltype(A))
+    D = similar_diagonal(A, Tr, A.domain)
+    V = similar(A)
+    return D, V
+end
+function MAK.initialize_output(::typeof(MAK.eigh_vals!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    Tr = real(eltype(A))
+    return similar(A, Vector{Tr}, A.domain) # TODO: don't hardcode type
+end
+
+# QR decomposition
+# ----------------
+function MAK.initialize_output(::typeof(MAK.qr_full!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    Q = similar(A, A.codomain, A.codomain)
+    R = similar(A, A.codomain, A.domain)
+    return Q, R
+end
+function MAK.initialize_output(::typeof(MAK.qr_compact!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    V_Q = map(x -> min(size(x)...), A.blocks)
+    Q = similar(A, A.codomain, V_Q)
+    R = similar(A, V_Q, A.domain)
+    return Q, R
+end
+function MAK.initialize_output(::typeof(MAK.qr_null!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    V_N = copy(A.codomain)
+    for (c, d₁) in pairs(V_N)
+        d₂ = get(A.domain, c, 0)
+        V_N[c] = max(d₁ - d₂, 0)
+    end
+    filter!(!iszero, V_N)
+    return similar(A, A.codomain, V_N)
+end
+
+# LQ decomposition
+# ----------------
+function MAK.initialize_output(::typeof(MAK.lq_full!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    L = similar(A, A.codomain, A.domain)
+    Q = similar(A, A.domain, A.domain)
+    return L, Q
+end
+function MAK.initialize_output(::typeof(MAK.lq_compact!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    V_Q = map(x -> min(size(x)...), A.blocks)
+    L = similar(A, A.codomain, V_Q)
+    Q = similar(A, V_Q, A.domain)
+    return L, Q
+end
+function MAK.initialize_output(::typeof(MAK.lq_null!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    V_N = copy(A.domain)
+    for (c, d₂) in pairs(V_N)
+        d₁ = get(A.codomain, c, 0)
+        V_N[c] = max(d₂ - d₁, 0)
+    end
+    filter!(!iszero, V_N)
+    return similar(A, V_N, A.domain)
+end
+
+# Polar decomposition
+# -------------------
+function MAK.initialize_output(::typeof(MAK.left_polar!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    W = similar(A)
+    P = similar(A, A.domain, A.domain)
+    return W, P
+end
+function MAK.initialize_output(::typeof(MAK.right_polar!), A::FusedGradedMatrix, alg::GradedBlockAlgorithm)
+    P = similar(A, A.codomain, A.codomain)
+    Wᴴ = similar(A)
+    return P, Wᴴ
 end
 
 # Truncation support
@@ -157,7 +224,9 @@ end
 
 # diagview for FusedGradedMatrix: extracts per-block diagonals as a FusedGradedVector
 function MAK.diagview(m::FusedGradedMatrix)
-    return FusedGradedVector(m.sectors, map(MAK.diagview, m.blocks))
+    diag_blocks = map(MAK.diagview, m.blocks)
+    diag_axis = map(length, diag_blocks)
+    return FusedGradedVector(diag_axis, diag_blocks)
 end
 
 # Count how many elements are kept for a given index specification and block size
@@ -218,7 +287,7 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder
     kept = [Int[] for _ in v.blocks]
     number_kept = 0
     for (_, i, j) in all_entries
-        number_kept += length(v.sectors[i])
+        number_kept += length(gettokenvalue(keys(v.axis), i))
         number_kept > strategy.howmany && break
         push!(kept[i], j)
     end
@@ -250,7 +319,7 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     kept = [Int[] for _ in v.blocks]
     total_err_p = total_norm_p
     for (absval, i, j) in all_entries
-        total_err_p -= absval^p * length(v.sectors[i])
+        total_err_p -= absval^p * length(gettokenvalue(keys(v.axis), i))
         push!(kept[i], j)
         total_err_p > ϵᵖmax || break
     end
@@ -268,14 +337,14 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationInterse
     inds = map(s -> MAK.findtruncated(v, s), strategy.components)
     return [
         mapreduce(Base.Fix2(getindex, i), MAK._ind_intersect, inds)
-            for i in eachindex(v.blocks)
+            for i in 1:length(v.blocks)
     ]
 end
 function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationIntersection)
     inds = map(s -> MAK.findtruncated_svd(v, s), strategy.components)
     return [
         mapreduce(Base.Fix2(getindex, i), MAK._ind_intersect, inds)
-            for i in eachindex(v.blocks)
+            for i in 1:length(v.blocks)
     ]
 end
 
@@ -288,18 +357,13 @@ function MAK.truncate(
     )
     sv = MAK.diagview(S)
     inds = MAK.findtruncated_svd(sv, strategy)
-    U_blocks = map(U.blocks, inds) do u, ind
-        return u[:, ind]
-    end
-    S_blocks = map(S.blocks, inds) do s, ind
-        return Diagonal(MAK.diagview(s)[ind])
-    end
-    Vᴴ_blocks = map(Vᴴ.blocks, inds) do vᴴ, ind
-        return vᴴ[ind, :]
-    end
-    Ũ = FusedGradedMatrix(U.sectors, U_blocks)
-    S̃ = FusedGradedMatrix(S.sectors, S_blocks)
-    Ṽᴴ = FusedGradedMatrix(Vᴴ.sectors, Vᴴ_blocks)
+    sectors = collect(keys(U.blocks))
+    U_blocks = [U.blocks[s][:, inds[i]] for (i, s) in enumerate(sectors)]
+    S_blocks = [Diagonal(MAK.diagview(S.blocks[s])[inds[i]]) for (i, s) in enumerate(sectors)]
+    Vᴴ_blocks = [Vᴴ.blocks[s][inds[i], :] for (i, s) in enumerate(sectors)]
+    Ũ = FusedGradedMatrix(sectors, U_blocks)
+    S̃ = FusedGradedMatrix(sectors, S_blocks)
+    Ṽᴴ = FusedGradedMatrix(sectors, Vᴴ_blocks)
     return (Ũ, S̃, Ṽᴴ), inds
 end
 
@@ -311,14 +375,11 @@ for f! in (:eigh_trunc!, :eig_trunc!)
         )
         ev = MAK.diagview(D)
         inds = MAK.findtruncated(ev, strategy)
-        D_blocks = map(D.blocks, inds) do d, ind
-            return Diagonal(MAK.diagview(d)[ind])
-        end
-        V_blocks = map(V.blocks, inds) do v, ind
-            return v[:, ind]
-        end
-        D̃ = FusedGradedMatrix(D.sectors, D_blocks)
-        Ṽ = FusedGradedMatrix(V.sectors, V_blocks)
+        sectors = collect(keys(D.blocks))
+        D_blocks = [Diagonal(MAK.diagview(D.blocks[s])[inds[i]]) for (i, s) in enumerate(sectors)]
+        V_blocks = [V.blocks[s][:, inds[i]] for (i, s) in enumerate(sectors)]
+        D̃ = FusedGradedMatrix(sectors, D_blocks)
+        Ṽ = FusedGradedMatrix(sectors, V_blocks)
         return (D̃, Ṽ), inds
     end
 end
