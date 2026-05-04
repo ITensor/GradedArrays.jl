@@ -6,37 +6,62 @@
     FusedGradedMatrix{T,D<:AbstractMatrix{T},S<:SectorRange}
 
 Block-diagonal matrix produced by matricizing an `AbstractGradedArray`.
-Each diagonal block corresponds to a coupled sector from fusing codomain/domain legs.
+Each stored block corresponds to a coupled sector that lives on both the codomain and the domain.
 
 Fields:
 
-  - `sectors::Vector{S}` — coupled sectors, sorted and unique (always non-dual, codomain convention)
-  - `blocks::Vector{D}` — diagonal blocks, one per sector
-
-The codomain (row) axis is non-dual with sectors `sectors[i]` and sector lengths
-derived from `size(blocks[i], 1)`. The domain (column) axis is dual with sectors
-`dual(sectors[i])` and sector lengths from `size(blocks[i], 2)`.
+  - `codomain::Dictionary{S,Int}` — codomain (row) axis, mapping each sector to
+    its row-block size. Keys are sorted and unique. Sectors are stored
+    non-dual (codomain convention).
+  - `domain::Dictionary{S,Int}` — domain (column) axis, mapping each sector to
+    its column-block size. Keys are sorted and unique. Stored non-dual; the
+    actual axis is dual (the keys are dualed by `axes(m, 2)`).
+  - `blocks::Dictionary{S,D}` — stored data blocks, keyed by sector. Each key
+    must be in both `codomain` and `domain`, and `size(blocks[s])` must equal
+    `(codomain[s], domain[s])`.
 """
 struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
     AbstractGradedMatrix{T}
-    sectors::Vector{S}
-    blocks::Vector{D}
+    codomain::Dictionary{S, Int}
+    domain::Dictionary{S, Int}
+    blocks::Dictionary{S, D}
+
+    # Undef constructor
     function FusedGradedMatrix{T, D, S}(
-            sectors::Vector{S},
-            blocks::Vector{D}
+            ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int},
         ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
-        length(sectors) == length(blocks) ||
-            throw(ArgumentError("sectors and blocks must have the same length"))
-        issorted(sectors) ||
-            throw(ArgumentError("sectors must be sorted"))
-        allunique(sectors) ||
-            throw(ArgumentError("sectors must be unique"))
-        return new{T, D, S}(sectors, blocks)
+        issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
+        issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
+
+        blocksectors = intersect(keys(codomain), keys(domain))
+        blocks = dictionary(c => similar(D, (codomain[c], domain[c])) for c in blocksectors)
+
+        return new{T, D, S}(codomain, domain, blocks)
+    end
+
+    # Data constructor
+    function FusedGradedMatrix{T, D, S}(
+            codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}, blocks::Dictionary{S, D}
+        ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
+        issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
+        issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
+
+        blocksectors = intersect(keys(codomain), keys(domain))
+        issetequal(blocksectors, keys(blocks)) || throw(ArgumentError("invalid blocks"))
+        for (c, b) in pairs(blocks)
+            size(b) == (codomain[c], domain[c]) || throw(DimensionMismatch("invalid block for sector $c"))
+        end
+
+        return new{T, D, S}(codomain, domain, blocks)
     end
 end
+
 function FusedGradedMatrix(
-        sectors::Vector{S},
-        blocks::Vector{D}
+        codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}, blocks::Dictionary{S, D},
+    ) where {S <: SectorRange, D <: AbstractMatrix}
+    return FusedGradedMatrix{eltype(D), D, S}(codomain, domain, blocks)
+end
+
     ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
     return FusedGradedMatrix{T, D, S}(sectors, blocks)
 end

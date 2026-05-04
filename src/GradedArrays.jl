@@ -28,6 +28,7 @@ using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
     blockedrange, blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
 using BlockSparseArrays: BlockSparseArrays, blockdiagindices, blockstoredlength,
     eachblockaxis, eachblockstoredindex, mortar_axis
+using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
 using LinearAlgebra: LinearAlgebra, Adjoint, mul!
 using SparseArraysBase: SparseArraysBase
