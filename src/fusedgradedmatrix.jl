@@ -324,20 +324,30 @@ FusedGradedMatrix(m::FusedGradedMatrix) = m
 """
     FusedGradedMatrix(a::AbelianGradedMatrix{T})
 
-Convert a 2D block-diagonal `AbelianGradedArray` (as produced by `matricize`) into a
-`FusedGradedMatrix`. Extracts diagonal blocks from the stored entries.
+Convert a 2D block-sparse `AbelianGradedArray` (as produced by `matricize`)
+into a `FusedGradedMatrix`. The codomain dict comes from the row axis sectors
+and lengths; the domain dict comes from `dual.(domain_axis_sectors)` and
+lengths. Stored entries of `a` populate `blocks`.
 """
 function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
-    sectors(axes(a, 1)) == dual.(sectors(axes(a, 2))) || throw(
-        ArgumentError(
-            "AbelianGradedMatrix axes must be canonical duals to convert to FusedGradedMatrix"
-        )
-    )
-    fused_sectors = collect(sectors(axes(a, 1)))
-    fused_axes = blockedrange.(datalengths.(axes(a)))
-    m = FusedGradedMatrix{T}(undef, fused_sectors, fused_axes)
-    for I in blockdiagindices(m)
-        m[Data(I)] = view(a, Data(I))
+    S = sectortype(a)
+    cod_sectors = sectors(axes(a, 1))
+    issorted(cod_sectors) ||
+        throw(ArgumentError("codomain sectors of input must be sorted"))
+    allunique(cod_sectors) ||
+        throw(ArgumentError("codomain sectors of input must be unique"))
+    cod = Dictionary{S, Int}(cod_sectors, datalengths(axes(a, 1)))
+
+    dom_sectors = sectors(axes(a, 2))
+    issorted(dom_sectors) ||
+        throw(ArgumentError("domain sectors of input must have sorted, unique duals"))
+    allunique(dom_sectors) ||
+        throw(ArgumentError("domain sectors of input must have unique duals"))
+    dom = Dictionary{S, Int}(dual.(dom_sectors), datalengths(axes(a, 2)))
+
+    m = FusedGradedMatrix{T, datatype(a), S}(undef, cod, dom)
+    for I in eachblockstoredindex(a)
+        view(m, I) .= view(a, I)
     end
     return m
 end
