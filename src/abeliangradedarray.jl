@@ -77,6 +77,7 @@ function BlockSparseArrays.blocktype(
     return AbelianSectorArray{T, N, D, S}
 end
 BlockSparseArrays.blocktype(a::AbelianGradedArray) = BlockSparseArrays.blocktype(typeof(a))
+datatype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = D
 
 # ---------------------------------------------------------------------------
 #  view (primitive): returns AbelianSectorArray sharing data with blockdata
