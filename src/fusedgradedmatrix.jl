@@ -284,6 +284,18 @@ function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
     new_blocks = map(b -> similar(b, T), m.blocks)
     return FusedGradedMatrix(m.codomain, m.domain, new_blocks)
 end
+function Base.similar(m::FusedGradedMatrix, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}) where {S}
+    return typeof(m)(undef, codomain, domain)
+end
+function Base.similar(m::FusedGradedMatrix, ::Type{T}, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}) where {T, S}
+    if T <: Number
+        return FusedGradedMatrix{T}(undef, codomain, domain)
+    elseif T <: AbstractMatrix
+        return FusedGradedMatrix{eltype(T), T, S}(undef, codomain, domain)
+    else
+        throw(ArgumentError("invalid type $T"))
+    end
+end
 
 # ========================  show  ========================
 
