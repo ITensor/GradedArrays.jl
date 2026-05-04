@@ -220,22 +220,26 @@ function LinearAlgebra.mul!(
         α::Number, β::Number
     )
     check_input(mul!, C, A, B)
-    for I in blockdiagindices(C)
-        mul!(view(C, Data(I)), view(A, Data(I)), view(B, Data(I)), α, β)
+    for (s, c) in pairs(C.blocks)
+        if haskey(A.blocks, c) && haskey(B.blocks, c)
+            mul!(c, A.blocks[s], B.blocks[s], α, β)
+        else
+            iszero(β) ? fill!(c, β) : scale!(c, β)
+        end
     end
     return C
 end
 
 function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
-    cod_axes = eachdataaxis(axes(A, 1))
-    dom_axes = eachdataaxis(axes(B, 2))
-    result_blocks = [
-        similar(
-                Base.promote_op(*, typeof(view(A, Data(I))), typeof(view(B, Data(I)))),
-                (cod_axes[Int(Tuple(I)[1])], dom_axes[Int(Tuple(I)[2])])
-            ) for I in blockdiagindices(A)
-    ]
-    return FusedGradedMatrix(copy(A.sectors), result_blocks)
+    cod = A.codomain
+    dom = B.domain
+    S = sectortype(typeof(A))
+    DA = datatype(BlockSparseArrays.blocktype(A))
+    DB = datatype(BlockSparseArrays.blocktype(B))
+    Dout = Base.promote_op(*, DA, DB)
+    Dout′ = isconcretetype(Dout) ? Dout : Matrix{eltype(Dout)}
+
+    return FusedGradedMatrix{eltype(Dout′), Dout′, S}(undef, cod, dom)
 end
 
 function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
@@ -246,15 +250,19 @@ end
 
 # ======================== LinearAlgebra ======================
 
-Base.adjoint(A::FusedGradedMatrix) = FusedGradedMatrix(A.sectors, map(adjoint, A.blocks))
+function Base.adjoint(A::FusedGradedMatrix)
+    new_blocks = map(adjoint, A.blocks)
+    return FusedGradedMatrix(A.domain, A.codomain, new_blocks)
+end
 # note: not defining transpose here since that has requirements on sectors
 
 function LinearAlgebra.norm(A::FusedGradedMatrix, p::Real = 2)
     if p == Inf
-        return maximum(Base.Fix2(LinearAlgebra.norm, p), A.blocks)
+        isempty(A.blocks) && return zero(float(real(eltype(A))))
+        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(A.blocks))
     elseif p > 0
         s = zero(float(real(eltype(A))))
-        for (c, a) in zip(A.sectors, A.blocks)
+        for (c, a) in pairs(A.blocks)
             s += length(c) * LinearAlgebra.norm(a, p)^p
         end
         return s^inv(p)
@@ -263,23 +271,26 @@ function LinearAlgebra.norm(A::FusedGradedMatrix, p::Real = 2)
     end
 end
 
-LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, A.blocks)
-LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, A.blocks)
-LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, A.blocks)
+LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
+LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
+LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
 
 # ========================  similar  ========================
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
-    new_blocks = [similar(b, T) for b in m.blocks]
-    return FusedGradedMatrix(copy(m.sectors), new_blocks)
+    new_blocks = map(b -> similar(b, T), m.blocks)
+    return FusedGradedMatrix(m.codomain, m.domain, new_blocks)
 end
 
 # ========================  show  ========================
 
 function Base.summary(io::IO, m::FusedGradedMatrix)
-    nblocks = length(m.sectors)
-    print(io, nblocks, "-block ", typeof(m), " with sectors [")
-    join(io, m.sectors, ", ")
+    print(
+        io, length(m.codomain), "×", length(m.domain), " ", typeof(m),
+        " with ", length(m.blocks), " stored block",
+        length(m.blocks) == 1 ? "" : "s", " at sectors ["
+    )
+    join(io, keys(m.blocks), ", ")
     print(io, "]")
     return nothing
 end
@@ -292,14 +303,16 @@ function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
         show(io, g)
         println(io)
     end
-    isempty(m.sectors) && return nothing
+    isempty(m.blocks) && return nothing
     Base.print_array(io, m)
     return nothing
 end
 
 function Base.show(io::IO, m::FusedGradedMatrix)
-    nblocks = length(m.sectors)
-    print(io, nblocks, "-block ", typeof(m))
+    print(
+        io, length(m.codomain), "×", length(m.domain), " ", typeof(m),
+        " (", length(m.blocks), " stored)"
+    )
     return nothing
 end
 
