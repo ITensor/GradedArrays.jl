@@ -30,7 +30,7 @@ using BlockSparseArrays: BlockSparseArrays, blockdiagindices, blockstoredlength,
     eachblockaxis, eachblockstoredindex, mortar_axis
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
-using LinearAlgebra: LinearAlgebra, Adjoint, mul!
+using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, mul!
 using SparseArraysBase: SparseArraysBase
 using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, bipermutedimsopadd!,
     check_input, matricize, matricize_axes, permutedimsadd!, tensor_product_axis,

@@ -296,6 +296,9 @@ function Base.similar(m::FusedGradedMatrix, ::Type{T}, codomain::Dictionary{S, I
         throw(ArgumentError("invalid type $T"))
     end
 end
+function Base.similar(m::FusedGradedMatrix, ::Type{T}, axis::Dictionary{S, Int}) where {T <: AbstractVector, S}
+    return FusedGradedVector{eltype(T), T, S}(undef, axis)
+end
 
 # ========================  show  ========================
 
