@@ -16,7 +16,7 @@ using Test: @test, @test_throws, @testset
             @test d == ones(2, 3)
             # Verify it's a copy, not a view
             d[1, 1] = 999.0
-            @test m.blocks[1][1, 1] == 1.0
+            @test m.blocks[U1(0)][1, 1] == 1.0
         end
 
         @testset "Data getindex second block" begin
@@ -29,10 +29,10 @@ using Test: @test, @test_throws, @testset
             m2 = FusedGradedMatrix(sectors2, [zeros(2, 3), zeros(4, 5)])
             new_data = 7 * ones(2, 3)
             m2[Data(1, 1)] = new_data
-            @test m2.blocks[1] == new_data
+            @test m2.blocks[U1(0)] == new_data
             # Verify it's a copy, not aliased
             new_data[1, 1] = 0.0
-            @test m2.blocks[1][1, 1] == 7.0
+            @test m2.blocks[U1(0)][1, 1] == 7.0
         end
 
         @testset "Data setindex! size mismatch errors" begin
@@ -50,7 +50,7 @@ using Test: @test, @test_throws, @testset
             m4 = FusedGradedMatrix(sectors2, [zeros(2, 3), zeros(4, 5)])
             sm = SectorMatrix(U1(0), 7 * ones(2, 3))
             m4[Block(1, 1)] = sm
-            @test m4.blocks[1] == 7 * ones(2, 3)
+            @test m4.blocks[U1(0)] == 7 * ones(2, 3)
         end
 
         @testset "Block setindex! verifies sector" begin
