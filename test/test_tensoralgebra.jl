@@ -161,8 +161,9 @@ end
 
     fsm = matricize(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
-    @test fsm.sectors == [U1(0), U1(1)]
-    @test blocklength(fsm) == 2
+    @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
+    @test blocklength(fsm, 1) == 2
+    @test blocklength(fsm, 2) == 2
     @test data(fsm[Block(1, 1)]) ≈ block_11
     @test data(fsm[Block(2, 2)]) ≈ block_22
 
@@ -205,8 +206,9 @@ end
 
     fsm = matricize(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
-    @test fsm.sectors == [U1(0), U1(1), U1(2)]
-    @test blocklength(fsm) == 3
+    @test collect(keys(fsm.blocks)) == [U1(0), U1(1), U1(2)]
+    @test blocklength(fsm, 1) == 3
+    @test blocklength(fsm, 2) == 3
 
     @test data(fsm[Block(1, 1)]) ≈ ones(1, 1)
     @test data(fsm[Block(2, 2)]) ≈ zeros(2, 2)
@@ -215,9 +217,9 @@ end
 
 @testset "matricize 3D AbelianGradedArray and unmatricize round-trip" begin
     # 3D case where the merged codomain (tensor product of two `r`s) has
-    # sectors absent from the dual domain — this exercises
-    # `insert_missing_sectors` (codomain has U1(2), domain has only U1(0)
-    # and U1(1)).
+    # sectors absent from the domain — the asymmetric `FusedGradedMatrix`
+    # natively handles this (codomain has U1(2), domain has only U1(0) and
+    # U1(1)).
     r = gradedrange([U1(0) => 1, U1(1) => 2])
     a = zeros(Float64, (r, r, dual(r)))
     a[Block(1, 1, 1)] = fill(1.0, 1, 1, 1)
@@ -226,7 +228,11 @@ end
 
     fsm = matricize(a, (1, 2), (3,))
     @test fsm isa FusedGradedMatrix{Float64}
-    @test fsm.sectors == [U1(0), U1(1), U1(2)]
+    # Codomain carries all three sectors, domain only the two that exist on
+    # the contracted leg — the new asymmetric design.
+    @test collect(keys(fsm.codomain)) == [U1(0), U1(1), U1(2)]
+    @test collect(keys(fsm.domain)) == [U1(0), U1(1)]
+    @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
 
     # Round-trip through `unmatricize` recovers the original blocks.
     a_back = unmatricize(fsm, (r, r), (dual(r),))
@@ -237,7 +243,7 @@ end
     end
 end
 
-@testset "FusedGradedMatrix(::AbelianGradedMatrix) requires canonical fused axes" begin
+@testset "FusedGradedMatrix(::AbelianGradedMatrix) accepts asymmetric axes" begin
     row_ax = gradedrange([U1(0) => 2, U1(1) => 3])
     a = AbelianGradedArray{Float64}(undef, row_ax, dual(row_ax))
     block_11 = randn!(Matrix{Float64}(undef, 2, 2))
@@ -249,15 +255,25 @@ end
     @test data(fsm[Block(1, 1)]) ≈ block_11
     @test data(fsm[Block(2, 2)]) ≈ block_22
 
+    # Unsorted axes still rejected (they violate the sorted-keys invariant).
     nonsorted_ax = gradedrange([U1(1) => 3, U1(0) => 2])
     a_nonsorted = AbelianGradedArray{Float64}(undef, nonsorted_ax, dual(nonsorted_ax))
     a_nonsorted[Block(1, 1)] = AbelianSectorArray((U1(1), dual(U1(1))), block_22)
     a_nonsorted[Block(2, 2)] = AbelianSectorArray((U1(0), dual(U1(0))), block_11)
     @test_throws ArgumentError FusedGradedMatrix(a_nonsorted)
 
-    mismatched_col_ax = gradedrange([U1(-1) => 3, U1(0) => 2])
-    a_mismatched = AbelianGradedArray{Float64}(undef, row_ax, mismatched_col_ax)
-    @test_throws ArgumentError FusedGradedMatrix(a_mismatched)
+    # Asymmetric axes (codomain and dual(domain) sector sets differ) are
+    # now accepted: cod-only and dom-only sectors land as one-sided blocks
+    # of size 0 on the absent axis (no stored block).
+    asym_col_ax = dual(gradedrange([U1(2) => 3, U1(3) => 2]))
+    a_asym = AbelianGradedArray{Float64}(undef, row_ax, asym_col_ax)
+    fsm_asym = FusedGradedMatrix(a_asym)
+    @test fsm_asym isa FusedGradedMatrix
+    @test collect(keys(fsm_asym.codomain)) == [U1(0), U1(1)]
+    @test collect(keys(fsm_asym.domain)) == [U1(2), U1(3)]
+    # No stored blocks since we didn't write any data and the sectors don't overlap.
+    @test isempty(fsm_asym.blocks)
+
 end
 
 @testset "Off-diagonal block setindex! errors" begin
