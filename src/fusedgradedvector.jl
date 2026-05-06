@@ -142,44 +142,6 @@ function FusedGradedVector(
     return FusedGradedVector(ax, blks)
 end
 
-function FusedGradedVector(pairs::AbstractVector{<:Pair{<:SectorRange}})
-    return FusedGradedVector(first.(pairs), last.(pairs))
-end
-
-# ========================  undef constructors  ========================
-
-function FusedGradedVector{T, D, S}(
-        ::UndefInitializer,
-        sectors::AbstractVector{S},
-        ax::BlockedOneTo
-    ) where {T, D <: AbstractVector{T}, S <: SectorRange}
-    blocklength(ax) == length(sectors) ||
-        throw(ArgumentError("axis block count must match sectors length"))
-    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
-    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
-    axis = Dictionary{S, Int}(sectors, map(length, eachblockaxis(ax)))
-    return FusedGradedVector{T, D, S}(undef, axis)
-end
-
-function FusedGradedVector{T}(
-        ::UndefInitializer, sectors::AbstractVector{<:SectorRange}, ax::BlockedOneTo
-    ) where {T}
-    S = eltype(sectors)
-    return FusedGradedVector{T, Vector{T}, S}(undef, sectors, ax)
-end
-
-function FusedGradedVector{T}(
-        ::UndefInitializer,
-        sectors::AbstractVector{<:SectorRange},
-        blocklengths::AbstractVector{Int}
-    ) where {T}
-    S = eltype(sectors)
-    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
-    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
-    axis = Dictionary{S, Int}(sectors, blocklengths)
-    return FusedGradedVector{T}(undef, axis)
-end
-
 function FusedGradedVector{T}(
         ::UndefInitializer, axis::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
@@ -330,32 +292,4 @@ function LinearAlgebra.norm(A::FusedGradedVector, p::Real = 2)
     else
         throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
     end
-end
-
-# ========================  Conversion from AbelianGradedArray  ========================
-
-# Identity
-FusedGradedVector(v::FusedGradedVector) = v
-
-"""
-    FusedGradedVector(a::AbelianGradedVector{T})
-
-Convert a 1D block-sparse `AbelianGradedArray` into a `FusedGradedVector`.
-The axis dict comes from the axis sectors and lengths; stored entries of `a`
-populate `blocks`.
-"""
-function FusedGradedVector(a::AbelianGradedVector{T}) where {T}
-    S = sectortype(a)
-    ax_sectors = sectors(axes(a, 1))
-    issorted(ax_sectors) ||
-        throw(ArgumentError("axis sectors of input must be sorted"))
-    allunique(ax_sectors) ||
-        throw(ArgumentError("axis sectors of input must be unique"))
-    axis = Dictionary{S, Int}(ax_sectors, datalengths(axes(a, 1)))
-
-    v = FusedGradedVector{T, datatype(a), S}(undef, axis)
-    for I in eachblockstoredindex(a)
-        view(v, I) .= view(a, I)
-    end
-    return v
 end

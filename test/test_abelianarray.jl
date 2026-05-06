@@ -1,4 +1,4 @@
-using BlockArrays: BlockArrays, Block, blockedrange, blocklength
+using BlockArrays: BlockArrays, Block, blocklength
 using BlockSparseArrays: eachblockstoredindex
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
@@ -216,8 +216,8 @@ using Test: @test, @test_throws, @testset
     end
 end
 
-@testset "FusedGradedMatrix Pair constructor" begin
-    m = FusedGradedMatrix([U1(0) => [1.0 2.0; 3.0 4.0], U1(1) => ones(3, 3)])
+@testset "FusedGradedMatrix sectors/blocks constructor" begin
+    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], ones(3, 3)])
     @test m isa FusedGradedMatrix{Float64}
     @test data(m[Block(1, 1)]) == [1.0 2.0; 3.0 4.0]
     @test data(m[Block(2, 2)]) == ones(3, 3)
@@ -226,11 +226,8 @@ end
     # dimension `2j + 1`, so `Block(k, k)` has size
     # `(sectorlength × datalength)^2`.
     m_su2 = FusedGradedMatrix(
-        [
-            SU2(0) => [1.0;;],
-            SU2(1 // 2) => [1.0 2.0; 3.0 4.0],
-            SU2(1) => Matrix{Float64}(LinearAlgebra.I, 3, 3),
-        ]
+        [SU2(0), SU2(1 // 2), SU2(1)],
+        [[1.0;;], [1.0 2.0; 3.0 4.0], Matrix{Float64}(LinearAlgebra.I, 3, 3)]
     )
     @test m_su2 isa FusedGradedMatrix{Float64, Matrix{Float64}, SU2}
     @test collect(keys(m_su2.blocks)) == [SU2(0), SU2(1 // 2), SU2(1)]
@@ -242,35 +239,35 @@ end
 
 @testset "FusedGradedMatrix * FusedGradedMatrix" begin
     @testset "U1 (abelian)" begin
-        a = FusedGradedMatrix([U1(0) => [2.0;;], U1(1) => [1.0 2.0; 3.0 4.0]])
-        b = FusedGradedMatrix([U1(0) => [3.0;;], U1(1) => [0.0 1.0; 1.0 0.0]])
+        a = FusedGradedMatrix([U1(0), U1(1)], [[2.0;;], [1.0 2.0; 3.0 4.0]])
+        b = FusedGradedMatrix([U1(0), U1(1)], [[3.0;;], [0.0 1.0; 1.0 0.0]])
         c = a * b
         @test collect(keys(c.blocks)) == [U1(0), U1(1)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
     @testset "SU2 (non-abelian)" begin
-        a = FusedGradedMatrix([SU2(0) => [2.0;;], SU2(1 // 2) => [1.0 2.0; 3.0 4.0]])
-        b = FusedGradedMatrix([SU2(0) => [3.0;;], SU2(1 // 2) => [0.0 1.0; 1.0 0.0]])
+        a = FusedGradedMatrix([SU2(0), SU2(1 // 2)], [[2.0;;], [1.0 2.0; 3.0 4.0]])
+        b = FusedGradedMatrix([SU2(0), SU2(1 // 2)], [[3.0;;], [0.0 1.0; 1.0 0.0]])
         c = a * b
         @test collect(keys(c.blocks)) == [SU2(0), SU2(1 // 2)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
     @testset "mismatched sectors throws" begin
-        a = FusedGradedMatrix([U1(0) => [2.0;;], U1(1) => [1.0 2.0; 3.0 4.0]])
-        b = FusedGradedMatrix([U1(0) => [3.0;;]])
+        a = FusedGradedMatrix([U1(0), U1(1)], [[2.0;;], [1.0 2.0; 3.0 4.0]])
+        b = FusedGradedMatrix([U1(0)], [[3.0;;]])
         @test_throws DimensionMismatch a * b
     end
 end
 
 @testset "FusedGradedMatrix undef constructor" begin
     sectors = [U1(0), U1(1)]
-    cod_bls = [2, 3]
-    dom_bls = [1, 2]
+    cod = Dictionary{U1, Int}(sectors, [2, 3])
+    dom = Dictionary{U1, Int}(sectors, [1, 2])
 
-    @testset "Convenience constructor (defaults D = Matrix{T})" begin
-        m = FusedGradedMatrix{Float64}(undef, sectors, cod_bls, dom_bls)
+    @testset "Default D = Matrix{T}" begin
+        m = FusedGradedMatrix{Float64}(undef, cod, dom)
         @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
         @test length(m.blocks) == 2
         @test collect(keys(m.blocks)) == sectors
@@ -278,39 +275,15 @@ end
         @test size(m.blocks[U1(1)]) == (3, 2)
     end
 
-    @testset "Fully parameterized constructor" begin
-        m = FusedGradedMatrix{Float64, Matrix{Float64}, U1}(
-            undef, sectors, (blockedrange(cod_bls), blockedrange(dom_bls))
-        )
+    @testset "Fully parameterized" begin
+        m = FusedGradedMatrix{Float64, Matrix{Float64}, U1}(undef, cod, dom)
         @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
         @test size(m.blocks[U1(0)]) == (2, 1)
-    end
-
-    @testset "Tuple BlockedOneTo form" begin
-        m = FusedGradedMatrix{Float64}(
-            undef, sectors, (blockedrange([2, 3]), blockedrange([1, 2]))
-        )
-        @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
-        @test size(m.blocks[U1(0)]) == (2, 1)
-        @test size(m.blocks[U1(1)]) == (3, 2)
-    end
-
-    @testset "Rejects mismatched lengths" begin
-        @test_throws Exception FusedGradedMatrix{Float64}(
-            undef, sectors, cod_bls, [1]
-        )
     end
 
     @testset "Rejects unsorted sectors" begin
-        @test_throws ArgumentError FusedGradedMatrix{Float64}(
-            undef, [U1(1), U1(0)], cod_bls, dom_bls
-        )
-    end
-
-    @testset "Rejects non-unique sectors" begin
-        @test_throws ArgumentError FusedGradedMatrix{Float64}(
-            undef, [U1(0), U1(0)], [2, 3], [1, 2]
-        )
+        cod_bad = Dictionary{U1, Int}([U1(1), U1(0)], [2, 3])
+        @test_throws ArgumentError FusedGradedMatrix{Float64}(undef, cod_bad, dom)
     end
 end
 

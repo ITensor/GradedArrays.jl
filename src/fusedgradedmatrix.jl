@@ -86,51 +86,6 @@ function FusedGradedMatrix(
     return FusedGradedMatrix(cod, dom, blks)
 end
 
-function FusedGradedMatrix(pairs::AbstractVector{<:Pair{<:SectorRange}})
-    return FusedGradedMatrix(first.(pairs), last.(pairs))
-end
-
-# ========================  undef constructors  ========================
-
-# Symmetric `undef` constructor: same sector list on both axes.
-function FusedGradedMatrix{T, D, S}(
-        ::UndefInitializer,
-        sectors::AbstractVector{S},
-        axes::Tuple{BlockedOneTo, BlockedOneTo}
-    ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
-    blocklength(axes[1]) == blocklength(axes[2]) == length(sectors) ||
-        throw(ArgumentError("axes block counts must match sectors length"))
-    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
-    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
-    cod = Dictionary{S, Int}(sectors, map(length, eachblockaxis(axes[1])))
-    dom = Dictionary{S, Int}(sectors, map(length, eachblockaxis(axes[2])))
-    return FusedGradedMatrix{T, D, S}(undef, cod, dom)
-end
-
-# Convenience: default D = Matrix{T}.
-function FusedGradedMatrix{T}(
-        ::UndefInitializer, sectors::AbstractVector{<:SectorRange},
-        axes::Tuple{BlockedOneTo, BlockedOneTo}
-    ) where {T}
-    S = eltype(sectors)
-    return FusedGradedMatrix{T, Matrix{T}, S}(undef, sectors, axes)
-end
-
-# Vector{Int} convenience: wraps into BlockedOneTo and delegates.
-function FusedGradedMatrix{T}(
-        ::UndefInitializer,
-        sectors::AbstractVector{<:SectorRange},
-        codomain_blocklengths::AbstractVector{Int},
-        domain_blocklengths::AbstractVector{Int}
-    ) where {T}
-    S = eltype(sectors)
-    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
-    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
-    cod = Dictionary{S, Int}(sectors, codomain_blocklengths)
-    dom = Dictionary{S, Int}(sectors, domain_blocklengths)
-    return FusedGradedMatrix{T}(undef, cod, dom)
-end
-
 function FusedGradedMatrix{T}(
         ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
@@ -362,9 +317,6 @@ function Base.show(io::IO, m::FusedGradedMatrix)
 end
 
 # ========================  Conversion from AbelianGradedArray  ========================
-
-# Identity
-FusedGradedMatrix(m::FusedGradedMatrix) = m
 
 """
     FusedGradedMatrix(a::AbelianGradedMatrix{T})
