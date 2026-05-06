@@ -79,6 +79,13 @@ function Base.setindex!(
 end
 
 # ---------------------------------------------------------------------------
+#  Accessors
+# ---------------------------------------------------------------------------
+
+datatype(a::AbstractGradedArray) = datatype(typeof(a))
+sectortype(a::AbstractGradedArray) = sectortype(typeof(a))
+
+# ---------------------------------------------------------------------------
 #  Display — convert to BlockSparseArray for printing
 # ---------------------------------------------------------------------------
 
