@@ -217,7 +217,11 @@ function TensorAlgebra.unmatricize(
         src_block = m[bI_src]
         dest_sects = ntuple(d -> sectors(dest_axes[d])[dest_bk[d]], Val(N))
         dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_block = AbelianSectorArray(dest_sects, reshape(data(src_block), dest_dims))
+        dest_data = reshape(data(src_block), dest_dims)
+        dest_delta = AbelianSectorDelta{T}(dest_sects)
+        phase = fermion_contraction_phase(dest_delta, K)
+        isone(phase) || (dest_data .*= phase)
+        dest_block = AbelianSectorArray(dest_sects, dest_data)
         a[Block(dest_bk...)] = dest_block
     end
 
