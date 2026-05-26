@@ -1,8 +1,8 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
 using BlockSparseArrays: eachblockstoredindex
-using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
-    SectorRange, U1, data, dual, flip, gradedrange, isdual, sectoraxes, sectors
+using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta, SectorRange,
+    U1, data, dual, flip, gradedrange, isdual, sectoraxes, sectors
 using Random: randn!
 using TensorAlgebra: contract, matricize, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
