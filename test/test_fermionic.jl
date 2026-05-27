@@ -235,36 +235,36 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         end
     end
 
-    # @testset "matrix-matrix contraction B: total phase -1" begin
-    #     # labels (1,-1,-2,2) × (2,1,-3,-4): P2=-1, T1=-1, T2=+1, U=-1 → total=-1
-    #     a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-    #     a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-    #     a1_dense = to_dense(a1)
-    #     a2_dense = to_dense(a2)
-    #     a_dest, _ = contract(a1, (1, -1, -2, 2), a2, (2, 1, -3, -4))
-    #     a_dest_dense, _ = contract(a1_dense, (1, -1, -2, 2), a2_dense, (2, 1, -3, -4))
-    #     @test to_dense(a_dest) ≈ -1 * a_dest_dense
-    # end
-    #
-    # @testset "matrix-matrix contraction D: total phase -1" begin
-    #     # labels (-1,1,2,-2) × (2,-3,1,-4): P1=+1, T1=-1, P2=+1, T2=-1, U=-1 → total=-1
-    #     a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-    #     a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-    #     a1_dense = to_dense(a1)
-    #     a2_dense = to_dense(a2)
-    #     a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
-    #     a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
-    #     @test to_dense(a_dest) ≈ -1 * a_dest_dense
-    # end
-    #
-    # @testset "matrix-matrix contraction G: total phase -1" begin
-    #     # labels (1,2,-1,-2) × (2,-3,1,-4): P1=+1, T1=+1, P2=+1, T2=-1, U=+1 → total=-1
-    #     a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-    #     a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-    #     a1_dense = to_dense(a1)
-    #     a2_dense = to_dense(a2)
-    #     a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (2, -3, 1, -4))
-    #     a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (2, -3, 1, -4))
-    #     @test to_dense(a_dest) ≈ -1 * a_dest_dense
-    # end
+    @testset "matrix-matrix contraction B: total phase -1" begin
+        # labels (1,-1,-2,2) × (2,1,-3,-4): P2=-1, T1=-1, T2=+1, U=-1 → total=-1
+        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+        a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+        a1_dense = to_dense(a1)
+        a2_dense = to_dense(a2)
+        a_dest, _ = contract(a1, (1, -1, -2, 2), a2, (2, 1, -3, -4))
+        a_dest_dense, _ = contract(a1_dense, (1, -1, -2, 2), a2_dense, (2, 1, -3, -4))
+        @test to_dense(a_dest) ≈ -1 * a_dest_dense
+    end
+
+    @testset "matrix-matrix contraction D: total phase -1" begin
+        # labels (-1,1,2,-2) × (2,-3,1,-4): P1=+1, T1=-1, P2=+1, T2=-1, U=-1 → total=-1
+        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+        a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+        a1_dense = to_dense(a1)
+        a2_dense = to_dense(a2)
+        a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
+        a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
+        @test to_dense(a_dest) ≈ -1 * a_dest_dense
+    end
+
+    @testset "matrix-matrix contraction G: total phase -1" begin
+        # labels (1,2,-1,-2) × (2,-3,1,-4): P1=+1, T1=+1, P2=+1, T2=-1, U=+1 → total=-1
+        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+        a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+        a1_dense = to_dense(a1)
+        a2_dense = to_dense(a2)
+        a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (2, -3, 1, -4))
+        a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (2, -3, 1, -4))
+        @test to_dense(a_dest) ≈ -1 * a_dest_dense
+    end
 end
