@@ -222,7 +222,7 @@ This is an overload that follows the standard TensorAlgebra implementation,
 with the single exception of inserting a `contraction_twist!` call before the matricization.
 This is important to have fermionic contractions not depend on the contraction order.
 =#
-function TensorAlgebra.contractopadd!_matricize(
+function TensorAlgebra.contractopadd!(
         algorithm::TensorAlgebra.Matricize{SectorFusion},
         a_dest::AbstractArray, perm_dest_codomain, perm_dest_domain,
         op1, a1::AbstractArray, perm1_codomain, perm1_domain,
@@ -241,15 +241,12 @@ function TensorAlgebra.contractopadd!_matricize(
 
     a1_mat = TensorAlgebra.matricizeop(
         algorithm.fusion_style,
-        op1,
-        a1,
-        perm1_codomain,
-        perm1_domain
+        op1, a1, perm1_codomain, perm1_domain
     )
     # matricizeop + contraction_twist
     a2_perm = TensorAlgebra.permutedimsop(op2, a2, perm2_codomain, perm2_domain)
     contraction_twist!(a2_perm, length(perm2_codomain))
-    a2_mat = matricize(a2_perm, Val(length(perm2_codomain)))
+    a2_mat = matricize(algorithm.fusion_style, a2_perm, Val(length(perm2_codomain)))
 
     a_dest_mat = a1_mat * a2_mat
     TensorAlgebra.unmatricizeadd!(
