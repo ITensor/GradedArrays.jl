@@ -95,17 +95,7 @@ function TensorAlgebra.matricize(
         ::SectorFusion, a::AbelianSectorArray, ndims_codomain::Val{K}
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))
-
-    T = TKS.sectorscalartype(sectortype(a))
-    phase = prod(
-        ntuple(K) do i
-            return ifelse(isdual(a, i), twist(sectoraxes(a, i)), one(T))
-        end
-    )
-
     adata_reshaped = matricize(data(a), Val(K))
-    isone(phase) || (adata_reshaped = phase .* adata_reshaped)
-
     return asectors_reshaped ⊗ adata_reshaped
 end
 
@@ -181,7 +171,7 @@ function TensorAlgebra.unmatricize(
         data.(codomain_axes),
         data.(domain_axes)
     )
-    return contraction_twist!(AbelianSectorArray(msectors, mdata), length(codomain_axes))
+    return AbelianSectorArray(msectors, mdata)
 end
 
 # ========================  BlockReshapeFusion AbelianGradedArray unmatricize  ========================
@@ -212,7 +202,6 @@ function TensorAlgebra.unmatricize(
         dest_sects = ntuple(d -> sectors(dest_axes[d])[dest_bk[d]], Val(N))
         dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
         dest_block = AbelianSectorArray(dest_sects, reshape(data(src_block), dest_dims))
-        contraction_twist!(dest_block, K)
         a[Block(dest_bk...)] = dest_block
     end
 

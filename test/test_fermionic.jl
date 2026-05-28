@@ -144,45 +144,6 @@ end
     @test sp_u1[1, 1] ≈ 3.0
 end
 
-@testset "matricize/unmatricize round-trip for fermionic AbelianSectorArray" begin
-    # Even dual codomain leg: twist = +1, no phase modification
-    sa_even_dual = AbelianSectorArray((dual(fP0), fP0), fill(5.0, 1, 1))
-    @test isdual(axes(sa_even_dual, 1))
-    m_even = matricize(sa_even_dual, (1,), (2,))
-    @test m_even[1, 1] ≈ 5.0
-
-    rt_even = unmatricize(m_even, (axes(sa_even_dual, 1),), (axes(sa_even_dual, 2),))
-    @test rt_even[1, 1] ≈ 5.0
-
-    # Non-dual codomain leg: twist not applied regardless of parity
-    sa_odd_nondual = AbelianSectorArray((fP1, fP1), fill(5.0, 1, 1))
-    @test !isdual(axes(sa_odd_nondual, 1))
-    m_nondual = matricize(sa_odd_nondual, (1,), (2,))
-    @test m_nondual[1, 1] ≈ 5.0
-
-    # Odd dual codomain leg: twist = -1 → phase -1 applied during matricize
-    sa_odd_dual = AbelianSectorArray((dual(fP1), fP1), fill(5.0, 1, 1))
-    @test isdual(axes(sa_odd_dual, 1))
-    m_odd = matricize(sa_odd_dual, (1,), (2,))
-    @test m_odd[1, 1] ≈ -5.0
-
-    # Round-trip: unmatricize applies same twist → -1 * (-5.0) = 5.0
-    rt_odd = unmatricize(m_odd, (axes(sa_odd_dual, 1),), (axes(sa_odd_dual, 2),))
-    @test rt_odd[1, 1] ≈ 5.0
-
-    # Two odd dual codomain legs: phase = (-1) * (-1) = +1
-    sa_two_odd_dual = AbelianSectorArray((dual(fP1), dual(fP1), fP1), fill(3.0, 1, 1, 1))
-    m_two = matricize(sa_two_odd_dual, (1, 2), (3,))
-    @test m_two[1, 1] ≈ 3.0
-
-    rt_two = unmatricize(
-        m_two,
-        (axes(sa_two_odd_dual, 1), axes(sa_two_odd_dual, 2)),
-        (axes(sa_two_odd_dual, 3),)
-    )
-    @test rt_two[1, 1, 1] ≈ 3.0
-end
-
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
 # For all-odd blocks, the total phase from permutation + matricize twist is -1,

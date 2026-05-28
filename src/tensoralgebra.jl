@@ -192,3 +192,68 @@ function TensorAlgebra.bipermutedimsopadd!(
     end
     return y
 end
+
+# ========================  contractopadd! (Matricize{SectorFusion})  ========================
+# permute(a1) → permute(a2) → twist(a2's contracted legs) → matricize → gemm →
+# unmatricize → permute(a_dest). Mirrors TensorAlgebra.contractopadd!_matricize but
+# splits `matricizeop` into separate permute/matricize steps so the fermion twist
+# can sit between them as a first-class step. `contraction_twist!` is a no-op for
+# bosonic sectors, so this pipeline is correct for any AbelianStyle input.
+
+"""
+    contraction_twist!(a::AbelianSectorArray, ndims_codomain::Int) -> a
+
+Apply the twist convention for the supertrace formalism of fermionic contractions.
+This means that ``⟨i| ⋅ |j⟩ = δᵢⱼ``, and ``|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ``.
+Here, ``θᵢⱼ = ±1`` is defined as the phase from applying a self-crossing,
+which is always ``1`` for bosonic symmetries, but can be ``-1`` for odd fermion charges.
+
+Equivalent to `twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))`.
+A no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
+
+See also [`twist!`](@ref).
+"""
+function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
+    return twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))
+end
+
+#=
+This is an overload that follows the standard TensorAlgebra implementation,
+with the single exception of inserting a `contraction_twist!` call before the matricization.
+This is important to have fermionic contractions not depend on the contraction order.
+=#
+function TensorAlgebra.contractopadd!_matricize(
+        algorithm::TensorAlgebra.Matricize{SectorFusion},
+        a_dest::AbstractArray, perm_dest_codomain, perm_dest_domain,
+        op1, a1::AbstractArray, perm1_codomain, perm1_domain,
+        op2, a2::AbstractArray, perm2_codomain, perm2_domain,
+        α::Number, β::Number
+    )
+    perm_dest = (perm_dest_codomain..., perm_dest_domain...)
+    invperm_codomain, invperm_domain =
+        blocks(TensorAlgebra.biperm(invperm(perm_dest), length(perm1_codomain)))
+    check_input(
+        TensorAlgebra.contract!,
+        a_dest, invperm_codomain, invperm_domain,
+        a1, perm1_codomain, perm1_domain,
+        a2, perm2_codomain, perm2_domain
+    )
+
+    a1_mat = TensorAlgebra.matricizeop(
+        algorithm.fusion_style,
+        op1,
+        a1,
+        perm1_codomain,
+        perm1_domain
+    )
+    # matricizeop + contraction_twist
+    a2_perm = TensorAlgebra.permutedimsop(op2, a2, perm2_codomain, perm2_domain)
+    contraction_twist!(a2_perm, length(perm2_codomain))
+    a2_mat = matricize(a2_perm, Val(length(perm2_codomain)))
+
+    a_dest_mat = a1_mat * a2_mat
+    TensorAlgebra.unmatricizeadd!(
+        algorithm.fusion_style, a_dest, a_dest_mat, invperm_codomain, invperm_domain, α, β
+    )
+    return a_dest
+end

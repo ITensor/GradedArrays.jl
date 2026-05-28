@@ -312,6 +312,28 @@ function Base.fill!(a::AbelianGradedArray, v)
 end
 
 # ---------------------------------------------------------------------------
+#  twist!
+# ---------------------------------------------------------------------------
+
+"""
+    twist!(a::AbstractGradedArray, dims) -> a
+
+Scale `data(a)` in place by `prod(twist(sectoraxes(a, i)) for i in dims)`.
+Here, `twist` is defined as `-1` for odd-parity fermionic charges and `+1` otherwise.
+
+This is a no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
+
+See also [`contraction_twist!`](@ref).
+"""
+function twist!(a::AbstractGradedArray, dims)
+    TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
+    for bI in eachblockstoredindex(a)
+        twist!(view(a, bI), dims)
+    end
+    return a
+end
+
+# ---------------------------------------------------------------------------
 #  Matrix multiplication (block-diagonal)
 # ---------------------------------------------------------------------------
 

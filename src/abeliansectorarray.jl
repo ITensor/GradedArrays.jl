@@ -141,45 +141,11 @@ end
 
 # ========================  twist!  ========================
 
-"""
-    twist!(a::AbelianSectorArray, dims) -> a
-
-Scale `data(a)` in place by `prod(twist(sectoraxes(a, i)) for i in dims)`,
-where each contribution is `-1` for odd-parity fermionic legs and `+1`
-otherwise. `dims` may be any iterable of axis indices.
-
-This is a no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
-
-See also [`contraction_twist!`](@ref).
-"""
 function twist!(a::AbelianSectorArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
     phase = mapreduce(i -> twist(sectoraxes(a, i)), *, dims; init = 1)
     isone(phase) || (data(a) .*= phase)
     return a
-end
-
-"""
-    contraction_twist!(a::AbelianSectorArray, ndims_codomain::Int) -> a
-
-Apply the matricize/unmatricize codomain-twist convention to `data(a)` in
-place: each *dual* codomain leg among the first `ndims_codomain` axes
-contributes a `twist(sectoraxes(a, i))` factor; non-dual legs contribute
-`+1`. Returns `a`.
-
-This is the unmatricize-side counterpart to the codomain twist applied in
-`matricize(::AbelianSectorArray, ...)`. Together they cancel on open codomain
-legs (twist²) and leave a single twist on contracted legs — the residual
-phase that distinguishes a fermionic contraction from a dense one.
-
-Equivalent to `twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))`.
-A no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
-
-See also [`twist!`](@ref).
-"""
-function contraction_twist!(a::AbelianSectorArray, ndims_codomain::Int)
-    TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    return twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))
 end
 
 # ========================  Other  ========================
