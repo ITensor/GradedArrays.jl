@@ -95,17 +95,7 @@ function TensorAlgebra.matricize(
         ::SectorFusion, a::AbelianSectorArray, ndims_codomain::Val{K}
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))
-
-    T = TKS.sectorscalartype(sectortype(a))
-    phase = prod(
-        ntuple(K) do i
-            return ifelse(isdual(a, i), twist(sectoraxes(a, i)), one(T))
-        end
-    )
-
     adata_reshaped = matricize(data(a), Val(K))
-    isone(phase) || (adata_reshaped = phase .* adata_reshaped)
-
     return asectors_reshaped ⊗ adata_reshaped
 end
 
@@ -163,10 +153,8 @@ function TensorAlgebra.unmatricize(
     return AbelianSectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
 end
 
-# Unmatricize a 2D sector array back to an N-D AbelianSectorArray. Decomposes into
-# sector (delta) and data (plain matrix) components, unmatricizes each
-# independently, applies the fermionic contraction phase, and recombines.
-# The codomain/domain axes must be SectorOneTo (carrying multiplicity info).
+# Unmatricize a 2D sector array back to an N-D AbelianSectorArray. The
+# codomain/domain axes must be SectorOneTo (carrying multiplicity info).
 # Works for both AbelianSectorMatrix and SectorMatrix.
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::AbstractSectorArray{<:Any, 2},
@@ -183,20 +171,16 @@ function TensorAlgebra.unmatricize(
         data.(codomain_axes),
         data.(domain_axes)
     )
-
-    phase = fermion_contraction_phase(msectors, length(codomain_axes))
-    isone(phase) || (mdata = phase .* mdata)
-
     return AbelianSectorArray(msectors, mdata)
 end
 
 # ========================  BlockReshapeFusion AbelianGradedArray unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
-        ::BlockReshapeFusion, m::AbelianGradedMatrix{T},
+        ::BlockReshapeFusion, m::AbelianGradedMatrix,
         codomain_axes::Tuple{Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
-    ) where {T}
+    )
     K = length(codomain_axes)
     N = K + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)

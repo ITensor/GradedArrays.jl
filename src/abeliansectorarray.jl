@@ -104,8 +104,14 @@ function Base.permutedims!(y::AbelianSectorArray, x::AbelianSectorArray, perm)
     TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
     return y
 end
+# Eager fallback for non-bosonic braiding: a lazy view of a fermionic array
+# would skip the permutation phase under scalar indexing.
 function FI.permuteddims(x::AbelianSectorArray, perm)
-    return AbelianSectorArray(permutedims(sector(x), perm), FI.permuteddims(data(x), perm))
+    return if TKS.BraidingStyle(sectortype(x)) isa TKS.Bosonic
+        AbelianSectorArray(permutedims(sector(x), perm), FI.permuteddims(data(x), perm))
+    else
+        permutedims(x, perm)
+    end
 end
 
 # ========================  mul!  ========================
@@ -131,6 +137,15 @@ function LinearAlgebra.mul!(
     check_mul_axes(c, a, b)
     mul!(data(c), data(a), data(b), α, β)
     return c
+end
+
+# ========================  twist!  ========================
+
+function twist!(a::AbelianSectorArray, dims)
+    TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
+    phase = mapreduce(i -> twist(sectoraxes(a, i)), *, dims; init = 1)
+    isone(phase) || (data(a) .*= phase)
+    return a
 end
 
 # ========================  Other  ========================

@@ -94,20 +94,3 @@ function fermion_permutation_phase(
     mask = map(fermionparity, axes(x))
     return masked_inversion_parity(mask, perm)
 end
-
-function fermion_contraction_phase(
-        x::AbstractSectorDelta{<:Any, N},
-        length_codomain::Int
-    ) where {N}
-    require_unique_fusion(x)
-    BS = TKS.BraidingStyle(sectortype(x))
-    BS isa TKS.Bosonic && return true
-    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
-    length_codomain <= ndims(x) ||
-        throw(ArgumentError(lazy"Cannot contract more than ndim legs ($N > $(ndims(x))"))
-
-    parity = mapreduce(⊻, pairs(axes(x))) do (n, ax)
-        return (n <= length_codomain) & isdual(ax) & fermionparity(ax)
-    end
-    return ifelse(parity, -1, 1)
-end
