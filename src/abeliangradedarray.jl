@@ -18,6 +18,8 @@ struct AbelianGradedArray{T, N, D <: AbstractArray{T, N}, S <: SectorRange} <:
     axes::NTuple{N, GradedOneTo{S}}
 end
 
+const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
+
 # ---------------------------------------------------------------------------
 #  Constructors
 # ---------------------------------------------------------------------------

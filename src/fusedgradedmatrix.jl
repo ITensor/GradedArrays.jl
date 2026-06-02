@@ -265,6 +265,19 @@ LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
 
+function LinearAlgebra.dot(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    A.codomain == B.codomain ||
+        throw(DimensionMismatch("dot: codomain mismatch"))
+    A.domain == B.domain ||
+        throw(DimensionMismatch("dot: domain mismatch"))
+    T = promote_type(eltype(A), eltype(B))
+    s = zero(T)
+    for c in intersect(keys(A.blocks), keys(B.blocks))
+        s += length(c) * LinearAlgebra.dot(A.blocks[c], B.blocks[c])
+    end
+    return s
+end
+
 # ========================  similar  ========================
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
