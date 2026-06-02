@@ -15,6 +15,13 @@ function BlockSparseArrays.isblockdiagonal(A::AbstractGradedMatrix)
     return true
 end
 
+# Block-aware `LinearAlgebra.isdiag` for graded matrices. The generic
+# `LinearAlgebra.isdiag` would fall through to `_isbanded_impl`'s scalar-indexed
+# `iszero(view)` iteration, which throws on block storage. A graded matrix is
+# diagonal iff it is block-diagonal (no off-diagonal blocks stored) and each
+# stored block is itself diagonal — the latter checked block-by-block to avoid
+# materializing the whole matrix.
+
 # Scalar indexing is not supported for graded arrays.
 function Base.getindex(::AbstractGradedArray, ::Vararg{Int})
     return error(

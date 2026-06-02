@@ -347,6 +347,16 @@ function Base.fill!(a::AbelianGradedArray, v)
     return FI.zero!(a)
 end
 
+# Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
+# stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
+function LinearAlgebra.isdiag(A::AbelianGradedMatrix)
+    BlockSparseArrays.isblockdiagonal(A) || return false
+    for bI in eachblockstoredindex(A)
+        LinearAlgebra.isdiag(view(A, bI)) || return false
+    end
+    return true
+end
+
 # Orthogonal projection of a dense source into the symmetry-allowed subspace.
 # Magnitude-blind: forbidden-block entries of `src` are dropped without inspection.
 # Use `TensorAlgebra.checked_projectto!` to verify the discarded weight is small.
@@ -361,6 +371,19 @@ function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
         block_ranges = ntuple(d -> axes(dest, d)[Block(Int(Tuple(b)[d]))], ndims(dest))
         view(dest, b) .= view(src, block_ranges...)
     end
+    return dest
+end
+
+# Compare via `Array(dest)` so the generic `isapprox(::AbstractArray, ::AbelianGradedArray)`
+# path doesn't fall back to a `src - dest` broadcast that scalar-indexes the block storage.
+function TensorAlgebra.checked_projectto!(
+        dest::AbelianGradedArray, src::AbstractArray;
+        atol::Real = 0,
+        rtol::Real = Base.rtoldefault(real(eltype(src)))
+    )
+    TensorAlgebra.projectto!(dest, src)
+    isapprox(src, Array(dest); atol, rtol) ||
+        throw(InexactError(:checked_projectto!, typeof(dest), src))
     return dest
 end
 

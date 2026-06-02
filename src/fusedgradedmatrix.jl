@@ -66,6 +66,24 @@ function FusedGradedMatrix(
     return FusedGradedMatrix{eltype(D), D, S}(codomain, domain, blocks)
 end
 
+# Block-diagonal by construction (one block per sector), so just check each block.
+LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
+
+# Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
+# each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
+# `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
+# Per-block result eltypes may differ (e.g. `sqrt(::Matrix{Float64})` returns
+# `Matrix{ComplexF64}` via Schur even when each block is real-PSD), so unify to the
+# `promote_type` of all returned blocks before reconstructing.
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval function Base.$f(A::FusedGradedMatrix)
+        raw = map(Base.$f, A.blocks)
+        T = mapreduce(eltype, promote_type, raw)
+        blocks = map(b -> eltype(b) === T ? b : convert(AbstractMatrix{T}, b), raw)
+        return FusedGradedMatrix(A.codomain, A.domain, blocks)
+    end
+end
+
 """
     FusedGradedMatrix(sectors::Vector{S}, blocks::Vector{D})
 

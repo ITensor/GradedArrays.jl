@@ -293,6 +293,16 @@ function MAK.diagview(m::FusedGradedMatrix)
     return FusedGradedVector(diag_axis, diag_blocks)
 end
 
+# Inverse of `diagview`: wrap a FusedGradedVector as a block-diagonal FusedGradedMatrix
+# whose inner blocks are `Diagonal`. Keeps the structured form through
+# `pow_diag_safe(D) = MAK.diagonal(map(f, MAK.diagview(D)))`, so the next
+# `V * MAK.diagonal(...)` stays in the block-diagonal multiplication path instead of
+# falling through to LinearAlgebra's scalar-indexing `Diagonal*Matrix` impl.
+function MAK.diagonal(v::FusedGradedVector)
+    diag_blocks = map(Diagonal, v.blocks)
+    return FusedGradedMatrix(v.axis, v.axis, diag_blocks)
+end
+
 # Count how many elements are kept for a given index specification and block size
 _count_kept(::Colon, n) = n
 _count_kept(ind::AbstractVector{Bool}, _) = count(ind)
