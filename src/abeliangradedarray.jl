@@ -260,6 +260,25 @@ function Base.similar(a::AbelianGradedArray{T}) where {T}
     return similar(a, T)
 end
 
+# Block-wise copy; the default falls through to scalar `copyto!`.
+function Base.copy(a::AbelianGradedArray{T, N, D, S}) where {T, N, D, S}
+    return AbelianGradedArray{T, N, D, S}(
+        Dict{NTuple{N, Int}, D}(k => copy(v) for (k, v) in a.blockdata),
+        a.axes
+    )
+end
+
+# Conjugate element-wise *and* flip axis duality, mirroring `Base.conj` on the
+# axis types (`SectorRange`/`GradedOneTo`/`SectorOneTo`). Without the axis flip,
+# `conj(t)` would leave bra-layer tensors with the same duality as the ket, and
+# any contraction between them would silently pair non-dual against non-dual.
+function Base.conj(a::AbelianGradedArray{T, N, D, S}) where {T, N, D, S}
+    return AbelianGradedArray{T, N, D, S}(
+        Dict{NTuple{N, Int}, D}(k => conj(v) for (k, v) in a.blockdata),
+        map(conj, a.axes)
+    )
+end
+
 # ---------------------------------------------------------------------------
 #  sectortype
 # ---------------------------------------------------------------------------
@@ -309,6 +328,57 @@ function Base.fill!(a::AbelianGradedArray, v)
         ArgumentError("fill! with nonzero value is not supported for AbelianGradedArray")
     )
     return FI.zero!(a)
+end
+
+function LinearAlgebra.norm(a::AbelianGradedArray, p::Real = 2)
+    if p == Inf
+        isempty(a.blockdata) && return zero(float(real(eltype(a))))
+        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(a.blockdata))
+    elseif p > 0
+        s = zero(float(real(eltype(a))))
+        for b in values(a.blockdata)
+            s += LinearAlgebra.norm(b, p)^p
+        end
+        return s^inv(p)
+    else
+        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
+    end
+end
+
+function LinearAlgebra.dot(a::AbelianGradedArray, b::AbelianGradedArray)
+    s = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
+    for (k, ablk) in pairs(a.blockdata)
+        haskey(b.blockdata, k) || continue
+        s += LinearAlgebra.dot(ablk, b.blockdata[k])
+    end
+    return s
+end
+
+# Reductions iterate scalar-by-scalar by default. Unstored blocks are zero, so
+# `+`-style reductions can skip them. Other ops require materializing — refuse
+# rather than silently dropping unstored contributions.
+function Base.mapreduce(
+        f, op::Union{typeof(+), typeof(Base.add_sum)},
+        a::AbelianGradedArray;
+        init = zero(eltype(a))
+    )
+    s = init
+    for b in values(a.blockdata)
+        s = op(s, mapreduce(f, op, b))
+    end
+    return s
+end
+
+# Block-wise scalar multiplication. The default `a .* x` / `a ./ x` paths broadcast
+# element-wise and scalar-index opaque storage.
+Base.:*(a::AbelianGradedArray, x::Number) = scale!(copy(a), x)
+Base.:*(x::Number, a::AbelianGradedArray) = a * x
+Base.:/(a::AbelianGradedArray, x::Number) = a * inv(x)
+
+# `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`,
+# which scalar-indexes opaque storage.
+function LinearAlgebra.normalize(a::AbelianGradedArray, p::Real = 2)
+    return a / LinearAlgebra.norm(a, p)
 end
 
 # ---------------------------------------------------------------------------

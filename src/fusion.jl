@@ -215,8 +215,15 @@ function TensorAlgebra.unmatricize(
         codomain_axes::Tuple{Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
-    isempty((codomain_axes..., domain_axes...)) &&
-        error("Scalar unmatricize not yet supported for FusedGradedMatrix")
+    if isempty(codomain_axes) && isempty(domain_axes)
+        # Scalar (rank-0) result: only the trivial-sector block contributes, and
+        # `cod ∩ dom = {trivial}` for a fused scalar means `m.blocks` is at most
+        # one 1×1 entry. Return a 0-D `Array` matching the eltype.
+        a = fill(zero(eltype(m)))
+        triv = trivial(sectortype(m))
+        haskey(m.blocks, triv) && (a[] = m.blocks[triv][1, 1])
+        return a
+    end
     # Compute the unfused 2D axes the N-D blocked axes produce, then their
     # sector-merged form (the axes matricize would have produced).
     unfused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)

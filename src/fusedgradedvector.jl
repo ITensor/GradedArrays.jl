@@ -201,10 +201,10 @@ function FI.zero!(v::FusedGradedVector)
 end
 
 function Base.fill!(v::FusedGradedVector, val)
-    iszero(val) || throw(
-        ArgumentError("fill! with nonzero value is not supported for FusedGradedVector")
-    )
-    return FI.zero!(v)
+    for b in values(v.blocks)
+        fill!(b, val)
+    end
+    return v
 end
 
 # ========================  similar  ========================
