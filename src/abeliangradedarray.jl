@@ -248,6 +248,23 @@ function Base.similar(
     D_N′ = isconcretetype(D_N) ? D_N : Array{T, N}
     return AbelianGradedArray{T, N, D_N′, S}(undef, axes)
 end
+
+# Allocate a graded array from any prototype when the requested axes are
+# `GradedOneTo`. The axes carry the structure; the prototype only fixes a
+# fallback datatype. Two overloads to resolve ambiguity with `BlockArrays`'
+# `StridedArray`-specific methods.
+function Base.similar(
+        ::AbstractArray, ::Type{T},
+        axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+    ) where {T, S}
+    return AbelianGradedArray{T}(undef, axes)
+end
+function Base.similar(
+        ::StridedArray, ::Type{T},
+        axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+    ) where {T, S}
+    return AbelianGradedArray{T}(undef, axes)
+end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
     ) where {T}
@@ -328,6 +345,34 @@ function Base.fill!(a::AbelianGradedArray, v)
         ArgumentError("fill! with nonzero value is not supported for AbelianGradedArray")
     )
     return FI.zero!(a)
+end
+
+# Orthogonal projection of a dense source into the symmetry-allowed subspace.
+# Magnitude-blind: forbidden-block entries of `src` are dropped without inspection.
+# Use `TensorAlgebra.checked_projectto!` to verify the discarded weight is small.
+function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
+    size(dest) == size(src) || throw(
+        DimensionMismatch(
+            "projectto!: dest has size $(size(dest)), src has size $(size(src))"
+        )
+    )
+    FI.zero!(dest)
+    for b in allowedblocks(axes(dest))
+        block_ranges = ntuple(d -> axes(dest, d)[Block(Int(Tuple(b)[d]))], ndims(dest))
+        view(dest, b) .= view(src, block_ranges...)
+    end
+    return dest
+end
+
+# Materialize the graded array into a dense `Array` for the default
+# `checked_projectto!`/`isapprox`-after path.
+function Base.Array(a::AbelianGradedArray{T, N}) where {T, N}
+    dest = zeros(T, size(a))
+    for bI in eachblockstoredindex(a)
+        block_ranges = ntuple(d -> axes(a, d)[Block(Int(Tuple(bI)[d]))], N)
+        copyto!(view(dest, block_ranges...), view(a, bI))
+    end
+    return dest
 end
 
 function LinearAlgebra.norm(a::AbelianGradedArray, p::Real = 2)
