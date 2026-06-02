@@ -114,4 +114,4 @@ function Base.show(io::IO, r::SectorOneTo)
     return nothing
 end
 
-Base.adjoint(r::SectorOneTo) = dual(r)
+Base.conj(r::SectorOneTo) = dual(r)

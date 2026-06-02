@@ -308,8 +308,8 @@ end
 @testset "unmatricize AbelianSectorMatrix with SectorOneTo axes" begin
     # Create a 3D AbelianSectorArray, matricize it, then unmatricize and verify roundtrip
     codomain_ax = SectorOneTo(U1(0), 2)
-    domain_ax1 = SectorOneTo(U1(0)', 3)
-    domain_ax2 = SectorOneTo(U1(1)', 4)
+    domain_ax1 = SectorOneTo(conj(U1(0)), 3)
+    domain_ax2 = SectorOneTo(conj(U1(1)), 4)
 
     data_3d = randn!(Array{Float64}(undef, 2, 3, 4))
     s = AbelianSectorArray(

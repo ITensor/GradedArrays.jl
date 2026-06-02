@@ -125,7 +125,7 @@ function flip(g::GradedOneTo)
     return GradedOneTo(new_nondual, datalengths(g), !isdual(g))
 end
 flip_dual(g::GradedOneTo) = isdual(g) ? flip(g) : g
-Base.adjoint(g::GradedOneTo) = dual(g)
+Base.conj(g::GradedOneTo) = dual(g)
 
 to_gradedrange(g::GradedOneTo) = g
 
@@ -224,7 +224,7 @@ Non-dual inputs produce a non-dual axis; dual inputs produce a dual axis.
 
 ```julia
 gradedrange([U1(0) => 2, U1(1) => 3])     # non-dual
-gradedrange([U1(0)' => 2, U1(1)' => 3])   # dual
+gradedrange([conj(U1(0)) => 2, conj(U1(1)) => 3])   # dual
 ```
 """
 function gradedrange(

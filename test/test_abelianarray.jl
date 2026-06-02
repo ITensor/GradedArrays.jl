@@ -50,12 +50,12 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Block getindex returns correct sectors" begin
-        g1_dual = gradedrange([U1(0) => 2, U1(1) => 3])'
+        g1_dual = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
         a = AbelianGradedArray{Float64}(undef, g1_dual, g2)
         a[Block(1, 1)] = ones(2, 1)
 
         blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (U1(0)', U1(0))
+        @test sectoraxes(blk) == (conj(U1(0)), U1(0))
     end
 
     @testset "Block getindex for unstored block errors" begin
@@ -98,8 +98,8 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Dual axes" begin
-        g1_dual = gradedrange([U1(0) => 2, U1(1) => 3])'
-        g2_dual = gradedrange([U1(0) => 1, U1(-1) => 2])'
+        g1_dual = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
+        g2_dual = conj(gradedrange([U1(0) => 1, U1(-1) => 2]))
         a = AbelianGradedArray{Float64}(undef, g1_dual, g2_dual)
 
         @test isdual(axes(a, 1)) == true
@@ -108,7 +108,7 @@ using Test: @test, @test_throws, @testset
 
         a[Block(1, 1)] = ones(2, 1)
         blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (U1(0)', U1(0)')
+        @test sectoraxes(blk) == (conj(U1(0)), conj(U1(0)))
     end
 
     @testset "similar" begin

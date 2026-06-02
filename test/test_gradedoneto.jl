@@ -14,20 +14,20 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "gradedrange from dual SectorRange labels" begin
-        g = gradedrange([U1(0)' => 2, U1(1)' => 3])
+        g = gradedrange([conj(U1(0)) => 2, conj(U1(1)) => 3])
         @test g isa GradedOneTo{U1}
-        @test sectors(g) == [U1(0)', U1(1)']
+        @test sectors(g) == [conj(U1(0)), conj(U1(1))]
         @test datalengths(g) == [2, 3]
         @test isdual(g) == true
     end
 
     @testset "gradedrange mixed isdual throws" begin
-        @test_throws ArgumentError gradedrange([U1(0) => 2, U1(1)' => 3])
+        @test_throws ArgumentError gradedrange([U1(0) => 2, conj(U1(1)) => 3])
     end
 
-    @testset "dual via adjoint (U1)" begin
+    @testset "dual via conj (U1)" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
-        gd = g'
+        gd = conj(g)
         @test isdual(gd) == true
         @test sectors(gd) == dual.(sectors(g))
         @test datalengths(gd) == datalengths(g)
@@ -36,7 +36,7 @@ using Test: @test, @test_throws, @testset
     @testset "double dual is identity" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         @test dual(dual(g)) == g
-        @test g'' == g
+        @test conj(conj(g)) == g
     end
 
     @testset "sectors accessor — non-dual" begin
@@ -45,8 +45,8 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "sectors accessor — dual" begin
-        g = gradedrange([U1(0) => 2, U1(1) => 3])'
-        @test sectors(g) == [U1(0)', U1(1)']
+        g = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
+        @test sectors(g) == [conj(U1(0)), conj(U1(1))]
     end
 
     @testset "blocklength" begin
@@ -84,9 +84,9 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "flip on dual" begin
-        g = gradedrange([U1(1) => 3])'
+        g = conj(gradedrange([U1(1) => 3]))
         gf = flip(g)
-        @test sectors(gf) == [flip(U1(1)')]
+        @test sectors(gf) == [flip(conj(U1(1)))]
         @test isdual(gf) == false  # was dual, flip toggles
     end
 
@@ -94,7 +94,7 @@ using Test: @test, @test_throws, @testset
         g1 = gradedrange([U1(0) => 2, U1(1) => 3])
         g2 = gradedrange([U1(0) => 2, U1(1) => 3])
         g3 = gradedrange([U1(0) => 2, U1(1) => 4])
-        g4 = gradedrange([U1(0) => 2, U1(1) => 3])'
+        g4 = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
 
         @test g1 == g2
         @test g1 != g3  # different multiplicity
@@ -125,7 +125,7 @@ using Test: @test, @test_throws, @testset
         @test !contains(str, "dual")
 
         # Dual axes factor the `dual` to the outside.
-        gd = g'
+        gd = conj(g)
         strd = sprint(show, gd)
         @test !endswith(strd, "'")
         @test startswith(strd, "dual(gradedrange(")
@@ -150,9 +150,9 @@ using Test: @test, @test_throws, @testset
         @test blocklength(g) == 2
         @test length(g) == 1 * 1 + 2 * 2  # 5
 
-        gd = g'
+        gd = conj(g)
         @test isdual(gd) == true
-        @test sectors(gd) == [SU2(0)', SU2(1 // 2)']
+        @test sectors(gd) == [conj(SU2(0)), conj(SU2(1 // 2))]
     end
 
     @testset "SU2 gradedrange from SectorRange" begin
@@ -180,7 +180,7 @@ using Test: @test, @test_throws, @testset
         g = gradedrange([U1(1) => 2, U1(0) => 3])
         @test tensor_product(g) == gradedrange([U1(0) => 3, U1(1) => 2])
 
-        gd = gradedrange([U1(1) => 2, U1(0) => 3])'
+        gd = conj(gradedrange([U1(1) => 2, U1(0) => 3]))
         tp_d = tensor_product(gd)
         @test !isdual(tp_d)
 
