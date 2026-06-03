@@ -337,25 +337,25 @@ end
 # ---------------------------------------------------------------------------
 
 scale!(a::AbstractArray, β::Number) = (a .*= β; a)
-function scale!(a::AbstractGradedArray, β::Number)
-    for bI in eachblockstoredindex(a)
-        scale!(view(a, bI), β)
+function scale!(a::AbelianGradedArray, β::Number)
+    for b in values(a.blockdata)
+        scale!(b, β)
     end
     return a
 end
 
-function FI.zero!(a::AbstractGradedArray)
-    for bI in eachblockstoredindex(a)
-        FI.zero!(view(a, bI))
+function FI.zero!(a::AbelianGradedArray)
+    for b in values(a.blockdata)
+        FI.zero!(b)
     end
     return a
 end
 
 function Base.fill!(a::AbelianGradedArray, v)
-    iszero(v) || throw(
-        ArgumentError("fill! with nonzero value is not supported for AbelianGradedArray")
-    )
-    return FI.zero!(a)
+    for b in values(a.blockdata)
+        fill!(b, v)
+    end
+    return a
 end
 
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
