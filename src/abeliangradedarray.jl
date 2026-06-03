@@ -92,6 +92,15 @@ function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
     return AbelianSectorArray(sects, a.blockdata[bk])
 end
 
+# Disambiguate against `view(::AbstractGradedArray{T, N}, ::Vararg{Block{1}, N})` for
+# N=1, where the splatted form collapses to a single Block{1} argument.
+function Base.view(a::AbelianGradedArray{T, 1}, I::Block{1}) where {T}
+    bk = (Int(I),)
+    haskey(a.blockdata, bk) || error("Block $bk is not stored.")
+    sects = (sectors(axes(a, 1))[bk[1]],)
+    return AbelianSectorArray(sects, a.blockdata[bk])
+end
+
 # ---------------------------------------------------------------------------
 #  blocks — lazy view delegating to view (following BlockArrays convention)
 # ---------------------------------------------------------------------------

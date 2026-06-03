@@ -46,6 +46,8 @@ end
 function Base.view(a::AbstractGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     return view(a, Block(Int.(I)))
 end
+# Disambiguate against subtype-specific `view(::ConcreteGradedVector, ::Block{1})` methods.
+Base.view(a::AbstractGradedArray{T, 1}, I::Block{1}) where {T} = view(a, Block((Int(I),)))
 
 function Base.getindex(a::AbstractGradedArray{T, N}, I::Block{N}) where {T, N}
     return copy(view(a, I))
@@ -53,6 +55,8 @@ end
 function Base.getindex(a::AbstractGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     return a[Block(Int.(I))]
 end
+# Disambiguate the N=1 case: route through the `Block{N}` method to avoid recursion.
+Base.getindex(a::AbstractGradedArray{T, 1}, I::Block{1}) where {T} = copy(view(a, I))
 
 function Base.setindex!(a::AbstractGradedArray{<:Any, N}, value, I::Block{N}) where {N}
     return setindex!(a, value, Tuple(I)...)
@@ -61,6 +65,10 @@ function Base.setindex!(
         a::AbstractGradedArray{<:Any, N}, value, I::Vararg{Block{1}, N}
     ) where {N}
     view(a, I...) .= value
+    return a
+end
+function Base.setindex!(a::AbstractGradedArray{<:Any, 1}, value, I::Block{1})
+    view(a, I) .= value
     return a
 end
 
