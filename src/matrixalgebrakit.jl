@@ -1,4 +1,4 @@
-import MatrixAlgebraKit as MAK
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
 struct GradedBlockAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A

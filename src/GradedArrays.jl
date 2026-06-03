@@ -22,13 +22,13 @@ export dual, flip, gradedrange, isdual,
 
 # imports
 # -------
-import FunctionImplementations as FI
 using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
     AbstractBlockedUnitRange, Block, BlockIndexRange, BlockVector, BlockedOneTo,
     blockedrange, blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
 using BlockSparseArrays: BlockSparseArrays, blockdiagindices, blockstoredlength,
     eachblockaxis, eachblockstoredindex, mortar_axis
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
+using FunctionImplementations: FunctionImplementations as FI
 using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, mul!
 using SparseArraysBase: SparseArraysBase
