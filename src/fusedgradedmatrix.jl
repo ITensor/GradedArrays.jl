@@ -283,6 +283,16 @@ function Base.:(-)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return _block_combine(-, A, B)
 end
 
+function Base.:(*)(A::FusedGradedMatrix, x::Number)
+    new_blocks = map(b -> b * x, A.blocks)
+    return FusedGradedMatrix(A.codomain, A.domain, new_blocks)
+end
+Base.:(*)(x::Number, A::FusedGradedMatrix) = A * x
+function Base.:(/)(A::FusedGradedMatrix, x::Number)
+    new_blocks = map(b -> b / x, A.blocks)
+    return FusedGradedMatrix(A.codomain, A.domain, new_blocks)
+end
+
 # ======================== LinearAlgebra ======================
 
 function Base.adjoint(A::FusedGradedMatrix)

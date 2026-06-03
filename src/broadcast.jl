@@ -88,3 +88,37 @@ function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:GradedStyl
         throw(ArgumentError("AbstractGradedArray broadcasting requires linear operations"))
     return copyto!(dest, lb)
 end
+
+# ====================  FusedGradedMatrix broadcasting  ====================
+#
+# `FusedGradedMatrix` stores blocks keyed by coupled sector rather than by
+# cartesian block index, so the `GradedStyle` path (which lowers to
+# `bipermutedimsopadd!` over cartesian block storage) silently produces wrong
+# results. Until a proper sector-keyed broadcast path lands, FGM broadcasting
+# is an explicit error; use `Base.:(+)` / `Base.:(-)` or block-wise operations
+# instead.
+
+struct FusedGradedStyle <: BC.AbstractArrayStyle{2} end
+FusedGradedStyle(::Val{N}) where {N} = FusedGradedStyle()
+
+BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle()
+BC.BroadcastStyle(s::FusedGradedStyle, ::BC.DefaultArrayStyle{0}) = s
+BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, s::FusedGradedStyle) = s
+BC.BroadcastStyle(s::FusedGradedStyle, ::FusedGradedStyle) = s
+
+function Base.copy(::BC.Broadcasted{FusedGradedStyle})
+    return throw(
+        ArgumentError(
+            "Broadcasting on `FusedGradedMatrix` is not supported; use `+`/`-` " *
+                "or operate block-wise via `blocks(A)` instead."
+        )
+    )
+end
+function Base.copyto!(::AbstractArray, ::BC.Broadcasted{FusedGradedStyle})
+    return throw(
+        ArgumentError(
+            "Broadcasting on `FusedGradedMatrix` is not supported; use `+`/`-` " *
+                "or operate block-wise via `blocks(A)` instead."
+        )
+    )
+end
