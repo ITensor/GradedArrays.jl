@@ -238,6 +238,51 @@ function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return mul!(C, A, B)
 end
 
+# ========================  Block-wise +, - ========================
+#
+# FusedGradedMatrix has no `BroadcastStyle`, so the AbstractArray fallback for `+`/`-`
+# (`broadcast_preserving_zero_d`) ends up trying scalar indexing on a sector-block
+# structure — which silently produces wrong results. Define the operations directly
+# block-by-block, taking the union of sectors so an absent block on one side is
+# treated as zero.
+
+function _check_add_axes(A::FusedGradedMatrix, B::FusedGradedMatrix, op)
+    A.codomain == B.codomain ||
+        throw(DimensionMismatch("$(op): codomain mismatch"))
+    A.domain == B.domain ||
+        throw(DimensionMismatch("$(op): domain mismatch"))
+    return nothing
+end
+
+function _block_combine(op, A::FusedGradedMatrix, B::FusedGradedMatrix)
+    T = promote_type(eltype(A), eltype(B))
+    DA = datatype(BlockSparseArrays.blocktype(A))
+    DB = datatype(BlockSparseArrays.blocktype(B))
+    D = Base.promote_op(op, DA, DB)
+    D′ = isconcretetype(D) ? D : Matrix{T}
+    S = sectortype(typeof(A))
+    sectors = sort!(collect(union(keys(A.blocks), keys(B.blocks))))
+    blocks = Dictionary{S, D′}()
+    for c in sectors
+        rows = get(A.codomain, c, get(B.codomain, c, 0))
+        cols = get(A.domain, c, get(B.domain, c, 0))
+        a = get(() -> zeros(eltype(A), rows, cols), A.blocks, c)
+        b = get(() -> zeros(eltype(B), rows, cols), B.blocks, c)
+        insert!(blocks, c, op(a, b))
+    end
+    return FusedGradedMatrix(A.codomain, A.domain, blocks)
+end
+
+function Base.:(+)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    _check_add_axes(A, B, :+)
+    return _block_combine(+, A, B)
+end
+
+function Base.:(-)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    _check_add_axes(A, B, :-)
+    return _block_combine(-, A, B)
+end
+
 # ======================== LinearAlgebra ======================
 
 function Base.adjoint(A::FusedGradedMatrix)
