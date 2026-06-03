@@ -296,6 +296,23 @@ function Base.copy(a::AbelianGradedArray{T, N, D, S}) where {T, N, D, S}
     )
 end
 
+function Base.copyto!(
+        dest::AbelianGradedArray{<:Any, N},
+        src::AbelianGradedArray{<:Any, N}
+    ) where {N}
+    axes(dest) == axes(src) ||
+        throw(
+        DimensionMismatch(
+            "copyto! axes mismatch: dest $(axes(dest)), src $(axes(src))"
+        )
+    )
+    empty!(dest.blockdata)
+    for (k, v) in src.blockdata
+        dest.blockdata[k] = copy(v)
+    end
+    return dest
+end
+
 # Conjugate element-wise *and* flip axis duality, mirroring `Base.conj` on the
 # axis types (`SectorRange`/`GradedOneTo`/`SectorOneTo`). Without the axis flip,
 # `conj(t)` would leave bra-layer tensors with the same duality as the ket, and
