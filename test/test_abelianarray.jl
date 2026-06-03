@@ -205,8 +205,9 @@ using Test: @test, @test_throws, @testset
         @test !isempty(a.blockdata)
         @test all(iszero, a.blockdata[(1, 1)])
 
-        # fill! with nonzero errors
-        @test_throws ArgumentError fill!(a, 1.0)
+        # fill! fills stored blocks block-wise with any value
+        fill!(a, 1.0)
+        @test all(==(1.0), a.blockdata[(1, 1)])
 
         # zero! zeros stored blocks in place (blocks stay allocated)
         a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), ones(2, 2))
