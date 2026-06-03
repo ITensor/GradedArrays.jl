@@ -375,6 +375,21 @@ function Base.fill!(a::AbelianGradedArray, v)
     return a
 end
 
+# Block-aware random fills: dispatch to the underlying block's `rand!`/`randn!`,
+# bypassing the generic `AbstractArray` fallbacks that go through scalar indexing.
+function Random.rand!(rng::AbstractRNG, a::AbelianGradedArray)
+    for b in values(a.blockdata)
+        Random.rand!(rng, b)
+    end
+    return a
+end
+function Random.randn!(rng::AbstractRNG, a::AbelianGradedArray)
+    for b in values(a.blockdata)
+        Random.randn!(rng, b)
+    end
+    return a
+end
+
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
 # stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
 function LinearAlgebra.isdiag(A::AbelianGradedMatrix)
