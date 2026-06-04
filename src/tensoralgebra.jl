@@ -239,11 +239,11 @@ function TensorAlgebra.check_input(
         a2::AbstractArray, perm2_codomain, perm2_domain
     )
     for (i, j) in zip(perm1_domain, perm2_codomain)
-        ax1 = axes(a1)[i]
-        ax2 = axes(a2)[j]
+        ax1 = axes(a1, i)
+        ax2 = axes(a2, j)
         axes_match_for_contraction(ax1, ax2) || throw(
             ArgumentError(
-                "Contracted axes do not match: `axes(a1)[$i] = $ax1` and `axes(a2)[$j] = $ax2`"
+                "Contracted axes do not match: `axes(a1, $i) = $ax1` and `axes(a2, $j) = $ax2`"
             )
         )
     end
