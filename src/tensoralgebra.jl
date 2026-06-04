@@ -226,7 +226,16 @@ end
 # Skipped for fermionic braiding: the supertrace formalism intentionally uses
 # same-duality pairings together with `contraction_twist!` to pick up the right
 # fermion signs, so flagging those would be wrong.
-function check_contracted_axes_dual(a1, perm1_domain, a2, perm2_codomain)
+function TensorAlgebra.check_input(
+        f::typeof(TensorAlgebra.contract),
+        a1::AbstractGradedArray, perm1_codomain, perm1_domain,
+        a2::AbstractGradedArray, perm2_codomain, perm2_domain
+    )
+    @invoke TensorAlgebra.check_input(
+        f,
+        a1::AbstractArray, perm1_codomain, perm1_domain,
+        a2::AbstractArray, perm2_codomain, perm2_domain
+    )
     TKS.BraidingStyle(sectortype(a1)) isa TKS.Bosonic || return nothing
     for (i, j) in zip(perm1_domain, perm2_codomain)
         ax1 = axes(a1)[i]
@@ -261,7 +270,6 @@ function TensorAlgebra.contractopadd!(
         a1, perm1_codomain, perm1_domain,
         a2, perm2_codomain, perm2_domain
     )
-    check_contracted_axes_dual(a1, perm1_domain, a2, perm2_codomain)
 
     a1_mat = TensorAlgebra.matricizeop(
         algorithm.fusion_style,
