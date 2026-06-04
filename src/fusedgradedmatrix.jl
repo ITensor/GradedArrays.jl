@@ -78,7 +78,7 @@ LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval function Base.$f(A::FusedGradedMatrix)
         raw = map(Base.$f, A.blocks)
-        T = mapreduce(eltype, promote_type, raw)
+        T = mapreduce(eltype, promote_type, raw; init = eltype(A))
         blocks = map(b -> eltype(b) === T ? b : convert(AbstractMatrix{T}, b), raw)
         return FusedGradedMatrix(A.codomain, A.domain, blocks)
     end
