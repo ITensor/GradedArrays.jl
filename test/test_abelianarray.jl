@@ -5,6 +5,7 @@ using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
     datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
 using LinearAlgebra: LinearAlgebra
+using Random: Random
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -372,4 +373,36 @@ end
     @test collect(keys(m_undef.blocks)) == [U1(0), U1(1)]
     @test size(m_undef.blocks[U1(0)]) == (2, 4)
     @test size(m_undef.blocks[U1(1)]) == (3, 5)
+end
+
+@testset "Block-aware random fills and iszero on AbelianGradedArray" begin
+    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+    rng = Random.Xoshiro(42)
+
+    # In-place rand!/randn! fill each stored block via the underlying
+    # block's method, no scalar indexing. Both the no-rng and rng-explicit
+    # entry points must work.
+    a = AbelianGradedArray{Float64}(undef, g1, dual(g1))
+    fill!(a, 0)
+    @test iszero(a)
+    Random.randn!(rng, a)
+    @test !iszero(a)
+    fill!(a, 0)
+    Random.randn!(a)
+    @test !iszero(a)
+    Random.rand!(rng, a)
+    @test !iszero(a)
+    fill!(a, 0)
+    Random.rand!(a)
+    @test !iszero(a)
+
+    # Constructor form: `rand(T, axes)` / `randn(T, axes)` for graded axes
+    # builds an `AbelianGradedArray` with the right block structure.
+    r = randn(rng, Float64, (g1, dual(g1)))
+    @test r isa AbelianGradedArray{Float64, 2}
+    @test axes(r) == (g1, dual(g1))
+    @test !iszero(r)
+    u = rand(rng, Float64, (g1, dual(g1)))
+    @test u isa AbelianGradedArray{Float64, 2}
+    @test !iszero(u)
 end

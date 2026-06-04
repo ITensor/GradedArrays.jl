@@ -375,11 +375,22 @@ function Base.fill!(a::AbelianGradedArray, v)
     return a
 end
 
+# Block-aware iszero: non-stored blocks are implicitly zero, so an
+# `AbelianGradedArray` is zero iff every stored block is zero. The generic
+# `Base.iszero(::AbstractArray) = all(iszero, x)` path iterates elements,
+# which throws on the no-scalar-indexing guard.
+function Base.iszero(a::AbelianGradedArray)
+    return all(iszero, values(a.blockdata))
+end
+
 # Block-aware random fills: dispatch to the underlying block's `rand!`/`randn!`,
 # bypassing the generic `AbstractArray` fallbacks that go through scalar indexing.
-function Random.rand!(rng::AbstractRNG, a::AbelianGradedArray)
+# The 3-arg `Random.rand!(rng, A, sp::Sampler)` form is what Random's `rand!(A)`
+# / `rand!(A, X)` / `rand!(rng, A, X)` shims ultimately call, so overriding it
+# covers every entry point.
+function Random.rand!(rng::AbstractRNG, a::AbelianGradedArray, sp::Random.Sampler)
     for b in values(a.blockdata)
-        Random.rand!(rng, b)
+        Random.rand!(rng, b, sp)
     end
     return a
 end
@@ -388,6 +399,23 @@ function Random.randn!(rng::AbstractRNG, a::AbelianGradedArray)
         Random.randn!(rng, b)
     end
     return a
+end
+
+# Constructors `rand(rng, T, axes)` / `randn(rng, T, axes)` for graded axes:
+# allocate an `AbelianGradedArray` from the axes, then fill via the block-aware
+# in-place methods above. The generic `Base.rand`/`randn` fallbacks build a
+# `Matrix` from `length.(axes)`, which loses the graded structure.
+function Base.rand(
+        rng::AbstractRNG, ::Type{T},
+        ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    ) where {T}
+    return Random.rand!(rng, AbelianGradedArray{T}(undef, ax))
+end
+function Base.randn(
+        rng::AbstractRNG, ::Type{T},
+        ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    ) where {T}
+    return Random.randn!(rng, AbelianGradedArray{T}(undef, ax))
 end
 
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
