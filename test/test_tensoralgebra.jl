@@ -8,7 +8,7 @@ using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
 using Random: randn!
 using TensorAlgebra:
     TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize, unmatricize
-using Test: @test, @test_throws, @testset
+using Test: @test, @test_broken, @test_throws, @testset
 
 @testset "AbelianSectorArray linear broadcasting" begin
     s = AbelianSectorArray(
@@ -404,4 +404,47 @@ end
     @test_throws ArgumentError conj.(m)
     c = similar(m, Float64)
     @test_throws ArgumentError c .= 3 .* m .+ 2 .* n
+end
+
+# Regression coverage for the TensorAlgebra-level unmatricize-axis bugs that
+# previously surfaced through this stack:
+#  (a) `svd!!` assigned `axes_S = (axes(U, 2), axes(Vᴴ, 1))`, but for graded
+#      operators U's rank axis and S's first axis are conj-related rather than
+#      identical, so the unmatricized `S` had the conj of its own axes and
+#      `U * S * Vᴴ` failed to contract.
+#  (b) `gram_eigh_full_with_pinv` assigned `axes_Y = (axes(Y, 1), axes_codomain)`,
+#      but Y's domain contracts with X's codomain and must carry `conj(axes_codomain)`
+#      on a graded backend; the previous form wrote forbidden-charge blocks into
+#      the unmatricize buffer (`Block (i, j) is not stored`).
+@testset "TA.svd round-trip on AbelianGradedArray (axes_S regression)" begin
+    s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+    A = AbelianGradedArray{Float64}(undef, s, dual(s))
+    randn!(A)
+    U, S, Vᴴ = TensorAlgebra.svd(A, (1,), (2,))
+    # The natural `U * S * Vᴴ` form falls into LinearAlgebra's `_tri_matmul`,
+    # which scalar-indexes on `AbstractGradedArray`. `contract` is the
+    # block-wise route, but the chain form should also work once a block-aware
+    # matmul lands on `AbstractGradedMatrix`.
+    US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
+    USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
+    @test A ≈ USV
+    @test_broken A ≈ U * S * Vᴴ
+end
+
+@testset "TA.gram_eigh_full_with_pinv on AbelianGradedMatrix (axes_Y regression)" begin
+    s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+    B = AbelianGradedArray{Float64}(undef, s, dual(s))
+    randn!(B)
+    # PSD by construction. Build `A = B * B'` block-wise via `contract`
+    # so we stay on the graded matmul path; the natural `*` form is broken
+    # against the same scalar-indexing path as the SVD round-trip above.
+    A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
+    @test_broken A ≈ B * B'
+    X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
+    # X · conj(X) ≈ A on the rank subspace.
+    @test A ≈ contract((:a, :b), X, (:a, :r), conj(X), (:b, :r))
+    @test_broken A ≈ X * X'
+    # Y is a left inverse of X on the rank subspace.
+    YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
+    @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))
 end
