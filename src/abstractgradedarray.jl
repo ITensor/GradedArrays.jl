@@ -7,6 +7,11 @@ Concrete subtypes include [`AbelianGradedArray`](@ref) and [`FusedGradedMatrix`]
 abstract type AbstractGradedArray{T, N} <: AbstractArray{T, N} end
 const AbstractGradedMatrix{T} = AbstractGradedArray{T, 2}
 
+# Used by NamedDimsArrays broadcast alignment. Eager for simplicity for now,
+# pending the follow-ups on lazy permutations and the `FI.permuteddims`
+# interface itself.
+FI.permuteddims(a::AbstractGradedArray, perm) = permutedims(a, perm)
+
 function BlockSparseArrays.isblockdiagonal(A::AbstractGradedMatrix)
     for bI in eachblockstoredindex(A)
         row, col = Tuple(bI)
