@@ -1,4 +1,4 @@
-import MatrixAlgebraKit as MAK
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
 struct GradedBlockAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A
@@ -293,6 +293,16 @@ function MAK.diagview(m::FusedGradedMatrix)
     return FusedGradedVector(diag_axis, diag_blocks)
 end
 
+# Inverse of `diagview`: wrap a FusedGradedVector as a block-diagonal FusedGradedMatrix
+# whose inner blocks are `Diagonal`. Keeps the structured form through
+# `pow_diag_safe(D) = MAK.diagonal(map(f, MAK.diagview(D)))`, so the next
+# `V * MAK.diagonal(...)` stays in the block-diagonal multiplication path instead of
+# falling through to LinearAlgebra's scalar-indexing `Diagonal*Matrix` impl.
+function MAK.diagonal(v::FusedGradedVector)
+    diag_blocks = map(Diagonal, v.blocks)
+    return FusedGradedMatrix(v.axis, v.axis, diag_blocks)
+end
+
 # Count how many elements are kept for a given index specification and block size
 _count_kept(::Colon, n) = n
 _count_kept(ind::AbstractVector{Bool}, _) = count(ind)
@@ -412,8 +422,13 @@ function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationInt
     ]
 end
 
-# truncate for FusedGradedMatrix: build reduced-dimension output, drop empty sectors
-# TODO: how do we handle discarde sectors while keeping U and V square in the sectors?
+# truncate for FusedGradedMatrix: build reduced-dimension output, dropping fully
+# truncated sectors from the bond side only. For U the row (codomain) axis is the
+# input codomain and must keep its full sector set, and only the column (domain)
+# axis shrinks. Analogously for Vᴴ. For S, both sides are the bond and shrink
+# together. Sectors whose singular values are all truncated to zero are dropped
+# entirely from the bond, matching the `truncate_space` convention used in
+# `TensorMap` factorizations.
 function MAK.truncate(
         ::typeof(MAK.svd_trunc!),
         (U, S, Vᴴ)::NTuple{3, FusedGradedMatrix},
@@ -421,14 +436,47 @@ function MAK.truncate(
     )
     sv = MAK.diagview(S)
     inds = MAK.findtruncated_svd(sv, strategy)
-    sectors = collect(keys(U.blocks))
-    U_blocks = [U.blocks[s][:, inds[i]] for (i, s) in enumerate(sectors)]
-    S_blocks =
-        [Diagonal(MAK.diagview(S.blocks[s])[inds[i]]) for (i, s) in enumerate(sectors)]
-    Vᴴ_blocks = [Vᴴ.blocks[s][inds[i], :] for (i, s) in enumerate(sectors)]
-    Ũ = FusedGradedMatrix(sectors, U_blocks)
-    S̃ = FusedGradedMatrix(sectors, S_blocks)
-    Ṽᴴ = FusedGradedMatrix(sectors, Vᴴ_blocks)
+    sectors_all = collect(keys(U.blocks))
+
+    # Slice every sector's blocks first. `inds[i]` may be `Colon()` (notrunc) or a
+    # `Vector{Int}` (rank/tol/error truncations), so check emptiness via the resulting
+    # column count rather than `isempty(inds[i])`.
+    U_blocks_all =
+        [U.blocks[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
+    S_blocks_all = [
+        Diagonal(MAK.diagview(S.blocks[sectors_all[i]])[inds[i]])
+            for i in eachindex(inds)
+    ]
+    Vᴴ_blocks_all =
+        [Vᴴ.blocks[sectors_all[i]][inds[i], :] for i in eachindex(inds)]
+
+    keep = [i for i in eachindex(inds) if size(U_blocks_all[i], 2) > 0]
+    sectors_kept = sectors_all[keep]
+    bond_dims = [size(U_blocks_all[i], 2) for i in keep]
+
+    # U: rows = input codomain (full), cols = bond (shrunk).
+    U_cod = U.codomain
+    U_dom = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
+    U_blks = Dictionary{eltype(sectors_kept), eltype(typeof(U.blocks))}(
+        sectors_kept, U_blocks_all[keep]
+    )
+    Ũ = FusedGradedMatrix(U_cod, U_dom, U_blks)
+
+    # S: both sides are the bond (shrunk).
+    S_side = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
+    S_blks = Dictionary{eltype(sectors_kept), eltype(typeof(S.blocks))}(
+        sectors_kept, S_blocks_all[keep]
+    )
+    S̃ = FusedGradedMatrix(S_side, S_side, S_blks)
+
+    # Vᴴ: rows = bond (shrunk), cols = input domain (full).
+    Vᴴ_cod = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
+    Vᴴ_dom = Vᴴ.domain
+    Vᴴ_blks = Dictionary{eltype(sectors_kept), eltype(typeof(Vᴴ.blocks))}(
+        sectors_kept, Vᴴ_blocks_all[keep]
+    )
+    Ṽᴴ = FusedGradedMatrix(Vᴴ_cod, Vᴴ_dom, Vᴴ_blks)
+
     return (Ũ, S̃, Ṽᴴ), inds
 end
 

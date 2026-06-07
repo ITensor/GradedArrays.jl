@@ -168,6 +168,25 @@ Base.size(v::FusedGradedVector) = map(length, axes(v))
 Base.eltype(::Type{FusedGradedVector{T}}) where {T} = T
 Base.eltype(::Type{<:FusedGradedVector{T}}) where {T} = T
 
+# Block-wise `mapreduce`: reduce each block locally (so GPU blocks stay on the device for
+# their reduction kernel) and combine per-block scalars on the CPU. Routes
+# `maximum(abs, v; init=…)`, `sum`, `LinearAlgebra.norm`, etc. without ever falling
+# through to `getindex(v, ::Int)`. `init` (and any other kwargs) flow only to the outer
+# cross-block fold; double-applying `init` per block would be wrong for non-idempotent
+# reductions (e.g. `sum(v; init=10)`).
+function Base.mapreduce(f, op, v::FusedGradedVector; kwargs...)
+    return mapfoldl(b -> mapreduce(f, op, b), op, values(v.blocks); kwargs...)
+end
+
+# Block-wise `map`: returns a `FusedGradedVector` with the same axis and `f` applied to
+# each stored block, instead of falling through to `collect_similar` which would
+# allocate an `AbelianGradedVector` and scalar-setindex! into it. Each per-block `map`
+# dispatches to the storage backend's `map` (e.g. GPU kernel for `CuVector` blocks).
+function Base.map(f, v::FusedGradedVector)
+    blocks = dictionary(s => map(f, b) for (s, b) in pairs(v.blocks))
+    return FusedGradedVector(v.axis, blocks)
+end
+
 # ========================  Block indexing (primitive)  ========================
 
 function Base.view(v::FusedGradedVector, I::Block{1})
@@ -201,10 +220,10 @@ function FI.zero!(v::FusedGradedVector)
 end
 
 function Base.fill!(v::FusedGradedVector, val)
-    iszero(val) || throw(
-        ArgumentError("fill! with nonzero value is not supported for FusedGradedVector")
-    )
-    return FI.zero!(v)
+    for b in values(v.blocks)
+        fill!(b, val)
+    end
+    return v
 end
 
 # ========================  similar  ========================

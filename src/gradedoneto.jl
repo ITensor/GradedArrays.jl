@@ -55,6 +55,8 @@ function trivial(::Type{GradedOneTo{S}}) where {S}
 end
 trivial(g::GradedOneTo) = trivial(typeof(g))
 
+TensorAlgebra.trivialrange(R::Type{<:GradedOneTo}) = trivial(R)
+
 """
     gradedrange(xs::AbstractVector{<:Pair})
 
@@ -80,25 +82,21 @@ end
 eachdataaxis(g::GradedOneTo) = data.(eachblockaxis(g))
 eachsectoraxis(g::GradedOneTo) = sector.(eachblockaxis(g))
 
-function BlockSparseArrays.mortar_axis(axs::AbstractVector{<:SectorOneTo})
-    isempty(axs) && throw(
-        ArgumentError("Cannot create GradedOneTo from empty vector without type info")
-    )
+function BlockSparseArrays.mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
+    isempty(axs) && return GradedOneTo(S[], Int[])
     allequal(isdual, axs) ||
         throw(ArgumentError("Cannot combine sectors with different arrows"))
     d = isdual(first(axs))
     # Store non-dual sectors; apply isdual via dual() if needed
-    ss = [d ? dual(sector(r)) : sector(r) for r in axs]
-    ms = [datalength(r) for r in axs]
+    ss = S[d ? dual(sector(r)) : sector(r) for r in axs]
+    ms = Int[datalength(r) for r in axs]
     g = GradedOneTo(ss, ms)
     return d ? dual(g) : g
 end
 
 # Non-abelian fusion: flatten GradedOneTo elements into a single GradedOneTo
-function BlockSparseArrays.mortar_axis(axs::AbstractVector{<:GradedOneTo})
-    isempty(axs) && throw(
-        ArgumentError("Cannot create GradedOneTo from empty vector without type info")
-    )
+function BlockSparseArrays.mortar_axis(axs::AbstractVector{GradedOneTo{S}}) where {S}
+    isempty(axs) && return GradedOneTo(S[], Int[])
     return mortar_axis(mapreduce(eachblockaxis, vcat, axs))
 end
 
@@ -125,7 +123,7 @@ function flip(g::GradedOneTo)
     return GradedOneTo(new_nondual, datalengths(g), !isdual(g))
 end
 flip_dual(g::GradedOneTo) = isdual(g) ? flip(g) : g
-Base.adjoint(g::GradedOneTo) = dual(g)
+Base.conj(g::GradedOneTo) = dual(g)
 
 to_gradedrange(g::GradedOneTo) = g
 
@@ -167,14 +165,18 @@ function Base.checkindex(::Type{Bool}, g::GradedOneTo, i::Int)
     return 1 <= i <= length(g)
 end
 
-# Equality and hashing
+# Equality and hashing. Empty graded ranges have no sectors and the `isdual`
+# flag has no observable effect, so any two empty graded ranges of the same
+# sector type compare equal.
 function Base.isequal(a::GradedOneTo, b::GradedOneTo)
+    isempty(a.nondual_sectors) && isempty(b.nondual_sectors) && return true
     return isequal(a.nondual_sectors, b.nondual_sectors) &&
         isequal(datalengths(a), datalengths(b)) &&
         isequal(isdual(a), isdual(b))
 end
 Base.:(==)(a::GradedOneTo, b::GradedOneTo) = isequal(a, b)
 function Base.hash(g::GradedOneTo, h::UInt)
+    isempty(g.nondual_sectors) && return hash(GradedOneTo, h)
     return hash(g.nondual_sectors, hash(datalengths(g), hash(isdual(g), h)))
 end
 
@@ -224,7 +226,7 @@ Non-dual inputs produce a non-dual axis; dual inputs produce a dual axis.
 
 ```julia
 gradedrange([U1(0) => 2, U1(1) => 3])     # non-dual
-gradedrange([U1(0)' => 2, U1(1)' => 3])   # dual
+gradedrange([conj(U1(0)) => 2, conj(U1(1)) => 3])   # dual
 ```
 """
 function gradedrange(

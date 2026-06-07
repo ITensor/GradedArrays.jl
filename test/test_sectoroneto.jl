@@ -19,9 +19,9 @@ using Test: @test, @testset
     end
 
     @testset "U1 dual sector accessor" begin
-        si = SectorOneTo(U1(1)', 3)
+        si = SectorOneTo(conj(U1(1)), 3)
         @test isdual(si) == true
-        @test sector(si) == U1(1)'
+        @test sector(si) == conj(U1(1))
     end
 
     @testset "SU2 construction and accessors" begin
@@ -33,8 +33,8 @@ using Test: @test, @testset
     end
 
     @testset "SU2 dual" begin
-        si = SectorOneTo(SU2(1)', 2)
-        @test sector(si) == SU2(1)'
+        si = SectorOneTo(conj(SU2(1)), 2)
+        @test sector(si) == conj(SU2(1))
     end
 
     @testset "Collection-like interface" begin
@@ -62,7 +62,7 @@ using Test: @test, @testset
     @testset "dual" begin
         si = SectorOneTo(U1(1), 3)
         sid = dual(si)
-        @test sector(sid) == U1(1)'
+        @test sector(sid) == conj(U1(1))
         @test datalength(sid) == 3
         @test isdual(sid) == true
         @test dual(sid) == si  # double dual is identity
@@ -87,7 +87,7 @@ using Test: @test, @testset
     @testset "equality" begin
         si1 = SectorOneTo(U1(1), 3)
         si2 = SectorOneTo(U1(1), 3)
-        si3 = SectorOneTo(U1(1)', 3)
+        si3 = SectorOneTo(conj(U1(1)), 3)
         si4 = SectorOneTo(U1(2), 3)
         si5 = SectorOneTo(U1(1), 4)
 
@@ -120,7 +120,7 @@ using Test: @test, @testset
         @test !contains(str, "dual")
 
         # Duality is factored to the outside: `dual(SectorOneTo(...))`.
-        sid = SectorOneTo(U1(1)', 3)
+        sid = SectorOneTo(conj(U1(1)), 3)
         strd = sprint(show, sid)
         @test startswith(strd, "dual(SectorOneTo(")
         @test endswith(strd, "))")
@@ -128,8 +128,8 @@ using Test: @test, @testset
     end
 
     @testset "dual sectors accessor for collection interface" begin
-        si = SectorOneTo(U1(1)', 3)
-        @test sectors(si) == [U1(1)']
+        si = SectorOneTo(conj(U1(1)), 3)
+        @test sectors(si) == [conj(U1(1))]
     end
 
     @testset "tensor_product (abelian)" begin
@@ -143,7 +143,7 @@ using Test: @test, @testset
 
         @test tensor_product(si1) == si1
 
-        si1d = SectorOneTo(U1(1)', 3)
+        si1d = SectorOneTo(conj(U1(1)), 3)
         tp1 = tensor_product(si1d)
         @test !isdual(tp1)
 

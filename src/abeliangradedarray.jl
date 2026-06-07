@@ -18,6 +18,8 @@ struct AbelianGradedArray{T, N, D <: AbstractArray{T, N}, S <: SectorRange} <:
     axes::NTuple{N, GradedOneTo{S}}
 end
 
+const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
+
 # ---------------------------------------------------------------------------
 #  Constructors
 # ---------------------------------------------------------------------------
@@ -87,6 +89,15 @@ function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
     bk = Int.(Tuple(I))
     haskey(a.blockdata, bk) || error("Block $bk is not stored.")
     sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
+    return AbelianSectorArray(sects, a.blockdata[bk])
+end
+
+# Disambiguate against `view(::AbstractGradedArray{T, N}, ::Vararg{Block{1}, N})` for
+# N=1, where the splatted form collapses to a single Block{1} argument.
+function Base.view(a::AbelianGradedArray{T, 1}, I::Block{1}) where {T}
+    bk = (Int(I),)
+    haskey(a.blockdata, bk) || error("Block $bk is not stored.")
+    sects = (sectors(axes(a, 1))[bk[1]],)
     return AbelianSectorArray(sects, a.blockdata[bk])
 end
 
@@ -248,6 +259,23 @@ function Base.similar(
     D_N′ = isconcretetype(D_N) ? D_N : Array{T, N}
     return AbelianGradedArray{T, N, D_N′, S}(undef, axes)
 end
+
+# Allocate a graded array from any prototype when the requested axes are
+# `GradedOneTo`. The axes carry the structure; the prototype only fixes a
+# fallback datatype. Two overloads to resolve ambiguity with `BlockArrays`'
+# `StridedArray`-specific methods.
+function Base.similar(
+        ::AbstractArray, ::Type{T},
+        axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+    ) where {T, S}
+    return AbelianGradedArray{T}(undef, axes)
+end
+function Base.similar(
+        ::StridedArray, ::Type{T},
+        axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+    ) where {T, S}
+    return AbelianGradedArray{T}(undef, axes)
+end
 function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
     ) where {T}
@@ -258,6 +286,42 @@ function Base.similar(a::AbelianGradedArray{T}, ::Type{Tv}) where {T, Tv}
 end
 function Base.similar(a::AbelianGradedArray{T}) where {T}
     return similar(a, T)
+end
+
+# Block-wise copy; the default falls through to scalar `copyto!`.
+function Base.copy(a::AbelianGradedArray{T, N, D, S}) where {T, N, D, S}
+    return AbelianGradedArray{T, N, D, S}(
+        Dict{NTuple{N, Int}, D}(k => copy(v) for (k, v) in a.blockdata),
+        a.axes
+    )
+end
+
+function Base.copyto!(
+        dest::AbelianGradedArray{<:Any, N},
+        src::AbelianGradedArray{<:Any, N}
+    ) where {N}
+    axes(dest) == axes(src) ||
+        throw(
+        DimensionMismatch(
+            "copyto! axes mismatch: dest $(axes(dest)), src $(axes(src))"
+        )
+    )
+    empty!(dest.blockdata)
+    for (k, v) in src.blockdata
+        dest.blockdata[k] = copy(v)
+    end
+    return dest
+end
+
+# Conjugate element-wise *and* flip axis duality, mirroring `Base.conj` on the
+# axis types (`SectorRange`/`GradedOneTo`/`SectorOneTo`). Without the axis flip,
+# `conj(t)` would leave bra-layer tensors with the same duality as the ket, and
+# any contraction between them would silently pair non-dual against non-dual.
+function Base.conj(a::AbelianGradedArray{T, N, D, S}) where {T, N, D, S}
+    return AbelianGradedArray{T, N, D, S}(
+        Dict{NTuple{N, Int}, D}(k => conj(v) for (k, v) in a.blockdata),
+        map(conj, a.axes)
+    )
 end
 
 # ---------------------------------------------------------------------------
@@ -290,25 +354,170 @@ end
 # ---------------------------------------------------------------------------
 
 scale!(a::AbstractArray, β::Number) = (a .*= β; a)
-function scale!(a::AbstractGradedArray, β::Number)
-    for bI in eachblockstoredindex(a)
-        scale!(view(a, bI), β)
+function scale!(a::AbelianGradedArray, β::Number)
+    for b in values(a.blockdata)
+        scale!(b, β)
     end
     return a
 end
 
-function FI.zero!(a::AbstractGradedArray)
-    for bI in eachblockstoredindex(a)
-        FI.zero!(view(a, bI))
+function FI.zero!(a::AbelianGradedArray)
+    for b in values(a.blockdata)
+        FI.zero!(b)
     end
     return a
 end
 
 function Base.fill!(a::AbelianGradedArray, v)
-    iszero(v) || throw(
-        ArgumentError("fill! with nonzero value is not supported for AbelianGradedArray")
+    for b in values(a.blockdata)
+        fill!(b, v)
+    end
+    return a
+end
+
+# Block-aware iszero: non-stored blocks are implicitly zero, so an
+# `AbelianGradedArray` is zero iff every stored block is zero. The generic
+# `Base.iszero(::AbstractArray) = all(iszero, x)` path iterates elements,
+# which throws on the no-scalar-indexing guard.
+function Base.iszero(a::AbelianGradedArray)
+    return all(iszero, values(a.blockdata))
+end
+
+# Block-aware random fills: dispatch to the underlying block's `rand!`/`randn!`,
+# bypassing the generic `AbstractArray` fallbacks that go through scalar indexing.
+# The 3-arg `Random.rand!(rng, A, sp::Sampler)` form is what Random's `rand!(A)`
+# / `rand!(A, X)` / `rand!(rng, A, X)` shims ultimately call, so overriding it
+# covers every entry point.
+function Random.rand!(rng::AbstractRNG, a::AbelianGradedArray, sp::Random.Sampler)
+    for b in values(a.blockdata)
+        Random.rand!(rng, b, sp)
+    end
+    return a
+end
+function Random.randn!(rng::AbstractRNG, a::AbelianGradedArray)
+    for b in values(a.blockdata)
+        Random.randn!(rng, b)
+    end
+    return a
+end
+
+# Constructors `rand(rng, T, axes)` / `randn(rng, T, axes)` for graded axes:
+# allocate an `AbelianGradedArray` from the axes, then fill via the block-aware
+# in-place methods above. The generic `Base.rand`/`randn` fallbacks build a
+# `Matrix` from `length.(axes)`, which loses the graded structure.
+function Base.rand(
+        rng::AbstractRNG, ::Type{T},
+        ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    ) where {T}
+    return Random.rand!(rng, AbelianGradedArray{T}(undef, ax))
+end
+function Base.randn(
+        rng::AbstractRNG, ::Type{T},
+        ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    ) where {T}
+    return Random.randn!(rng, AbelianGradedArray{T}(undef, ax))
+end
+
+# Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
+# stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
+function LinearAlgebra.isdiag(A::AbelianGradedMatrix)
+    BlockSparseArrays.isblockdiagonal(A) || return false
+    for bI in eachblockstoredindex(A)
+        LinearAlgebra.isdiag(view(A, bI)) || return false
+    end
+    return true
+end
+
+# Orthogonal projection of a dense source into the symmetry-allowed subspace.
+# Magnitude-blind: forbidden-block entries of `src` are dropped without inspection.
+# Use `TensorAlgebra.checked_projectto!` to verify the discarded weight is small.
+function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
+    size(dest) == size(src) || throw(
+        DimensionMismatch(
+            "projectto!: dest has size $(size(dest)), src has size $(size(src))"
+        )
     )
-    return FI.zero!(a)
+    FI.zero!(dest)
+    for b in allowedblocks(axes(dest))
+        block_ranges = ntuple(d -> axes(dest, d)[Block(Int(Tuple(b)[d]))], ndims(dest))
+        view(dest, b) .= view(src, block_ranges...)
+    end
+    return dest
+end
+
+# Compare via `Array(dest)` so the generic `isapprox(::AbstractArray, ::AbelianGradedArray)`
+# path doesn't fall back to a `src - dest` broadcast that scalar-indexes the block storage.
+function TensorAlgebra.checked_projectto!(
+        dest::AbelianGradedArray, src::AbstractArray;
+        atol::Real = 0,
+        rtol::Real = Base.rtoldefault(real(eltype(src)))
+    )
+    TensorAlgebra.projectto!(dest, src)
+    isapprox(src, Array(dest); atol, rtol) ||
+        throw(InexactError(:checked_projectto!, typeof(dest), src))
+    return dest
+end
+
+# Materialize the graded array into a dense `Array` for the default
+# `checked_projectto!`/`isapprox`-after path.
+function Base.Array(a::AbelianGradedArray{T, N}) where {T, N}
+    dest = zeros(T, size(a))
+    for bI in eachblockstoredindex(a)
+        block_ranges = ntuple(d -> axes(a, d)[Block(Int(Tuple(bI)[d]))], N)
+        copyto!(view(dest, block_ranges...), view(a, bI))
+    end
+    return dest
+end
+
+function LinearAlgebra.norm(a::AbelianGradedArray, p::Real = 2)
+    if p == Inf
+        isempty(a.blockdata) && return zero(float(real(eltype(a))))
+        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(a.blockdata))
+    elseif p > 0
+        s = zero(float(real(eltype(a))))
+        for b in values(a.blockdata)
+            s += LinearAlgebra.norm(b, p)^p
+        end
+        return s^inv(p)
+    else
+        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
+    end
+end
+
+function LinearAlgebra.dot(a::AbelianGradedArray, b::AbelianGradedArray)
+    s = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
+    for (k, ablk) in pairs(a.blockdata)
+        haskey(b.blockdata, k) || continue
+        s += LinearAlgebra.dot(ablk, b.blockdata[k])
+    end
+    return s
+end
+
+# Reductions iterate scalar-by-scalar by default. Unstored blocks are zero, so
+# `+`-style reductions can skip them. Other ops require materializing — refuse
+# rather than silently dropping unstored contributions.
+function Base.mapreduce(
+        f, op::Union{typeof(+), typeof(Base.add_sum)},
+        a::AbelianGradedArray;
+        init = zero(eltype(a))
+    )
+    s = init
+    for b in values(a.blockdata)
+        s = op(s, mapreduce(f, op, b))
+    end
+    return s
+end
+
+# Block-wise scalar multiplication. The default `a .* x` / `a ./ x` paths broadcast
+# element-wise and scalar-index opaque storage.
+Base.:*(a::AbelianGradedArray, x::Number) = scale!(copy(a), x)
+Base.:*(x::Number, a::AbelianGradedArray) = a * x
+Base.:/(a::AbelianGradedArray, x::Number) = a * inv(x)
+
+# `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`,
+# which scalar-indexes opaque storage.
+function LinearAlgebra.normalize(a::AbelianGradedArray, p::Real = 2)
+    return a / LinearAlgebra.norm(a, p)
 end
 
 # ---------------------------------------------------------------------------

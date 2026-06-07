@@ -66,6 +66,24 @@ function FusedGradedMatrix(
     return FusedGradedMatrix{eltype(D), D, S}(codomain, domain, blocks)
 end
 
+# Block-diagonal by construction (one block per sector), so just check each block.
+LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
+
+# Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
+# each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
+# `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
+# Per-block result eltypes may differ (e.g. `sqrt(::Matrix{Float64})` returns
+# `Matrix{ComplexF64}` via Schur even when each block is real-PSD), so unify to the
+# `promote_type` of all returned blocks before reconstructing.
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval function Base.$f(A::FusedGradedMatrix)
+        raw = map(Base.$f, A.blocks)
+        T = mapreduce(eltype, promote_type, raw; init = eltype(A))
+        blocks = map(b -> eltype(b) === T ? b : convert(AbstractMatrix{T}, b), raw)
+        return FusedGradedMatrix(A.codomain, A.domain, blocks)
+    end
+end
+
 """
     FusedGradedMatrix(sectors::Vector{S}, blocks::Vector{D})
 
@@ -220,6 +238,61 @@ function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return mul!(C, A, B)
 end
 
+# ========================  Block-wise +, - ========================
+#
+# FusedGradedMatrix has no `BroadcastStyle`, so the AbstractArray fallback for `+`/`-`
+# (`broadcast_preserving_zero_d`) ends up trying scalar indexing on a sector-block
+# structure — which silently produces wrong results. Define the operations directly
+# block-by-block, taking the union of sectors so an absent block on one side is
+# treated as zero.
+
+function _check_add_axes(A::FusedGradedMatrix, B::FusedGradedMatrix, op)
+    A.codomain == B.codomain ||
+        throw(DimensionMismatch("$(op): codomain mismatch"))
+    A.domain == B.domain ||
+        throw(DimensionMismatch("$(op): domain mismatch"))
+    return nothing
+end
+
+function _block_combine(op, A::FusedGradedMatrix, B::FusedGradedMatrix)
+    T = promote_type(eltype(A), eltype(B))
+    DA = datatype(BlockSparseArrays.blocktype(A))
+    DB = datatype(BlockSparseArrays.blocktype(B))
+    D = Base.promote_op(op, DA, DB)
+    D′ = isconcretetype(D) ? D : Matrix{T}
+    S = sectortype(typeof(A))
+    sectors = sort!(collect(union(keys(A.blocks), keys(B.blocks))))
+    blocks = Dictionary{S, D′}()
+    for c in sectors
+        rows = get(A.codomain, c, get(B.codomain, c, 0))
+        cols = get(A.domain, c, get(B.domain, c, 0))
+        a = get(() -> zeros(eltype(A), rows, cols), A.blocks, c)
+        b = get(() -> zeros(eltype(B), rows, cols), B.blocks, c)
+        insert!(blocks, c, op(a, b))
+    end
+    return FusedGradedMatrix(A.codomain, A.domain, blocks)
+end
+
+function Base.:(+)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    _check_add_axes(A, B, :+)
+    return _block_combine(+, A, B)
+end
+
+function Base.:(-)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    _check_add_axes(A, B, :-)
+    return _block_combine(-, A, B)
+end
+
+function Base.:(*)(A::FusedGradedMatrix, x::Number)
+    new_blocks = map(b -> b * x, A.blocks)
+    return FusedGradedMatrix(A.codomain, A.domain, new_blocks)
+end
+Base.:(*)(x::Number, A::FusedGradedMatrix) = A * x
+function Base.:(/)(A::FusedGradedMatrix, x::Number)
+    new_blocks = map(b -> b / x, A.blocks)
+    return FusedGradedMatrix(A.codomain, A.domain, new_blocks)
+end
+
 # ======================== LinearAlgebra ======================
 
 function Base.adjoint(A::FusedGradedMatrix)
@@ -246,6 +319,19 @@ end
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
+
+function LinearAlgebra.dot(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    A.codomain == B.codomain ||
+        throw(DimensionMismatch("dot: codomain mismatch"))
+    A.domain == B.domain ||
+        throw(DimensionMismatch("dot: domain mismatch"))
+    T = promote_type(eltype(A), eltype(B))
+    s = zero(T)
+    for c in intersect(keys(A.blocks), keys(B.blocks))
+        s += length(c) * LinearAlgebra.dot(A.blocks[c], B.blocks[c])
+    end
+    return s
+end
 
 # ========================  similar  ========================
 

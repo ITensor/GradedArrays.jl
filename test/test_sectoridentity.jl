@@ -11,8 +11,8 @@ using Test: @test, @testset
     end
 
     @testset "Construction from dual SectorRange (dual flag preserved)" begin
-        si = SectorIdentity{Float64}(U1(1)')
-        @test axes(si, 1) == U1(1)'
+        si = SectorIdentity{Float64}(conj(U1(1)))
+        @test axes(si, 1) == conj(U1(1))
         @test axes(si, 2) == U1(1)
     end
 
@@ -21,21 +21,21 @@ using Test: @test, @testset
         @test size(si) == (1, 1)
         ax1, ax2 = axes(si)
         @test ax1 == U1(0)
-        @test ax2 == U1(0)'
+        @test ax2 == conj(U1(0))
     end
 
     @testset "size and axes — SU2 j=1/2 (dim=2)" begin
         si = SectorIdentity{Float64}(SU2(1 // 2))
         @test size(si) == (2, 2)
         @test axes(si, 1) == SU2(1 // 2)
-        @test axes(si, 2) == SU2(1 // 2)'
+        @test axes(si, 2) == conj(SU2(1 // 2))
     end
 
     @testset "axes as sector ranges" begin
         si = SectorIdentity{Float64}(U1(1))
-        @test axes(si) == (U1(1), U1(1)')
+        @test axes(si) == (U1(1), conj(U1(1)))
         @test axes(si, 1) == U1(1)
-        @test axes(si, 2) == U1(1)'
+        @test axes(si, 2) == conj(U1(1))
     end
 
     @testset "sectortype" begin
