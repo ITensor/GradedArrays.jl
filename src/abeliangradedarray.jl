@@ -457,25 +457,22 @@ function LinearAlgebra.norm(a::AbelianGradedArray, p::Real = 2)
 end
 
 function LinearAlgebra.dot(a::AbelianGradedArray, b::AbelianGradedArray)
+    axes(a) == axes(b) ||
+        throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
+    # Matching axes mean matching allowed-block keys, so each `a` block has a
+    # counterpart in `b`.
     s = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
     for (k, ablk) in pairs(a.blockdata)
-        haskey(b.blockdata, k) || continue
         s += LinearAlgebra.dot(ablk, b.blockdata[k])
     end
     return s
 end
 
-# Reductions iterate scalar-by-scalar by default. Unstored blocks are zero, so
-# `+`-style reductions can skip them. Other ops require materializing — refuse
-# rather than silently dropping unstored contributions.
-function Base.mapreduce(
-        f, op::Union{typeof(+), typeof(Base.add_sum)},
-        a::AbelianGradedArray;
-        init = zero(eltype(a))
-    )
-    s = init
+# Forbidden blocks are zero, so the total is the sum over the stored blocks.
+function Base.sum(a::AbelianGradedArray)
+    s = zero(eltype(a))
     for b in values(a.blockdata)
-        s = op(s, mapreduce(f, op, b))
+        s += sum(b)
     end
     return s
 end

@@ -467,3 +467,25 @@ end
     dest_bad = AbelianGradedArray{Float64}(undef, g, dual(g))
     @test_throws InexactError TensorAlgebra.checked_projectto!(dest_bad, src_bad)
 end
+
+@testset "dot" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    b = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    Random.randn!(a)
+    Random.randn!(b)
+    @test LinearAlgebra.dot(a, b) ≈ LinearAlgebra.dot(Array(a), Array(b))
+
+    # Mismatched axes are rejected.
+    h = gradedrange([U1(0) => 1, U1(1) => 2])
+    c = AbelianGradedArray{ComplexF64}(undef, h, dual(h))
+    Random.randn!(c)
+    @test_throws DimensionMismatch LinearAlgebra.dot(a, c)
+end
+
+@testset "sum" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    Random.randn!(a)
+    @test sum(a) ≈ sum(Array(a))
+end

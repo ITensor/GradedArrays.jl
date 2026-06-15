@@ -82,8 +82,8 @@ Fields:
 
   - `axis::Dictionary{S,Int}` — axis layout, mapping each sector to its block
     size. Keys are sorted and unique. Stored non-dual (codomain convention).
-  - `blocks::Dictionary{S,D}` — stored data blocks, keyed by sector. Keys are
-    a subset of `keys(axis)` and `length(blocks[s]) == axis[s]`.
+  - `blocks::Dictionary{S,D}` — stored data blocks, keyed by sector. Keys match
+    `keys(axis)` exactly and `length(blocks[s]) == axis[s]`.
 """
 struct FusedGradedVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
     AbstractGradedArray{T, 1}

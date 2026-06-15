@@ -51,8 +51,6 @@ end
 function Base.view(a::AbstractGradedArray{T, N}, I::Vararg{Block{1}, N}) where {T, N}
     return view(a, Block(Int.(I)))
 end
-# Disambiguate against subtype-specific `view(::ConcreteGradedVector, ::Block{1})` methods.
-Base.view(a::AbstractGradedArray{T, 1}, I::Block{1}) where {T} = view(a, Block((Int(I),)))
 
 function Base.getindex(a::AbstractGradedArray{T, N}, I::Block{N}) where {T, N}
     return copy(view(a, I))
