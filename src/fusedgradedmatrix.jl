@@ -226,19 +226,15 @@ end
 #
 # FusedGradedMatrix has no `BroadcastStyle`, so the AbstractArray fallback for `+`/`-`
 # (`broadcast_preserving_zero_d`) ends up trying scalar indexing on a sector-block
-# structure — which silently produces wrong results. Define the operations directly
-# block-by-block, taking the union of sectors so an absent block on one side is
-# treated as zero.
+# structure, which silently produces wrong results. As a stand-in, define the
+# operations directly block-by-block, taking the union of sectors so an absent block
+# on one side is treated as zero. Once structure-preserving broadcasting is
+# implemented for FusedGradedMatrix, `_broadcast_fusedgradedmatrix` (and the
+# scalar-op methods below) are superseded by it.
 
-function _check_add_axes(A::FusedGradedMatrix, B::FusedGradedMatrix, op)
-    A.codomain == B.codomain ||
-        throw(DimensionMismatch("$(op): codomain mismatch"))
-    A.domain == B.domain ||
-        throw(DimensionMismatch("$(op): domain mismatch"))
-    return nothing
-end
-
-function _block_combine(op, A::FusedGradedMatrix, B::FusedGradedMatrix)
+function _broadcast_fusedgradedmatrix(op, A::FusedGradedMatrix, B::FusedGradedMatrix)
+    axes(A) == axes(B) ||
+        throw(DimensionMismatch("axes mismatch: A $(axes(A)), B $(axes(B))"))
     T = promote_type(eltype(A), eltype(B))
     DA = datatype(BlockSparseArrays.blocktype(A))
     DB = datatype(BlockSparseArrays.blocktype(B))
@@ -257,29 +253,30 @@ function _block_combine(op, A::FusedGradedMatrix, B::FusedGradedMatrix)
     return FusedGradedMatrix(A.codomain, A.domain, blocks)
 end
 
-function Base.:(+)(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    _check_add_axes(A, B, :+)
-    return _block_combine(+, A, B)
+# Single-array form: apply `f` to each stored block. Absent blocks stay absent
+# (zero), which is correct for `f` with `f(0) == 0` such as scalar `*` / `/`.
+function _broadcast_fusedgradedmatrix(f, A::FusedGradedMatrix)
+    blocks = map(f, A.blocks)
+    return FusedGradedMatrix(A.codomain, A.domain, blocks)
 end
 
+function Base.:(+)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    return _broadcast_fusedgradedmatrix(+, A, B)
+end
 function Base.:(-)(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    _check_add_axes(A, B, :-)
-    return _block_combine(-, A, B)
+    return _broadcast_fusedgradedmatrix(-, A, B)
 end
 
 # TODO: these explicit scalar-op methods exist only because broadcasting is
 # disabled for `FusedGradedMatrix`. Once structure-preserving broadcasting is
 # supported, drop them and let Base's `AbstractArray`-scalar `*` / `/` forward to
-# broadcasting (as `AbelianGradedArray` already does). See the
-# `fusedgradedmatrix_broadcasting` project.
+# broadcasting (as `AbelianGradedArray` already does).
 function Base.:(*)(A::FusedGradedMatrix, x::Number)
-    new_blocks = map(b -> b * x, A.blocks)
-    return FusedGradedMatrix(A.codomain, A.domain, new_blocks)
+    return _broadcast_fusedgradedmatrix(Base.Fix2(*, x), A)
 end
 Base.:(*)(x::Number, A::FusedGradedMatrix) = A * x
 function Base.:(/)(A::FusedGradedMatrix, x::Number)
-    new_blocks = map(b -> b / x, A.blocks)
-    return FusedGradedMatrix(A.codomain, A.domain, new_blocks)
+    return _broadcast_fusedgradedmatrix(Base.Fix2(/, x), A)
 end
 
 # ======================== LinearAlgebra ======================
