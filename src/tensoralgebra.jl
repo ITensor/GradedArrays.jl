@@ -217,6 +217,30 @@ function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
     return twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))
 end
 
+function TensorAlgebra.check_input(
+        f::typeof(TensorAlgebra.contract),
+        a1::AbstractGradedArray, perm1_codomain, perm1_domain,
+        a2::AbstractGradedArray, perm2_codomain, perm2_domain
+    )
+    @invoke TensorAlgebra.check_input(
+        f,
+        a1::AbstractArray, perm1_codomain, perm1_domain,
+        a2::AbstractArray, perm2_codomain, perm2_domain
+    )
+    # Contracted axes must be a canonical dual pair (`dual(ax1) == ax2`), so a
+    # contraction always pairs a space with its dual, for every sector type.
+    for (i, j) in zip(perm1_domain, perm2_codomain)
+        ax1 = axes(a1, i)
+        ax2 = axes(a2, j)
+        dual(ax1) == ax2 || throw(
+            ArgumentError(
+                "Contracted axes do not match: `axes(a1, $i) = $ax1` and `axes(a2, $j) = $ax2`"
+            )
+        )
+    end
+    return nothing
+end
+
 #=
 This is an overload that follows the standard TensorAlgebra implementation,
 with the single exception of inserting a `contraction_twist!` call before the matricization.

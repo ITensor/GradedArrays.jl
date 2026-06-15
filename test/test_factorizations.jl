@@ -360,6 +360,21 @@ end
             @test U isa FusedGradedMatrix
             @test sum(size(b, 2) for b in values(U.blocks)) <= 3
         end
+
+        @testset "drops fully truncated sectors from the bond" begin
+            # U1(0) carries singular values of order 1, U1(1) only of order 1e-3,
+            # so a tolerance between the two scales removes U1(1) from the bond
+            # entirely (not just shrinks it).
+            A = FusedGradedMatrix(
+                [U1(0), U1(1)], [Matrix(1.0I, 2, 2), 1.0e-3 * Matrix(1.0I, 2, 2)]
+            )
+            U, S, Vᴴ, ε = MAK.svd_trunc(A; trunc = trunctol(; atol = 1.0e-2))
+            @test collect(keys(U.blocks)) == [U1(0)]
+            @test collect(keys(S.blocks)) == [U1(0)]
+            @test collect(keys(Vᴴ.blocks)) == [U1(0)]
+            # The dropped sector's weight shows up as the truncation error.
+            @test ε ≈ norm(1.0e-3 * Matrix(1.0I, 2, 2)) atol = precision(eltype(A))
+        end
     end
 
     # -----------------------------------------------------------------------

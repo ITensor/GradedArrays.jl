@@ -197,13 +197,15 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     end
 
     @testset "matrix-matrix contraction B: total phase -1" begin
-        # labels (1,-1,-2,2) × (2,1,-3,-4): P2=-1, T1=-1, T2=+1, U=-1 → total=-1
+        # Canonical contraction (a1 codomain ↔ a2 domain). The two odd contracted
+        # indices appear in swapped order on a2, one transposition, so the
+        # contraction twists by -1 relative to the dense result.
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a1_dense = to_dense(a1)
         a2_dense = to_dense(a2)
-        a_dest, _ = contract(a1, (1, -1, -2, 2), a2, (2, 1, -3, -4))
-        a_dest_dense, _ = contract(a1_dense, (1, -1, -2, 2), a2_dense, (2, 1, -3, -4))
+        a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (-3, -4, 2, 1))
+        a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (-3, -4, 2, 1))
         @test to_dense(a_dest) ≈ -1 * a_dest_dense
     end
 
@@ -219,13 +221,14 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     end
 
     @testset "matrix-matrix contraction G: total phase -1" begin
-        # labels (1,2,-1,-2) × (2,-3,1,-4): P1=+1, T1=+1, P2=+1, T2=-1, U=+1 → total=-1
+        # Canonical contraction with the contracted indices on a1's domain (dual)
+        # side and a2's codomain side. Same single-transposition twist as case B.
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a1_dense = to_dense(a1)
         a2_dense = to_dense(a2)
-        a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (2, -3, 1, -4))
-        a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (2, -3, 1, -4))
+        a_dest, _ = contract(a1, (-1, -2, 1, 2), a2, (2, 1, -3, -4))
+        a_dest_dense, _ = contract(a1_dense, (-1, -2, 1, 2), a2_dense, (2, 1, -3, -4))
         @test to_dense(a_dest) ≈ -1 * a_dest_dense
     end
 end

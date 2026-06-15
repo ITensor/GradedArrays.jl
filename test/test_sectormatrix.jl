@@ -23,9 +23,9 @@ using Test: @test, @test_throws, @testset
     @testset "sectoraxes" begin
         d = ones(2, 3)
         sm = SectorMatrix(U1(1), d)
-        @test sectoraxes(sm) == (U1(1), U1(1)')
+        @test sectoraxes(sm) == (U1(1), conj(U1(1)))
         @test sectoraxes(sm, 1) == U1(1)
-        @test sectoraxes(sm, 2) == U1(1)'
+        @test sectoraxes(sm, 2) == conj(U1(1))
     end
 
     @testset "sector returns SectorIdentity" begin
@@ -132,7 +132,7 @@ using Test: @test, @test_throws, @testset
         @test sm4 isa SectorMatrix
         @test data(sm4) ≈ 2.0 .* data(sm)
 
-        sa = AbelianSectorArray((U1(0), U1(0)'), zeros(2, 2))
+        sa = AbelianSectorArray((U1(0), conj(U1(0))), zeros(2, 2))
         sa .= sm
         @test data(sa) ≈ data(sm)
     end

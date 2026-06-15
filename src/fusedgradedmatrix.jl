@@ -66,6 +66,24 @@ function FusedGradedMatrix(
     return FusedGradedMatrix{eltype(D), D, S}(codomain, domain, blocks)
 end
 
+# Block-diagonal by construction (one block per sector), so just check each block.
+LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
+
+# Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
+# each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
+# `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
+# Per-block result eltypes may differ (e.g. `sqrt(::Matrix{Float64})` returns
+# `Matrix{ComplexF64}` via Schur even when each block is real-PSD), so unify to the
+# `promote_type` of all returned blocks before reconstructing.
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval function Base.$f(A::FusedGradedMatrix)
+        raw = map(Base.$f, A.blocks)
+        T = mapreduce(eltype, promote_type, raw; init = eltype(A))
+        blocks = map(b -> eltype(b) === T ? b : convert(AbstractMatrix{T}, b), raw)
+        return FusedGradedMatrix(A.codomain, A.domain, blocks)
+    end
+end
+
 """
     FusedGradedMatrix(sectors::Vector{S}, blocks::Vector{D})
 
@@ -153,22 +171,6 @@ function BlockArrays.blocks(m::FusedGradedMatrix)
     return [view(m, I) for I in eachblockstoredindex(m)]
 end
 
-# ========================  fill! / zero!  ========================
-
-function FI.zero!(m::FusedGradedMatrix)
-    for b in values(m.blocks)
-        fill!(b, zero(eltype(b)))
-    end
-    return m
-end
-
-function Base.fill!(m::FusedGradedMatrix, v)
-    iszero(v) || throw(
-        ArgumentError("fill! with nonzero value is not supported for FusedGradedMatrix")
-    )
-    return FI.zero!(m)
-end
-
 # ========================  mul!  ========================
 
 function TensorAlgebra.check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
@@ -220,6 +222,63 @@ function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return mul!(C, A, B)
 end
 
+# ========================  Block-wise +, - ========================
+#
+# FusedGradedMatrix has no `BroadcastStyle`, so the AbstractArray fallback for `+`/`-`
+# (`broadcast_preserving_zero_d`) ends up trying scalar indexing on a sector-block
+# structure, which silently produces wrong results. As a stand-in, define the
+# operations directly block-by-block, taking the union of sectors so an absent block
+# on one side is treated as zero. Once structure-preserving broadcasting is
+# implemented for FusedGradedMatrix, `_broadcast_fusedgradedmatrix` (and the
+# scalar-op methods below) are superseded by it.
+
+function _broadcast_fusedgradedmatrix(op, A::FusedGradedMatrix, B::FusedGradedMatrix)
+    axes(A) == axes(B) ||
+        throw(DimensionMismatch("axes mismatch: A $(axes(A)), B $(axes(B))"))
+    T = promote_type(eltype(A), eltype(B))
+    DA = datatype(BlockSparseArrays.blocktype(A))
+    DB = datatype(BlockSparseArrays.blocktype(B))
+    D = Base.promote_op(op, DA, DB)
+    D′ = isconcretetype(D) ? D : Matrix{T}
+    S = sectortype(typeof(A))
+    sectors = sort!(collect(union(keys(A.blocks), keys(B.blocks))))
+    blocks = Dictionary{S, D′}()
+    for c in sectors
+        rows = get(A.codomain, c, get(B.codomain, c, 0))
+        cols = get(A.domain, c, get(B.domain, c, 0))
+        a = get(() -> zeros(eltype(A), rows, cols), A.blocks, c)
+        b = get(() -> zeros(eltype(B), rows, cols), B.blocks, c)
+        insert!(blocks, c, op(a, b))
+    end
+    return FusedGradedMatrix(A.codomain, A.domain, blocks)
+end
+
+# Single-array form: apply `f` to each stored block. Absent blocks stay absent
+# (zero), which is correct for `f` with `f(0) == 0` such as scalar `*` / `/`.
+function _broadcast_fusedgradedmatrix(f, A::FusedGradedMatrix)
+    blocks = map(f, A.blocks)
+    return FusedGradedMatrix(A.codomain, A.domain, blocks)
+end
+
+function Base.:(+)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    return _broadcast_fusedgradedmatrix(+, A, B)
+end
+function Base.:(-)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    return _broadcast_fusedgradedmatrix(-, A, B)
+end
+
+# TODO: these explicit scalar-op methods exist only because broadcasting is
+# disabled for `FusedGradedMatrix`. Once structure-preserving broadcasting is
+# supported, drop them and let Base's `AbstractArray`-scalar `*` / `/` forward to
+# broadcasting (as `AbelianGradedArray` already does).
+function Base.:(*)(A::FusedGradedMatrix, x::Number)
+    return _broadcast_fusedgradedmatrix(Base.Fix2(*, x), A)
+end
+Base.:(*)(x::Number, A::FusedGradedMatrix) = A * x
+function Base.:(/)(A::FusedGradedMatrix, x::Number)
+    return _broadcast_fusedgradedmatrix(Base.Fix2(/, x), A)
+end
+
 # ======================== LinearAlgebra ======================
 
 function Base.adjoint(A::FusedGradedMatrix)
@@ -246,6 +305,19 @@ end
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
+
+function LinearAlgebra.dot(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    A.codomain == B.codomain ||
+        throw(DimensionMismatch("dot: codomain mismatch"))
+    A.domain == B.domain ||
+        throw(DimensionMismatch("dot: domain mismatch"))
+    T = promote_type(eltype(A), eltype(B))
+    s = zero(T)
+    for c in intersect(keys(A.blocks), keys(B.blocks))
+        s += length(c) * LinearAlgebra.dot(A.blocks[c], B.blocks[c])
+    end
+    return s
+end
 
 # ========================  similar  ========================
 

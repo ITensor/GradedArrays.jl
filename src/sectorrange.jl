@@ -105,7 +105,7 @@ nondual(r::SectorRange) = isdual(r) ? dual(r) : r
 fermionparity(c::SectorRange) = TKS.fermionparity(c.label)
 twist(c::SectorRange) = TKS.twist(c.label)
 
-Base.adjoint(r1::SectorRange) = dual(r1)
+Base.conj(r1::SectorRange) = dual(r1)
 
 # ===============================  Fusion rule interface  ==================================
 

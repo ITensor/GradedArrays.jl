@@ -1,6 +1,6 @@
 name = "GradedArrays"
 uuid = "bc96ca6e-b7c8-4bb6-888e-c93f838762c2"
-version = "0.9.1"
+version = "0.9.2"
 authors = ["ITensor developers <support@itensor.org> and contributors"]
 
 [workspace]
@@ -50,7 +50,7 @@ Random = "1.10"
 SUNRepresentations = "0.3, 0.4"
 SparseArraysBase = "0.9"
 SplitApplyCombine = "1.2.3"
-TensorAlgebra = "0.8, 0.9"
+TensorAlgebra = "0.9.5"
 TensorKitSectors = "0.3"
 TypeParameterAccessors = "0.4"
 julia = "1.10"

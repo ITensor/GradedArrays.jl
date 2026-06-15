@@ -7,7 +7,7 @@ using Test: @test, @test_throws, @testset
 @testset "AbelianSectorArray" begin
     @testset "Construction from SectorRange tuples" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray((U1(1), U1(-1)'), data)
+        sa = AbelianSectorArray((U1(1), conj(U1(-1))), data)
         @test sa isa AbelianSectorArray{Float64, 2, Matrix{Float64}, U1}
         @test sa isa AbstractArray{Float64, 2}
         @test !(sa isa GradedArrays.KroneckerArrays.AbstractKroneckerArray)
@@ -15,8 +15,8 @@ using Test: @test, @test_throws, @testset
 
     @testset "Construction with dual sectors" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray((U1(1), U1(-1)'), data)
-        @test sectoraxes(sa) == (U1(1), U1(-1)')
+        sa = AbelianSectorArray((U1(1), conj(U1(-1))), data)
+        @test sectoraxes(sa) == (U1(1), conj(U1(-1)))
     end
 
     @testset "Undef constructor (SectorOneTo)" begin
@@ -31,11 +31,11 @@ using Test: @test, @test_throws, @testset
 
     @testset "Primitive accessors" begin
         data = ones(2, 3, 4)
-        sa = AbelianSectorArray((U1(1), U1(0)', U1(-1)), data)
+        sa = AbelianSectorArray((U1(1), conj(U1(0)), U1(-1)), data)
 
-        @test sectoraxes(sa) == (U1(1), U1(0)', U1(-1))
+        @test sectoraxes(sa) == (U1(1), conj(U1(0)), U1(-1))
         @test sectoraxes(sa, 1) == U1(1)
-        @test sectoraxes(sa, 2) == U1(0)'
+        @test sectoraxes(sa, 2) == conj(U1(0))
         @test sectoraxes(sa, 3) == U1(-1)
         @test isdual(sa, 1) == false
         @test isdual(sa, 2) == true
@@ -44,15 +44,15 @@ using Test: @test, @test_throws, @testset
 
     @testset "Derived accessors — sectoraxes" begin
         data = ones(2, 3)
-        sa = AbelianSectorArray((U1(1), U1(-1)'), data)
+        sa = AbelianSectorArray((U1(1), conj(U1(-1))), data)
         @test sectoraxes(sa, 1) == U1(1)
-        @test sectoraxes(sa, 2) == U1(-1)'
-        @test sectoraxes(sa) == (U1(1), U1(-1)')
+        @test sectoraxes(sa, 2) == conj(U1(-1))
+        @test sectoraxes(sa) == (U1(1), conj(U1(-1)))
     end
 
     @testset "sector(::AbelianSectorArray) returns AbelianSectorDelta" begin
         data = ones(2, 3)
-        sa = AbelianSectorArray((U1(1), U1(-1)'), data)
+        sa = AbelianSectorArray((U1(1), conj(U1(-1))), data)
         sd = sector(sa)
         @test sd isa AbelianSectorDelta{Float64, 2, U1}
         @test axes(sd) == sectoraxes(sa)
@@ -119,7 +119,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "3D AbelianSectorArray" begin
         data = ones(2, 3, 4)
-        sa = AbelianSectorArray((U1(1), U1(0)', U1(-1)), data)
+        sa = AbelianSectorArray((U1(1), conj(U1(0)), U1(-1)), data)
         @test size(sa) == (2, 3, 4)
         @test ndims(sa) == 3
         @test sa[1, 2, 3] == 1.0
@@ -127,10 +127,10 @@ using Test: @test, @test_throws, @testset
 
     @testset "permutedims" begin
         data = [1.0 2.0 3.0; 4.0 5.0 6.0]
-        sa = AbelianSectorArray((U1(1), U1(0)'), data)
+        sa = AbelianSectorArray((U1(1), conj(U1(0))), data)
         sa_perm = permutedims(sa, (2, 1))
         @test size(sa_perm) == (3, 2)
-        @test sectoraxes(sa_perm) == (U1(0)', U1(1))
+        @test sectoraxes(sa_perm) == (conj(U1(0)), U1(1))
         @test sa_perm[1, 1] == 1.0
         @test sa_perm[1, 2] == 4.0
     end
@@ -141,7 +141,7 @@ using Test: @test, @test_throws, @testset
         b_data = [5.0 6.0; 7.0 8.0]
         c_data = zeros(2, 2)
         a = AbelianSectorArray((U1(0), U1(1)), a_data)
-        b = AbelianSectorArray((U1(1)', U1(0)), b_data)
+        b = AbelianSectorArray((conj(U1(1)), U1(0)), b_data)
         c = AbelianSectorArray((U1(0), U1(0)), c_data)
         mul!(c, a, b, 1.0, 0.0)
         @test data(c) ≈ a_data * b_data

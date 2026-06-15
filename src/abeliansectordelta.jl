@@ -38,9 +38,6 @@ function Base.permutedims(x::AbelianSectorDelta, perm)
     new_sectors = ntuple(n -> x.sectors[perm[n]], Val(ndims(x)))
     return AbelianSectorDelta{eltype(x)}(new_sectors)
 end
-function FI.permuteddims(x::AbelianSectorDelta, perm)
-    return permutedims(x, perm)
-end
 
 # ========================  adjoint / broadcasting  ========================
 

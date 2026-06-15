@@ -5,6 +5,8 @@ using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
     datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
 using LinearAlgebra: LinearAlgebra
+using Random: Random
+using TensorAlgebra: TensorAlgebra
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -50,12 +52,12 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Block getindex returns correct sectors" begin
-        g1_dual = gradedrange([U1(0) => 2, U1(1) => 3])'
+        g1_dual = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
         a = AbelianGradedArray{Float64}(undef, g1_dual, g2)
         a[Block(1, 1)] = ones(2, 1)
 
         blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (U1(0)', U1(0))
+        @test sectoraxes(blk) == (conj(U1(0)), U1(0))
     end
 
     @testset "Block getindex for unstored block errors" begin
@@ -98,8 +100,8 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Dual axes" begin
-        g1_dual = gradedrange([U1(0) => 2, U1(1) => 3])'
-        g2_dual = gradedrange([U1(0) => 1, U1(-1) => 2])'
+        g1_dual = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
+        g2_dual = conj(gradedrange([U1(0) => 1, U1(-1) => 2]))
         a = AbelianGradedArray{Float64}(undef, g1_dual, g2_dual)
 
         @test isdual(axes(a, 1)) == true
@@ -108,7 +110,7 @@ using Test: @test, @test_throws, @testset
 
         a[Block(1, 1)] = ones(2, 1)
         blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (U1(0)', U1(0)')
+        @test sectoraxes(blk) == (conj(U1(0)), conj(U1(0)))
     end
 
     @testset "similar" begin
@@ -205,8 +207,9 @@ using Test: @test, @test_throws, @testset
         @test !isempty(a.blockdata)
         @test all(iszero, a.blockdata[(1, 1)])
 
-        # fill! with nonzero errors
-        @test_throws ArgumentError fill!(a, 1.0)
+        # fill! fills stored blocks block-wise with any value
+        fill!(a, 1.0)
+        @test all(==(1.0), a.blockdata[(1, 1)])
 
         # zero! zeros stored blocks in place (blocks stay allocated)
         a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), ones(2, 2))
@@ -371,4 +374,118 @@ end
     @test collect(keys(m_undef.blocks)) == [U1(0), U1(1)]
     @test size(m_undef.blocks[U1(0)]) == (2, 4)
     @test size(m_undef.blocks[U1(1)]) == (3, 5)
+end
+
+@testset "Block-aware random fills and iszero on AbelianGradedArray" begin
+    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+    rng = Random.Xoshiro(42)
+
+    # In-place rand!/randn! fill each stored block via the underlying
+    # block's method, no scalar indexing. Both the no-rng and rng-explicit
+    # entry points must work.
+    a = AbelianGradedArray{Float64}(undef, g1, dual(g1))
+    fill!(a, 0)
+    @test iszero(a)
+    Random.randn!(rng, a)
+    @test !iszero(a)
+    fill!(a, 0)
+    Random.randn!(a)
+    @test !iszero(a)
+    Random.rand!(rng, a)
+    @test !iszero(a)
+    fill!(a, 0)
+    Random.rand!(a)
+    @test !iszero(a)
+
+    # Constructor form: `rand(T, axes)` / `randn(T, axes)` for graded axes
+    # builds an `AbelianGradedArray` with the right block structure.
+    r = randn(rng, Float64, (g1, dual(g1)))
+    @test r isa AbelianGradedArray{Float64, 2}
+    @test axes(r) == (g1, dual(g1))
+    @test !iszero(r)
+    u = rand(rng, Float64, (g1, dual(g1)))
+    @test u isa AbelianGradedArray{Float64, 2}
+    @test !iszero(u)
+end
+
+@testset "conj flips axis duality" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), randn(ComplexF64, 2, 2))
+    a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), randn(ComplexF64, 3, 3))
+
+    ca = conj(a)
+    @test ca isa AbelianGradedArray
+    # Each axis flips its duality, mirroring `conj` on the axis types.
+    @test isdual(axes(ca, 1)) == !isdual(axes(a, 1))
+    @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
+    @test axes(ca, 1) == conj(axes(a, 1))
+    @test axes(ca, 2) == conj(axes(a, 2))
+    # The data is conjugated element-wise.
+    @test Array(ca) ≈ conj(Array(a))
+end
+
+@testset "isdiag on AbelianGradedMatrix" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 2])
+
+    # Block-diagonal with each stored block diagonal.
+    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 0.0; 0.0 2.0])
+    a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), [3.0 0.0; 0.0 4.0])
+    @test LinearAlgebra.isdiag(a)
+
+    # A non-diagonal stored block breaks it.
+    b = AbelianGradedArray{Float64}(undef, g, dual(g))
+    b[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 5.0; 0.0 2.0])
+    b[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), [3.0 0.0; 0.0 4.0])
+    @test !LinearAlgebra.isdiag(b)
+end
+
+@testset "projectto! / checked_projectto!" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    dest = AbelianGradedArray{Float64}(undef, g, dual(g))
+
+    # Project a dense source: the symmetry-allowed (block-diagonal) regions are
+    # copied, the forbidden off-diagonal regions are dropped.
+    src = randn(5, 5)
+    @test TensorAlgebra.projectto!(dest, src) === dest
+    @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
+    @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
+    proj = Array(dest)
+    @test iszero(proj[1:2, 3:5])
+    @test iszero(proj[3:5, 1:2])
+
+    # `checked_projectto!` accepts a source already in the allowed subspace.
+    src_allowed = Array(dest)
+    dest_ok = AbelianGradedArray{Float64}(undef, g, dual(g))
+    @test TensorAlgebra.checked_projectto!(dest_ok, src_allowed) === dest_ok
+    @test Array(dest_ok) ≈ src_allowed
+
+    # ... and rejects one carrying significant forbidden-block weight.
+    src_bad = copy(src_allowed)
+    src_bad[1, 5] += 10.0
+    dest_bad = AbelianGradedArray{Float64}(undef, g, dual(g))
+    @test_throws InexactError TensorAlgebra.checked_projectto!(dest_bad, src_bad)
+end
+
+@testset "dot" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    b = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    Random.randn!(a)
+    Random.randn!(b)
+    @test LinearAlgebra.dot(a, b) ≈ LinearAlgebra.dot(Array(a), Array(b))
+
+    # Mismatched axes are rejected.
+    h = gradedrange([U1(0) => 1, U1(1) => 2])
+    c = AbelianGradedArray{ComplexF64}(undef, h, dual(h))
+    Random.randn!(c)
+    @test_throws DimensionMismatch LinearAlgebra.dot(a, c)
+end
+
+@testset "sum" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    Random.randn!(a)
+    @test sum(a) ≈ sum(Array(a))
 end

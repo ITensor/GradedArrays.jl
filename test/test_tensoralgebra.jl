@@ -8,7 +8,7 @@ using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
 using Random: randn!
 using TensorAlgebra:
     TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize, unmatricize
-using Test: @test, @test_throws, @testset
+using Test: @test, @test_broken, @test_throws, @testset
 
 @testset "AbelianSectorArray linear broadcasting" begin
     s = AbelianSectorArray(
@@ -308,8 +308,8 @@ end
 @testset "unmatricize AbelianSectorMatrix with SectorOneTo axes" begin
     # Create a 3D AbelianSectorArray, matricize it, then unmatricize and verify roundtrip
     codomain_ax = SectorOneTo(U1(0), 2)
-    domain_ax1 = SectorOneTo(U1(0)', 3)
-    domain_ax2 = SectorOneTo(U1(1)', 4)
+    domain_ax1 = SectorOneTo(conj(U1(0)), 3)
+    domain_ax2 = SectorOneTo(conj(U1(1)), 4)
 
     data_3d = randn!(Array{Float64}(undef, 2, 3, 4))
     s = AbelianSectorArray(
@@ -383,7 +383,7 @@ end
     @test all(iszero, data(c[Block(2, 2)]))
 end
 
-@testset "FusedGradedMatrix broadcasting" begin
+@testset "FusedGradedMatrix block-wise arithmetic" begin
     m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
 
     m2 = 3 * m
@@ -394,9 +394,72 @@ end
     s = m + n
     @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
     @test data(s[Block(2, 2)]) == [6.0 1.0; 1.0 7.0]
+end
 
+@testset "FusedGradedMatrix broadcasting errors" begin
+    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
+    n = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(2, 2)])
+    @test_throws ArgumentError m .+ n
+    @test_throws ArgumentError 3 .* m
+    @test_throws ArgumentError conj.(m)
     c = similar(m, Float64)
-    c .= 3 .* m .+ 2 .* n
-    @test data(c[Block(1, 1)]) == [5.0 8.0; 11.0 14.0]
-    @test data(c[Block(2, 2)]) == [17.0 2.0; 2.0 20.0]
+    @test_throws ArgumentError c .= 3 .* m .+ 2 .* n
+end
+
+# Regression coverage for TensorAlgebra-level unmatricize-axis bugs on graded
+# operators: a factor's reconstructed axes must respect the conj/dual pairing
+# between contracted bonds rather than reuse the factor's own axes.
+@testset "TA.svd round-trip on AbelianGradedArray (axes_S regression)" begin
+    s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+    A = AbelianGradedArray{Float64}(undef, s, dual(s))
+    randn!(A)
+    U, S, Vᴴ = TensorAlgebra.svd(A, (1,), (2,))
+    # The natural `U * S * Vᴴ` form falls into LinearAlgebra's `_tri_matmul`,
+    # which scalar-indexes on `AbstractGradedArray`. `contract` is the
+    # block-wise route, but the chain form should also work once a block-aware
+    # matmul lands on `AbstractGradedMatrix`.
+    US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
+    USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
+    @test A ≈ USV
+    @test_broken A ≈ U * S * Vᴴ
+end
+
+@testset "TA.gram_eigh_full_with_pinv on AbelianGradedMatrix (axes_Y regression)" begin
+    s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+    B = AbelianGradedArray{Float64}(undef, s, dual(s))
+    randn!(B)
+    # PSD by construction. Build `A = B * B'` block-wise via `contract`
+    # so we stay on the graded matmul path; the natural `*` form is broken
+    # against the same scalar-indexing path as the SVD round-trip above.
+    A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
+    @test_broken A ≈ B * B'
+    X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
+    # X · conj(X) ≈ A on the rank subspace.
+    @test A ≈ contract((:a, :b), X, (:a, :r), conj(X), (:b, :r))
+    # Matmul (`*`) on `AbelianGradedMatrix` is unimplemented, so any `X * Y`
+    # falls through to LinearAlgebra's scalar-indexing path and throws. The
+    # adjoint forms (`X * X'`, `B * B'`) additionally need a block-aware
+    # `adjoint`. Both will pass once those land.
+    @test_broken A ≈ X * X'
+    # Y is a left inverse of X on the rank subspace.
+    YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
+    @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))
+end
+
+@testset "contract rejects mismatched contracted-axis duality (bosonic)" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    randn!(a)
+
+    # The contracted leg of `a` is `dual(g)`; here `b`'s contracted leg is also
+    # `dual(g)`, which is neither the canonical dual pairing nor (for bosonic
+    # U1) an accepted same-`isdual` pair, so the contraction is rejected.
+    b = AbelianGradedArray{Float64}(undef, dual(g), dual(g))
+    @test_throws ArgumentError contract(a, (1, -1), b, (-1, 2))
+
+    # Sanity: the canonically dual-paired contraction is accepted.
+    b_ok = AbelianGradedArray{Float64}(undef, g, dual(g))
+    randn!(b_ok)
+    result, = contract(a, (1, -1), b_ok, (-1, 2))
+    @test result isa AbelianGradedArray
 end
