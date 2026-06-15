@@ -217,17 +217,6 @@ function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
     return twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))
 end
 
-# True iff `ax1` and `ax2` are valid as partners on a contracted axis. Always
-# requires sector content to match modulo the `isdual` flag (`dual(ax1) == ax2`
-# is the canonical non-dual ↔ dual pairing). For fermionic braiding `ax1 == ax2`
-# is also accepted, since the supertrace formalism uses `contraction_twist!`
-# to pick up the right phase on same-`isdual` pairings.
-function are_axes_contractible(ax1, ax2)
-    dual(ax1) == ax2 && return true
-    TKS.BraidingStyle(sectortype(typeof(ax1))) isa TKS.Bosonic && return false
-    return ax1 == ax2
-end
-
 function TensorAlgebra.check_input(
         f::typeof(TensorAlgebra.contract),
         a1::AbstractGradedArray, perm1_codomain, perm1_domain,
@@ -238,10 +227,12 @@ function TensorAlgebra.check_input(
         a1::AbstractArray, perm1_codomain, perm1_domain,
         a2::AbstractArray, perm2_codomain, perm2_domain
     )
+    # Contracted axes must be a canonical dual pair (`dual(ax1) == ax2`), so a
+    # contraction always pairs a space with its dual, for every sector type.
     for (i, j) in zip(perm1_domain, perm2_codomain)
         ax1 = axes(a1, i)
         ax2 = axes(a2, j)
-        are_axes_contractible(ax1, ax2) || throw(
+        dual(ax1) == ax2 || throw(
             ArgumentError(
                 "Contracted axes do not match: `axes(a1, $i) = $ax1` and `axes(a2, $j) = $ax2`"
             )
