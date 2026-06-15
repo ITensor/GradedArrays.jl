@@ -85,21 +85,19 @@ datatype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = D
 #  view (primitive): returns AbelianSectorArray sharing data with blockdata
 # ---------------------------------------------------------------------------
 
-function Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
+# Shared implementation: build the `AbelianSectorArray` view for a stored block.
+function view_abelian(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
     bk = Int.(Tuple(I))
     haskey(a.blockdata, bk) || error("Block $bk is not stored.")
     sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
     return AbelianSectorArray(sects, a.blockdata[bk])
 end
 
+Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N} = view_abelian(a, I)
+
 # Disambiguate against `view(::AbstractGradedArray{T, N}, ::Vararg{Block{1}, N})` for
 # N=1, where the splatted form collapses to a single Block{1} argument.
-function Base.view(a::AbelianGradedArray{T, 1}, I::Block{1}) where {T}
-    bk = (Int(I),)
-    haskey(a.blockdata, bk) || error("Block $bk is not stored.")
-    sects = (sectors(axes(a, 1))[bk[1]],)
-    return AbelianSectorArray(sects, a.blockdata[bk])
-end
+Base.view(a::AbelianGradedArray{T, 1}, I::Block{1}) where {T} = view_abelian(a, I)
 
 # ---------------------------------------------------------------------------
 #  blocks — lazy view delegating to view (following BlockArrays convention)
