@@ -106,6 +106,38 @@ datatype(a::AbstractGradedArray) = datatype(typeof(a))
 sectortype(a::AbstractGradedArray) = sectortype(typeof(a))
 
 # ---------------------------------------------------------------------------
+#  fill! / zero! / scale! — block-wise over the stored blocks
+#
+#  Defined once via the `eachblockstoredindex`/`view` interface every
+#  `AbstractGradedArray` implements, so every concrete subtype is covered.
+#  These only touch stored (symmetry-allowed) blocks, so a nonzero `fill!`
+#  value leaves the forbidden positions at zero.
+# ---------------------------------------------------------------------------
+
+scale!(a::AbstractArray, β::Number) = (a .*= β; a)
+
+function scale!(a::AbstractGradedArray, β::Number)
+    for bI in eachblockstoredindex(a)
+        scale!(view(a, bI), β)
+    end
+    return a
+end
+
+function FI.zero!(a::AbstractGradedArray)
+    for bI in eachblockstoredindex(a)
+        FI.zero!(view(a, bI))
+    end
+    return a
+end
+
+function Base.fill!(a::AbstractGradedArray, v)
+    for bI in eachblockstoredindex(a)
+        fill!(view(a, bI), v)
+    end
+    return a
+end
+
+# ---------------------------------------------------------------------------
 #  Display — convert to BlockSparseArray for printing
 # ---------------------------------------------------------------------------
 

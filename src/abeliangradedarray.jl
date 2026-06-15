@@ -304,9 +304,10 @@ function Base.copyto!(
             "copyto! axes mismatch: dest $(axes(dest)), src $(axes(src))"
         )
     )
-    empty!(dest.blockdata)
+    # Matching axes mean matching allowed-block keys (every allowed block is
+    # allocated), so copy each block into the existing destination buffer.
     for (k, v) in src.blockdata
-        dest.blockdata[k] = copy(v)
+        copyto!(dest.blockdata[k], v)
     end
     return dest
 end
@@ -345,32 +346,6 @@ function Base.permutedims!(
     ) where {N}
     TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
     return y
-end
-
-# ---------------------------------------------------------------------------
-#  fill! / zero! / scale!
-# ---------------------------------------------------------------------------
-
-scale!(a::AbstractArray, β::Number) = (a .*= β; a)
-function scale!(a::AbelianGradedArray, β::Number)
-    for b in values(a.blockdata)
-        scale!(b, β)
-    end
-    return a
-end
-
-function FI.zero!(a::AbelianGradedArray)
-    for b in values(a.blockdata)
-        FI.zero!(b)
-    end
-    return a
-end
-
-function Base.fill!(a::AbelianGradedArray, v)
-    for b in values(a.blockdata)
-        fill!(b, v)
-    end
-    return a
 end
 
 # Block-aware iszero: non-stored blocks are implicitly zero, so an
@@ -445,13 +420,12 @@ end
 
 # Compare via `Array(dest)` so the generic `isapprox(::AbstractArray, ::AbelianGradedArray)`
 # path doesn't fall back to a `src - dest` broadcast that scalar-indexes the block storage.
+# `kwargs` (e.g. `atol`/`rtol`) are forwarded to `isapprox`, matching the generic verb.
 function TensorAlgebra.checked_projectto!(
-        dest::AbelianGradedArray, src::AbstractArray;
-        atol::Real = 0,
-        rtol::Real = Base.rtoldefault(real(eltype(src)))
+        dest::AbelianGradedArray, src::AbstractArray; kwargs...
     )
     TensorAlgebra.projectto!(dest, src)
-    isapprox(src, Array(dest); atol, rtol) ||
+    isapprox(src, Array(dest); kwargs...) ||
         throw(InexactError(:checked_projectto!, typeof(dest), src))
     return dest
 end
@@ -506,11 +480,9 @@ function Base.mapreduce(
     return s
 end
 
-# Block-wise scalar multiplication. The default `a .* x` / `a ./ x` paths broadcast
-# element-wise and scalar-index opaque storage.
-Base.:*(a::AbelianGradedArray, x::Number) = scale!(copy(a), x)
-Base.:*(x::Number, a::AbelianGradedArray) = a * x
-Base.:/(a::AbelianGradedArray, x::Number) = a * inv(x)
+# Scalar `*` / `/` are inherited from Base's `AbstractArray`-scalar methods, which
+# forward to broadcasting (`a .* x` / `a ./ x`). `AbelianGradedArray` supports the
+# linear-broadcast path, so no dedicated overrides are needed here.
 
 # `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`,
 # which scalar-indexes opaque storage.

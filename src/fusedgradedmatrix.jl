@@ -171,22 +171,6 @@ function BlockArrays.blocks(m::FusedGradedMatrix)
     return [view(m, I) for I in eachblockstoredindex(m)]
 end
 
-# ========================  fill! / zero!  ========================
-
-function FI.zero!(m::FusedGradedMatrix)
-    for b in values(m.blocks)
-        fill!(b, zero(eltype(b)))
-    end
-    return m
-end
-
-function Base.fill!(m::FusedGradedMatrix, v)
-    iszero(v) || throw(
-        ArgumentError("fill! with nonzero value is not supported for FusedGradedMatrix")
-    )
-    return FI.zero!(m)
-end
-
 # ========================  mul!  ========================
 
 function TensorAlgebra.check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
@@ -283,6 +267,11 @@ function Base.:(-)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return _block_combine(-, A, B)
 end
 
+# TODO: these explicit scalar-op methods exist only because broadcasting is
+# disabled for `FusedGradedMatrix`. Once structure-preserving broadcasting is
+# supported, drop them and let Base's `AbstractArray`-scalar `*` / `/` forward to
+# broadcasting (as `AbelianGradedArray` already does). See the
+# `fusedgradedmatrix_broadcasting` project.
 function Base.:(*)(A::FusedGradedMatrix, x::Number)
     new_blocks = map(b -> b * x, A.blocks)
     return FusedGradedMatrix(A.codomain, A.domain, new_blocks)

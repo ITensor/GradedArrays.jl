@@ -210,22 +210,6 @@ function BlockArrays.blocks(v::FusedGradedVector)
     return [view(v, I) for I in eachblockstoredindex(v)]
 end
 
-# ========================  fill! / zero!  ========================
-
-function FI.zero!(v::FusedGradedVector)
-    for b in values(v.blocks)
-        fill!(b, zero(eltype(v)))
-    end
-    return v
-end
-
-function Base.fill!(v::FusedGradedVector, val)
-    for b in values(v.blocks)
-        fill!(b, val)
-    end
-    return v
-end
-
 # ========================  similar  ========================
 
 function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
