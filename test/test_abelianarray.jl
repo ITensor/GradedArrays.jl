@@ -6,6 +6,7 @@ using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
 using LinearAlgebra: LinearAlgebra
 using Random: Random
+using TensorAlgebra: TensorAlgebra
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -405,4 +406,64 @@ end
     u = rand(rng, Float64, (g1, dual(g1)))
     @test u isa AbelianGradedArray{Float64, 2}
     @test !iszero(u)
+end
+
+@testset "conj flips axis duality" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
+    a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), randn(ComplexF64, 2, 2))
+    a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), randn(ComplexF64, 3, 3))
+
+    ca = conj(a)
+    @test ca isa AbelianGradedArray
+    # Each axis flips its duality, mirroring `conj` on the axis types.
+    @test isdual(axes(ca, 1)) == !isdual(axes(a, 1))
+    @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
+    @test axes(ca, 1) == conj(axes(a, 1))
+    @test axes(ca, 2) == conj(axes(a, 2))
+    # The data is conjugated element-wise.
+    @test Array(ca) ≈ conj(Array(a))
+end
+
+@testset "isdiag on AbelianGradedMatrix" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 2])
+
+    # Block-diagonal with each stored block diagonal.
+    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 0.0; 0.0 2.0])
+    a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), [3.0 0.0; 0.0 4.0])
+    @test LinearAlgebra.isdiag(a)
+
+    # A non-diagonal stored block breaks it.
+    b = AbelianGradedArray{Float64}(undef, g, dual(g))
+    b[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 5.0; 0.0 2.0])
+    b[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), [3.0 0.0; 0.0 4.0])
+    @test !LinearAlgebra.isdiag(b)
+end
+
+@testset "projectto! / checked_projectto!" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    dest = AbelianGradedArray{Float64}(undef, g, dual(g))
+
+    # Project a dense source: the symmetry-allowed (block-diagonal) regions are
+    # copied, the forbidden off-diagonal regions are dropped.
+    src = randn(5, 5)
+    @test TensorAlgebra.projectto!(dest, src) === dest
+    @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
+    @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
+    proj = Array(dest)
+    @test iszero(proj[1:2, 3:5])
+    @test iszero(proj[3:5, 1:2])
+
+    # `checked_projectto!` accepts a source already in the allowed subspace.
+    src_allowed = Array(dest)
+    dest_ok = AbelianGradedArray{Float64}(undef, g, dual(g))
+    @test TensorAlgebra.checked_projectto!(dest_ok, src_allowed) === dest_ok
+    @test Array(dest_ok) ≈ src_allowed
+
+    # ... and rejects one carrying significant forbidden-block weight.
+    src_bad = copy(src_allowed)
+    src_bad[1, 5] += 10.0
+    dest_bad = AbelianGradedArray{Float64}(undef, g, dual(g))
+    @test_throws InexactError TensorAlgebra.checked_projectto!(dest_bad, src_bad)
 end

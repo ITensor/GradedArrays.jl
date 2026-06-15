@@ -448,3 +448,21 @@ end
     YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
     @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))
 end
+
+@testset "contract rejects mismatched contracted-axis duality (bosonic)" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    randn!(a)
+
+    # The contracted leg of `a` is `dual(g)`; here `b`'s contracted leg is also
+    # `dual(g)`, which is neither the canonical dual pairing nor (for bosonic
+    # U1) an accepted same-`isdual` pair, so the contraction is rejected.
+    b = AbelianGradedArray{Float64}(undef, dual(g), dual(g))
+    @test_throws ArgumentError contract(a, (1, -1), b, (-1, 2))
+
+    # Sanity: the canonically dual-paired contraction is accepted.
+    b_ok = AbelianGradedArray{Float64}(undef, g, dual(g))
+    randn!(b_ok)
+    result, = contract(a, (1, -1), b_ok, (-1, 2))
+    @test result isa AbelianGradedArray
+end
