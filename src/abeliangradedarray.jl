@@ -316,9 +316,13 @@ end
 # axis types (`SectorRange`/`GradedOneTo`/`SectorOneTo`). Without the axis flip,
 # `conj(t)` would leave bra-layer tensors with the same duality as the ket, and
 # any contraction between them would silently pair non-dual against non-dual.
+# Delegate per block to `conj(::AbelianSectorArray)`, which carries the fermionic
+# reversal phase that a bare block-wise data conjugation would drop.
 function Base.conj(a::AbelianGradedArray{T, N, D, S}) where {T, N, D, S}
     return AbelianGradedArray{T, N, D, S}(
-        Dict{NTuple{N, Int}, D}(k => conj(v) for (k, v) in a.blockdata),
+        Dict{NTuple{N, Int}, D}(
+            k => data(conj(view(a, Block(k...)))) for k in keys(a.blockdata)
+        ),
         map(conj, a.axes)
     )
 end

@@ -144,6 +144,43 @@ end
     @test sp_u1[1, 1] ≈ 3.0
 end
 
+@testset "conj on fermionic AbelianSectorArray" begin
+    # Two odd sectors: reversing 2 odd legs is one odd-odd inversion → -1 phase
+    sa = AbelianSectorArray((fP1, fP1), fill(3.0, 1, 1))
+    sc = conj(sa)
+    @test sc[1, 1] ≈ -3.0
+    @test sectoraxes(sc) == (dual(fP1), dual(fP1))
+
+    # Two even sectors: no phase, data just conjugated
+    @test conj(AbelianSectorArray((fP0, fP0), fill(3.0, 1, 1)))[1, 1] ≈ 3.0
+
+    # Mixed (even, odd): single odd leg → no odd-odd inversion → no phase
+    sa_mix = AbelianSectorArray((fP0, fP1), fill(3.0, 1, 1))
+    @test conj(sa_mix)[1, 1] ≈ 3.0
+    @test sectoraxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
+
+    # Three odd sectors: reverse(1,2,3) has 3 odd-odd inversions → odd → -1 phase
+    @test conj(AbelianSectorArray((fP1, fP1, fP1), fill(2.0, 1, 1, 1)))[1, 1, 1] ≈ -2.0
+
+    # Complex data: conjugates the data *and* applies the fermionic phase
+    sa_c = AbelianSectorArray((fP1, fP1), fill(1.0 + 2.0im, 1, 1))
+    @test conj(sa_c)[1, 1] ≈ -(1.0 - 2.0im)
+
+    # Involution: conj ∘ conj recovers data and sectors (phase squares to 1)
+    @test conj(conj(sa))[1, 1] ≈ sa[1, 1]
+    @test sectoraxes(conj(conj(sa))) == (fP1, fP1)
+    @test conj(conj(sa_c))[1, 1] ≈ sa_c[1, 1]
+
+    # Mutation safety: conj must not scale the parent block in place
+    sa_mut = AbelianSectorArray((fP1, fP1), fill(5.0, 1, 1))
+    conj(sa_mut)
+    @test sa_mut[1, 1] ≈ 5.0
+
+    # Bosonic (U1) sectors: no fermionic phase, just data conj
+    u1 = SectorRange(TKS.U1Irrep(1))
+    @test conj(AbelianSectorArray((u1, u1), fill(1.0 + 2.0im, 1, 1)))[1, 1] ≈ 1.0 - 2.0im
+end
+
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
 # For all-odd blocks, the total phase from permutation + matricize twist is -1,
@@ -158,6 +195,21 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a_perm = permutedims(a, (2, 1))
         a_dense_perm = permutedims(to_dense(a), (2, 1))
         @test to_dense(a_perm) ≈ -1 * a_dense_perm
+    end
+
+    @testset "conj of all-odd GradedArray picks up -1 phase" begin
+        a = randn_blockdiagonal(elt, (r_odd, dual(r_odd)))
+        a_dense_before = to_dense(a)
+        ac = conj(a)
+        # Every stored block is all-odd → reversal phase -1, on top of data conj.
+        @test to_dense(ac) ≈ -1 * conj(a_dense_before)
+        # Axis dualities are flipped.
+        @test isdual(axes(ac, 1)) == !isdual(axes(a, 1))
+        @test isdual(axes(ac, 2)) == !isdual(axes(a, 2))
+        # Involution: conj ∘ conj recovers the original.
+        @test to_dense(conj(ac)) ≈ a_dense_before
+        # Mutation safety: conj must not scale the parent's blocks in place.
+        @test to_dense(a) ≈ a_dense_before
     end
 
     @testset "matrix-matrix contraction" begin
