@@ -139,6 +139,23 @@ function twist!(a::AbelianSectorArray, dims)
     return a
 end
 
+# ========================  conj  ========================
+
+# Op A (the ket->bra involution) on a single block: conjugate the data, flip the
+# duality of every axis, and apply the fermionic phase from reversing the leg
+# order (`reverse(1:N)`). Bosonic (and even-parity fermionic) sectors give
+# `phase == 1`, so the data is just conjugated; odd-parity fermionic legs pick up
+# the `-1` from `masked_inversion_parity` that the bare data conjugation drops.
+# `phase * conj(...)` (rather than an in-place `.*=`) keeps a fresh buffer:
+# `conj` aliases its argument for real data, so scaling in place would corrupt
+# the block this view shares with the parent array.
+function Base.conj(x::AbelianSectorArray{<:Any, N}) where {N}
+    rev = reverse(ntuple(identity, Val(N)))
+    phase = fermion_permutation_phase(sector(x), rev)
+    new_data = isone(phase) ? conj(data(x)) : phase * conj(data(x))
+    return AbelianSectorArray(map(conj, x.sectors), new_data)
+end
+
 # ========================  Other  ========================
 
 function KroneckerArrays.:(⊗)(
