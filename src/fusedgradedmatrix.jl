@@ -75,12 +75,20 @@ LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 # Per-block result eltypes may differ (e.g. `sqrt(::Matrix{Float64})` returns
 # `Matrix{ComplexF64}` via Schur even when each block is real-PSD), so unify to the
 # `promote_type` of all returned blocks before reconstructing.
+#
+# The target eltype `T` is passed through a type-parameter barrier so the `convert`
+# target is concrete to inference. Splicing a runtime `T` straight into
+# `convert(AbstractMatrix{T}, b)` makes older Julia widen the block dictionary to an
+# abstract `AbstractMatrix`, and the reconstruction then throws a `TypeError`.
+function unify_block_eltype(blocks, ::Type{T}) where {T}
+    return map(b -> convert(AbstractMatrix{T}, b), blocks)
+end
+
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval function Base.$f(A::FusedGradedMatrix)
         raw = map(Base.$f, A.blocks)
         T = mapreduce(eltype, promote_type, raw; init = eltype(A))
-        blocks = map(b -> eltype(b) === T ? b : convert(AbstractMatrix{T}, b), raw)
-        return FusedGradedMatrix(A.codomain, A.domain, blocks)
+        return FusedGradedMatrix(A.codomain, A.domain, unify_block_eltype(raw, T))
     end
 end
 

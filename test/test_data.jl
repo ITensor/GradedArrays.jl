@@ -66,6 +66,19 @@ using Test: @test, @test_throws, @testset
             sm = SectorMatrix(U1(0), ones(2, 3))
             @test_throws Exception (m6[Block(1, 2)] = sm)
         end
+
+        @testset "Block-diagonal matrix functions ($f)" for f in (sqrt, exp, log)
+            # Each function acts block-wise and reconstructs a concretely-typed
+            # `FusedGradedMatrix`. The eltype unification previously widened the
+            # block dictionary to an abstract `AbstractMatrix` on older Julia,
+            # throwing a `TypeError` on reconstruction.
+            blocks = [[2.0 0.0; 0.0 2.0], [3.0 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 3.0]]
+            m = FusedGradedMatrix([U1(0), U1(1)], blocks)
+            fm = f(m)
+            @test fm isa FusedGradedMatrix{Float64, Matrix{Float64}}
+            @test fm.blocks[U1(0)] ≈ f(blocks[1])
+            @test fm.blocks[U1(1)] ≈ f(blocks[2])
+        end
     end
 
     @testset "AbelianGradedArray" begin
