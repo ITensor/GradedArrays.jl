@@ -1,15 +1,44 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
 using BlockSparseArrays: eachblockstoredindex
-using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta, SectorRange,
-    U1, data, dual, flip, gradedrange, isdual, sectoraxes, sectors
+using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
+    SectorProduct, SectorRange, U1, data, dual, flip, gradedrange, isdual, sectoraxes,
+    sectors
 using Random: randn!
 using TensorAlgebra: contract, matricize, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 const fP0 = SectorRange(TKS.FermionParity(false))  # even parity
 const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
+
+@testset "fermionparity / twist" begin
+    # `FermionNumber = U1Irrep ⊠ FermionParity` is a product sector with a bosonic
+    # component, on which `TKS.fermionparity` errors; decomposing over components with a
+    # bosonic-irrep fallback handles it.
+    for n in -2:2
+        c = SectorRange(TKS.FermionNumber(n))
+        @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
+        @test GradedArrays.fermionparity(c) == isodd(n)
+    end
+
+    # The same holds for GradedArrays' own `SectorProduct`.
+    for n in -2:2
+        c = SectorRange(SectorProduct(TKS.U1Irrep(n), TKS.FermionParity(isodd(n))))
+        @test GradedArrays.fermionparity(c) == isodd(n)
+    end
+
+    # Plain bosonic group irreps have even fermion parity.
+    @test GradedArrays.fermionparity(SectorRange(TKS.U1Irrep(2))) == false
+    @test GradedArrays.fermionparity(U1(0)) == false
+
+    # `FermionParity` delegates to TensorKitSectors unchanged.
+    @test GradedArrays.fermionparity(fP0) == false
+    @test GradedArrays.fermionparity(fP1) == true
+
+    # A sector with no fermion parity (an anyon) has no method.
+    @test_throws MethodError GradedArrays.fermionparity(SectorRange(TKS.FibonacciAnyon(:τ)))
+end
 
 function randn_blockdiagonal(elt::Type, axs::Tuple)
     a = AbelianGradedArray{elt}(undef, axs...)
