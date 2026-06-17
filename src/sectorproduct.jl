@@ -47,6 +47,10 @@ end
 
 TKS.dim(s::SectorProduct) = prod(TKS.dim, arguments(s); init = 1)
 
+# Fermion parity of a product sector: the xor of its components' parities, mirroring
+# `TKS.fermionparity(::ProductSector)` (see `fermionparity` in `sectorrange.jl`).
+fermionparity(s::SectorProduct) = mapreduce(fermionparity, ⊻, arguments(s); init = false)
+
 # use map instead of broadcast to support both Tuple and NamedTuple
 TKS.dual(s::SectorProduct) = SectorProduct(map(TKS.dual, arguments(s)))
 

@@ -102,8 +102,19 @@ flip(r1::SectorRange) = typeof(r1)(dual(r1.label), !isdual(r1))
 flip_dual(r::SectorRange) = isdual(r) ? flip(r) : r
 nondual(r::SectorRange) = isdual(r) ? dual(r) : r
 
-fermionparity(c::SectorRange) = TKS.fermionparity(c.label)
-twist(c::SectorRange) = TKS.twist(c.label)
+twist(c::SectorRange) = TKS.twist(label(c))
+
+# A total version of `TensorKitSectors.fermionparity`. TKS defines it only for
+# `FermionParity`, `NamedSector`, and `ProductSector`, and its `ProductSector` method
+# maps `fermionparity` over the components, so it errors on a bosonic component such as
+# the `U1Irrep` in `FermionNumber = U1Irrep ⊠ FermionParity`. We delegate to TKS where
+# it is defined, add the bosonic-irrep case a plain group irrep is bosonic, hence even
+# parity, and decompose product sectors over their components. The `SectorProduct`
+# method is defined alongside that type in `sectorproduct.jl`.
+fermionparity(c::SectorRange) = fermionparity(label(c))
+fermionparity(s::TKS.Sector) = TKS.fermionparity(s)
+fermionparity(::TKS.AbstractIrrep) = false
+fermionparity(s::TKS.ProductSector) = mapreduce(fermionparity, ⊻, s.sectors)
 
 Base.conj(r1::SectorRange) = dual(r1)
 
