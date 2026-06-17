@@ -22,6 +22,14 @@ TestExtras = "5ed8adda-3752-4e41-b88a-e8b09835ee3a"
 [sources.GradedArrays]
 path = ".."
 
+[sources.NamedDimsArrays]
+rev = "mf/drop-functionimplementations"
+url = "https://github.com/ITensor/NamedDimsArrays.jl"
+
+[sources.TensorAlgebra]
+rev = "mf/permuteddims-unwrap"
+url = "https://github.com/ITensor/TensorAlgebra.jl"
+
 [compat]
 Aqua = "0.8.11"
 BlockArrays = "1.6"

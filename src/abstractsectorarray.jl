@@ -9,11 +9,6 @@ Concrete subtypes:
 """
 abstract type AbstractSectorArray{T, N} <: AbstractArray{T, N} end
 
-# Used by NamedDimsArrays broadcast alignment. Eager for simplicity for now,
-# pending the follow-ups on lazy permutations and the `FI.permuteddims`
-# interface itself.
-FI.permuteddims(a::AbstractSectorArray, perm) = permutedims(a, perm)
-
 """
     data(sa::AbstractSectorArray)
 
