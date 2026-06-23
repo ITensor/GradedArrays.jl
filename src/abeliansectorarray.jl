@@ -158,7 +158,7 @@ end
 
 # ========================  Other  ========================
 
-function KroneckerArrays.:(⊗)(
+function sector_kron(
         s::AbelianSectorDelta{<:Any, N},
         data::AbstractArray{<:Any, N}
     ) where {N}

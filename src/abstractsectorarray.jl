@@ -16,6 +16,10 @@ Return the raw data array underlying the sector array.
 """
 data(sa::AbstractSectorArray) = sa.data
 
+# Reconstruct a sector array from its structural sector factor and raw data
+# (the inverse of the `sector` / `data` split). Each concrete subtype defines a method.
+function sector_kron end
+
 Base.size(sa::AbstractSectorArray) = map(length, axes(sa))
 
 Base.@propagate_inbounds function Base.getindex(

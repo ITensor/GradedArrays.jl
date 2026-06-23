@@ -165,16 +165,21 @@ end
 
 # =================================  Cartesian Product  ====================================
 
-const sectorproduct = KroneckerArrays.:×
+# Multi-argument sector product, expressed as a left fold over the binary methods.
+# The binary methods below stay specific so an unhandled pair is a `MethodError`
+# rather than recursing back into the fold.
+×(x) = x
+×(x, y, z, zs...) = foldl(×, (x, y, z, zs...))
+const sectorproduct = ×
 
-KroneckerArrays.:×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
-KroneckerArrays.:×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
-KroneckerArrays.:×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
+×(c::SectorRange) = SectorRange(SectorProduct(label(c)))
+×(c1::SectorRange, c2::SectorRange) = SectorRange(×(label(c1), label(c2)))
+×(c1::TKS.Sector, c2::TKS.Sector) = ×(SectorProduct(c1), SectorProduct(c2))
 
-function KroneckerArrays.:×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
+function ×(p1::SectorProduct{<:Tuple}, p2::SectorProduct{<:Tuple})
     return SectorProduct(arguments(p1)..., arguments(p2)...)
 end
-function KroneckerArrays.:×(
+function ×(
         p1::SectorProduct{<:NamedTuple},
         p2::SectorProduct{<:NamedTuple}
     )
@@ -182,33 +187,28 @@ function KroneckerArrays.:×(
         throw(ArgumentError("keys of SectorProducts must be distinct"))
     return SectorProduct(merge(arguments(p1), arguments(p2)))
 end
-function KroneckerArrays.:×(a::SectorProduct, b::SectorProduct)
+function ×(a::SectorProduct, b::SectorProduct)
     isempty(arguments(a)) && return b
     isempty(arguments(b)) && return a
     throw(MethodError(×, typeof.((a, b))))
 end
 
-KroneckerArrays.:×(nt1::NamedTuple) = to_sector(nt1)
-KroneckerArrays.:×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))
-KroneckerArrays.:×(c1::NamedTuple, c2::SectorRange) = ×(to_sector(c1), c2)
-KroneckerArrays.:×(c1::SectorRange, c2::NamedTuple) = ×(c1, to_sector(c2))
+×(nt1::NamedTuple) = to_sector(nt1)
+×(nt1::NamedTuple, nt2::NamedTuple) = ×(to_sector(nt1), to_sector(nt2))
+×(c1::NamedTuple, c2::SectorRange) = ×(to_sector(c1), c2)
+×(c1::SectorRange, c2::NamedTuple) = ×(c1, to_sector(c2))
 
-function KroneckerArrays.:×(pairs::Pair...)
+function ×(pairs::Pair...)
     keys = Symbol.(first.(pairs))
     vals = last.(pairs)
     return ×(NamedTuple{keys}(vals))
 end
 
-function KroneckerArrays.:×(r1::SectorOneTo, r2::SectorOneTo)
+function ×(r1::SectorOneTo, r2::SectorOneTo)
     isdual(r1) == isdual(r2) || throw(ArgumentError("SectorProduct duality must match"))
     new_label = label(sector(r1)) × label(sector(r2))
     new_mult = datalength(r1) * datalength(r2)
     return SectorOneTo(SectorRange(new_label, isdual(r1)), new_mult)
-end
-
-# TODO: type piracy?
-function KroneckerArrays.to_product_indices(nt::NamedTuple)
-    return KroneckerArrays.to_product_indices(to_sector(nt))
 end
 
 # ===========================  Canonicalize arguments  =====================================

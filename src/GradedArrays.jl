@@ -29,16 +29,15 @@ using BlockSparseArrays: BlockSparseArrays, blockdiagindices, blockstoredlength,
     eachblockaxis, eachblockstoredindex, mortar_axis
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using FunctionImplementations: FunctionImplementations as FI
-using KroneckerArrays: KroneckerArrays, kroneckerfactors, ×, ⊗
-using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, mul!
+using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, kron, mul!
 using Random: Random, AbstractRNG
 using SparseArraysBase: SparseArraysBase
 using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, bipermutedimsopadd!,
     check_input, matricize, matricize_axes, permutedimsadd!, tensor_product_axis,
     trivial_axis, trivialbiperm, tryflattenlinear, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
-using TypeParameterAccessors: type_parameters, unspecify_type_parameters
 
+include("kron.jl")
 include("sectorrange.jl")
 include("data.jl")
 include("sectoroneto.jl")

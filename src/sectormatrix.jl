@@ -78,6 +78,6 @@ function Base.similar(sm::SectorMatrix{<:Any, <:Any, S}, ::Type{T}) where {T, S}
     return SectorMatrix{T, D, S}(sm.sector, new_data)
 end
 
-function KroneckerArrays.:(⊗)(s::SectorIdentity, data::AbstractMatrix)
+function sector_kron(s::SectorIdentity, data::AbstractMatrix)
     return SectorMatrix(s.sector, data)
 end

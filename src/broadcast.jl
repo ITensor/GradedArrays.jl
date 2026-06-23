@@ -5,7 +5,7 @@ using Base.Broadcast: Broadcast as BC
 # Decomposes broadcasts through the Kronecker structure (sector ⊗ data):
 # - broadcasted_data(bc) strips sector wrappers, rebuilds a plain broadcast on raw data
 # - broadcasted_sector(bc) extracts and validates the common sector factor
-# - similar recombines via sector ⊗ similar(broadcasted_data, elt)
+# - similar recombines via sector_kron(broadcasted_sector, similar(broadcasted_data, elt))
 
 struct SectorStyle{N} <: BC.AbstractArrayStyle{N} end
 SectorStyle{N}(::Val{M}) where {N, M} = SectorStyle{M}()
@@ -41,7 +41,7 @@ end
 
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
     s = broadcasted_sector(bc)
-    return s ⊗ similar(broadcasted_data(bc), elt)
+    return sector_kron(s, similar(broadcasted_data(bc), elt))
 end
 
 function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:SectorStyle})

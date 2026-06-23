@@ -96,7 +96,7 @@ function TensorAlgebra.matricize(
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))
     adata_reshaped = matricize(data(a), Val(K))
-    return asectors_reshaped ⊗ adata_reshaped
+    return sector_kron(asectors_reshaped, adata_reshaped)
 end
 
 # ========================  BlockReshapeFusion AbelianGradedArray matricize  ========================

@@ -1,8 +1,7 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray, Fib,
     FusedGradedMatrix, GradedOneTo, Ising, O2, SU2, SectorMatrix, SectorOneTo,
-    TrivialSector, U1, dual, gradedrange
-using KroneckerArrays: ×
+    TrivialSector, U1, dual, gradedrange, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 

@@ -102,13 +102,13 @@ end
 
 # ========================  × with GradedOneTo  ========================
 
-function KroneckerArrays.:×(g::GradedOneTo, s::SectorRange)
+function ×(g::GradedOneTo, s::SectorRange)
     return ×(g, to_gradedrange(s))
 end
-function KroneckerArrays.:×(s::SectorRange, g::GradedOneTo)
+function ×(s::SectorRange, g::GradedOneTo)
     return ×(to_gradedrange(s), g)
 end
-function KroneckerArrays.:×(g1::GradedOneTo, g2::GradedOneTo)
+function ×(g1::GradedOneTo, g2::GradedOneTo)
     v = vec([a × b for a in eachblockaxis(g1), b in eachblockaxis(g2)])
     return mortar_axis(v)
 end
