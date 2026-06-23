@@ -1,10 +1,9 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
-using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorMatrix, SectorOneTo,
-    SectorRange, U1, data, datalengths, dual, flip, gradedrange, isdual, sector, sectoraxes,
-    sectormergesort, sectors, sectortype, tensor_product
+    SectorRange, U1, data, datalengths, dual, eachblockstoredindex, flip, gradedrange,
+    isdual, sector, sectoraxes, sectormergesort, sectors, sectortype, tensor_product
 using Random: randn!
 using TensorAlgebra:
     TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize, unmatricize

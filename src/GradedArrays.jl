@@ -25,8 +25,6 @@ export dual, flip, gradedrange, isdual,
 using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
     AbstractBlockedUnitRange, Block, BlockIndexRange, BlockVector, BlockedOneTo,
     blockedrange, blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
-using BlockSparseArrays: BlockSparseArrays, blockdiagindices, blockstoredlength,
-    eachblockaxis, eachblockstoredindex, mortar_axis
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using FunctionImplementations: FunctionImplementations as FI
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, kron, mul!
@@ -38,6 +36,7 @@ using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, bipermutedimsopad
 using TensorKitSectors: TensorKitSectors as TKS
 
 include("kron.jl")
+include("blocksparseinterface.jl")
 include("sectorrange.jl")
 include("data.jl")
 include("sectoroneto.jl")

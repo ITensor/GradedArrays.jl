@@ -73,12 +73,12 @@ end
 
 Base.size(a::AbelianGradedArray) = map(length, a.axes)
 Base.axes(a::AbelianGradedArray) = a.axes
-function BlockSparseArrays.blocktype(
+function blocktype(
         ::Type{<:AbelianGradedArray{T, N, D, S}}
     ) where {T, N, D, S}
     return AbelianSectorArray{T, N, D, S}
 end
-BlockSparseArrays.blocktype(a::AbelianGradedArray) = BlockSparseArrays.blocktype(typeof(a))
+blocktype(a::AbelianGradedArray) = blocktype(typeof(a))
 datatype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = D
 
 # ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ end
 #  eachblockstoredindex
 # ---------------------------------------------------------------------------
 
-function BlockSparseArrays.eachblockstoredindex(a::AbelianGradedArray{T, N}) where {T, N}
+function eachblockstoredindex(a::AbelianGradedArray{T, N}) where {T, N}
     return (Block(k) for k in keys(a.blockdata))
 end
 
@@ -251,7 +251,7 @@ function Base.similar(
         axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
     ) where {T, S}
     N = length(axes)
-    D = datatype(BlockSparseArrays.blocktype(a))
+    D = datatype(blocktype(a))
     data_ax_types = Tuple{ntuple(d -> dataaxistype(typeof(axes[d])), Val(N))...}
     D_N = Base.promote_op(similar, D, Type{T}, data_ax_types)
     D_N′ = isconcretetype(D_N) ? D_N : Array{T, N}
@@ -457,7 +457,7 @@ end
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
 # stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
 function LinearAlgebra.isdiag(A::AbelianGradedMatrix)
-    BlockSparseArrays.isblockdiagonal(A) || return false
+    isblockdiagonal(A) || return false
     for bI in eachblockstoredindex(A)
         LinearAlgebra.isdiag(view(A, bI)) || return false
     end

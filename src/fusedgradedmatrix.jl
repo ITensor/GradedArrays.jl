@@ -131,10 +131,10 @@ function BlockArrays.blocklength(m::FusedGradedMatrix, dim::Integer)
     end
 end
 
-function BlockSparseArrays.blocktype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S}
+function blocktype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S}
     return SectorMatrix{T, D, S}
 end
-BlockSparseArrays.blocktype(m::FusedGradedMatrix) = BlockSparseArrays.blocktype(typeof(m))
+blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 sectortype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = S
 datatype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = D
 datatype(a::FusedGradedMatrix) = datatype(typeof(a))
@@ -166,7 +166,7 @@ end
 
 # ========================  eachblockstoredindex  ========================
 
-function BlockSparseArrays.eachblockstoredindex(m::FusedGradedMatrix)
+function eachblockstoredindex(m::FusedGradedMatrix)
     return (
         Block(gettoken(m.codomain, c)[2][2], gettoken(m.domain, c)[2][2]) for
             c in keys(m.blocks)
@@ -216,8 +216,8 @@ function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix
     cod = A.codomain
     dom = B.domain
     S = sectortype(typeof(A))
-    DA = datatype(BlockSparseArrays.blocktype(A))
-    DB = datatype(BlockSparseArrays.blocktype(B))
+    DA = datatype(blocktype(A))
+    DB = datatype(blocktype(B))
     Dout = Base.promote_op(*, DA, DB)
     Dout′ = isconcretetype(Dout) ? Dout : Matrix{eltype(Dout)}
 
@@ -244,8 +244,8 @@ function _broadcast_fusedgradedmatrix(op, A::FusedGradedMatrix, B::FusedGradedMa
     axes(A) == axes(B) ||
         throw(DimensionMismatch("axes mismatch: A $(axes(A)), B $(axes(B))"))
     T = promote_type(eltype(A), eltype(B))
-    DA = datatype(BlockSparseArrays.blocktype(A))
-    DB = datatype(BlockSparseArrays.blocktype(B))
+    DA = datatype(blocktype(A))
+    DB = datatype(blocktype(B))
     D = Base.promote_op(op, DA, DB)
     D′ = isconcretetype(D) ? D : Matrix{T}
     S = sectortype(typeof(A))

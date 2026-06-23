@@ -1,9 +1,9 @@
 using BlockArrays: BlockArrays, Block, blocklength
-using BlockSparseArrays: eachblockstoredindex
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
-    datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
+    datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectors,
+    sectortype
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using TensorAlgebra: TensorAlgebra

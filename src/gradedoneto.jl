@@ -73,7 +73,7 @@ end
 
 # ========================  BlockSparseArrays interface  ========================
 
-function BlockSparseArrays.eachblockaxis(g::GradedOneTo)
+function eachblockaxis(g::GradedOneTo)
     return [
         SectorOneTo(s, m)
             for (s, m) in zip(sectors(g), datalengths(g))
@@ -82,7 +82,7 @@ end
 eachdataaxis(g::GradedOneTo) = data.(eachblockaxis(g))
 eachsectoraxis(g::GradedOneTo) = sector.(eachblockaxis(g))
 
-function BlockSparseArrays.mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
+function mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
     isempty(axs) && return GradedOneTo(S[], Int[])
     allequal(isdual, axs) ||
         throw(ArgumentError("Cannot combine sectors with different arrows"))
@@ -95,7 +95,7 @@ function BlockSparseArrays.mortar_axis(axs::AbstractVector{SectorOneTo{S}}) wher
 end
 
 # Non-abelian fusion: flatten GradedOneTo elements into a single GradedOneTo
-function BlockSparseArrays.mortar_axis(axs::AbstractVector{GradedOneTo{S}}) where {S}
+function mortar_axis(axs::AbstractVector{GradedOneTo{S}}) where {S}
     isempty(axs) && return GradedOneTo(S[], Int[])
     return mortar_axis(mapreduce(eachblockaxis, vcat, axs))
 end
