@@ -78,7 +78,7 @@ end
 
 function Base.fill!(A::AbelianSectorArray, v)
     if iszero(v)
-        return FI.zero!(A)
+        return zero!(A)
     end
     require_unique_fusion(A)
     fill!(data(A), v)

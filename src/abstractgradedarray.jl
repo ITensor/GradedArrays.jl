@@ -100,18 +100,16 @@ sectortype(a::AbstractGradedArray) = sectortype(typeof(a))
 #  value leaves the forbidden positions at zero.
 # ---------------------------------------------------------------------------
 
-scale!(a::AbstractArray, β::Number) = (a .*= β; a)
-
-function scale!(a::AbstractGradedArray, β::Number)
+function TensorAlgebra.scale!(a::AbstractGradedArray, β::Number)
     for bI in eachblockstoredindex(a)
         scale!(view(a, bI), β)
     end
     return a
 end
 
-function FI.zero!(a::AbstractGradedArray)
+function TensorAlgebra.zero!(a::AbstractGradedArray)
     for bI in eachblockstoredindex(a)
-        FI.zero!(view(a, bI))
+        zero!(view(a, bI))
     end
     return a
 end

@@ -182,7 +182,7 @@ function TensorAlgebra.bipermutedimsopadd!(
     # call with β == 0 on a fresh `similar`-allocated array); before this
     # fix they occasionally produced `NaN`s in unstored-block slots. Call
     # `zero!` explicitly for β == 0 to avoid the NaN-propagation trap.
-    iszero(β) ? FI.zero!(y) : scale!(y, β)
+    iszero(β) ? zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
         b_dest = Block(ntuple(i -> b[(perm_codomain..., perm_domain...)[i]], N))
@@ -193,12 +193,12 @@ function TensorAlgebra.bipermutedimsopadd!(
     return y
 end
 
-# ========================  contractopadd! (Matricize{SectorFusion})  ========================
-# permute(a1) → permute(a2) → twist(a2's contracted legs) → matricize → gemm →
-# unmatricize → permute(a_dest). Mirrors TensorAlgebra.contractopadd!_matricize but
-# splits `matricizeop` into separate permute/matricize steps so the fermion twist
-# can sit between them as a first-class step. `contraction_twist!` is a no-op for
-# bosonic sectors, so this pipeline is correct for any AbelianStyle input.
+# ========================  fermionic contraction twist  ========================
+# Fermionic contractions need the second (right) factor's contracted legs twisted before
+# matricization, so the result does not depend on contraction order. This rides on
+# TensorAlgebra v0.10's per-position fusion styles: `default_contract_algorithm` puts
+# `TwistedSectorFusion` on the right factor only, and its `matricizeop` inserts the twist
+# between the permute and the matricize. The twist is a no-op for bosonic sectors.
 
 """
     contraction_twist!(a::AbelianSectorArray, ndims_codomain::Int) -> a
@@ -241,40 +241,18 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-#=
-This is an overload that follows the standard TensorAlgebra implementation,
-with the single exception of inserting a `contraction_twist!` call before the matricization.
-This is important to have fermionic contractions not depend on the contraction order.
-=#
-function TensorAlgebra.contractopadd!(
-        algorithm::TensorAlgebra.Matricize{SectorFusion},
-        a_dest::AbstractArray, perm_dest_codomain, perm_dest_domain,
-        op1, a1::AbstractArray, perm1_codomain, perm1_domain,
-        op2, a2::AbstractArray, perm2_codomain, perm2_domain,
-        α::Number, β::Number
+# Twist only the right factor; the left factor and the output use plain `SectorFusion`.
+function TensorAlgebra.default_contract_algorithm(
+        ::Type{<:AbstractGradedArray}, ::Type{<:AbstractGradedArray}
     )
-    perm_dest = (perm_dest_codomain..., perm_dest_domain...)
-    invperm_codomain, invperm_domain =
-        blocks(TensorAlgebra.biperm(invperm(perm_dest), length(perm1_codomain)))
-    check_input(
-        TensorAlgebra.contract!,
-        a_dest, invperm_codomain, invperm_domain,
-        a1, perm1_codomain, perm1_domain,
-        a2, perm2_codomain, perm2_domain
-    )
+    return TensorAlgebra.Matricize(SectorFusion(), TwistedSectorFusion(), SectorFusion())
+end
 
-    a1_mat = TensorAlgebra.matricizeop(
-        algorithm.fusion_style,
-        op1, a1, perm1_codomain, perm1_domain
+function TensorAlgebra.matricizeop(
+        ::TwistedSectorFusion, op, a::AbstractArray,
+        perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     )
-    # matricizeop + contraction_twist
-    a2_perm = TensorAlgebra.permutedimsop(op2, a2, perm2_codomain, perm2_domain)
-    contraction_twist!(a2_perm, length(perm2_codomain))
-    a2_mat = matricize(algorithm.fusion_style, a2_perm, Val(length(perm2_codomain)))
-
-    a_dest_mat = a1_mat * a2_mat
-    TensorAlgebra.unmatricizeadd!(
-        algorithm.fusion_style, a_dest, a_dest_mat, invperm_codomain, invperm_domain, α, β
-    )
-    return a_dest
+    a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
+    contraction_twist!(a_perm, length(perm_codomain))
+    return matricize(SectorFusion(), a_perm, Val(length(perm_codomain)))
 end

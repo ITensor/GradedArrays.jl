@@ -362,7 +362,7 @@ end
 @testset "scale! with β=0 zeros uninitialized blocks" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = AbelianGradedArray{Float64}(undef, g, dual(g))
-    GradedArrays.scale!(a, false)
+    TensorAlgebra.scale!(a, false)
     @test all(iszero, data(a[Block(1, 1)]))
     @test all(iszero, data(a[Block(2, 2)]))
 end
@@ -408,11 +408,11 @@ end
 # Regression coverage for TensorAlgebra-level unmatricize-axis bugs on graded
 # operators: a factor's reconstructed axes must respect the conj/dual pairing
 # between contracted bonds rather than reuse the factor's own axes.
-@testset "TA.svd round-trip on AbelianGradedArray (axes_S regression)" begin
+@testset "TA.svd_compact round-trip on AbelianGradedArray (axes_S regression)" begin
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
     A = AbelianGradedArray{Float64}(undef, s, dual(s))
     randn!(A)
-    U, S, Vᴴ = TensorAlgebra.svd(A, (1,), (2,))
+    U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
     # The natural `U * S * Vᴴ` form falls into LinearAlgebra's `_tri_matmul`,
     # which scalar-indexes on `AbstractGradedArray`. `contract` is the
     # block-wise route, but the chain form should also work once a block-aware
