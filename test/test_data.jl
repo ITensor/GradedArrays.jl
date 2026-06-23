@@ -1,8 +1,7 @@
 using BlockArrays: Block, blockedrange
-using BlockSparseArrays: eachblockstoredindex
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray, Data,
-    FusedGradedMatrix, GradedOneTo, SectorMatrix, U1, data, dual, gradedrange, sectoraxes,
-    sectors
+    FusedGradedMatrix, GradedOneTo, SectorMatrix, U1, data, dual, eachblockstoredindex,
+    gradedrange, sectoraxes, sectors
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin

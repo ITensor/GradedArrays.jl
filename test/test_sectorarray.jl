@@ -186,8 +186,9 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "zero!" begin
+        using TensorAlgebra: TensorAlgebra
         sa = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 2.0; 3.0 4.0])
-        GradedArrays.FI.zero!(sa)
+        TensorAlgebra.zero!(sa)
         @test all(iszero, data(sa))
     end
 end

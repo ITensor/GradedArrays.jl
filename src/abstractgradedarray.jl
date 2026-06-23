@@ -7,7 +7,7 @@ Concrete subtypes include [`AbelianGradedArray`](@ref) and [`FusedGradedMatrix`]
 abstract type AbstractGradedArray{T, N} <: AbstractArray{T, N} end
 const AbstractGradedMatrix{T} = AbstractGradedArray{T, 2}
 
-function BlockSparseArrays.isblockdiagonal(A::AbstractGradedMatrix)
+function isblockdiagonal(A::AbstractGradedMatrix)
     for bI in eachblockstoredindex(A)
         row, col = Tuple(bI)
         row == col || return false
@@ -100,18 +100,16 @@ sectortype(a::AbstractGradedArray) = sectortype(typeof(a))
 #  value leaves the forbidden positions at zero.
 # ---------------------------------------------------------------------------
 
-scale!(a::AbstractArray, β::Number) = (a .*= β; a)
-
-function scale!(a::AbstractGradedArray, β::Number)
+function TensorAlgebra.scale!(a::AbstractGradedArray, β::Number)
     for bI in eachblockstoredindex(a)
         scale!(view(a, bI), β)
     end
     return a
 end
 
-function FI.zero!(a::AbstractGradedArray)
+function TensorAlgebra.zero!(a::AbstractGradedArray)
     for bI in eachblockstoredindex(a)
-        FI.zero!(view(a, bI))
+        zero!(view(a, bI))
     end
     return a
 end
@@ -124,21 +122,29 @@ function Base.fill!(a::AbstractGradedArray, v)
 end
 
 # ---------------------------------------------------------------------------
-#  Display — convert to BlockSparseArray for printing
+#  Display — render through a BlockArrays block array. BlockArrays draws the
+#  block grid; unstored blocks become `Zeros`, which print as `⋅`.
 # ---------------------------------------------------------------------------
 
-using BlockSparseArrays: BlockSparseArray
+using BlockArrays: mortar
+using FillArrays: Zeros
 
-function _to_blocksparsearray(a::AbstractGradedArray{T, N}) where {T, N}
-    blocked_axes = map(g -> blockedrange(blocklengths(g)), axes(a))
-    bsa = BlockSparseArray{T}(undef, blocked_axes)
+function _to_blockarray(a::AbstractGradedArray{T, N}) where {T, N}
+    blens = map(blocklengths, axes(a))
+    blockmat = Array{AbstractArray{T, N}, N}(undef, map(length, blens)...)
+    # Unstored blocks render as `Zeros` (printed as `⋅`); stored blocks carry their data.
+    for I in CartesianIndices(blockmat)
+        b = Tuple(I)
+        blockmat[I] = Zeros{T}(ntuple(d -> blens[d][b[d]], N)...)
+    end
     for bI in eachblockstoredindex(a)
         blk = view(a, bI)
-        bsa[bI] = kron_nd(Array(sector(blk)), collect(data(blk)))
+        blockmat[CartesianIndex(Int.(Tuple(bI)))] =
+            kron_nd(Array(sector(blk)), collect(data(blk)))
     end
-    return bsa
+    return mortar(blockmat)
 end
 
 function Base.print_array(io::IO, a::AbstractGradedArray)
-    return Base.print_array(io, _to_blocksparsearray(a))
+    return Base.print_array(io, _to_blockarray(a))
 end

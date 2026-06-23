@@ -152,10 +152,10 @@ end
 
 BlockArrays.blocklength(v::FusedGradedVector) = length(v.axis)
 
-function BlockSparseArrays.blocktype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S}
+function blocktype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S}
     return SectorVector{T, D, S}
 end
-BlockSparseArrays.blocktype(v::FusedGradedVector) = BlockSparseArrays.blocktype(typeof(v))
+blocktype(v::FusedGradedVector) = blocktype(typeof(v))
 sectortype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S} = S
 datatype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S} = D
 datatype(v::FusedGradedVector) = datatype(typeof(v))
@@ -200,7 +200,7 @@ end
 
 # ========================  eachblockstoredindex  ========================
 
-function BlockSparseArrays.eachblockstoredindex(v::FusedGradedVector)
+function eachblockstoredindex(v::FusedGradedVector)
     return (Block(gettoken(v.axis, c)[2][2]) for c in keys(v.blocks))
 end
 

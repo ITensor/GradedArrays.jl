@@ -2,6 +2,11 @@ using TensorAlgebra: tensor_product_axis, trivial_axis
 
 struct SectorFusion <: FusionStyle end
 
+# Fusion style for the right factor of a fermionic contraction: matricize as `SectorFusion`
+# after twisting the contracted legs (see `contraction_twist!`). A no-op twist for bosonic
+# sectors, so it matricizes identically to `SectorFusion` there.
+struct TwistedSectorFusion <: FusionStyle end
+
 TensorAlgebra.FusionStyle(::Type{<:AbstractSectorDelta}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:AbstractSectorArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:AbstractGradedArray}) = SectorFusion()
@@ -83,7 +88,7 @@ function TensorAlgebra.matricize(
         ::SectorFusion, a::AbelianSectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
     biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
-    ax_codomain, ax_domain = blocks(axes(a)[biperm])
+    ax_codomain, ax_domain = blocks(blockpermute(axes(a), biperm))
     ax_codomain =
         isempty(ax_codomain) ? trivial(sectortype(a)) : tensor_product(ax_codomain...)
     return SectorIdentity{eltype(a)}(ax_codomain)
@@ -109,7 +114,7 @@ function TensorAlgebra.matricize(
     # those coming from stored blocks of `a`. For a sparse input, allowed
     # destination blocks with no source counterpart stay at their initial
     # value, so we must explicitly zero them.
-    a_2d = FI.zero!(similar(a, ax_2d))
+    a_2d = zero!(similar(a, ax_2d))
 
     codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
     domain_nblocks = Tuple(blocklength.(axes(a)[(K + 1):N]))
@@ -188,7 +193,7 @@ function TensorAlgebra.unmatricize(
     # coming from stored 2D blocks of `m`. For a sparse input, allowed
     # destination blocks with no source counterpart must be explicitly
     # zeroed.
-    a = FI.zero!(similar(m, dest_axes))
+    a = zero!(similar(m, dest_axes))
 
     cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
     dom_cart = CartesianIndices(Tuple(map(blocklength, domain_axes)))

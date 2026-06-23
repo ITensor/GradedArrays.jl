@@ -19,7 +19,7 @@ for f in [
         ) where {T <: FusedGradedMatrix}
         return GradedBlockAlgorithm(
             MAK.default_algorithm(
-                MAK.$f!, datatype(BlockSparseArrays.blocktype(T));
+                MAK.$f!, datatype(blocktype(T));
                 kwargs...
             )
         )

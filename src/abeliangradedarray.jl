@@ -73,12 +73,12 @@ end
 
 Base.size(a::AbelianGradedArray) = map(length, a.axes)
 Base.axes(a::AbelianGradedArray) = a.axes
-function BlockSparseArrays.blocktype(
+function blocktype(
         ::Type{<:AbelianGradedArray{T, N, D, S}}
     ) where {T, N, D, S}
     return AbelianSectorArray{T, N, D, S}
 end
-BlockSparseArrays.blocktype(a::AbelianGradedArray) = BlockSparseArrays.blocktype(typeof(a))
+blocktype(a::AbelianGradedArray) = blocktype(typeof(a))
 datatype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = D
 
 # ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ function Base.getindex(
     # `zero!` is needed: we only copy sub-ranges from stored source blocks,
     # so destination block regions outside those sub-ranges (and destination
     # blocks with no source counterpart) must start at 0.
-    a_dest = FI.zero!(similar(a, ax_dest))
+    a_dest = zero!(similar(a, ax_dest))
     # Map source block b → list of (dest BlockIndexRange, src subrange).
     src_to_dests = ntuple(Val(N)) do d
         key_type = Block{1, Int}
@@ -188,7 +188,7 @@ function Base.getindex(
     # `zero!` is needed: each source block writes into a sub-range of one
     # destination block, so remaining sub-ranges (and destination blocks
     # with no source counterpart) must start at 0.
-    a_dest = FI.zero!(similar(a, ax_dest))
+    a_dest = zero!(similar(a, ax_dest))
     ax = axes(a)
     # Map source Block → BlockIndexRange encoding dest block + subrange within it
     src_to_dest = ntuple(Val(N)) do d
@@ -223,7 +223,7 @@ end
 #  eachblockstoredindex
 # ---------------------------------------------------------------------------
 
-function BlockSparseArrays.eachblockstoredindex(a::AbelianGradedArray{T, N}) where {T, N}
+function eachblockstoredindex(a::AbelianGradedArray{T, N}) where {T, N}
     return (Block(k) for k in keys(a.blockdata))
 end
 
@@ -251,7 +251,7 @@ function Base.similar(
         axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
     ) where {T, S}
     N = length(axes)
-    D = datatype(BlockSparseArrays.blocktype(a))
+    D = datatype(blocktype(a))
     data_ax_types = Tuple{ntuple(d -> dataaxistype(typeof(axes[d])), Val(N))...}
     D_N = Base.promote_op(similar, D, Type{T}, data_ax_types)
     D_N′ = isconcretetype(D_N) ? D_N : Array{T, N}
@@ -457,7 +457,7 @@ end
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
 # stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
 function LinearAlgebra.isdiag(A::AbelianGradedMatrix)
-    BlockSparseArrays.isblockdiagonal(A) || return false
+    isblockdiagonal(A) || return false
     for bI in eachblockstoredindex(A)
         LinearAlgebra.isdiag(view(A, bI)) || return false
     end
@@ -473,7 +473,7 @@ function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
             "projectto!: dest has size $(size(dest)), src has size $(size(src))"
         )
     )
-    FI.zero!(dest)
+    zero!(dest)
     for b in allowedblocks(axes(dest))
         block_ranges = ntuple(d -> axes(dest, d)[Block(Int(Tuple(b)[d]))], ndims(dest))
         view(dest, b) .= view(src, block_ranges...)
@@ -629,7 +629,7 @@ Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled wit
 function Base.zeros(
         ::Type{T}, ax1::GradedOneTo{S}, axs::GradedOneTo{S}...
     ) where {T, S <: SectorRange}
-    return FI.zero!(AbelianGradedArray{T}(undef, ax1, axs...))
+    return zero!(AbelianGradedArray{T}(undef, ax1, axs...))
 end
 
 function Base.zeros(ax1::GradedOneTo, axs::GradedOneTo...)

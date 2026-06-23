@@ -1,9 +1,9 @@
 using BlockArrays: BlockArrays, Block, blocklength
-using BlockSparseArrays: eachblockstoredindex
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1, data,
-    datalengths, dual, gradedrange, isdual, sectoraxes, sectors, sectortype
+    datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectors,
+    sectortype
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using TensorAlgebra: TensorAlgebra
@@ -213,7 +213,7 @@ using Test: @test, @test_throws, @testset
 
         # zero! zeros stored blocks in place (blocks stay allocated)
         a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), ones(2, 2))
-        GradedArrays.FI.zero!(a)
+        TensorAlgebra.zero!(a)
         @test !isempty(a.blockdata)
         @test all(iszero, a.blockdata[(1, 1)])
     end

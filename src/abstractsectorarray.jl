@@ -48,13 +48,13 @@ end
 
 # ========================  scale! / zero!  ========================
 
-function scale!(a::AbstractSectorArray, β::Number)
+function TensorAlgebra.scale!(a::AbstractSectorArray, β::Number)
     scale!(data(a), β)
     return a
 end
 
-function FI.zero!(a::AbstractSectorArray)
-    FI.zero!(data(a))
+function TensorAlgebra.zero!(a::AbstractSectorArray)
+    zero!(data(a))
     return a
 end
 
