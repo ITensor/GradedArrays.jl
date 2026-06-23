@@ -134,7 +134,7 @@ function _to_blocksparsearray(a::AbstractGradedArray{T, N}) where {T, N}
     bsa = BlockSparseArray{T}(undef, blocked_axes)
     for bI in eachblockstoredindex(a)
         blk = view(a, bI)
-        bsa[bI] = collect(Array(sector(blk)) ⊗ data(blk))
+        bsa[bI] = kron_nd(Array(sector(blk)), collect(data(blk)))
     end
     return bsa
 end

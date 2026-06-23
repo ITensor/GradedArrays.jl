@@ -10,7 +10,6 @@ using Test: @test, @test_throws, @testset
         sa = AbelianSectorArray((U1(1), conj(U1(-1))), data)
         @test sa isa AbelianSectorArray{Float64, 2, Matrix{Float64}, U1}
         @test sa isa AbstractArray{Float64, 2}
-        @test !(sa isa GradedArrays.KroneckerArrays.AbstractKroneckerArray)
     end
 
     @testset "Construction with dual sectors" begin

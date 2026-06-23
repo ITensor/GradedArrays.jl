@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, SU2, SectorIdentity, SectorMatrix,
-    SectorOneTo, SectorRange, U1, data, dataaxes, dual, isdual, sector, sectoraxes,
-    sectortype, ⊗
+    SectorOneTo, SectorRange, U1, data, dataaxes, dual, isdual, sector, sector_kron,
+    sectoraxes, sectortype
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -107,10 +107,10 @@ using Test: @test, @test_throws, @testset
         @test isdual(sm, 2) == true
     end
 
-    @testset "⊗ constructor (SectorIdentity ⊗ data → SectorMatrix)" begin
+    @testset "sector_kron (SectorIdentity, data) → SectorMatrix" begin
         si = SectorIdentity{Float64}(U1(1))
         d = [1.0 2.0; 3.0 4.0]
-        sm = si ⊗ d
+        sm = sector_kron(si, d)
         @test sm isa SectorMatrix
         @test sectoraxes(sm, 1) == U1(1)
         @test data(sm) === d
