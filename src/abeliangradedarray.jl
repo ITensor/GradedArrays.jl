@@ -395,6 +395,65 @@ function Base.randn(
     return Random.randn!(rng, AbelianGradedArray{T}(undef, ax))
 end
 
+# Shorthand shims forwarding to the canonical `(rng, T, tuple)` forms above. Base's
+# `rand`/`randn` defaulting chain hardcodes `Integer` / `Dims` argument shapes, so the
+# non-canonical forms (`rand(i, j)`, `rand(T, i, j)`, `rand((i, j))`, ...) never reach the
+# graded constructor on their own. A leading `GradedOneTo` keeps these from shadowing the
+# zero-argument `rand()` / `randn()`.
+function Base.rand(ax::GradedOneTo, axs::GradedOneTo...)
+    return rand(Random.default_rng(), Float64, (ax, axs...))
+end
+function Base.rand(::Type{T}, ax::GradedOneTo, axs::GradedOneTo...) where {T}
+    return rand(Random.default_rng(), T, (ax, axs...))
+end
+function Base.rand(rng::AbstractRNG, ax::GradedOneTo, axs::GradedOneTo...)
+    return rand(rng, Float64, (ax, axs...))
+end
+function Base.rand(
+        rng::AbstractRNG,
+        ::Type{T},
+        ax::GradedOneTo,
+        axs::GradedOneTo...
+    ) where {T}
+    return rand(rng, T, (ax, axs...))
+end
+function Base.rand(ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+    return rand(Random.default_rng(), Float64, ax)
+end
+function Base.rand(::Type{T}, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+    return rand(Random.default_rng(), T, ax)
+end
+function Base.rand(rng::AbstractRNG, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+    return rand(rng, Float64, ax)
+end
+
+function Base.randn(ax::GradedOneTo, axs::GradedOneTo...)
+    return randn(Random.default_rng(), Float64, (ax, axs...))
+end
+function Base.randn(::Type{T}, ax::GradedOneTo, axs::GradedOneTo...) where {T}
+    return randn(Random.default_rng(), T, (ax, axs...))
+end
+function Base.randn(rng::AbstractRNG, ax::GradedOneTo, axs::GradedOneTo...)
+    return randn(rng, Float64, (ax, axs...))
+end
+function Base.randn(
+        rng::AbstractRNG,
+        ::Type{T},
+        ax::GradedOneTo,
+        axs::GradedOneTo...
+    ) where {T}
+    return randn(rng, T, (ax, axs...))
+end
+function Base.randn(ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+    return randn(Random.default_rng(), Float64, ax)
+end
+function Base.randn(::Type{T}, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+    return randn(Random.default_rng(), T, ax)
+end
+function Base.randn(rng::AbstractRNG, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+    return randn(rng, Float64, ax)
+end
+
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
 # stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
 function LinearAlgebra.isdiag(A::AbelianGradedMatrix)
@@ -557,21 +616,66 @@ end
 #  zeros / rand  (allowedblocks is defined in fusion.jl)
 # ---------------------------------------------------------------------------
 
+# A leading mandatory `GradedOneTo` on every vararg form (and `Tuple{GradedOneTo,
+# Vararg{GradedOneTo}}` on every tuple form) keeps these from matching the zero-argument
+# calls (`zeros()`, `ones()`, `fill(v)`, `zeros(T, ())`), which would pirate Base for calls
+# that involve no GradedArrays-owned type.
+
 """
-    zeros(T, axs::GradedOneTo...)
+    zeros(T, ax1::GradedOneTo, axs::GradedOneTo...)
 
 Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with zeros.
 """
-function Base.zeros(::Type{T}, axs::GradedOneTo{S}...) where {T, S <: SectorRange}
-    return FI.zero!(AbelianGradedArray{T}(undef, axs...))
+function Base.zeros(
+        ::Type{T}, ax1::GradedOneTo{S}, axs::GradedOneTo{S}...
+    ) where {T, S <: SectorRange}
+    return FI.zero!(AbelianGradedArray{T}(undef, ax1, axs...))
 end
 
-function Base.zeros(axs::GradedOneTo...)
+function Base.zeros(ax1::GradedOneTo, axs::GradedOneTo...)
+    return zeros(Float64, ax1, axs...)
+end
+
+function Base.zeros(::Type{T}, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+    return zeros(T, axs...)
+end
+
+function Base.zeros(axs::Tuple{GradedOneTo, Vararg{GradedOneTo}})
     return zeros(Float64, axs...)
 end
 
-function Base.zeros(
-        ::Type{T}, axs::NTuple{N, GradedOneTo{S}}
-    ) where {T, N, S <: SectorRange}
-    return zeros(T, axs...)
+"""
+    ones(T, ax1::GradedOneTo, axs::GradedOneTo...)
+
+Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with ones.
+"""
+function Base.ones(
+        ::Type{T}, ax1::GradedOneTo{S}, axs::GradedOneTo{S}...
+    ) where {T, S <: SectorRange}
+    return fill!(AbelianGradedArray{T}(undef, ax1, axs...), one(T))
+end
+
+function Base.ones(ax1::GradedOneTo, axs::GradedOneTo...)
+    return ones(Float64, ax1, axs...)
+end
+
+function Base.ones(::Type{T}, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+    return ones(T, axs...)
+end
+
+function Base.ones(axs::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+    return ones(Float64, axs...)
+end
+
+"""
+    fill(v, ax1::GradedOneTo, axs::GradedOneTo...)
+
+Create an `AbelianGradedArray{typeof(v)}` with all allowed (zero-flux) blocks filled with `v`.
+"""
+function Base.fill(v, ax1::GradedOneTo{S}, axs::GradedOneTo{S}...) where {S <: SectorRange}
+    return fill!(AbelianGradedArray{typeof(v)}(undef, ax1, axs...), v)
+end
+
+function Base.fill(v, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+    return fill(v, axs...)
 end
