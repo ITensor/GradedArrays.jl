@@ -408,6 +408,60 @@ end
     @test !iszero(u)
 end
 
+@testset "Block-aware ones/fill and rand/randn shorthands" begin
+    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+    g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
+
+    # `ones`/`fill` allocate the allowed sectors and fill them with the value, exactly
+    # like `fill!(zeros(ax...), v)`. Vararg and tuple forms, default and explicit eltype.
+    reference1(v) = fill!(zeros(typeof(v), g1, g2), v)
+    @testset "ones" begin
+        for o in
+            (ones(g1, g2), ones(Float64, g1, g2), ones((g1, g2)), ones(Float64, (g1, g2)))
+            @test o isa AbelianGradedArray{Float64, 2}
+            @test axes(o) == (g1, g2)
+            @test Array(o) == Array(reference1(1.0))
+        end
+        @test ones(ComplexF64, g1, g2) isa AbelianGradedArray{ComplexF64, 2}
+    end
+    @testset "fill" begin
+        for a in (fill(2.5, g1, g2), fill(2.5, (g1, g2)))
+            @test a isa AbelianGradedArray{Float64, 2}
+            @test axes(a) == (g1, g2)
+            @test Array(a) == Array(reference1(2.5))
+        end
+        @test fill(1.0im, g1, g2) isa AbelianGradedArray{ComplexF64, 2}
+    end
+
+    # rand/randn shorthands forward to the canonical `(rng, T, tuple)` form, so a seeded
+    # shorthand matches a seeded canonical call. All non-canonical arg shapes are covered.
+    @testset "$f shorthands" for f in (rand, randn)
+        @test f(g1, g2) isa AbelianGradedArray{Float64, 2}
+        @test f(ComplexF64, g1, g2) isa AbelianGradedArray{ComplexF64, 2}
+        @test f((g1, g2)) isa AbelianGradedArray{Float64, 2}
+        @test f(ComplexF64, (g1, g2)) isa AbelianGradedArray{ComplexF64, 2}
+        @test f(Random.Xoshiro(1), g1, g2) isa AbelianGradedArray{Float64, 2}
+        @test f(Random.Xoshiro(1), (g1, g2)) isa AbelianGradedArray{Float64, 2}
+        # Seeded shorthand == seeded canonical, for every shape that fills in defaults.
+        @test Array(f(Random.Xoshiro(1), Float64, g1, g2)) ==
+            Array(f(Random.Xoshiro(1), Float64, (g1, g2)))
+        @test Array(f(Random.Xoshiro(1), g1, g2)) ==
+            Array(f(Random.Xoshiro(1), Float64, (g1, g2)))
+    end
+
+    # Regression: the leading mandatory `GradedOneTo` keeps these from pirating the
+    # zero-argument / no-graded Base calls.
+    @testset "no piracy of zero-argument Base calls" begin
+        @test zeros() isa Array{Float64, 0}
+        @test ones() isa Array{Float64, 0}
+        @test fill(1.0) isa Array{Float64, 0}
+        @test rand() isa Float64
+        @test randn() isa Float64
+        @test zeros(2, 3) isa Matrix{Float64}
+        @test ones(Float64, 2, 3) isa Matrix{Float64}
+    end
+end
+
 @testset "conj flips axis duality" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
