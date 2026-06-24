@@ -54,6 +54,16 @@ using Test: @test, @test_throws, @testset
         @test blocklength(g) == 2
     end
 
+    @testset "axes returns the graded range itself" begin
+        # A `GradedOneTo` is 1-based and its own axis, like `Base.OneTo`; `axes` must keep
+        # the sectors rather than falling back to a plain `BlockedOneTo`.
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        @test axes(g) isa Tuple{GradedOneTo}
+        @test only(axes(g)) === g
+        gd = conj(g)
+        @test only(axes(gd)) === gd
+    end
+
     @testset "length — U1 (abelian, dim=1)" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         @test length(g) == 1 * 2 + 1 * 3  # dim * mult summed

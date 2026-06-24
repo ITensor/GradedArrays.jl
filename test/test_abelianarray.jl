@@ -522,6 +522,32 @@ end
     @test_throws InexactError TensorAlgebra.checked_projectto!(dest_bad, src_bad)
 end
 
+@testset "getindex (project dense onto graded axes)" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+
+    # Indexing a dense array with graded ranges projects it onto the allowed blocks and
+    # checks the discarded weight. A source already in the allowed subspace round-trips.
+    ref = AbelianGradedArray{Float64}(undef, g, dual(g))
+    TensorAlgebra.projectto!(ref, randn(5, 5))
+    src = Array(ref)
+    a = src[g, dual(g)]
+    @test a isa AbelianGradedArray{Float64, 2}
+    @test axes(a) == (g, dual(g))
+    @test Array(a) ≈ src
+
+    # A source carrying forbidden-block weight is rejected.
+    src_bad = copy(src)
+    src_bad[1, 5] += 10.0
+    @test_throws InexactError src_bad[g, dual(g)]
+
+    # Rank reconciliation: a trailing size-1 graded bond is supplied implicitly, so a dense
+    # matrix is reshaped up before projecting.
+    aux = gradedrange([U1(0) => 1])
+    a3 = src[g, dual(g), aux]
+    @test a3 isa AbelianGradedArray{Float64, 3}
+    @test size(a3) == (5, 5, 1)
+end
+
 @testset "dot" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))

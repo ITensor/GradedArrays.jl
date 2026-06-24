@@ -679,3 +679,21 @@ end
 function Base.fill(v, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}})
     return fill(v, axs...)
 end
+
+"""
+    getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
+
+Construct an `AbelianGradedArray` by projecting the dense data of `a` onto the
+symmetry-allowed blocks of the graded axes `(ax1, axs...)`, via
+`TensorAlgebra.checked_projectto!` (which errors if `a` has weight outside
+the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a
+trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
+so index with `dual`/`conj` axes to set duality.
+"""
+function Base.getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
+    dest_axes = (ax1, axs...)
+    a_reshaped = reshape(a, length.(dest_axes))
+    return TensorAlgebra.checked_projectto!(
+        similar(a_reshaped, eltype(a), dest_axes), a_reshaped
+    )
+end
