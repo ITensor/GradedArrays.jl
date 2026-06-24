@@ -685,7 +685,7 @@ end
 
 Construct an `AbelianGradedArray` by projecting the dense data of `a` onto the
 symmetry-allowed blocks of the graded axes `(ax1, axs...)`, via
-[`TensorAlgebra.checked_projectto!`](@ref) (which errors if `a` has weight outside
+`TensorAlgebra.checked_projectto!` (which errors if `a` has weight outside
 the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a
 trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
 so index with `dual`/`conj` axes to set duality.
