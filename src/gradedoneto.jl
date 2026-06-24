@@ -34,6 +34,11 @@ isdual(g::GradedOneTo) = g.isdual
 sectors(g::GradedOneTo) = isdual(g) ? dual.(g.nondual_sectors) : g.nondual_sectors
 sectorlengths(g::GradedOneTo) = length.(sectors(g))
 Base.first(::GradedOneTo) = 1
+# A `GradedOneTo` is 1-based and acts as its own axis, like `Base.OneTo`. Without this
+# `axes` falls back to the `AbstractBlockedUnitRange` default, which returns a plain
+# `BlockedOneTo` and drops the sectors — so e.g. `axes(view(dense, ::GradedOneTo...))`
+# would lose the grading. Mirrors `axes(::AbelianGradedArray)` returning its graded axes.
+Base.axes(g::GradedOneTo) = (g,)
 BlockArrays.blocklasts(g::GradedOneTo) = cumsum(blocklengths(g))
 BlockArrays.blocklength(g::GradedOneTo) = length(g.nondual_sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
