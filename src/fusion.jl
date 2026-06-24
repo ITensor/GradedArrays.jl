@@ -90,9 +90,7 @@ end
 function TensorAlgebra.matricize(
         ::SectorFusion, a::AbelianSectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
-    biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
-    # `blocks` here is TensorAlgebra's `BiTuple` accessor, not `BlockArrays.blocks`.
-    ax_codomain, ax_domain = TensorAlgebra.blocks(blockpermute(axes(a), biperm))
+    ax_codomain = first(bipartition(axes(a), ndims_codomain))
     ax_codomain =
         isempty(ax_codomain) ? trivial(sectortype(a)) : tensor_product(ax_codomain...)
     return SectorIdentity{eltype(a)}(ax_codomain)

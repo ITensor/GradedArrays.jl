@@ -29,9 +29,9 @@ using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalu
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, kron, mul!
 using Random: Random, AbstractRNG
 using SparseArraysBase: SparseArraysBase
-using TensorAlgebra: TensorAlgebra, FusionStyle, bipermutedimsopadd!, blockpermute,
+using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
     check_input, matricize, matricize_axes, permutedimsadd!, scale!, tensor_product_axis,
-    trivial_axis, trivialbiperm, tryflattenlinear, unmatricize, zero!
+    trivial_axis, tryflattenlinear, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 
 include("kron.jl")
