@@ -12,7 +12,10 @@ TensorAlgebra.FusionStyle(::Type{<:AbstractSectorArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:AbstractGradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorOneTo}) = SectorFusion()
 
-const BlockReshapeFusion = typeof(FusionStyle(AbstractBlockArray))
+# Fusion style for matricizing block-structured arrays by reshaping their block storage.
+# GradedArrays owns this style (defining its own `matricize` / `unmatricize` on it for graded
+# arrays below); it used to be provided by TensorAlgebra's BlockArrays extension.
+struct BlockReshapeFusion <: FusionStyle end
 
 # ========================  trivial_axis  ========================
 
@@ -87,8 +90,7 @@ end
 function TensorAlgebra.matricize(
         ::SectorFusion, a::AbelianSectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
-    biperm = trivialbiperm(ndims_codomain, Val(ndims(a)))
-    ax_codomain, ax_domain = blocks(blockpermute(axes(a), biperm))
+    ax_codomain = first(bipartition(axes(a), ndims_codomain))
     ax_codomain =
         isempty(ax_codomain) ? trivial(sectortype(a)) : tensor_product(ax_codomain...)
     return SectorIdentity{eltype(a)}(ax_codomain)

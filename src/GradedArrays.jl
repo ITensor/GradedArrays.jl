@@ -22,16 +22,16 @@ export dual, flip, gradedrange, isdual,
 
 # imports
 # -------
-using BlockArrays: BlockArrays, AbstractBlockArray, AbstractBlockVector,
-    AbstractBlockedUnitRange, Block, BlockIndexRange, BlockVector, BlockedOneTo,
-    blockedrange, blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
+using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, Block,
+    BlockIndexRange, BlockVector, BlockedOneTo, blockedrange, blocklasts, blocklength,
+    blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, kron, mul!
 using Random: Random, AbstractRNG
 using SparseArraysBase: SparseArraysBase
-using TensorAlgebra: TensorAlgebra, BlockedTuple, FusionStyle, bipermutedimsopadd!,
-    blockpermute, check_input, matricize, matricize_axes, permutedimsadd!, scale!,
-    tensor_product_axis, trivial_axis, trivialbiperm, tryflattenlinear, unmatricize, zero!
+using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
+    check_input, matricize, matricize_axes, permutedimsadd!, scale!, tensor_product_axis,
+    trivial_axis, tryflattenlinear, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 
 include("kron.jl")
