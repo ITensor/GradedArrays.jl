@@ -127,9 +127,9 @@ using Test: @test, @testset
         @test !contains(strd, "'")
     end
 
-    @testset "dual sectors accessor for collection interface" begin
+    @testset "sectors accessor reports non-dual for collection interface" begin
         si = SectorOneTo(conj(U1(1)), 3)
-        @test sectors(si) == [conj(U1(1))]
+        @test sectors(si) == [U1(1)]
     end
 
     @testset "tensor_product (abelian)" begin

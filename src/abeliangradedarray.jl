@@ -89,7 +89,7 @@ datatype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = D
 function view_abelian(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
     bk = Int.(Tuple(I))
     haskey(a.blockdata, bk) || error("Block $bk is not stored.")
-    sects = ntuple(d -> sectors(axes(a, d))[bk[d]], Val(N))
+    sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
     return AbelianSectorArray(sects, a.blockdata[bk])
 end
 

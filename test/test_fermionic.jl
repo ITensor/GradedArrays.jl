@@ -1,8 +1,8 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
 using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
-    SectorProduct, SectorRange, U1, data, dual, eachblockstoredindex, flip, gradedrange,
-    isdual, sectoraxes, sectors
+    SectorProduct, SectorRange, U1, data, dual, eachblockstoredindex, eachsectoraxis, flip,
+    gradedrange, isdual, sectoraxes, sectors
 using Random: randn!
 using TensorAlgebra: contract, matricize, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
@@ -44,7 +44,7 @@ function randn_blockdiagonal(elt::Type, axs::Tuple)
     blockdiaglength = minimum(blocksize(a))
     N = ndims(a)
     for i in 1:blockdiaglength
-        block_sectors = ntuple(d -> sectors(axs[d])[i], N)
+        block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
         block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
         block_data = randn!(Array{elt}(undef, block_dims...))
         a[Block(ntuple(Returns(i), N)...)] = AbelianSectorArray(block_sectors, block_data)

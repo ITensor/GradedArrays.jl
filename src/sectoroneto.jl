@@ -37,8 +37,9 @@ dataaxes1(a) = first(dataaxes(a))
 # Type-level data axis type (for promote_op in similar)
 dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
 
-# Duck-typed interface matching GradedOneTo
-sectors(r::SectorOneTo) = [sector(r)]
+# Duck-typed interface matching GradedOneTo: `sectors` reports the non-dual sector,
+# `eachsectoraxis` keeps the dual flag.
+sectors(r::SectorOneTo) = [nondual(sector(r))]
 datalengths(r::SectorOneTo) = [datalength(r)]
 BlockArrays.blocklength(::SectorOneTo) = 1
 Base.first(::SectorOneTo) = 1

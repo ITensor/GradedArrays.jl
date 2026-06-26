@@ -4,11 +4,13 @@
 Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
 This is the axis type for `AbelianGradedArray`.
 
-Stores non-dual `SectorRange` values in `nondual_sectors`, sector lengths, and a single
-`isdual` flag. The `sectors` accessor applies the `isdual` flag on the fly.
+Stores non-dual `SectorRange` values in `sectors`, sector lengths, and a single
+`isdual` flag. The `sectors` accessor returns those stored non-dual sectors; query the
+duality separately with `isdual`. The dual flag is applied per block by `eachblockaxis`
+(and hence `eachsectoraxis`).
 """
 struct GradedOneTo{S <: SectorRange} <: AbstractBlockedUnitRange{Int, Vector{Int}}
-    nondual_sectors::Vector{S}
+    sectors::Vector{S}
     datalengths::Vector{Int}
     isdual::Bool
     function GradedOneTo(
@@ -31,7 +33,7 @@ datalengths(g::GradedOneTo) = g.datalengths
 isdual(g::GradedOneTo) = g.isdual
 
 # Derived accessors
-sectors(g::GradedOneTo) = isdual(g) ? dual.(g.nondual_sectors) : g.nondual_sectors
+sectors(g::GradedOneTo) = g.sectors
 sectorlengths(g::GradedOneTo) = length.(sectors(g))
 Base.first(::GradedOneTo) = 1
 # A `GradedOneTo` is 1-based and acts as its own axis, like `Base.OneTo`. Without this
@@ -40,7 +42,7 @@ Base.first(::GradedOneTo) = 1
 # would lose the grading. Mirrors `axes(::AbelianGradedArray)` returning its graded axes.
 Base.axes(g::GradedOneTo) = (g,)
 BlockArrays.blocklasts(g::GradedOneTo) = cumsum(blocklengths(g))
-BlockArrays.blocklength(g::GradedOneTo) = length(g.nondual_sectors)
+BlockArrays.blocklength(g::GradedOneTo) = length(g.sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
 
 # sectortype, SymmetryStyle
@@ -50,7 +52,7 @@ SymmetryStyle(::Type{<:GradedOneTo{S}}) where {S} = SymmetryStyle(S)
 # blocklengths: total length of each block (length(sector) * multiplicity)
 function BlockArrays.blocklengths(g::GradedOneTo)
     return [
-        length(s) * m for (s, m) in zip(g.nondual_sectors, datalengths(g))
+        length(s) * m for (s, m) in zip(g.sectors, datalengths(g))
     ]
 end
 dataaxistype(::Type{<:GradedOneTo}) = Base.OneTo{Int}
@@ -79,9 +81,10 @@ end
 # ========================  BlockSparseArrays interface  ========================
 
 function eachblockaxis(g::GradedOneTo)
+    block_sectors = isdual(g) ? dual.(sectors(g)) : sectors(g)
     return [
         SectorOneTo(s, m)
-            for (s, m) in zip(sectors(g), datalengths(g))
+            for (s, m) in zip(block_sectors, datalengths(g))
     ]
 end
 eachdataaxis(g::GradedOneTo) = data.(eachblockaxis(g))
@@ -120,11 +123,11 @@ end
 
 # dual, flip, flip_dual, adjoint
 function dual(g::GradedOneTo)
-    return GradedOneTo(g.nondual_sectors, datalengths(g), !isdual(g))
+    return GradedOneTo(g.sectors, datalengths(g), !isdual(g))
 end
 function flip(g::GradedOneTo)
     # Conjugate labels but keep stored sectors non-dual
-    new_nondual = [SectorRange(dual(label(s))) for s in g.nondual_sectors]
+    new_nondual = [SectorRange(dual(label(s))) for s in g.sectors]
     return GradedOneTo(new_nondual, datalengths(g), !isdual(g))
 end
 flip_dual(g::GradedOneTo) = isdual(g) ? flip(g) : g
@@ -174,15 +177,15 @@ end
 # flag has no observable effect, so any two empty graded ranges of the same
 # sector type compare equal.
 function Base.isequal(a::GradedOneTo, b::GradedOneTo)
-    isempty(a.nondual_sectors) && isempty(b.nondual_sectors) && return true
-    return isequal(a.nondual_sectors, b.nondual_sectors) &&
+    isempty(a.sectors) && isempty(b.sectors) && return true
+    return isequal(a.sectors, b.sectors) &&
         isequal(datalengths(a), datalengths(b)) &&
         isequal(isdual(a), isdual(b))
 end
 Base.:(==)(a::GradedOneTo, b::GradedOneTo) = isequal(a, b)
 function Base.hash(g::GradedOneTo, h::UInt)
-    isempty(g.nondual_sectors) && return hash(GradedOneTo, h)
-    return hash(g.nondual_sectors, hash(datalengths(g), hash(isdual(g), h)))
+    isempty(g.sectors) && return hash(GradedOneTo, h)
+    return hash(g.sectors, hash(datalengths(g), hash(isdual(g), h)))
 end
 
 # Show. Factor the `dual` to the outside — `dual(gradedrange([...]))` — rather
@@ -193,7 +196,7 @@ function Base.show(io::IO, g::GradedOneTo)
     print(io, "gradedrange([")
     join(
         io,
-        (s => m for (s, m) in zip(g.nondual_sectors, datalengths(g))),
+        (s => m for (s, m) in zip(g.sectors, datalengths(g))),
         ", "
     )
     print(io, "])")
@@ -210,7 +213,7 @@ function Base.show(io::IO, ::MIME"text/plain", g::GradedOneTo)
     print(io, ":\n  sectors: ")
     isdual(g) && print(io, "dual.(")
     print(io, "[")
-    join(io, g.nondual_sectors, ", ")
+    join(io, g.sectors, ", ")
     print(io, "]")
     isdual(g) && print(io, ")")
     println(io)

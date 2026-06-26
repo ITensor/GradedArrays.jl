@@ -206,7 +206,7 @@ function TensorAlgebra.unmatricize(
         dest_bk = (Tuple(cod_cart[row_block])..., Tuple(dom_cart[col_block])...)
 
         src_block = m[bI_src]
-        dest_sects = ntuple(d -> sectors(dest_axes[d])[dest_bk[d]], Val(N))
+        dest_sects = ntuple(d -> eachsectoraxis(dest_axes[d])[dest_bk[d]], Val(N))
         dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
         dest_block = AbelianSectorArray(dest_sects, reshape(data(src_block), dest_dims))
         a[Block(dest_bk...)] = dest_block

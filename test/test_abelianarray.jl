@@ -302,7 +302,7 @@ end
     @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
     @test size(m) == (9, 12)            # 2+3+4 = 9, 3+4+5 = 12
     @test sectors(axes(m, 1)) == [U1(0), U1(1), U1(2)]
-    @test sectors(axes(m, 2)) == dual.([U1(1), U1(2), U1(3)])
+    @test sectors(axes(m, 2)) == [U1(1), U1(2), U1(3)]
     @test collect(keys(m.blocks)) == [U1(1), U1(2)]
 
     # Stored block access by sector key.
@@ -336,7 +336,7 @@ end
 
     C = A * B
     @test sectors(axes(C, 1)) == [U1(0), U1(1)]
-    @test sectors(axes(C, 2)) == dual.([U1(0), U1(1)])
+    @test sectors(axes(C, 2)) == [U1(0), U1(1)]
     # Every allowed block of C is allocated. U1(0) lives in both C.codomain
     # and C.domain so it gets a (zero) block — no contraction path through
     # U1(0) since neither A.domain nor B.codomain carries it. U1(1) carries
