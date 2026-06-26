@@ -408,14 +408,14 @@ lengths. Stored entries of `a` populate `blocks`.
 """
 function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
     S = sectortype(a)
-    cod_sectors = sectors(axes(a, 1))
+    cod_sectors = eachsectoraxis(axes(a, 1))
     issorted(cod_sectors) ||
         throw(ArgumentError("codomain sectors of input must be sorted"))
     allunique(cod_sectors) ||
         throw(ArgumentError("codomain sectors of input must be unique"))
     cod = Dictionary{S, Int}(cod_sectors, datalengths(axes(a, 1)))
 
-    dom_sectors = sectors(axes(a, 2))
+    dom_sectors = eachsectoraxis(axes(a, 2))
     issorted(dom_sectors) ||
         throw(ArgumentError("domain sectors of input must have sorted, unique duals"))
     allunique(dom_sectors) ||

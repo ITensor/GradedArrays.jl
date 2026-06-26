@@ -16,7 +16,7 @@ using Test: @test, @test_throws, @testset
     @testset "gradedrange from dual SectorRange labels" begin
         g = gradedrange([conj(U1(0)) => 2, conj(U1(1)) => 3])
         @test g isa GradedOneTo{U1}
-        @test sectors(g) == [conj(U1(0)), conj(U1(1))]
+        @test sectors(g) == [U1(0), U1(1)]
         @test datalengths(g) == [2, 3]
         @test isdual(g) == true
     end
@@ -29,7 +29,8 @@ using Test: @test, @test_throws, @testset
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         gd = conj(g)
         @test isdual(gd) == true
-        @test sectors(gd) == dual.(sectors(g))
+        # `sectors` reports the stored non-dual sectors, so duality leaves them unchanged.
+        @test sectors(gd) == sectors(g)
         @test datalengths(gd) == datalengths(g)
     end
 
@@ -46,7 +47,8 @@ using Test: @test, @test_throws, @testset
 
     @testset "sectors accessor — dual" begin
         g = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
-        @test sectors(g) == [conj(U1(0)), conj(U1(1))]
+        # Dual axis still reports its stored non-dual sectors.
+        @test sectors(g) == [U1(0), U1(1)]
     end
 
     @testset "blocklength" begin
@@ -88,7 +90,9 @@ using Test: @test, @test_throws, @testset
     @testset "flip" begin
         g = gradedrange([U1(1) => 3, U1(2) => 5])
         gf = flip(g)
-        @test sectors(gf) == [flip(U1(1)), flip(U1(2))]
+        # flip conjugates the stored labels and toggles duality; `sectors` shows the
+        # conjugated non-dual labels.
+        @test sectors(gf) == [U1(-1), U1(-2)]
         @test datalengths(gf) == [3, 5]
         @test isdual(gf) == true
     end
@@ -162,7 +166,7 @@ using Test: @test, @test_throws, @testset
 
         gd = conj(g)
         @test isdual(gd) == true
-        @test sectors(gd) == [conj(SU2(0)), conj(SU2(1 // 2))]
+        @test sectors(gd) == [SU2(0), SU2(1 // 2)]
     end
 
     @testset "SU2 gradedrange from SectorRange" begin

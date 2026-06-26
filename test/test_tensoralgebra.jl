@@ -2,8 +2,9 @@ import GradedArrays
 using BlockArrays: Block, blocklength
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorMatrix, SectorOneTo,
-    SectorRange, U1, data, datalengths, dual, eachblockstoredindex, flip, gradedrange,
-    isdual, sector, sectoraxes, sectormergesort, sectors, sectortype, tensor_product
+    SectorRange, U1, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
+    gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
+    tensor_product
 using Random: randn!
 using TensorAlgebra:
     TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize, unmatricize
@@ -169,7 +170,8 @@ end
     a_matrix = AbelianGradedArray(fsm)
     @test a_matrix isa AbelianGradedMatrix
     @test sectors(axes(a_matrix, 1)) == [U1(0), U1(1)]
-    @test sectors(axes(a_matrix, 1)) == dual.(sectors(axes(a_matrix, 2)))
+    # Dual-resolved sectors of the row pair with the dual of the column's.
+    @test eachsectoraxis(axes(a_matrix, 1)) == dual.(eachsectoraxis(axes(a_matrix, 2)))
 end
 
 @testset "sectormergesort on reshaped AbelianGradedMatrix preserves canonical pairing" begin
@@ -186,7 +188,7 @@ end
     a_merged = sectormergesort(a_reshaped)
 
     @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]
-    @test sectors(axes(a_merged, 1)) == dual.(sectors(axes(a_merged, 2)))
+    @test eachsectoraxis(axes(a_merged, 1)) == dual.(eachsectoraxis(axes(a_merged, 2)))
     @test collect(eachblockstoredindex(a_merged)) == [Block(1, 1), Block(2, 2)]
     @test Array(a_merged[Block(1, 1)]) ≈ block_11
     @test Array(a_merged[Block(2, 2)]) ≈ block_22

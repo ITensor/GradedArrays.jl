@@ -83,7 +83,8 @@ function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::GradedOne
 end
 
 function sectormergesort(g::GradedOneTo)
-    glabels = sectors(g)
+    # Use the dual-resolved per-block sectors so the rebuilt `gradedrange` keeps `g`'s duality.
+    glabels = eachsectoraxis(g)
     slens = datalengths(g)
     dict = Dict{eltype(glabels), eltype(slens)}()
     for (l, m) in zip(glabels, slens)
