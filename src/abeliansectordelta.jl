@@ -100,3 +100,15 @@ function fermion_permutation_phase(
     mask = map(fermionparity, axes(x))
     return masked_inversion_parity(mask, perm)
 end
+
+# Fermionic phase for permuting `x` by `perm` under the conjugation flag `op`. `op === conj`
+# is the ket->bra involution, which reverses leg order, so it contributes the sign of that
+# reversal on top of the permutation's own sign. `op === identity` leaves only the
+# permutation sign.
+function fermion_permutation_phase(
+        op, x::AbstractSectorDelta{<:Any, N}, perm::NTuple{N, Int}
+    ) where {N}
+    phase = fermion_permutation_phase(x, perm)
+    op === conj || return phase
+    return phase * fermion_permutation_phase(x, reverse(ntuple(identity, Val(N))))
+end
