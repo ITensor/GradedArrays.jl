@@ -31,11 +31,17 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test Array(st) ≈ α .* Array(s) .+ β .* Array(t)
     @test axes(st) == axes(s)
 
-    conjdiff = conj.(s) .- t ./ β
+    # `conj.` dualizes the axes, so every conjugated operand contributes dualized axes:
+    # the operands must agree after dualization, hence both `s` and `t` are conjugated.
+    conjdiff = conj.(s) .- conj.(t) ./ β
     @test conjdiff isa AbelianSectorArray
     @test data(conjdiff) isa Matrix
-    @test Array(conjdiff) ≈ conj.(Array(s)) .- Array(t) ./ β
-    @test axes(conjdiff) == axes(s)
+    @test Array(conjdiff) ≈ conj.(Array(s)) .- conj.(Array(t)) ./ β
+    @test axes(conjdiff) == map(dual, axes(s))
+
+    # Mixing a conjugated and a non-conjugated operand dualizes only some axes, so the
+    # sectors no longer match.
+    @test_throws DimensionMismatch conj.(s) .- t ./ β
 
     @test_throws ArgumentError s .* t
     @test_throws ArgumentError exp.(s)

@@ -160,7 +160,12 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain,
         α::Number, β::Number
     )
-    check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
+    # `conj` is the dualizing conjugation: route through `Base.conj`, which dualizes the
+    # sectors and carries the fermion reversal phase (a bare block-data `conj` would drop
+    # it), then permute with `identity`.
+    op === conj &&
+        return bipermutedimsopadd!(y, identity, conj(x), perm_codomain, perm_domain, α, β)
+    check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
     phase = fermion_permutation_phase(sector(x), (perm_codomain..., perm_domain...))
     bipermutedimsopadd!(
         data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
@@ -173,7 +178,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}
-    check_input(bipermutedimsopadd!, y, x, perm_codomain, perm_domain)
+    check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
     # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
     # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
     # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent

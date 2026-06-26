@@ -27,16 +27,21 @@ end
 broadcasted_data(a::AbstractSectorArray) = data(a)
 broadcasted_data(x) = x
 
-# Extract and validate the common sector factor across all sector array arguments.
-function broadcasted_sector(bc::BC.Broadcasted{<:SectorStyle})
-    bc′ = BC.flatten(bc)
-    sector_args = filter(arg -> arg isa AbstractSectorArray, bc′.args)
-    isempty(sector_args) &&
+# Extract and validate the common sector factor, threading the one axis-changing op
+# through the broadcast tree: `conj` dualizes a sector (every other linear op leaves it
+# intact). Walking the un-flattened tree is what makes this op-aware — `conj.(x)` dualizes,
+# so a broadcast that conjugates some operands but not others has mismatched axes and is
+# rejected here as a sector mismatch (e.g. `conj.(s) .- t` is ill-formed; `conj.(s) .- conj.(t)`
+# is fine).
+broadcasted_sector(::Any) = nothing
+broadcasted_sector(a::AbstractSectorArray) = sector(a)
+function broadcasted_sector(bc::BC.Broadcasted)
+    sects = filter(!isnothing, map(broadcasted_sector, bc.args))
+    isempty(sects) &&
         throw(ArgumentError("No AbstractSectorArray found in broadcast"))
-    sects = sector.(sector_args)
     s = first(sects)
     all(==(s), sects) || throw(DimensionMismatch("sector mismatch in broadcast"))
-    return s
+    return bc.f === conj ? conj(s) : s
 end
 
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
