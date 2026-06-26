@@ -333,30 +333,16 @@ end
 
 @testset "contract 4D AbelianGradedArray" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
-    a = AbelianGradedArray{Float64}(undef, g, g, dual(g), dual(g))
-    b = AbelianGradedArray{Float64}(undef, g, g, dual(g), dual(g))
+    a = randn(g, g, dual(g), dual(g))
+    b = randn(g, g, dual(g), dual(g))
 
-    a_data = randn!(Array{Float64}(undef, 2, 2, 2, 2))
-    a[Block(1, 1, 1, 1)] = AbelianSectorArray(
-        (U1(0), U1(0), dual(U1(0)), dual(U1(0))), a_data
-    )
-    b_data = randn!(Array{Float64}(undef, 2, 2, 2, 2))
-    b[Block(1, 1, 1, 1)] = AbelianSectorArray(
-        (U1(0), U1(0), dual(U1(0)), dual(U1(0))), b_data
-    )
-
-    # Contract: a[1, -1, 2, -2] * b[2, -3, 1, -4]
-    # This permutes + contracts
+    # Contract: a[1, -1, 2, -2] * b[2, -3, 1, -4] (permutes + contracts).
     result, dimnames = contract(a, (1, -1, 2, -2), b, (2, -3, 1, -4))
     @test result isa AbelianGradedArray
 
-    # Verify against dense
-    a_dense = zeros(5, 5, 5, 5)
-    a_dense[1:2, 1:2, 1:2, 1:2] = a_data
-    b_dense = zeros(5, 5, 5, 5)
-    b_dense[1:2, 1:2, 1:2, 1:2] = b_data
-    result_dense, _ = contract(a_dense, (1, -1, 2, -2), b_dense, (2, -3, 1, -4))
-    @test size(result) == size(result_dense)
+    # Verify numerics against the dense contraction of the same data.
+    result_dense, _ = contract(Array(a), (1, -1, 2, -2), Array(b), (2, -3, 1, -4))
+    @test Array(result) ≈ result_dense
 end
 
 @testset "scale! with β=0 zeros uninitialized blocks" begin
