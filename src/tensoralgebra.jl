@@ -160,13 +160,18 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain,
         α::Number, β::Number
     )
-    # `conj` is the dualizing conjugation: route through `Base.conj`, which dualizes the
-    # sectors and carries the fermion reversal phase (a bare block-data `conj` would drop
-    # it), then permute with `identity`.
-    op === conj &&
-        return bipermutedimsopadd!(y, identity, conj(x), perm_codomain, perm_domain, α, β)
     check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
     phase = fermion_permutation_phase(sector(x), (perm_codomain..., perm_domain...))
+    # `op === conj` is the dualizing ket->bra involution. The inner call already conjugates
+    # the data, and `check_input` already requires `y` to carry the dualized axes. The one
+    # remaining piece is the leg-reversal fermion phase (`-1` on odd-parity fermionic legs,
+    # `+1` otherwise) that a bare data `conj` drops. Fold it into `phase` so the conjugation
+    # rides the single fused permute-add pass instead of materializing a conjugated copy of
+    # `x`.
+    if op === conj
+        rev = reverse(ntuple(identity, ndims(x)))
+        phase *= fermion_permutation_phase(sector(x), rev)
+    end
     bipermutedimsopadd!(
         data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
     )

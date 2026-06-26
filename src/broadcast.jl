@@ -27,12 +27,17 @@ end
 broadcasted_data(a::AbstractSectorArray) = data(a)
 broadcasted_data(x) = x
 
+# Map a broadcast function to its action on the sector: `conj` dualizes the sector, every
+# other function leaves it intact. Only `conj` changes the selection rule, so the arithmetic
+# nodes (`+`, `-`, `*`, `/`) and `identity` all map to `identity` here.
+sector_op(::typeof(conj)) = conj
+sector_op(::Any) = identity
+
 # Extract and validate the common sector factor, threading the one axis-changing op
-# through the broadcast tree: `conj` dualizes a sector (every other linear op leaves it
-# intact). Walking the un-flattened tree is what makes this op-aware — `conj.(x)` dualizes,
-# so a broadcast that conjugates some operands but not others has mismatched axes and is
-# rejected here as a sector mismatch (e.g. `conj.(s) .- t` is ill-formed; `conj.(s) .- conj.(t)`
-# is fine).
+# through the broadcast tree. Walking the un-flattened tree is what makes this op-aware —
+# `conj.(x)` dualizes, so a broadcast that conjugates some operands but not others has
+# mismatched axes and is rejected here as a sector mismatch (e.g. `conj.(s) .- t` is
+# ill-formed; `conj.(s) .- conj.(t)` is fine).
 broadcasted_sector(::Any) = nothing
 broadcasted_sector(a::AbstractSectorArray) = sector(a)
 function broadcasted_sector(bc::BC.Broadcasted)
@@ -41,7 +46,7 @@ function broadcasted_sector(bc::BC.Broadcasted)
         throw(ArgumentError("No AbstractSectorArray found in broadcast"))
     s = first(sects)
     all(==(s), sects) || throw(DimensionMismatch("sector mismatch in broadcast"))
-    return bc.f === conj ? conj(s) : s
+    return sector_op(bc.f)(s)
 end
 
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
