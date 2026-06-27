@@ -30,7 +30,3 @@ function Base.permutedims(a::SectorIdentity, perm)
     perm == ntuple(identity, ndims(a)) && return a
     return SectorIdentity{eltype(a)}(dual(a.sector))
 end
-
-# Dualize both axes: `axes` is `(sector, dual(sector))`, so the conjugate identity
-# stores `conj(sector)`. See `Base.conj(::AbelianSectorDelta)`.
-Base.conj(a::SectorIdentity{T}) where {T} = SectorIdentity{T}(conj(a.sector))

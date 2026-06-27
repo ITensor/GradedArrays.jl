@@ -209,6 +209,24 @@ end
     @test conj(AbelianSectorArray((u1, u1), fill(1.0 + 2.0im, 1, 1)))[1, 1] ≈ 1.0 - 2.0im
 end
 
+@testset "conj broadcast matches conj on fermionic AbelianSectorArray" begin
+    # `conj.(a)` must carry the same fermionic reversal phase as `conj(a)`. The two
+    # odd legs make that phase -1, so a broadcast that dropped it would disagree here.
+    sa = AbelianSectorArray((fP1, fP1), fill(1.0 + 2.0im, 1, 1))
+    @test conj.(sa)[1, 1] ≈ conj(sa)[1, 1]
+    @test sectoraxes(conj.(sa)) == sectoraxes(conj(sa))
+
+    # Three odd legs: reverse has an odd number of odd-odd inversions → -1.
+    sa3 = AbelianSectorArray((fP1, fP1, fP1), fill(2.0, 1, 1, 1))
+    @test conj.(sa3)[1, 1, 1] ≈ conj(sa3)[1, 1, 1]
+    @test sectoraxes(conj.(sa3)) == sectoraxes(conj(sa3))
+
+    # Mixed parity: single odd leg → no phase, but axes still dualize.
+    sa_mix = AbelianSectorArray((fP0, fP1), fill(3.0, 1, 1))
+    @test conj.(sa_mix)[1, 1] ≈ conj(sa_mix)[1, 1]
+    @test sectoraxes(conj.(sa_mix)) == sectoraxes(conj(sa_mix))
+end
+
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
 # For all-odd blocks, the total phase from permutation + matricize twist is -1,

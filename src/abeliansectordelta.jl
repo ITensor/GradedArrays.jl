@@ -32,15 +32,6 @@ isdual(x, d::Int) = isdual(axes(x, d))
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
 sectortype(::Type{<:AbelianSectorDelta{T, N, S}}) where {T, N, S} = S
 
-# ========================  conj  ========================
-
-# Structural part of the ket->bra involution: dualize every axis. The data-side
-# conjugation and fermionic reversal phase live in `Base.conj(::AbelianSectorArray)`;
-# here only the selection rule (which lives in the axes) is conjugated.
-function Base.conj(x::AbelianSectorDelta{T}) where {T}
-    return AbelianSectorDelta{T}(map(conj, x.sectors))
-end
-
 # ========================  permutedims  ========================
 
 function Base.permutedims(x::AbelianSectorDelta, perm)
