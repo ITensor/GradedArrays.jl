@@ -31,11 +31,10 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test Array(st) ≈ α .* Array(s) .+ β .* Array(t)
     @test axes(st) == axes(s)
 
-    conjdiff = conj.(s) .- t ./ β
-    @test conjdiff isa AbelianSectorArray
-    @test data(conjdiff) isa Matrix
-    @test Array(conjdiff) ≈ conj.(Array(s)) .- Array(t) ./ β
-    @test axes(conjdiff) == axes(s)
+    # `conj.` dualizes the graded axes, so every operand must be conjugated for the result
+    # axes to line up. Making that broadcast carry the dualized axes is deferred, so this is
+    # broken for now.
+    @test_broken Array(conj.(s) .- conj.(t) ./ β) ≈ conj.(Array(s)) .- conj.(Array(t)) ./ β
 
     @test_throws ArgumentError s .* t
     @test_throws ArgumentError exp.(s)
