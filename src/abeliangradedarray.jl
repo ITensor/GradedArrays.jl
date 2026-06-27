@@ -540,6 +540,27 @@ function Base.sum(a::AbelianGradedArray)
     return s
 end
 
+# `maximum`/`minimum` fold over the stored blocks, but unlike `sum` they must also see the
+# implicit zeros from forbidden and allowed-but-unstored blocks: those zeros are real
+# elements, so unless every block is stored (`blockstoredlength == blocklength`) the
+# reduction folds in `f(0)` (this is what makes `maximum(abs, a)` and `minimum(a)` correct
+# on sign-definite data). Reductions over opaque block storage would otherwise scalar-index
+# it and error.
+function Base.maximum(f, a::AbelianGradedArray)
+    blocks = values(a.blockdata)
+    m = isempty(blocks) ? f(zero(eltype(a))) : maximum(b -> maximum(f, b), blocks)
+    return blockstoredlength(a) == blocklength(a) ? m : max(m, f(zero(eltype(a))))
+end
+function Base.minimum(f, a::AbelianGradedArray)
+    blocks = values(a.blockdata)
+    m = isempty(blocks) ? f(zero(eltype(a))) : minimum(b -> minimum(f, b), blocks)
+    return blockstoredlength(a) == blocklength(a) ? m : min(m, f(zero(eltype(a))))
+end
+Base.maximum(a::AbelianGradedArray) = maximum(identity, a)
+Base.minimum(a::AbelianGradedArray) = minimum(identity, a)
+Base.extrema(a::AbelianGradedArray) = extrema(identity, a)
+Base.extrema(f, a::AbelianGradedArray) = (minimum(f, a), maximum(f, a))
+
 # Scalar `*` / `/` are inherited from Base's `AbstractArray`-scalar methods, which
 # forward to broadcasting (`a .* x` / `a ./ x`). `AbelianGradedArray` supports the
 # linear-broadcast path, so no dedicated overrides are needed here.
@@ -696,4 +717,10 @@ function Base.getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
     return TensorAlgebra.checked_projectto!(
         similar(a_reshaped, eltype(a), dest_axes), a_reshaped
     )
+end
+# Disambiguate the single-axis case for a concrete `Array`: `Base.getindex(::Array,
+# ::AbstractUnitRange{<:Integer})` and the projection method above are otherwise equally
+# specific, so `dense[graded_axis]` (e.g. building a one-leg graded tensor) is ambiguous.
+function Base.getindex(a::Array, ax1::GradedOneTo)
+    return invoke(getindex, Tuple{AbstractArray, GradedOneTo, Vararg{GradedOneTo}}, a, ax1)
 end
