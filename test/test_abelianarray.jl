@@ -546,6 +546,14 @@ end
     a3 = src[g, dual(g), aux]
     @test a3 isa AbelianGradedArray{Float64, 3}
     @test size(a3) == (5, 5, 1)
+
+    # A single graded axis is disambiguated against `Base.getindex(::Array,
+    # ::AbstractUnitRange)`, so a one-leg graded tensor can be built from a dense vector.
+    vsrc = zeros(5)
+    vsrc[1:2] .= randn(2)              # weight only in the trivial (U1(0)) block
+    av = vsrc[g]
+    @test av isa AbelianGradedArray{Float64, 1}
+    @test Array(av) ≈ vsrc
 end
 
 @testset "dot" begin
@@ -568,4 +576,25 @@ end
     a = AbelianGradedArray{ComplexF64}(undef, g, dual(g))
     Random.randn!(a)
     @test sum(a) ≈ sum(Array(a))
+end
+
+@testset "maximum / minimum / extrema" begin
+    # Forbidden and allowed-but-unstored blocks are zeros that the reductions must see, so
+    # they agree with the dense array (which includes those zeros).
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    Random.randn!(a)
+    @test maximum(a) == maximum(Array(a))
+    @test minimum(a) == minimum(Array(a))
+    @test maximum(abs, a) == maximum(abs, Array(a))
+    @test minimum(abs, a) == minimum(abs, Array(a))
+    @test extrema(a) == extrema(Array(a))
+    @test extrema(abs, a) == extrema(abs, Array(a))
+
+    # When every element lives in a stored block there is no implicit zero to fold in, so a
+    # sign-definite array keeps its sign.
+    h = gradedrange([U1(1) => 2])
+    c = fill(-1.0, 2, 2)[h, dual(h)]
+    @test maximum(c) == -1.0
+    @test maximum(c) == maximum(Array(c))
 end
