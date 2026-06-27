@@ -258,6 +258,16 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test to_dense(a) ≈ a_dense_before
     end
 
+    @testset "conj broadcast on all-odd GradedArray matches conj" begin
+        a = randn_blockdiagonal(elt, (r_odd, dual(r_odd)))
+        cb = conj.(a)
+        # Broadcast `conj` dualizes the axes and carries the fermionic reversal phase,
+        # so it agrees with `conj(a)` rather than dropping the sign.
+        @test to_dense(cb) ≈ to_dense(conj(a))
+        @test isdual(axes(cb, 1)) == !isdual(axes(a, 1))
+        @test isdual(axes(cb, 2)) == !isdual(axes(a, 2))
+    end
+
     @testset "matrix-matrix contraction" begin
         for r1 in (r_odd, dual(r_odd)),
                 r2 in (r_odd, dual(r_odd)),

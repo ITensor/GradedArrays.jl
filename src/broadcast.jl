@@ -94,12 +94,29 @@ function BC.BroadcastStyle(
 end
 BC.BroadcastStyle(s1::GradedStyle{N}, ::GradedStyle{N}) where {N} = s1
 
+# Determine the axes the broadcast result should carry, threading `conj` (which dualizes the
+# graded axes) through the tree exactly as `broadcasted_sector` does for `SectorStyle`. This
+# makes `similar` op-aware: `conj.(a)` gets dualized axes, and a broadcast that conjugates only
+# some operands such as `conj.(a) .- b` is rejected as an axes mismatch.
+axes_op(::typeof(conj)) = Base.Fix1(map, conj)
+axes_op(::Any) = identity
+
+broadcasted_gradedaxes(::Any) = nothing
+broadcasted_gradedaxes(a::AbstractGradedArray) = axes(a)
+function broadcasted_gradedaxes(bc::BC.Broadcasted)
+    axs = filter(!isnothing, map(broadcasted_gradedaxes, bc.args))
+    isempty(axs) && throw(ArgumentError("No AbstractGradedArray found in broadcast"))
+    ax = first(axs)
+    all(==(ax), axs) || throw(DimensionMismatch("axes mismatch in broadcast"))
+    return axes_op(bc.f)(ax)
+end
+
 # TODO: Ideally this would incorporate information from all broadcast arguments
 # (or their blocktypes) when computing similar, rather than picking one argument.
 function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbstractGradedArray, bc′.args)]
-    return similar(arg, elt)
+    return similar(arg, elt, broadcasted_gradedaxes(bc))
 end
 
 function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:GradedStyle})
