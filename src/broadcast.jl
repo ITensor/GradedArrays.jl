@@ -30,18 +30,18 @@ broadcasted_data(x) = x
 # Map a broadcast function to its action on the sector: `conj` dualizes the sector axes,
 # every other function leaves them intact. Only `conj` changes the selection rule, so the
 # arithmetic nodes (`+`, `-`, `*`, `/`) and `identity` all map to `identity` here.
-sector_op(::typeof(conj)) = dualize_sector
+sector_op(::typeof(conj)) = sector_conj
 sector_op(::Any) = identity
 
-# Dualize the axes of a structural factor by conjugating its per-axis sectors. This is the
-# sign-free part of `conj`: a structural factor's stored value is always `one(T)`, so it
-# cannot represent the fermionic reversal sign that a full `conj` carries. That sign (and the
-# data conjugation) ride the data side via `op = conj` through `bipermutedimsopadd!`, so here
-# we only flip the axis dualities.
-function dualize_sector(s::AbelianSectorDelta{T}) where {T}
+# Conjugate the sector (structural) part of a factor by dualizing its per-axis sectors. This
+# is the sign-free part of `conj`: a structural factor's stored value is always `one(T)`, so
+# it cannot represent the fermionic reversal sign that a full `conj` carries. That sign (and
+# the data conjugation) ride the data side via `op = conj` through `bipermutedimsopadd!`, so
+# here we only flip the axis dualities.
+function sector_conj(s::AbelianSectorDelta{T}) where {T}
     return AbelianSectorDelta{T}(map(conj, s.sectors))
 end
-dualize_sector(s::SectorIdentity{T}) where {T} = SectorIdentity{T}(conj(s.sector))
+sector_conj(s::SectorIdentity{T}) where {T} = SectorIdentity{T}(conj(s.sector))
 
 # Extract and validate the common sector factor, threading the one axis-changing op
 # through the broadcast tree. Walking the un-flattened tree is what makes this op-aware —
