@@ -10,11 +10,6 @@ TensorAlgebra.FusionStyle(::Type{<:AbstractSectorArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:AbstractGradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorOneTo}) = SectorFusion()
 
-# Fusion style for matricizing block-structured arrays by reshaping their block storage.
-# GradedArrays owns this style (defining its own `matricize` / `unmatricize` on it for graded
-# arrays below); it used to be provided by TensorAlgebra's BlockArrays extension.
-struct BlockReshapeFusion <: FusionStyle end
-
 # ========================  trivial_gradedrange  ========================
 
 function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
@@ -61,48 +56,43 @@ function TensorAlgebra.matricize(
     return sector_kron(asectors_reshaped, adata_reshaped)
 end
 
-# ========================  BlockReshapeFusion AbelianGradedArray matricize  ========================
-
-function TensorAlgebra.matricize(
-        ::BlockReshapeFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
-    ) where {T, N, K}
-    ax_2d = unmerged_matricize_axes(bipartition(axes(a), ndims_codomain)...)
-    # `similar` allocates every allowed 2D block; the loop below only writes
-    # those coming from stored blocks of `a`. For a sparse input, allowed
-    # destination blocks with no source counterpart stay at their initial
-    # value, so we must explicitly zero them.
-    a_2d = zero!(similar(a, ax_2d))
-
-    codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
-    domain_nblocks = Tuple(blocklength.(axes(a)[(K + 1):N]))
-    cod_cart = CartesianIndices(codomain_nblocks)
-    dom_cart = CartesianIndices(domain_nblocks)
-
-    for bI_src in eachblockstoredindex(a)
-        src = Tuple(bI_src)
-        ci_cod = ntuple(i -> Int(src[i]), Val(K))
-        ci_dom = ntuple(i -> Int(src[K + i]), Val(N - K))
-
-        row_block = LinearIndices(cod_cart)[ci_cod...]
-        col_block = LinearIndices(dom_cart)[ci_dom...]
-
-        src_block = a[bI_src]
-        dest_block = matricize(src_block, ndims_codomain)
-
-        a_2d[Block(row_block, col_block)] = dest_block
-    end
-
-    return a_2d
-end
-
 # ========================  SectorFusion AbelianGradedArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbelianGradedArray, ndims_codomain::Val{K}
-    ) where {K}
-    a_reshaped = matricize(BlockReshapeFusion(), a, ndims_codomain)
-    a_merged = sectormergesort(a_reshaped)
-    return FusedGradedMatrix(a_merged)
+        ::SectorFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
+    ) where {T, N, K}
+    # Gather the stored blocks straight into the sector-merged `FusedGradedMatrix`, rather
+    # than materializing the unmerged 2D block array and sector-merging it as a second pass.
+    unfused_row, unfused_col =
+        unmerged_matricize_axes(bipartition(axes(a), ndims_codomain)...)
+    merged_row = sectormergesort(unfused_row)
+    merged_col = sectormergesort(unfused_col)
+    # Where each unmerged block lands inside its merged block: `Block(j)[subrange]`.
+    row_dest = invblockmergeperm(unfused_row, sectorsortperm(unfused_row), merged_row)
+    col_dest = invblockmergeperm(unfused_col, sectorsortperm(unfused_col), merged_col)
+
+    S = sectortype(a)
+    codomain = Dictionary{S, Int}(eachsectoraxis(merged_row), datalengths(merged_row))
+    domain = Dictionary{S, Int}(dual.(eachsectoraxis(merged_col)), datalengths(merged_col))
+    m = FusedGradedMatrix{T}(undef, codomain, domain)
+    # `undef` leaves the per-sector blocks uninitialized; unmerged blocks with no stored
+    # source must read back as zero, so zero every block before scattering.
+    foreach(b -> fill!(b, zero(T)), m.blocks)
+
+    cod_lin = LinearIndices(Tuple(blocklength.(axes(a)[1:K])))
+    dom_lin = LinearIndices(Tuple(blocklength.(axes(a)[(K + 1):N])))
+    merged_row_sectors = eachsectoraxis(merged_row)
+    for bI_src in eachblockstoredindex(a)
+        src = Tuple(bI_src)
+        row_fine = cod_lin[ntuple(i -> Int(src[i]), Val(K))...]
+        col_fine = dom_lin[ntuple(i -> Int(src[K + i]), Val(N - K))...]
+        row_bir = row_dest[row_fine]
+        col_bir = col_dest[col_fine]
+        s = merged_row_sectors[Int(Block(row_bir))]
+        block_2d = matricize(a[bI_src], ndims_codomain)
+        m.blocks[s][only(row_bir.indices), only(col_bir.indices)] = data(block_2d)
+    end
+    return m
 end
 
 # ========================  AbelianGradedArray unmatricize  ========================
@@ -136,40 +126,6 @@ function TensorAlgebra.unmatricize(
     return AbelianSectorArray(msectors, mdata)
 end
 
-# ========================  BlockReshapeFusion AbelianGradedArray unmatricize  ========================
-
-function TensorAlgebra.unmatricize(
-        ::BlockReshapeFusion, m::AbelianGradedMatrix,
-        codomain_axes::Tuple{Vararg{GradedOneTo}},
-        domain_axes::Tuple{Vararg{GradedOneTo}}
-    )
-    K = length(codomain_axes)
-    N = K + length(domain_axes)
-    dest_axes = (codomain_axes..., domain_axes...)
-    # `similar` allocates every allowed N-D block; the loop only writes those
-    # coming from stored 2D blocks of `m`. For a sparse input, allowed
-    # destination blocks with no source counterpart must be explicitly
-    # zeroed.
-    a = zero!(similar(m, dest_axes))
-
-    cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
-    dom_cart = CartesianIndices(Tuple(map(blocklength, domain_axes)))
-
-    for bI_src in eachblockstoredindex(m)
-        row_block = Int(Tuple(bI_src)[1])
-        col_block = Int(Tuple(bI_src)[2])
-        dest_bk = (Tuple(cod_cart[row_block])..., Tuple(dom_cart[col_block])...)
-
-        src_block = m[bI_src]
-        dest_sects = ntuple(d -> eachsectoraxis(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_block = AbelianSectorArray(dest_sects, reshape(data(src_block), dest_dims))
-        a[Block(dest_bk...)] = dest_block
-    end
-
-    return a
-end
-
 # ========================  SectorFusion FusedGradedMatrix unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
@@ -186,21 +142,39 @@ function TensorAlgebra.unmatricize(
         haskey(m.blocks, triv) && (a[] = m.blocks[triv][1, 1])
         return a
     end
-    # Compute the unfused 2D axes the N-D blocked axes produce, then their
-    # sector-merged form (the axes matricize would have produced).
-    unfused_axes = unmerged_matricize_axes(codomain_axes, domain_axes)
-    merged_cod = sectormergesort(unfused_axes[1])
-    merged_dom = sectormergesort(unfused_axes[2])
-    # Embed `m` into an `AbelianGradedMatrix` with those merged axes (sectors
-    # in `merged_*` but not in `m.sectors` simply land as unstored blocks).
-    m_abelian = similar(m, (merged_cod, merged_dom))
-    for I in eachblockstoredindex(m)
-        m_abelian[Data(I)] = data(view(m, I))
+    # Scatter each merged sector block of `m` straight into the N-D destination blocks,
+    # the inverse of the `matricize` gather: each destination block reads a `[rows, cols]`
+    # subrange of its coupled sector's matrix and reshapes it into the N-D block shape.
+    T = eltype(m)
+    K = length(codomain_axes)
+    N = K + length(domain_axes)
+    dest_axes = (codomain_axes..., domain_axes...)
+    unfused_row, unfused_col = unmerged_matricize_axes(codomain_axes, domain_axes)
+    merged_row = sectormergesort(unfused_row)
+    merged_col = sectormergesort(unfused_col)
+    row_dest = invblockmergeperm(unfused_row, sectorsortperm(unfused_row), merged_row)
+    col_dest = invblockmergeperm(unfused_col, sectorsortperm(unfused_col), merged_col)
+    merged_row_sectors = eachsectoraxis(merged_row)
+
+    # `undef` allocates every allowed N-D block; blocks whose coupled sector is unstored
+    # in `m` have no source and must read back as zero.
+    a = zero!(AbelianGradedArray{T}(undef, dest_axes))
+    cod_lin = LinearIndices(Tuple(map(blocklength, codomain_axes)))
+    dom_lin = LinearIndices(Tuple(map(blocklength, domain_axes)))
+    for bI in eachblockstoredindex(a)
+        dest_bk = Int.(Tuple(bI))
+        row_fine = cod_lin[ntuple(i -> dest_bk[i], Val(K))...]
+        col_fine = dom_lin[ntuple(i -> dest_bk[K + i], Val(N - K))...]
+        row_bir = row_dest[row_fine]
+        col_bir = col_dest[col_fine]
+        s = merged_row_sectors[Int(Block(row_bir))]
+        haskey(m.blocks, s) || continue
+        sub = m.blocks[s][only(row_bir.indices), only(col_bir.indices)]
+        dest_sects = ntuple(d -> eachsectoraxis(dest_axes[d])[dest_bk[d]], Val(N))
+        dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
+        a[bI] = AbelianSectorArray(dest_sects, reshape(sub, dest_dims))
     end
-    blockperms = sectorsortperm.(unfused_axes)
-    J = map(invblockmergeperm, unfused_axes, blockperms, axes(m_abelian))
-    m_split = m_abelian[J...]
-    return unmatricize(BlockReshapeFusion(), m_split, codomain_axes, domain_axes)
+    return a
 end
 
 # ========================  Allowed block keys  ========================

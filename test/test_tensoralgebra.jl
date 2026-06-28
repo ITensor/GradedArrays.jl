@@ -173,7 +173,7 @@ end
     @test eachsectoraxis(axes(a_matrix, 1)) == dual.(eachsectoraxis(axes(a_matrix, 2)))
 end
 
-@testset "sectormergesort on reshaped AbelianGradedMatrix preserves canonical pairing" begin
+@testset "matricize AbelianGradedMatrix preserves canonical sector pairing" begin
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
     a = AbelianGradedArray{Float64}(undef, g1, g2)
@@ -183,14 +183,13 @@ end
     a[Block(1, 1)] = AbelianSectorArray((U1(0), U1(0)), block_11)
     a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_22)
 
-    a_reshaped = matricize(GradedArrays.BlockReshapeFusion(), a, Val(1))
-    a_merged = sectormergesort(a_reshaped)
-
-    @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]
-    @test eachsectoraxis(axes(a_merged, 1)) == dual.(eachsectoraxis(axes(a_merged, 2)))
-    @test collect(eachblockstoredindex(a_merged)) == [Block(1, 1), Block(2, 2)]
-    @test Array(a_merged[Block(1, 1)]) ≈ block_11
-    @test Array(a_merged[Block(2, 2)]) ≈ block_22
+    fsm = matricize(a, (1,), (2,))
+    @test fsm isa FusedGradedMatrix{Float64}
+    # Each stored N-D block lands in the coupled sector pairing its row charge with
+    # the dual of its column charge: (U1(0), U1(0)) → U1(0), (U1(1), U1(-1)) → U1(1).
+    @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
+    @test data(fsm[Block(1, 1)]) ≈ block_11
+    @test data(fsm[Block(2, 2)]) ≈ block_22
 end
 
 @testset "matricize 4D AbelianGradedArray → FusedGradedMatrix" begin
