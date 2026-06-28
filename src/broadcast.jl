@@ -12,13 +12,13 @@ BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = 
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 
 # `SectorMatrix` and `SectorIdentity` are fused single-sector blocks whose row (codomain) and
-# column (domain) axes are structurally constrained, so broadcasting on them is unsupported.
-# Blocks are written into a graded array with `copyto!` rather than broadcast assignment.
+# column (domain) axes are structurally constrained, so the broadcasting implementation is
+# more subtle and not supported yet.
 function BC.BroadcastStyle(::Type{<:SectorMatrix})
-    return throw(ArgumentError("broadcasting on `SectorMatrix` is not supported"))
+    return throw(ArgumentError("broadcasting on `SectorMatrix` is not supported yet"))
 end
 function BC.BroadcastStyle(::Type{<:SectorIdentity})
-    return throw(ArgumentError("broadcasting on `SectorIdentity` is not supported"))
+    return throw(ArgumentError("broadcasting on `SectorIdentity` is not supported yet"))
 end
 
 # Only linear broadcasts are supported, so allocate from the flattened linear expression's
