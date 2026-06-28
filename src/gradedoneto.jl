@@ -184,6 +184,15 @@ function Base.isequal(a::GradedOneTo, b::GradedOneTo)
         isequal(isdual(a), isdual(b))
 end
 Base.:(==)(a::GradedOneTo, b::GradedOneTo) = isequal(a, b)
+
+# Combining graded axes in a broadcast: graded arrays never mix mismatched blocking or
+# sectors, so the only valid combination is of equal axes, and the result is that axis.
+# This preserves the `GradedOneTo` type, which the generic `BlockArrays.combine_blockaxes`
+# would degrade to a plain blocked range (dropping the sectors and duality).
+function BlockArrays.combine_blockaxes(a::GradedOneTo, b::GradedOneTo)
+    a == b || throw(DimensionMismatch("cannot combine unequal graded axes: $a and $b"))
+    return a
+end
 function Base.hash(g::GradedOneTo, h::UInt)
     isempty(g.sectors) && return hash(GradedOneTo, h)
     return hash(g.sectors, hash(datalengths(g), hash(isdual(g), h)))

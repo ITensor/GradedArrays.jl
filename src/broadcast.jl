@@ -1,25 +1,13 @@
 using Base.Broadcast: Broadcast as BC
 
-# Axes of the broadcast result, taken from a representative leaf of the flattened linear
-# expression. A `conj` operand lowers to a `ConjArray` leaf whose axes are already dualized,
-# so this carries the dualization (and the graded block structure, which `combine_axes`
-# would degrade to a plain blocked range). Falls back to `fallback` for a non-linear tree.
-_conjarray_leaf(::Any) = nothing
-_conjarray_leaf(a::AbstractArray) = a
-function _conjarray_leaf(lb::TensorAlgebra.LinearBroadcasted)
-    for arg in TensorAlgebra.arguments(lb)
-        leaf = _conjarray_leaf(arg)
-        isnothing(leaf) || return leaf
-    end
-    return nothing
-end
-
-# Allocate the broadcast destination from a representative operand `arg`. Only `conj`
-# dualizes the axes; when the result axes match the operand's, use the plain `similar(arg,
-# elt)` (every sector/graded type supports it). The dualized 3-arg form is reserved for the
-# `conj` case, which only the data-carrying array types need to support.
+# Allocate the broadcast destination from a representative operand `arg`. The result axes
+# come from the flattened linear expression, where a `conj` operand is a `ConjArray` with
+# dualized axes. Only `conj` changes the axes; when they are unchanged, use the plain
+# `similar(arg, elt)` (every sector/graded type supports it), reserving the dualized 3-arg
+# form for the `conj` case, which only the data-carrying array types need to support.
 function similar_broadcast(bc::BC.Broadcasted, arg, elt::Type)
-    ax = axes(something(_conjarray_leaf(tryflattenlinear(bc)), arg))
+    lb = tryflattenlinear(bc)
+    ax = isnothing(lb) ? axes(arg) : axes(lb)
     return ax == axes(arg) ? similar(arg, elt) : similar(arg, elt, ax)
 end
 
