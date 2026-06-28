@@ -209,6 +209,29 @@ end
     @test conj(AbelianSectorArray((u1, u1), fill(1.0 + 2.0im, 1, 1)))[1, 1] ≈ 1.0 - 2.0im
 end
 
+@testset "conj broadcast on fermionic arrays (compound and graded)" begin
+    # `conj.` routes through the same `op = conj` path as eager `conj`, so it carries the
+    # fermionic reversal sign and dualizes the axes, and it composes inside larger broadcasts.
+    sa = AbelianSectorArray((fP1, fP1), fill(1.0 + 2.0im, 1, 1))
+    sb = AbelianSectorArray((fP1, fP1), fill(3.0 - 1.0im, 1, 1))
+    @test conj.(sa)[1, 1] ≈ conj(sa)[1, 1]
+    @test sectoraxes(conj.(sa)) == sectoraxes(conj(sa))
+    cs = conj.(sa) .- conj.(sb) ./ 2
+    @test cs[1, 1] ≈ conj(sa)[1, 1] - conj(sb)[1, 1] / 2
+    @test sectoraxes(cs) == sectoraxes(conj(sa))
+
+    # All-odd graded array: bare and compound conj broadcasts match the eager `conj`.
+    r_odd = gradedrange([fP1 => 2])
+    a = randn_blockdiagonal(ComplexF64, (r_odd, dual(r_odd)))
+    b = randn_blockdiagonal(ComplexF64, (r_odd, dual(r_odd)))
+    @test to_dense(conj.(a)) ≈ to_dense(conj(a))
+    @test isdual(axes(conj.(a), 1)) == !isdual(axes(a, 1))
+    @test to_dense(conj.(a) .+ conj.(b)) ≈ to_dense(conj(a)) .+ to_dense(conj(b))
+
+    # Half-conjugated broadcast: dualized axes against non-dual ones, rejected.
+    @test_throws DimensionMismatch conj.(a) .- b
+end
+
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
 # For all-odd blocks, the total phase from permutation + matricize twist is -1,

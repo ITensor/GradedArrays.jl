@@ -117,6 +117,7 @@ fermionparity(::TKS.AbstractIrrep) = false
 fermionparity(s::TKS.ProductSector) = mapreduce(fermionparity, ⊻, s.sectors)
 
 Base.conj(r1::SectorRange) = dual(r1)
+TensorAlgebra.conjaxis(r1::SectorRange) = conj(r1)
 
 # ===============================  Fusion rule interface  ==================================
 

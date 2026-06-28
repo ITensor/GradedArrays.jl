@@ -24,6 +24,10 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 [weakdeps]
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 
+[sources.TensorAlgebra]
+rev = "mf/conjarray"
+url = "https://github.com/ITensor/TensorAlgebra.jl"
+
 [extensions]
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"
 

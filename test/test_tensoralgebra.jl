@@ -31,10 +31,17 @@ using Test: @test, @test_broken, @test_throws, @testset
     @test Array(st) ≈ α .* Array(s) .+ β .* Array(t)
     @test axes(st) == axes(s)
 
-    # `conj.` dualizes the graded axes, so every operand must be conjugated for the result
-    # axes to line up. Making that broadcast carry the dualized axes is deferred, so this is
-    # broken for now.
-    @test_broken Array(conj.(s) .- conj.(t) ./ β) ≈ conj.(Array(s)) .- conj.(Array(t)) ./ β
+    # `conj.` lowers each operand to a `ConjArray` whose axes are dualized, so a
+    # fully-conjugated broadcast lines up and matches the eager result (bosonic here, so no
+    # fermion sign).
+    cst = conj.(s) .- conj.(t) ./ β
+    @test cst isa AbelianSectorArray
+    @test Array(cst) ≈ conj.(Array(s)) .- conj.(Array(t)) ./ β
+    @test sectoraxes(cst) == sectoraxes(conj(s))
+    @test Array(conj.(s)) ≈ conj(Array(s))
+
+    # Conjugating only some operands leaves dualized axes against non-dual ones: rejected.
+    @test_throws DimensionMismatch conj.(s) .- t
 
     @test_throws ArgumentError s .* t
     @test_throws ArgumentError exp.(s)

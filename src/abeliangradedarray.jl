@@ -312,20 +312,12 @@ function Base.copyto!(
     return dest
 end
 
-# Conjugate element-wise *and* flip axis duality, mirroring `Base.conj` on the
-# axis types (`SectorRange`/`GradedOneTo`/`SectorOneTo`). Without the axis flip,
-# `conj(t)` would leave bra-layer tensors with the same duality as the ket, and
-# any contraction between them would silently pair non-dual against non-dual.
-# Delegate per block to `conj(::AbelianSectorArray)`, which carries the fermionic
-# reversal phase that a bare block-wise data conjugation would drop.
-function Base.conj(a::AbelianGradedArray{T, N, D, S}) where {T, N, D, S}
-    return AbelianGradedArray{T, N, D, S}(
-        Dict{NTuple{N, Int}, D}(
-            k => data(conj(view(a, Block(k...)))) for k in keys(a.blockdata)
-        ),
-        map(conj, a.axes)
-    )
-end
+# Route eager `conj` through the lazy conjugating broadcast so there is a single
+# implementation: `conj.` lowers to a `ConjArray` (dualizing the axes) and materializes via
+# `bipermutedimsopadd!` with `op = conj`, which carries the fermionic reversal phase. This
+# also overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit, so a real-eltype
+# graded array still dualizes its axes.
+Base.conj(a::AbelianGradedArray) = conj.(a)
 
 # ---------------------------------------------------------------------------
 #  sectortype

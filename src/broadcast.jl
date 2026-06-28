@@ -1,11 +1,29 @@
 using Base.Broadcast: Broadcast as BC
 
+# Axes of the broadcast result, taken from a representative leaf of the flattened linear
+# expression. A `conj` operand lowers to a `ConjArray` leaf whose axes are already dualized,
+# so this carries the dualization (and the graded block structure, which `combine_axes`
+# would degrade to a plain blocked range). Falls back to `fallback` for a non-linear tree.
+_conjarray_leaf(::Any) = nothing
+_conjarray_leaf(a::AbstractArray) = a
+function _conjarray_leaf(lb::TensorAlgebra.LinearBroadcasted)
+    for arg in TensorAlgebra.arguments(lb)
+        leaf = _conjarray_leaf(arg)
+        isnothing(leaf) || return leaf
+    end
+    return nothing
+end
+
+# Allocate the broadcast destination from a representative operand `arg`. Only `conj`
+# dualizes the axes; when the result axes match the operand's, use the plain `similar(arg,
+# elt)` (every sector/graded type supports it). The dualized 3-arg form is reserved for the
+# `conj` case, which only the data-carrying array types need to support.
+function similar_broadcast(bc::BC.Broadcasted, arg, elt::Type)
+    ax = axes(something(_conjarray_leaf(tryflattenlinear(bc)), arg))
+    return ax == axes(arg) ? similar(arg, elt) : similar(arg, elt, ax)
+end
+
 # ========================  SectorStyle broadcasting  ========================
-#
-# Decomposes broadcasts through the Kronecker structure (sector ⊗ data):
-# - broadcasted_data(bc) strips sector wrappers, rebuilds a plain broadcast on raw data
-# - broadcasted_sector(bc) extracts and validates the common sector factor
-# - similar recombines via sector_kron(broadcasted_sector, similar(broadcasted_data, elt))
 
 struct SectorStyle{N} <: BC.AbstractArrayStyle{N} end
 SectorStyle{N}(::Val{M}) where {N, M} = SectorStyle{M}()
@@ -18,30 +36,14 @@ BC.BroadcastStyle(style::SectorStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = 
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 
-# ---- Kronecker decomposition of broadcasts ----
-
-# Strip sector wrappers and rebuild a plain broadcast on raw data arrays.
-function broadcasted_data(bc::BC.Broadcasted{<:SectorStyle})
-    return BC.broadcasted(bc.f, broadcasted_data.(bc.args)...)
-end
-broadcasted_data(a::AbstractSectorArray) = data(a)
-broadcasted_data(x) = x
-
-# Extract and validate the common sector factor across all sector array arguments.
-function broadcasted_sector(bc::BC.Broadcasted{<:SectorStyle})
-    bc′ = BC.flatten(bc)
-    sector_args = filter(arg -> arg isa AbstractSectorArray, bc′.args)
-    isempty(sector_args) &&
-        throw(ArgumentError("No AbstractSectorArray found in broadcast"))
-    sects = sector.(sector_args)
-    s = first(sects)
-    all(==(s), sects) || throw(DimensionMismatch("sector mismatch in broadcast"))
-    return s
-end
-
+# Allocate from the flattened linear expression's axes: a `conj` operand lowers to a
+# `ConjArray` whose axes are already dualized, so the result axes (and the rejection of a
+# half-conjugated broadcast like `conj.(s) .- t`) fall out of the standard machinery rather
+# than needing the broadcast function threaded through by hand.
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
-    s = broadcasted_sector(bc)
-    return sector_kron(s, similar(broadcasted_data(bc), elt))
+    bc′ = BC.flatten(bc)
+    arg = bc′.args[findfirst(arg -> arg isa AbstractSectorArray, bc′.args)]
+    return similar_broadcast(bc, arg, elt)
 end
 
 function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:SectorStyle})
@@ -76,10 +78,12 @@ BC.BroadcastStyle(s1::GradedStyle{N}, ::GradedStyle{N}) where {N} = s1
 
 # TODO: Ideally this would incorporate information from all broadcast arguments
 # (or their blocktypes) when computing similar, rather than picking one argument.
+# The axes come from the flattened linear expression so a `conj` operand (lowered to a
+# `ConjArray` with dualized axes) gives the result dualized axes for free.
 function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbstractGradedArray, bc′.args)]
-    return similar(arg, elt)
+    return similar_broadcast(bc, arg, elt)
 end
 
 function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:GradedStyle})
