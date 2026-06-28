@@ -259,3 +259,13 @@ function gradedrange(
     g = GradedOneTo(ss, ms)
     return d ? dual(g) : g
 end
+
+# Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
+# `to_range([U1(0) => 2, U1(1) => 3])`. Defined over each key type separately
+# rather than a `Union` so each method stays specific enough not to capture
+# unrelated `Pair` vectors.
+for S in (:(TKS.Sector), :SectorRange)
+    @eval function TensorAlgebra.to_range(space::AbstractVector{<:Pair{<:$S, <:Integer}})
+        return gradedrange(space)
+    end
+end

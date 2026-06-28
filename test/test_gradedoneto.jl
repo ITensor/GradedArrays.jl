@@ -1,6 +1,7 @@
 using BlockArrays: blocklength
 using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorRange, U1, datalengths, dual,
-    flip, gradedrange, isdual, sectors, sectortype, tensor_product
+    flip, gradedrange, isdual, label, sectors, sectortype, tensor_product
+using TensorAlgebra: TensorAlgebra
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -211,5 +212,22 @@ using Test: @test, @test_throws, @testset
         tp = tensor_product(g, g)
         @test tp isa GradedOneTo
         @test !isdual(tp)
+    end
+
+    @testset "to_range from SectorRange keys" begin
+        g = TensorAlgebra.to_range([U1(0) => 2, U1(1) => 3])
+        @test g isa GradedOneTo{U1}
+        @test g == gradedrange([U1(0) => 2, U1(1) => 3])
+    end
+
+    @testset "to_range from bare Sector keys" begin
+        g = TensorAlgebra.to_range([label(U1(0)) => 2, label(U1(1)) => 3])
+        @test g isa GradedOneTo{U1}
+        @test g == gradedrange([U1(0) => 2, U1(1) => 3])
+    end
+
+    @testset "to_range passthrough of a GradedOneTo" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        @test TensorAlgebra.to_range(g) === g
     end
 end
