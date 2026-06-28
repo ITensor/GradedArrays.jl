@@ -10,11 +10,6 @@ TensorAlgebra.FusionStyle(::Type{<:AbstractSectorArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:AbstractGradedArray}) = SectorFusion()
 TensorAlgebra.FusionStyle(::Type{<:SectorOneTo}) = SectorFusion()
 
-# Fusion style for matricizing block-structured arrays by reshaping their block storage.
-# GradedArrays owns this style (defining its own `matricize` / `unmatricize` on it for graded
-# arrays below); it used to be provided by TensorAlgebra's BlockArrays extension.
-struct BlockReshapeFusion <: FusionStyle end
-
 # ========================  trivial_gradedrange  ========================
 
 function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
@@ -59,40 +54,6 @@ function TensorAlgebra.matricize(
     asectors_reshaped = matricize(sector(a), Val(K))
     adata_reshaped = matricize(data(a), Val(K))
     return sector_kron(asectors_reshaped, adata_reshaped)
-end
-
-# ========================  BlockReshapeFusion AbelianGradedArray matricize  ========================
-
-function TensorAlgebra.matricize(
-        ::BlockReshapeFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
-    ) where {T, N, K}
-    ax_2d = unmerged_matricize_axes(bipartition(axes(a), ndims_codomain)...)
-    # `similar` allocates every allowed 2D block; the loop below only writes
-    # those coming from stored blocks of `a`. For a sparse input, allowed
-    # destination blocks with no source counterpart stay at their initial
-    # value, so we must explicitly zero them.
-    a_2d = zero!(similar(a, ax_2d))
-
-    codomain_nblocks = Tuple(blocklength.(axes(a)[1:K]))
-    domain_nblocks = Tuple(blocklength.(axes(a)[(K + 1):N]))
-    cod_cart = CartesianIndices(codomain_nblocks)
-    dom_cart = CartesianIndices(domain_nblocks)
-
-    for bI_src in eachblockstoredindex(a)
-        src = Tuple(bI_src)
-        ci_cod = ntuple(i -> Int(src[i]), Val(K))
-        ci_dom = ntuple(i -> Int(src[K + i]), Val(N - K))
-
-        row_block = LinearIndices(cod_cart)[ci_cod...]
-        col_block = LinearIndices(dom_cart)[ci_dom...]
-
-        src_block = a[bI_src]
-        dest_block = matricize(src_block, ndims_codomain)
-
-        a_2d[Block(row_block, col_block)] = dest_block
-    end
-
-    return a_2d
 end
 
 # ========================  SectorFusion AbelianGradedArray matricize  ========================
@@ -163,40 +124,6 @@ function TensorAlgebra.unmatricize(
         data.(domain_axes)
     )
     return AbelianSectorArray(msectors, mdata)
-end
-
-# ========================  BlockReshapeFusion AbelianGradedArray unmatricize  ========================
-
-function TensorAlgebra.unmatricize(
-        ::BlockReshapeFusion, m::AbelianGradedMatrix,
-        codomain_axes::Tuple{Vararg{GradedOneTo}},
-        domain_axes::Tuple{Vararg{GradedOneTo}}
-    )
-    K = length(codomain_axes)
-    N = K + length(domain_axes)
-    dest_axes = (codomain_axes..., domain_axes...)
-    # `similar` allocates every allowed N-D block; the loop only writes those
-    # coming from stored 2D blocks of `m`. For a sparse input, allowed
-    # destination blocks with no source counterpart must be explicitly
-    # zeroed.
-    a = zero!(similar(m, dest_axes))
-
-    cod_cart = CartesianIndices(Tuple(map(blocklength, codomain_axes)))
-    dom_cart = CartesianIndices(Tuple(map(blocklength, domain_axes)))
-
-    for bI_src in eachblockstoredindex(m)
-        row_block = Int(Tuple(bI_src)[1])
-        col_block = Int(Tuple(bI_src)[2])
-        dest_bk = (Tuple(cod_cart[row_block])..., Tuple(dom_cart[col_block])...)
-
-        src_block = m[bI_src]
-        dest_sects = ntuple(d -> eachsectoraxis(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_block = AbelianSectorArray(dest_sects, reshape(data(src_block), dest_dims))
-        a[Block(dest_bk...)] = dest_block
-    end
-
-    return a
 end
 
 # ========================  SectorFusion FusedGradedMatrix unmatricize  ========================
