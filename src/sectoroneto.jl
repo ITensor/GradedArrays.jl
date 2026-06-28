@@ -116,4 +116,3 @@ function Base.show(io::IO, r::SectorOneTo)
 end
 
 Base.conj(r::SectorOneTo) = dual(r)
-TensorAlgebra.conjaxis(r::SectorOneTo) = conj(r)

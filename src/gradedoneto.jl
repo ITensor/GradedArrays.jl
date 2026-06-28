@@ -132,7 +132,6 @@ function flip(g::GradedOneTo)
 end
 flip_dual(g::GradedOneTo) = isdual(g) ? flip(g) : g
 Base.conj(g::GradedOneTo) = dual(g)
-TensorAlgebra.conjaxis(g::GradedOneTo) = conj(g)
 
 to_gradedrange(g::GradedOneTo) = g
 

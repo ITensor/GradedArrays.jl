@@ -1,7 +1,7 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
 using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
-    SectorProduct, SectorRange, U1, data, dual, eachblockstoredindex, eachsectoraxis, flip,
+    SectorProduct, SectorRange, U1, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sectoraxes, sectors
 using Random: randn!
 using TensorAlgebra: contract, matricize, unmatricize
@@ -50,23 +50,6 @@ function randn_blockdiagonal(elt::Type, axs::Tuple)
         a[Block(ntuple(Returns(i), N)...)] = AbelianSectorArray(block_sectors, block_data)
     end
     return a
-end
-
-# Dense materialization for AbelianGradedArray (scalar indexing is disallowed,
-# so `convert(Array, ...)` doesn't work). Iterate stored blocks and copy each
-# block's dense data into the matching slice of a zero-initialized output.
-function to_dense(a::AbelianGradedArray{T, N}) where {T, N}
-    out = zeros(T, size(a))
-    bls = ntuple(d -> blocklengths(axes(a, d)), N)
-    for bI in eachblockstoredindex(a)
-        bk = ntuple(d -> Int(Tuple(bI)[d]), N)
-        ranges = ntuple(N) do d
-            start = sum(view(bls[d], 1:(bk[d] - 1)); init = 0) + 1
-            return start:(start + bls[d][bk[d]] - 1)
-        end
-        out[ranges...] = data(a[bI])
-    end
-    return out
 end
 
 @testset "masked_inversion_parity" begin
@@ -209,27 +192,61 @@ end
     @test conj(AbelianSectorArray((u1, u1), fill(1.0 + 2.0im, 1, 1)))[1, 1] ≈ 1.0 - 2.0im
 end
 
-@testset "conj broadcast on fermionic arrays (compound and graded)" begin
-    # `conj.` routes through the same `op = conj` path as eager `conj`, so it carries the
-    # fermionic reversal sign and dualizes the axes, and it composes inside larger broadcasts.
+# `conj` is routed through `conj.`, so a direct `conj.(a) == conj(a)` check is vacuous. The
+# single-operand fermionic sign is pinned by the hand-computed values in the testset above;
+# these tests cover what broadcasting adds: composing conj in larger expressions, the graded
+# block loop, axis dualization, and the involution.
+@testset "conj broadcast composes linearly (sector)" begin
     sa = AbelianSectorArray((fP1, fP1), fill(1.0 + 2.0im, 1, 1))
     sb = AbelianSectorArray((fP1, fP1), fill(3.0 - 1.0im, 1, 1))
-    @test conj.(sa)[1, 1] ≈ conj(sa)[1, 1]
-    @test sectoraxes(conj.(sa)) == sectoraxes(conj(sa))
     cs = conj.(sa) .- conj.(sb) ./ 2
-    @test cs[1, 1] ≈ conj(sa)[1, 1] - conj(sb)[1, 1] / 2
-    @test sectoraxes(cs) == sectoraxes(conj(sa))
+    @test cs[1, 1] ≈ conj.(sa)[1, 1] - conj.(sb)[1, 1] / 2
+    @test sectoraxes(cs) == sectoraxes(conj.(sa))
+end
 
-    # All-odd graded array: bare and compound conj broadcasts match the eager `conj`.
-    r_odd = gradedrange([fP1 => 2])
-    a = randn_blockdiagonal(ComplexF64, (r_odd, dual(r_odd)))
-    b = randn_blockdiagonal(ComplexF64, (r_odd, dual(r_odd)))
-    @test to_dense(conj.(a)) ≈ to_dense(conj(a))
-    @test isdual(axes(conj.(a), 1)) == !isdual(axes(a, 1))
-    @test to_dense(conj.(a) .+ conj.(b)) ≈ to_dense(conj(a)) .+ to_dense(conj(b))
+@testset "conj broadcast on fermionic graded arrays (eltype=$elt)" for elt in
+    (Float64, ComplexF64)
 
-    # Half-conjugated broadcast: dualized axes against non-dual ones, rejected.
+    # Mixed even/odd sectors, so the two diagonal blocks pick up different reversal signs.
+    g = gradedrange([fP0 => 2, fP1 => 3])
+    a = randn_blockdiagonal(elt, (g, dual(g)))
+    b = randn_blockdiagonal(elt, (g, dual(g)))
+
+    ca = conj.(a)
+    @test ca isa AbelianGradedArray
+    @test isdual(axes(ca, 1)) == !isdual(axes(a, 1))
+    @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
+
+    # The graded block loop agrees block-by-block with the sector-level conj broadcast.
+    for I in eachblockstoredindex(a)
+        @test ca[I] ≈ conj.(a[I])
+    end
+
+    # Involution: the reversal sign squares to 1, recovering the array and its axes.
+    @test Array(conj.(ca)) ≈ Array(a)
+    @test axes(conj.(ca)) == axes(a)
+
+    # Compound conj broadcasts combine linearly, block by block.
+    for I in eachblockstoredindex(a)
+        @test (conj.(a) .+ conj.(b))[I] ≈ conj.(a[I]) .+ conj.(b[I])
+        @test (conj.(a) .- conj.(b) ./ 2)[I] ≈ conj.(a[I]) .- conj.(b[I]) ./ 2
+    end
+
+    # Conjugating only one operand leaves dualized axes against non-dual ones: rejected.
     @test_throws DimensionMismatch conj.(a) .- b
+end
+
+# A 4-leg all-odd block exercises the multi-leg reversal sign through a broadcast.
+@testset "conj broadcast on 4D all-odd graded array (eltype=$elt)" for elt in
+    (Float64, ComplexF64)
+    r_odd = gradedrange([fP1 => 2])
+    a = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+    ca = conj.(a)
+    @test all(d -> isdual(axes(ca, d)) == !isdual(axes(a, d)), 1:4)
+    for I in eachblockstoredindex(a)
+        @test ca[I] ≈ conj.(a[I])
+    end
+    @test Array(conj.(ca)) ≈ Array(a)
 end
 
 const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
@@ -244,23 +261,23 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     @testset "permutedims of all-odd GradedArray picks up -1 phase" begin
         a = randn_blockdiagonal(elt, (r_odd, dual(r_odd)))
         a_perm = permutedims(a, (2, 1))
-        a_dense_perm = permutedims(to_dense(a), (2, 1))
-        @test to_dense(a_perm) ≈ -1 * a_dense_perm
+        a_dense_perm = permutedims(Array(a), (2, 1))
+        @test Array(a_perm) ≈ -1 * a_dense_perm
     end
 
     @testset "conj of all-odd GradedArray picks up -1 phase" begin
         a = randn_blockdiagonal(elt, (r_odd, dual(r_odd)))
-        a_dense_before = to_dense(a)
+        a_dense_before = Array(a)
         ac = conj(a)
         # Every stored block is all-odd → reversal phase -1, on top of data conj.
-        @test to_dense(ac) ≈ -1 * conj(a_dense_before)
+        @test Array(ac) ≈ -1 * conj(a_dense_before)
         # Axis dualities are flipped.
         @test isdual(axes(ac, 1)) == !isdual(axes(a, 1))
         @test isdual(axes(ac, 2)) == !isdual(axes(a, 2))
         # Involution: conj ∘ conj recovers the original.
-        @test to_dense(conj(ac)) ≈ a_dense_before
+        @test Array(conj(ac)) ≈ a_dense_before
         # Mutation safety: conj must not scale the parent's blocks in place.
-        @test to_dense(a) ≈ a_dense_before
+        @test Array(a) ≈ a_dense_before
     end
 
     @testset "matrix-matrix contraction" begin
@@ -270,32 +287,32 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
             a1 = randn_blockdiagonal(elt, (r1, dual(r2)))
             a2 = randn_blockdiagonal(elt, (r2, r3))
-            a1_dense = to_dense(a1)
-            a2_dense = to_dense(a2)
+            a1_dense = Array(a1)
+            a2_dense = Array(a2)
             a_dest, labels_dest = contract(a1, (-1, 1), a2, (1, -2))
             a_dest_dense, labels_dest_dense = contract(a1_dense, (-1, 1), a2_dense, (1, -2))
             @test labels_dest == labels_dest_dense
             a_dest_dense = isdual(r2) ? -a_dest_dense : a_dest_dense
-            @test to_dense(a_dest) ≈ a_dest_dense
+            @test Array(a_dest) ≈ a_dest_dense
 
             # does not depend on input order
             a_dest = permutedims(contract(a2, (1, -2), a1, (-1, 1))[1], (2, 1))
-            @test to_dense(a_dest) ≈ a_dest_dense
+            @test Array(a_dest) ≈ a_dest_dense
 
             a_dest = contract((-1, -2), a2, (1, -2), a1, (-1, 1))
-            @test to_dense(a_dest) ≈ a_dest_dense
+            @test Array(a_dest) ≈ a_dest_dense
 
             # does not depend on permutations
             a3 = permutedims(a1, (2, 1))
             a_dest, _ = contract(a3, (1, -1), a2, (1, -2))
-            @test to_dense(a_dest) ≈ a_dest_dense
+            @test Array(a_dest) ≈ a_dest_dense
 
             a4 = permutedims(a2, (2, 1))
             a_dest, _ = contract(a1, (-1, 1), a4, (-2, 1))
-            @test to_dense(a_dest) ≈ a_dest_dense
+            @test Array(a_dest) ≈ a_dest_dense
 
             a_dest, _ = contract(a3, (1, -1), a4, (-2, 1))
-            @test to_dense(a_dest) ≈ a_dest_dense
+            @test Array(a_dest) ≈ a_dest_dense
         end
     end
 
@@ -305,22 +322,22 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         # contraction twists by -1 relative to the dense result.
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a1_dense = to_dense(a1)
-        a2_dense = to_dense(a2)
+        a1_dense = Array(a1)
+        a2_dense = Array(a2)
         a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (-3, -4, 2, 1))
         a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (-3, -4, 2, 1))
-        @test to_dense(a_dest) ≈ -1 * a_dest_dense
+        @test Array(a_dest) ≈ -1 * a_dest_dense
     end
 
     @testset "matrix-matrix contraction D: total phase -1" begin
         # labels (-1,1,2,-2) × (2,-3,1,-4): P1=+1, T1=-1, P2=+1, T2=-1, U=-1 → total=-1
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a1_dense = to_dense(a1)
-        a2_dense = to_dense(a2)
+        a1_dense = Array(a1)
+        a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
-        @test to_dense(a_dest) ≈ -1 * a_dest_dense
+        @test Array(a_dest) ≈ -1 * a_dest_dense
     end
 
     @testset "matrix-matrix contraction G: total phase -1" begin
@@ -328,10 +345,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         # side and a2's codomain side. Same single-transposition twist as case B.
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
-        a1_dense = to_dense(a1)
-        a2_dense = to_dense(a2)
+        a1_dense = Array(a1)
+        a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, -2, 1, 2), a2, (2, 1, -3, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, -2, 1, 2), a2_dense, (2, 1, -3, -4))
-        @test to_dense(a_dest) ≈ -1 * a_dest_dense
+        @test Array(a_dest) ≈ -1 * a_dest_dense
     end
 end

@@ -39,6 +39,17 @@ Base.@propagate_inbounds function Base.setindex!(
     return A
 end
 
+# Copy between sector arrays, including across the unfused/fused representations (e.g. writing
+# a block into a graded array). The axes carry the sector labels, so the equality check
+# rejects a sector mismatch; the raw data is then copied directly.
+function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
+    axes(dest) == axes(src) || throw(
+        DimensionMismatch("sector axes mismatch in copy!: $(axes(dest)) vs $(axes(src))")
+    )
+    copyto!(data(dest), data(src))
+    return dest
+end
+
 # ========================  Shared utilities  ========================
 
 function require_unique_fusion(A)

@@ -1,16 +1,5 @@
 using Base.Broadcast: Broadcast as BC
 
-# Allocate the broadcast destination from a representative operand `arg`. The result axes
-# come from the flattened linear expression, where a `conj` operand is a `ConjArray` with
-# dualized axes. Only `conj` changes the axes; when they are unchanged, use the plain
-# `similar(arg, elt)` (every sector/graded type supports it), reserving the dualized 3-arg
-# form for the `conj` case, which only the data-carrying array types need to support.
-function similar_broadcast(bc::BC.Broadcasted, arg, elt::Type)
-    lb = tryflattenlinear(bc)
-    ax = isnothing(lb) ? axes(arg) : axes(lb)
-    return ax == axes(arg) ? similar(arg, elt) : similar(arg, elt, ax)
-end
-
 # ========================  SectorStyle broadcasting  ========================
 
 struct SectorStyle{N} <: BC.AbstractArrayStyle{N} end
@@ -18,20 +7,32 @@ SectorStyle{N}(::Val{M}) where {N, M} = SectorStyle{M}()
 
 BC.BroadcastStyle(::Type{<:AbelianSectorDelta{<:Any, N}}) where {N} = SectorStyle{N}()
 BC.BroadcastStyle(::Type{<:AbelianSectorArray{<:Any, N}}) where {N} = SectorStyle{N}()
-BC.BroadcastStyle(::Type{<:SectorMatrix{<:Any}}) = SectorStyle{2}()
-BC.BroadcastStyle(::Type{<:SectorIdentity{<:Any}}) = SectorStyle{2}()
 BC.BroadcastStyle(style::SectorStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = style
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
 
-# Allocate from the flattened linear expression's axes: a `conj` operand lowers to a
-# `ConjArray` whose axes are already dualized, so the result axes (and the rejection of a
-# half-conjugated broadcast like `conj.(s) .- t`) fall out of the standard machinery rather
-# than needing the broadcast function threaded through by hand.
+# `SectorMatrix` and `SectorIdentity` are fused single-sector blocks whose row (codomain) and
+# column (domain) axes are structurally constrained, so broadcasting on them is unsupported.
+# Blocks are written into a graded array with `copyto!` rather than broadcast assignment.
+function BC.BroadcastStyle(::Type{<:SectorMatrix})
+    return throw(ArgumentError("broadcasting on `SectorMatrix` is not supported"))
+end
+function BC.BroadcastStyle(::Type{<:SectorIdentity})
+    return throw(ArgumentError("broadcasting on `SectorIdentity` is not supported"))
+end
+
+# Only linear broadcasts are supported, so allocate from the flattened linear expression's
+# axes: a `conj` operand lowers to a `ConjArray` whose axes are already dualized, so the
+# result axes (and the rejection of a half-conjugated broadcast like `conj.(s) .- t`) fall
+# out of the standard machinery rather than needing the broadcast function threaded through
+# by hand.
 function Base.similar(bc::BC.Broadcasted{<:SectorStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbstractSectorArray, bc′.args)]
-    return similar_broadcast(bc, arg, elt)
+    lb = tryflattenlinear(bc)
+    isnothing(lb) &&
+        throw(ArgumentError("SectorArray broadcasting requires linear operations"))
+    return similar(arg, elt, axes(lb))
 end
 
 function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:SectorStyle})
@@ -71,7 +72,10 @@ BC.BroadcastStyle(s1::GradedStyle{N}, ::GradedStyle{N}) where {N} = s1
 function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbstractGradedArray, bc′.args)]
-    return similar_broadcast(bc, arg, elt)
+    lb = tryflattenlinear(bc)
+    isnothing(lb) &&
+        throw(ArgumentError("AbstractGradedArray broadcasting requires linear operations"))
+    return similar(arg, elt, axes(lb))
 end
 
 function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:GradedStyle})
