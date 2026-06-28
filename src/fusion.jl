@@ -1,5 +1,3 @@
-using TensorAlgebra: tensor_product_axis, trivial_axis
-
 struct SectorFusion <: FusionStyle end
 
 # Fusion style for the right factor of a fermionic contraction: matricize as `SectorFusion`
@@ -17,7 +15,7 @@ TensorAlgebra.FusionStyle(::Type{<:SectorOneTo}) = SectorFusion()
 # arrays below); it used to be provided by TensorAlgebra's BlockArrays extension.
 struct BlockReshapeFusion <: FusionStyle end
 
-# ========================  trivial_axis  ========================
+# ========================  trivial_gradedrange  ========================
 
 function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
     return tensor_product(trivial.(t)...)
@@ -26,63 +24,20 @@ function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
     return gradedrange([trivial(S) => 1])
 end
 
-function TensorAlgebra.trivial_axis(
-        ::BlockReshapeFusion,
-        ::Val{:codomain},
-        a::AbstractGradedArray,
-        axes_codomain::Tuple{Vararg{AbstractUnitRange}},
-        axes_domain::Tuple{Vararg{AbstractUnitRange}}
-    )
-    return trivial_gradedrange((axes_codomain..., axes_domain...))
-end
-function TensorAlgebra.trivial_axis(
-        ::BlockReshapeFusion,
-        ::Val{:domain},
-        a::AbstractGradedArray,
-        axes_codomain::Tuple{Vararg{AbstractUnitRange}},
-        axes_domain::Tuple{Vararg{AbstractUnitRange}}
-    )
-    return flip(trivial_gradedrange((axes_codomain..., axes_domain...)))
-end
+# ========================  unmerged_matricize_axes  ========================
 
-# ========================  tensor_product_axis  ========================
-
-# SectorOneTo level: fuse two block axes
-function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:codomain}, r1::SectorOneTo, r2::SectorOneTo
+# Fuse a bipartitioned tuple of graded axes into the unmerged 2D row/column axes: one
+# block per source-block combination, before `sectormergesort` merges same-sector blocks
+# into the final matricized axes. The codomain group fuses as-is; the domain group is
+# `flip`ed (same sectors and sizes, opposite arrow) so the matrix reads as a
+# `codomain ← domain` map and the matmul pairs contracted legs correctly.
+function unmerged_matricize_axes(
+        axes_codomain::Tuple{Vararg{GradedOneTo}}, axes_domain::Tuple{Vararg{GradedOneTo}}
     )
-    return tensor_product(r1, r2)
-end
-function TensorAlgebra.tensor_product_axis(
-        ::SectorFusion, ::Val{:domain}, r1::SectorOneTo, r2::SectorOneTo
-    )
-    return flip(tensor_product(r1, r2))
-end
-
-# GradedOneTo level: iterate block axes, fuse each pair, reassemble
-function TensorAlgebra.tensor_product_axis(
-        style::BlockReshapeFusion, side::Val{:codomain},
-        r1::GradedOneTo, r2::GradedOneTo
-    )
-    return tensor_product_gradedrange(style, side, r1, r2)
-end
-function TensorAlgebra.tensor_product_axis(
-        style::BlockReshapeFusion, side::Val{:domain},
-        r1::GradedOneTo, r2::GradedOneTo
-    )
-    return tensor_product_gradedrange(style, side, r1, r2)
-end
-function tensor_product_gradedrange(
-        ::BlockReshapeFusion, side::Val,
-        r1::AbstractUnitRange, r2::AbstractUnitRange
-    )
-    (isone(first(r1)) && isone(first(r2))) ||
-        throw(ArgumentError("Only one-based axes are supported"))
-    blockaxpairs = Iterators.product(eachblockaxes1(r1), eachblockaxes1(r2))
-    blockaxs = map(blockaxpairs) do (b1, b2)
-        return tensor_product_axis(side, b1, b2)
-    end
-    return mortar_axis(vec(blockaxs))
+    init = trivial_gradedrange((axes_codomain..., axes_domain...))
+    ax_codomain = reduce(unmerged_tensor_product, axes_codomain; init)
+    ax_domain = flip(reduce(unmerged_tensor_product, axes_domain; init))
+    return ax_codomain, ax_domain
 end
 
 # ========================  AbelianSectorDelta matricize  ========================
@@ -109,9 +64,9 @@ end
 # ========================  BlockReshapeFusion AbelianGradedArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        style::BlockReshapeFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
+        ::BlockReshapeFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
-    ax_2d = matricize_axes(style, a, ndims_codomain)
+    ax_2d = unmerged_matricize_axes(bipartition(axes(a), ndims_codomain)...)
     # `similar` allocates every allowed 2D block; the loop below only writes
     # those coming from stored blocks of `a`. For a sparse input, allowed
     # destination blocks with no source counterpart stay at their initial
@@ -233,7 +188,7 @@ function TensorAlgebra.unmatricize(
     end
     # Compute the unfused 2D axes the N-D blocked axes produce, then their
     # sector-merged form (the axes matricize would have produced).
-    unfused_axes = matricize_axes(BlockReshapeFusion(), m, codomain_axes, domain_axes)
+    unfused_axes = unmerged_matricize_axes(codomain_axes, domain_axes)
     merged_cod = sectormergesort(unfused_axes[1])
     merged_dom = sectormergesort(unfused_axes[2])
     # Embed `m` into an `AbelianGradedMatrix` with those merged axes (sectors

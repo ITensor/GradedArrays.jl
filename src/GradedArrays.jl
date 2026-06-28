@@ -30,8 +30,7 @@ using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, kron, mul!
 using Random: Random, AbstractRNG
 using SparseArraysBase: SparseArraysBase
 using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
-    check_input, matricize, matricize_axes, permutedimsadd!, scale!, tensor_product_axis,
-    trivial_axis, tryflattenlinear, unmatricize, zero!
+    check_input, matricize, permutedimsadd!, scale!, tryflattenlinear, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 
 include("kron.jl")
