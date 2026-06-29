@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------------------
 
 """
-    SectorVector{T, D<:AbstractVector{T}, S<:SectorRange} <: AbstractSectorArray{T, 1}
+    SectorVector{T, S<:SectorRange, D<:AbstractVector{T}} <: AbstractSectorArray{T, 1}
 
 A single sector with a data vector. Analogous to [`SectorMatrix`](@ref) but for 1-D data
 (eigenvalues, singular values, etc.). Each element is a symmetry scalar — there is no
@@ -16,7 +16,7 @@ belong to.
 
 The stored `SectorRange` is always non-dual (codomain convention).
 """
-struct SectorVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
+struct SectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, 1}
     sector::S
     data::D
@@ -29,17 +29,17 @@ sector(sv::SectorVector) = sv.sector
 dataaxes(sv::SectorVector) = axes(data(sv))
 sectoraxes(sv::SectorVector) = (sv.sector,)
 
-sectortype(::Type{<:SectorVector{T, D, S}}) where {T, D, S} = S
-datatype(::Type{SectorVector{T, D, S}}) where {T, D, S} = D
+sectortype(::Type{<:SectorVector{T, S, D}}) where {T, S, D} = S
+datatype(::Type{SectorVector{T, S, D}}) where {T, S, D} = D
 
 Base.axes(sv::SectorVector) = axes(data(sv))
 
 Base.copy(sv::SectorVector) = SectorVector(sv.sector, copy(data(sv)))
 
-function Base.similar(sv::SectorVector{<:Any, <:Any, S}, ::Type{T}) where {T, S}
+function Base.similar(sv::SectorVector{<:Any, S, <:Any}, ::Type{T}) where {T, S}
     new_data = similar(data(sv), T)
     D = typeof(new_data)
-    return SectorVector{T, D, S}(sv.sector, new_data)
+    return SectorVector{T, S, D}(sv.sector, new_data)
 end
 
 function Base.fill!(sv::SectorVector, v)
@@ -73,7 +73,7 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    FusedGradedVector{T,D<:AbstractVector{T},S<:SectorRange}
+    FusedGradedVector{T,S<:SectorRange,D<:AbstractVector{T}}
 
 Block-structured 1-D graded array produced by a sector-preserving operation on
 a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`).
@@ -85,26 +85,26 @@ Fields:
   - `blocks::Dictionary{S,D}` — stored data blocks, keyed by sector. Keys match
     `keys(axis)` exactly and `length(blocks[s]) == axis[s]`.
 """
-struct FusedGradedVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
+struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
     AbstractGradedArray{T, 1}
     axis::Dictionary{S, Int}
     blocks::Dictionary{S, D}
 
     # Undef constructor
-    function FusedGradedVector{T, D, S}(
+    function FusedGradedVector{T, S, D}(
             ::UndefInitializer, axis::Dictionary{S, Int}
-        ) where {T, D <: AbstractVector{T}, S <: SectorRange}
+        ) where {T, S <: SectorRange, D <: AbstractVector{T}}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
 
         blocks = dictionary(s => similar(D, (Base.OneTo(axis[s]),)) for s in keys(axis))
 
-        return new{T, D, S}(axis, blocks)
+        return new{T, S, D}(axis, blocks)
     end
 
     # Data constructor
-    function FusedGradedVector{T, D, S}(
+    function FusedGradedVector{T, S, D}(
             axis::Dictionary{S, Int}, blocks::Dictionary{S, D}
-        ) where {T, D <: AbstractVector{T}, S <: SectorRange}
+        ) where {T, S <: SectorRange, D <: AbstractVector{T}}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
 
         issetequal(keys(axis), keys(blocks)) || throw(ArgumentError("invalid blocks"))
@@ -113,14 +113,14 @@ struct FusedGradedVector{T, D <: AbstractVector{T}, S <: SectorRange} <:
                 throw(DimensionMismatch("invalid block for sector $s"))
         end
 
-        return new{T, D, S}(axis, blocks)
+        return new{T, S, D}(axis, blocks)
     end
 end
 
 function FusedGradedVector(
         axis::Dictionary{S, Int}, blocks::Dictionary{S, D}
     ) where {S <: SectorRange, D <: AbstractVector}
-    return FusedGradedVector{eltype(D), D, S}(axis, blocks)
+    return FusedGradedVector{eltype(D), S, D}(axis, blocks)
 end
 
 """
@@ -145,18 +145,18 @@ end
 function FusedGradedVector{T}(
         ::UndefInitializer, axis::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
-    return FusedGradedVector{T, Vector{T}, S}(undef, axis)
+    return FusedGradedVector{T, S, Vector{T}}(undef, axis)
 end
 
 # ========================  Accessors  ========================
 
 BlockArrays.blocklength(v::FusedGradedVector) = length(v.axis)
 
-function blocktype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S}
-    return SectorVector{T, D, S}
+function blocktype(::Type{<:FusedGradedVector{T, S, D}}) where {T, S, D}
+    return SectorVector{T, S, D}
 end
 blocktype(v::FusedGradedVector) = blocktype(typeof(v))
-sectortype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S} = S
+sectortype(::Type{<:FusedGradedVector{T, S, D}}) where {T, S, D} = S
 
 function Base.axes(v::FusedGradedVector)
     return (gradedrange([s => l for (s, l) in pairs(v.axis)]),)
@@ -225,7 +225,7 @@ function Base.similar(
     if T <: Number
         return FusedGradedVector{T}(undef, axis)
     elseif T <: AbstractVector
-        return FusedGradedVector{eltype(T), T, S}(undef, axis)
+        return FusedGradedVector{eltype(T), S, T}(undef, axis)
     else
         throw(ArgumentError("invalid type $T"))
     end

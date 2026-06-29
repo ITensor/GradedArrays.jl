@@ -3,7 +3,7 @@
 # ===========================================================================
 
 """
-    FusedGradedMatrix{T,D<:AbstractMatrix{T},S<:SectorRange}
+    FusedGradedMatrix{T,S<:SectorRange,D<:AbstractMatrix{T}}
 
 Block-diagonal matrix produced by matricizing an `AbstractGradedArray`.
 Each stored block corresponds to a coupled sector that lives on both the codomain and the domain.
@@ -20,16 +20,16 @@ Fields:
     must be in both `codomain` and `domain`, and `size(blocks[s])` must equal
     `(codomain[s], domain[s])`.
 """
-struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
+struct FusedGradedMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
     AbstractGradedMatrix{T}
     codomain::Dictionary{S, Int}
     domain::Dictionary{S, Int}
     blocks::Dictionary{S, D}
 
     # Undef constructor
-    function FusedGradedMatrix{T, D, S}(
+    function FusedGradedMatrix{T, S, D}(
             ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
-        ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
+        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
         issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
         issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
 
@@ -39,13 +39,13 @@ struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
                 c in blocksectors
         )
 
-        return new{T, D, S}(codomain, domain, blocks)
+        return new{T, S, D}(codomain, domain, blocks)
     end
 
     # Data constructor
-    function FusedGradedMatrix{T, D, S}(
+    function FusedGradedMatrix{T, S, D}(
             codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}, blocks::Dictionary{S, D}
-        ) where {T, D <: AbstractMatrix{T}, S <: SectorRange}
+        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
         issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
         issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
 
@@ -56,14 +56,14 @@ struct FusedGradedMatrix{T, D <: AbstractMatrix{T}, S <: SectorRange} <:
                 throw(DimensionMismatch("invalid block for sector $c"))
         end
 
-        return new{T, D, S}(codomain, domain, blocks)
+        return new{T, S, D}(codomain, domain, blocks)
     end
 end
 
 function FusedGradedMatrix(
         codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}, blocks::Dictionary{S, D}
     ) where {S <: SectorRange, D <: AbstractMatrix}
-    return FusedGradedMatrix{eltype(D), D, S}(codomain, domain, blocks)
+    return FusedGradedMatrix{eltype(D), S, D}(codomain, domain, blocks)
 end
 
 # Block-diagonal by construction (one block per sector), so just check each block.
@@ -115,7 +115,7 @@ end
 function FusedGradedMatrix{T}(
         ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
-    return FusedGradedMatrix{T, Matrix{T}, S}(undef, codomain, domain)
+    return FusedGradedMatrix{T, S, Matrix{T}}(undef, codomain, domain)
 end
 
 # ========================  Accessors  ========================
@@ -131,11 +131,11 @@ function BlockArrays.blocklength(m::FusedGradedMatrix, dim::Integer)
     end
 end
 
-function blocktype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S}
-    return SectorMatrix{T, D, S}
+function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
+    return SectorMatrix{T, S, D}
 end
 blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
-sectortype(::Type{<:FusedGradedMatrix{T, D, S}}) where {T, D, S} = S
+sectortype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D} = S
 
 function Base.axes(m::FusedGradedMatrix)
     cod = gradedrange(collect(pairs(m.codomain)))
@@ -219,7 +219,7 @@ function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix
     Dout = Base.promote_op(*, DA, DB)
     Dout′ = isconcretetype(Dout) ? Dout : Matrix{eltype(Dout)}
 
-    return FusedGradedMatrix{eltype(Dout′), Dout′, S}(undef, cod, dom)
+    return FusedGradedMatrix{eltype(Dout′), S, Dout′}(undef, cod, dom)
 end
 
 function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
@@ -347,7 +347,7 @@ function Base.similar(
     if T <: Number
         return FusedGradedMatrix{T}(undef, codomain, domain)
     elseif T <: AbstractMatrix
-        return FusedGradedMatrix{eltype(T), T, S}(undef, codomain, domain)
+        return FusedGradedMatrix{eltype(T), S, T}(undef, codomain, domain)
     else
         throw(ArgumentError("invalid type $T"))
     end
@@ -357,7 +357,7 @@ function Base.similar(
         ::Type{T},
         axis::Dictionary{S, Int}
     ) where {T <: AbstractVector, S}
-    return FusedGradedVector{eltype(T), T, S}(undef, axis)
+    return FusedGradedVector{eltype(T), S, T}(undef, axis)
 end
 
 # ========================  show  ========================
@@ -420,7 +420,7 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
         throw(ArgumentError("domain sectors of input must have unique duals"))
     dom = Dictionary{S, Int}(dual.(dom_sectors), datalengths(axes(a, 2)))
 
-    m = FusedGradedMatrix{T, datatype(a), S}(undef, cod, dom)
+    m = FusedGradedMatrix{T, S, datatype(a)}(undef, cod, dom)
     for I in eachblockstoredindex(a)
         copy!(view(m, I), view(a, I))
     end

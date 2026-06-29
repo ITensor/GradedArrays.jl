@@ -17,7 +17,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "Construction" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
-        @test a isa AbelianGradedArray{Float64, 2, Matrix{Float64}, U1}
+        @test a isa AbelianGradedArray{Float64, 2, U1, Matrix{Float64}}
         @test a isa AbstractGradedArray{Float64, 2}
         @test a isa AbstractArray{Float64, 2}
         @test size(a) == (5, 3)
@@ -102,7 +102,7 @@ using Test: @test, @test_throws, @testset
     @testset "rank-0 (scalar) array" begin
         # A rank-0 graded array holds a single trivial-sector value. `S` can't be
         # inferred from the empty axes, so the undef constructor takes it explicitly.
-        a = AbelianGradedArray{Float64, 0, Array{Float64, 0}, U1}(undef, ())
+        a = AbelianGradedArray{Float64, 0, U1, Array{Float64, 0}}(undef, ())
         @test ndims(a) == 0
         @test size(a) == ()
         @test axes(a) == ()
@@ -264,7 +264,7 @@ end
         [SU2(0), SU2(1 // 2), SU2(1)],
         [[1.0;;], [1.0 2.0; 3.0 4.0], Matrix{Float64}(LinearAlgebra.I, 3, 3)]
     )
-    @test m_su2 isa FusedGradedMatrix{Float64, Matrix{Float64}, SU2}
+    @test m_su2 isa FusedGradedMatrix{Float64, SU2, Matrix{Float64}}
     @test collect(keys(m_su2.blocks)) == [SU2(0), SU2(1 // 2), SU2(1)]
     @test data(m_su2[Block(1, 1)]) == [1.0;;]
     @test data(m_su2[Block(2, 2)]) == [1.0 2.0; 3.0 4.0]
@@ -303,7 +303,7 @@ end
 
     @testset "Default D = Matrix{T}" begin
         m = FusedGradedMatrix{Float64}(undef, cod, dom)
-        @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
+        @test m isa FusedGradedMatrix{Float64, U1, Matrix{Float64}}
         @test length(m.blocks) == 2
         @test collect(keys(m.blocks)) == sectors
         @test size(m.blocks[U1(0)]) == (2, 1)
@@ -311,8 +311,8 @@ end
     end
 
     @testset "Fully parameterized" begin
-        m = FusedGradedMatrix{Float64, Matrix{Float64}, U1}(undef, cod, dom)
-        @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
+        m = FusedGradedMatrix{Float64, U1, Matrix{Float64}}(undef, cod, dom)
+        @test m isa FusedGradedMatrix{Float64, U1, Matrix{Float64}}
         @test size(m.blocks[U1(0)]) == (2, 1)
     end
 
@@ -331,7 +331,7 @@ end
     )
     m = FusedGradedMatrix(cod, dom, blks)
 
-    @test m isa FusedGradedMatrix{Float64, Matrix{Float64}, U1}
+    @test m isa FusedGradedMatrix{Float64, U1, Matrix{Float64}}
     @test size(m) == (9, 12)            # 2+3+4 = 9, 3+4+5 = 12
     @test sectors(axes(m, 1)) == [U1(0), U1(1), U1(2)]
     @test sectors(axes(m, 2)) == [U1(1), U1(2), U1(3)]

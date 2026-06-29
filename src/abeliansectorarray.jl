@@ -1,12 +1,12 @@
 """
-    AbelianSectorArray{T,N,A,S} <: AbstractSectorArray{T, N}
+    AbelianSectorArray{T,N,S,A} <: AbstractSectorArray{T, N}
 
 Unfused N-D data tensor for abelian symmetries. Stores one `SectorRange` per axis,
 plus a dense data array. Implements the Wigner-Eckart decomposition:
 the full tensor is the Kronecker product of an [`AbelianSectorDelta`](@ref) (structural)
 with the data array (reduced matrix elements).
 """
-struct AbelianSectorArray{T, N, A <: AbstractArray{T, N}, S <: SectorRange} <:
+struct AbelianSectorArray{T, N, S <: SectorRange, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, N}
     sectors::NTuple{N, S}
     data::A
@@ -15,11 +15,11 @@ end
 # Constructors
 
 # Fully-parameterized undef constructor: accepts SectorOneTo axes.
-function AbelianSectorArray{T, N, A, S}(
+function AbelianSectorArray{T, N, S, A}(
         ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
-    ) where {T, N, A <: AbstractArray{T, N}, S <: SectorRange}
+    ) where {T, N, S <: SectorRange, A <: AbstractArray{T, N}}
     sects = sector.(axs)
-    return AbelianSectorArray{T, N, A, S}(sects, similar(A, data.(axs)))
+    return AbelianSectorArray{T, N, S, A}(sects, similar(A, data.(axs)))
 end
 
 # Convenience: infer A = Array{T,N} and S from the axes. Requires at least one axis: the
@@ -29,7 +29,7 @@ function AbelianSectorArray{T}(
         ::UndefInitializer, axs::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
     N = length(axs)
-    return AbelianSectorArray{T, N, Array{T, N}, sectortype(eltype(axs))}(undef, axs)
+    return AbelianSectorArray{T, N, sectortype(eltype(axs)), Array{T, N}}(undef, axs)
 end
 
 # Construct from AbelianSectorDelta (inverse of sector/data decomposition). Take `S` from
@@ -39,33 +39,33 @@ function AbelianSectorArray(
         delta::AbelianSectorDelta{<:Any, N, S},
         data::AbstractArray{T, N}
     ) where {T, N, S}
-    return AbelianSectorArray{T, N, typeof(data), S}(delta.sectors, data)
+    return AbelianSectorArray{T, N, S, typeof(data)}(delta.sectors, data)
 end
-function AbelianSectorArray{T, N, A, S}(
+function AbelianSectorArray{T, N, S, A}(
         delta::AbelianSectorDelta{<:Any, N, S},
         data::A
-    ) where {T, N, A <: AbstractArray{T, N}, S <: SectorRange}
-    return AbelianSectorArray{T, N, A, S}(delta.sectors, data)
+    ) where {T, N, S <: SectorRange, A <: AbstractArray{T, N}}
+    return AbelianSectorArray{T, N, S, A}(delta.sectors, data)
 end
 
-const AbelianSectorVector{T, A <: AbstractVector{T}, S <: SectorRange} =
-    AbelianSectorArray{T, 1, A, S}
-const AbelianSectorMatrix{T, A <: AbstractMatrix{T}, S <: SectorRange} =
-    AbelianSectorArray{T, 2, A, S}
+const AbelianSectorVector{T, S <: SectorRange, A <: AbstractVector{T}} =
+    AbelianSectorArray{T, 1, S, A}
+const AbelianSectorMatrix{T, S <: SectorRange, A <: AbstractMatrix{T}} =
+    AbelianSectorArray{T, 2, S, A}
 
 # Accessors
 
 # Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data.
 # Pass `N`/`S` explicitly so the structural factor of a rank-0 array (empty `sectors`,
 # which carry no `S`) still resolves its sector type.
-function sector(sa::AbelianSectorArray{T, N, A, S}) where {T, N, A, S}
+function sector(sa::AbelianSectorArray{T, N, S, A}) where {T, N, S, A}
     return AbelianSectorDelta{T, N, S}(sa.sectors)
 end
 sectoraxes(sa::AbelianSectorArray) = axes(sector(sa))
 dataaxes(sa::AbelianSectorArray) = axes(data(sa))
 
-sectortype(::Type{<:AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = S
-datatype(::Type{AbelianSectorArray{T, N, A, S}}) where {T, N, A, S} = A
+sectortype(::Type{<:AbelianSectorArray{T, N, S, A}}) where {T, N, S, A} = S
+datatype(::Type{AbelianSectorArray{T, N, S, A}}) where {T, N, S, A} = A
 
 # AbstractArray interface
 # -----------------------
@@ -95,11 +95,11 @@ function Base.fill!(A::AbelianSectorArray, v)
 end
 
 function Base.convert(
-        ::Type{AbelianSectorArray{T₁, N, A, S}},
-        x::AbelianSectorArray{T₂, N, B, S}
-    )::AbelianSectorArray{T₁, N, A, S} where {T₁, T₂, N, A, B, S}
+        ::Type{AbelianSectorArray{T₁, N, S, A}},
+        x::AbelianSectorArray{T₂, N, S, B}
+    )::AbelianSectorArray{T₁, N, S, A} where {T₁, T₂, N, S, A, B}
     A === B && return x
-    return AbelianSectorArray{T₁, N, A, S}(sector(x), convert(A, data(x)))
+    return AbelianSectorArray{T₁, N, S, A}(sector(x), convert(A, data(x)))
 end
 
 # ========================  permutedims  ========================

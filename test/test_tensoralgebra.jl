@@ -339,7 +339,7 @@ end
 
     # A rank-0 graded array matricizes to a 1×1 trivial-sector `FusedGradedMatrix`,
     # and unmatricizing back recovers the scalar.
-    a = AbelianGradedArray{Float64, 0, Array{Float64, 0}, U1}(undef, ())
+    a = AbelianGradedArray{Float64, 0, U1, Array{Float64, 0}}(undef, ())
     a[] = 4.0
     m = matricize(GradedArrays.SectorFusion(), a, Val(0))
     @test m isa FusedGradedMatrix{Float64}
