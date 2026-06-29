@@ -1,5 +1,5 @@
 """
-    SectorMatrix{T,S<:SectorRange,D<:AbstractMatrix{T}} <: AbstractSectorArray{T, 2}
+    SectorMatrix{T,S<:SectorRange,D<:AbstractMatrix{T}} <: AbstractSectorArray{T, S, 2}
 
 Fused 2D data matrix for a single coupled sector. One block of a
 [`FusedGradedMatrix`](@ref). In the representation-theoretic sense, this is an
@@ -11,7 +11,7 @@ The codomain (row) axis is non-dual; the domain (column) axis is dual.
 The stored `SectorRange` is always non-dual (codomain convention).
 """
 struct SectorMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
-    AbstractSectorArray{T, 2}
+    AbstractSectorArray{T, S, 2}
     sector::S
     data::D
 end
@@ -50,7 +50,6 @@ dataaxes(sm::SectorMatrix) = axes(data(sm))
 # Derived accessors: sectoraxes and axes are written in terms of sector and data.
 sectoraxes(sm::SectorMatrix) = axes(sector(sm))
 
-sectortype(::Type{<:SectorMatrix{T, S, D}}) where {T, S, D} = S
 datatype(::Type{SectorMatrix{T, S, D}}) where {T, S, D} = D
 
 function Base.axes(sm::SectorMatrix)

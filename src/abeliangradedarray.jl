@@ -3,7 +3,7 @@
 # ===========================================================================
 
 """
-    AbelianGradedArray{T,N,S<:SectorRange,D<:AbstractArray{T,N}} <: AbstractGradedArray{T,N}
+    AbelianGradedArray{T,S<:SectorRange,N,D<:AbstractArray{T,N}} <: AbstractGradedArray{T,S,N}
 
 A graded array that stores non-zero blocks in a dictionary keyed by block indices.
 Each axis is a [`GradedOneTo`](@ref) carrying sectors, sector lengths, and a dual flag.
@@ -12,13 +12,13 @@ Blocks are stored as plain dense arrays of type `D` (default `Array{T,N}`).
 Accessing a block via `a[Block(i,j)]` returns a [`AbelianSectorArray`](@ref) wrapping the data
 with the appropriate sectors.
 """
-struct AbelianGradedArray{T, N, S <: SectorRange, D <: AbstractArray{T, N}} <:
-    AbstractGradedArray{T, N}
+struct AbelianGradedArray{T, S <: SectorRange, N, D <: AbstractArray{T, N}} <:
+    AbstractGradedArray{T, S, N}
     blockdata::Dict{NTuple{N, Int}, D}
     axes::NTuple{N, GradedOneTo{S}}
 end
 
-const AbelianGradedMatrix{T, S, D} = AbelianGradedArray{T, 2, S, D}
+const AbelianGradedMatrix{T, S, D} = AbelianGradedArray{T, S, 2, D}
 
 # ---------------------------------------------------------------------------
 #  Constructors
@@ -28,9 +28,9 @@ const AbelianGradedMatrix{T, S, D} = AbelianGradedArray{T, 2, S, D}
 # (allowedblocks is defined in fusion.jl). The axes element type is left unparameterized so
 # `S` binds from the type parameters rather than from `axs`, which is empty (and so carries
 # no `S`) for a rank-0 array; `allowedblocks` returns the single empty block in that case.
-function AbelianGradedArray{T, N, S, D}(
+function AbelianGradedArray{T, S, N, D}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo}
-    ) where {T, N, S <: SectorRange, D <: AbstractArray{T, N}}
+    ) where {T, S <: SectorRange, N, D <: AbstractArray{T, N}}
     block_axes = map(eachdataaxis, axs)
     function allocate_block(bk)
         bk_inds = Int.(Tuple(bk))
@@ -40,7 +40,7 @@ function AbelianGradedArray{T, N, S, D}(
     blockdata = Dict{NTuple{N, Int}, D}(
         Int.(Tuple(bk)) => allocate_block(bk) for bk in bks
     )
-    return AbelianGradedArray{T, N, S, D}(blockdata, axs)
+    return AbelianGradedArray{T, S, N, D}(blockdata, axs)
 end
 
 # Convenience: infer D = Array{T,N} and S from the axes. Requires at least one axis: the
@@ -51,7 +51,7 @@ function AbelianGradedArray{T}(
         ::UndefInitializer, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     ) where {T}
     N = length(axs)
-    return AbelianGradedArray{T, N, sectortype(eltype(axs)), Array{T, N}}(undef, axs)
+    return AbelianGradedArray{T, sectortype(eltype(axs)), N, Array{T, N}}(undef, axs)
 end
 
 function AbelianGradedArray{T}(
@@ -80,9 +80,9 @@ end
 Base.size(a::AbelianGradedArray) = map(length, a.axes)
 Base.axes(a::AbelianGradedArray) = a.axes
 function blocktype(
-        ::Type{<:AbelianGradedArray{T, N, S, D}}
-    ) where {T, N, S, D}
-    return AbelianSectorArray{T, N, S, D}
+        ::Type{<:AbelianGradedArray{T, S, N, D}}
+    ) where {T, S, N, D}
+    return AbelianSectorArray{T, S, N, D}
 end
 blocktype(a::AbelianGradedArray) = blocktype(typeof(a))
 
@@ -94,26 +94,26 @@ blocktype(a::AbelianGradedArray) = blocktype(typeof(a))
 # Construct through `blocktype(a)` so the sector type `S` comes from the parent rather
 # than being inferred from `sects`, which is empty (and so carries no `S`) for a rank-0
 # array.
-function view_abelian(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
+function view_abelian(a::AbelianGradedArray{T, <:Any, N}, I::Block{N}) where {T, N}
     bk = Int.(Tuple(I))
     haskey(a.blockdata, bk) || error("Block $bk is not stored.")
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
     return blocktype(a)(sects, a.blockdata[bk])
 end
 
-Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N} = view_abelian(a, I)
+Base.view(a::AbelianGradedArray{T, <:Any, N}, I::Block{N}) where {T, N} = view_abelian(a, I)
 
-# Disambiguate against `view(::AbstractGradedArray{T, N}, ::Vararg{Block{1}, N})` for
+# Disambiguate against `view(::AbstractGradedArray{T, <:Any, N}, ::Vararg{Block{1}, N})` for
 # N=1, where the splatted form collapses to a single Block{1} argument.
-Base.view(a::AbelianGradedArray{T, 1}, I::Block{1}) where {T} = view_abelian(a, I)
+Base.view(a::AbelianGradedArray{T, <:Any, 1}, I::Block{1}) where {T} = view_abelian(a, I)
 
 # Rank-0 (scalar) element access: a rank-0 graded array (e.g. the result of a full
 # contraction to a scalar) holds a single trivial-sector value. `a[]` is unambiguous —
 # there are no coordinates and exactly one element — unlike the banned higher-rank scalar
 # indexing. Defined on the concrete type to take precedence over the N-D block-indexing
 # methods, whose `Vararg` signatures also match a no-argument call when N=0.
-Base.getindex(a::AbelianGradedArray{T, 0}) where {T} = view(a, Block())[]
-function Base.setindex!(a::AbelianGradedArray{T, 0}, value) where {T}
+Base.getindex(a::AbelianGradedArray{T, <:Any, 0}) where {T} = view(a, Block())[]
+function Base.setindex!(a::AbelianGradedArray{T, <:Any, 0}, value) where {T}
     view(a, Block())[] = value
     return a
 end
@@ -123,13 +123,13 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    AbelianBlocks{T,N,A<:AbelianGradedArray{T,N}} <: AbstractArray{AbelianSectorArray,N}
+    AbelianBlocks{T,N,A<:AbelianGradedArray{T,<:Any,N}} <: AbstractArray{AbelianSectorArray,N}
 
 Lazy view of an `AbelianGradedArray`'s block storage, following the BlockArrays
 convention: `getindex` delegates to `view(parent, Block.(I)...)` (shares data),
 `setindex!` copies into the existing view.
 """
-struct AbelianBlocks{T, N, A <: AbelianGradedArray{T, N}} <:
+struct AbelianBlocks{T, N, A <: AbelianGradedArray{T, <:Any, N}} <:
     AbstractArray{AbelianSectorArray, N}
     parent::A
 end
@@ -156,7 +156,7 @@ end
 
 # Ported from the old GradedArray getindex(::AbstractVector{<:BlockIndexRange{1}}...).
 function Base.getindex(
-        a::AbelianGradedArray{T, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
+        a::AbelianGradedArray{T, <:Any, N}, I::Vararg{AbstractVector{<:BlockIndexRange{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
     # `zero!` is needed: we only copy sub-ranges from stored source blocks,
@@ -201,7 +201,7 @@ end
 # Merging: each I[d] groups source blocks into destination blocks.
 # Follows the same pattern as the old GradedArray getindex(::AbstractBlockVector...).
 function Base.getindex(
-        a::AbelianGradedArray{T, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
+        a::AbelianGradedArray{T, <:Any, N}, I::Vararg{AbstractBlockVector{<:Block{1}}, N}
     ) where {T, N}
     ax_dest = ntuple(d -> axes(a, d)[I[d]], Val(N))
     # `zero!` is needed: each source block writes into a sub-range of one
@@ -242,7 +242,7 @@ end
 #  eachblockstoredindex
 # ---------------------------------------------------------------------------
 
-function eachblockstoredindex(a::AbelianGradedArray{T, N}) where {T, N}
+function eachblockstoredindex(a::AbelianGradedArray{T, <:Any, N}) where {T, N}
     return (Block(k) for k in keys(a.blockdata))
 end
 
@@ -274,7 +274,7 @@ function Base.similar(
     data_ax_types = Tuple{ntuple(d -> dataaxistype(typeof(axes[d])), Val(N))...}
     D_N = Base.promote_op(similar, D, Type{T}, data_ax_types)
     D_N′ = isconcretetype(D_N) ? D_N : Array{T, N}
-    return AbelianGradedArray{T, N, S, D_N′}(undef, axes)
+    return AbelianGradedArray{T, S, N, D_N′}(undef, axes)
 end
 
 # Allocate a graded array from any prototype when the requested axes are
@@ -305,7 +305,7 @@ function Base.similar(a::AbstractGradedArray, ::Type{T}, ::Tuple{}) where {T}
     D = datatype(a)
     D_0 = Base.promote_op(similar, D, Type{T}, Tuple{})
     D_0′ = isconcretetype(D_0) ? D_0 : Array{T, 0}
-    return AbelianGradedArray{T, 0, sectortype(a), D_0′}(undef, ())
+    return AbelianGradedArray{T, sectortype(a), 0, D_0′}(undef, ())
 end
 function Base.similar(a::AbelianGradedArray{T}, ::Type{Tv}) where {T, Tv}
     return similar(a, Tv, axes(a))
@@ -315,16 +315,16 @@ function Base.similar(a::AbelianGradedArray{T}) where {T}
 end
 
 # Block-wise copy; the default falls through to scalar `copyto!`.
-function Base.copy(a::AbelianGradedArray{T, N, S, D}) where {T, N, S, D}
-    return AbelianGradedArray{T, N, S, D}(
+function Base.copy(a::AbelianGradedArray{T, S, N, D}) where {T, S, N, D}
+    return AbelianGradedArray{T, S, N, D}(
         Dict{NTuple{N, Int}, D}(k => copy(v) for (k, v) in a.blockdata),
         a.axes
     )
 end
 
 function Base.copyto!(
-        dest::AbelianGradedArray{<:Any, N},
-        src::AbelianGradedArray{<:Any, N}
+        dest::AbelianGradedArray{<:Any, <:Any, N},
+        src::AbelianGradedArray{<:Any, <:Any, N}
     ) where {N}
     axes(dest) == axes(src) ||
         throw(
@@ -348,16 +348,10 @@ end
 Base.conj(a::AbelianGradedArray) = conj.(a)
 
 # ---------------------------------------------------------------------------
-#  sectortype
-# ---------------------------------------------------------------------------
-
-sectortype(::Type{<:AbelianGradedArray{T, N, S, D}}) where {T, N, S, D} = S
-
-# ---------------------------------------------------------------------------
 #  permutedims
 # ---------------------------------------------------------------------------
 
-function Base.permutedims(a::AbelianGradedArray{<:Any, N}, perm) where {N}
+function Base.permutedims(a::AbelianGradedArray{<:Any, <:Any, N}, perm) where {N}
     dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
     # No `zero!` here: `permutedims!` → `permutedimsopadd!(β=0)` already
     # zeros the destination before writing.
@@ -366,7 +360,7 @@ function Base.permutedims(a::AbelianGradedArray{<:Any, N}, perm) where {N}
 end
 
 function Base.permutedims!(
-        y::AbelianGradedArray{<:Any, N}, x::AbelianGradedArray{<:Any, N}, perm
+        y::AbelianGradedArray{<:Any, <:Any, N}, x::AbelianGradedArray{<:Any, <:Any, N}, perm
     ) where {N}
     TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
     return y
@@ -515,7 +509,7 @@ end
 
 # Materialize the graded array into a dense `Array` for the default
 # `checked_projectto!`/`isapprox`-after path.
-function Base.Array(a::AbelianGradedArray{T, N}) where {T, N}
+function Base.Array(a::AbelianGradedArray{T, <:Any, N}) where {T, N}
     dest = zeros(T, size(a))
     for bI in eachblockstoredindex(a)
         block_ranges = ntuple(d -> axes(a, d)[Block(Int(Tuple(bI)[d]))], N)
@@ -617,8 +611,8 @@ end
 #  Matrix multiplication (block-diagonal)
 # ---------------------------------------------------------------------------
 
-const AbelianGradedVector{T, S, D} = AbelianGradedArray{T, 1, S, D}
-const AbelianGradedMatrix{T, S, D} = AbelianGradedArray{T, 2, S, D}
+const AbelianGradedVector{T, S, D} = AbelianGradedArray{T, S, 1, D}
+const AbelianGradedMatrix{T, S, D} = AbelianGradedArray{T, S, 2, D}
 
 # ---------------------------------------------------------------------------
 #  show

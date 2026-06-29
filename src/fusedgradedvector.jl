@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------------------
 
 """
-    SectorVector{T, S<:SectorRange, D<:AbstractVector{T}} <: AbstractSectorArray{T, 1}
+    SectorVector{T, S<:SectorRange, D<:AbstractVector{T}} <: AbstractSectorArray{T, S, 1}
 
 A single sector with a data vector. Analogous to [`SectorMatrix`](@ref) but for 1-D data
 (eigenvalues, singular values, etc.). Each element is a symmetry scalar — there is no
@@ -17,7 +17,7 @@ belong to.
 The stored `SectorRange` is always non-dual (codomain convention).
 """
 struct SectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
-    AbstractSectorArray{T, 1}
+    AbstractSectorArray{T, S, 1}
     sector::S
     data::D
 end
@@ -29,7 +29,6 @@ sector(sv::SectorVector) = sv.sector
 dataaxes(sv::SectorVector) = axes(data(sv))
 sectoraxes(sv::SectorVector) = (sv.sector,)
 
-sectortype(::Type{<:SectorVector{T, S, D}}) where {T, S, D} = S
 datatype(::Type{SectorVector{T, S, D}}) where {T, S, D} = D
 
 Base.axes(sv::SectorVector) = axes(data(sv))
@@ -86,7 +85,7 @@ Fields:
     `keys(axis)` exactly and `length(blocks[s]) == axis[s]`.
 """
 struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
-    AbstractGradedArray{T, 1}
+    AbstractGradedArray{T, S, 1}
     axis::Dictionary{S, Int}
     blocks::Dictionary{S, D}
 
@@ -156,7 +155,6 @@ function blocktype(::Type{<:FusedGradedVector{T, S, D}}) where {T, S, D}
     return SectorVector{T, S, D}
 end
 blocktype(v::FusedGradedVector) = blocktype(typeof(v))
-sectortype(::Type{<:FusedGradedVector{T, S, D}}) where {T, S, D} = S
 
 function Base.axes(v::FusedGradedVector)
     return (gradedrange([s => l for (s, l) in pairs(v.axis)]),)

@@ -21,7 +21,7 @@ Fields:
     `(codomain[s], domain[s])`.
 """
 struct FusedGradedMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
-    AbstractGradedMatrix{T}
+    AbstractGradedMatrix{T, S}
     codomain::Dictionary{S, Int}
     domain::Dictionary{S, Int}
     blocks::Dictionary{S, D}
@@ -135,7 +135,6 @@ function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
     return SectorMatrix{T, S, D}
 end
 blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
-sectortype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D} = S
 
 function Base.axes(m::FusedGradedMatrix)
     cod = gradedrange(collect(pairs(m.codomain)))

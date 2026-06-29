@@ -17,8 +17,8 @@ using Test: @test, @test_throws, @testset
 
     @testset "Construction" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
-        @test a isa AbelianGradedArray{Float64, 2, U1, Matrix{Float64}}
-        @test a isa AbstractGradedArray{Float64, 2}
+        @test a isa AbelianGradedArray{Float64, U1, 2, Matrix{Float64}}
+        @test a isa AbstractGradedArray{Float64, <:Any, 2}
         @test a isa AbstractArray{Float64, 2}
         @test size(a) == (5, 3)
         @test ndims(a) == 2
@@ -102,7 +102,7 @@ using Test: @test, @test_throws, @testset
     @testset "rank-0 (scalar) array" begin
         # A rank-0 graded array holds a single trivial-sector value. `S` can't be
         # inferred from the empty axes, so the undef constructor takes it explicitly.
-        a = AbelianGradedArray{Float64, 0, U1, Array{Float64, 0}}(undef, ())
+        a = AbelianGradedArray{Float64, U1, 0, Array{Float64, 0}}(undef, ())
         @test ndims(a) == 0
         @test size(a) == ()
         @test axes(a) == ()
@@ -121,13 +121,13 @@ using Test: @test, @test_throws, @testset
 
         # The block view shares data as a rank-0 `AbelianSectorArray`.
         v = view(a, Block())
-        @test v isa AbelianSectorArray{Float64, 0}
+        @test v isa AbelianSectorArray{Float64, <:Any, 0}
         @test v[] == 3.5
 
         # `similar` with empty axes builds a rank-0 graded array carrying the
         # prototype's sector type, even from a higher-rank prototype.
         s = similar(AbelianGradedArray{Float64}(undef, g1, g2), ComplexF64, ())
-        @test s isa AbelianGradedArray{ComplexF64, 0}
+        @test s isa AbelianGradedArray{ComplexF64, <:Any, 0}
         @test sectortype(s) === U1
     end
 
@@ -150,13 +150,13 @@ using Test: @test, @test_throws, @testset
         a[Block(1, 1)] = ones(2, 1)
 
         a2 = similar(a)
-        @test a2 isa AbelianGradedArray{Float64, 2}
+        @test a2 isa AbelianGradedArray{Float64, <:Any, 2}
         @test size(a2) == size(a)
         # similar now allocates all allowed blocks (same as constructor)
         @test length(collect(eachblockstoredindex(a2))) == 2
 
         a3 = similar(a, ComplexF64)
-        @test a3 isa AbelianGradedArray{ComplexF64, 2}
+        @test a3 isa AbelianGradedArray{ComplexF64, <:Any, 2}
         @test size(a3) == size(a)
     end
 
@@ -432,11 +432,11 @@ end
     # Constructor form: `rand(T, axes)` / `randn(T, axes)` for graded axes
     # builds an `AbelianGradedArray` with the right block structure.
     r = randn(rng, Float64, (g1, dual(g1)))
-    @test r isa AbelianGradedArray{Float64, 2}
+    @test r isa AbelianGradedArray{Float64, <:Any, 2}
     @test axes(r) == (g1, dual(g1))
     @test !iszero(r)
     u = rand(rng, Float64, (g1, dual(g1)))
-    @test u isa AbelianGradedArray{Float64, 2}
+    @test u isa AbelianGradedArray{Float64, <:Any, 2}
     @test !iszero(u)
 end
 
@@ -450,30 +450,30 @@ end
     @testset "ones" begin
         for o in
             (ones(g1, g2), ones(Float64, g1, g2), ones((g1, g2)), ones(Float64, (g1, g2)))
-            @test o isa AbelianGradedArray{Float64, 2}
+            @test o isa AbelianGradedArray{Float64, <:Any, 2}
             @test axes(o) == (g1, g2)
             @test Array(o) == Array(reference1(1.0))
         end
-        @test ones(ComplexF64, g1, g2) isa AbelianGradedArray{ComplexF64, 2}
+        @test ones(ComplexF64, g1, g2) isa AbelianGradedArray{ComplexF64, <:Any, 2}
     end
     @testset "fill" begin
         for a in (fill(2.5, g1, g2), fill(2.5, (g1, g2)))
-            @test a isa AbelianGradedArray{Float64, 2}
+            @test a isa AbelianGradedArray{Float64, <:Any, 2}
             @test axes(a) == (g1, g2)
             @test Array(a) == Array(reference1(2.5))
         end
-        @test fill(1.0im, g1, g2) isa AbelianGradedArray{ComplexF64, 2}
+        @test fill(1.0im, g1, g2) isa AbelianGradedArray{ComplexF64, <:Any, 2}
     end
 
     # rand/randn shorthands forward to the canonical `(rng, T, tuple)` form, so a seeded
     # shorthand matches a seeded canonical call. All non-canonical arg shapes are covered.
     @testset "$f shorthands" for f in (rand, randn)
-        @test f(g1, g2) isa AbelianGradedArray{Float64, 2}
-        @test f(ComplexF64, g1, g2) isa AbelianGradedArray{ComplexF64, 2}
-        @test f((g1, g2)) isa AbelianGradedArray{Float64, 2}
-        @test f(ComplexF64, (g1, g2)) isa AbelianGradedArray{ComplexF64, 2}
-        @test f(Random.Xoshiro(1), g1, g2) isa AbelianGradedArray{Float64, 2}
-        @test f(Random.Xoshiro(1), (g1, g2)) isa AbelianGradedArray{Float64, 2}
+        @test f(g1, g2) isa AbelianGradedArray{Float64, <:Any, 2}
+        @test f(ComplexF64, g1, g2) isa AbelianGradedArray{ComplexF64, <:Any, 2}
+        @test f((g1, g2)) isa AbelianGradedArray{Float64, <:Any, 2}
+        @test f(ComplexF64, (g1, g2)) isa AbelianGradedArray{ComplexF64, <:Any, 2}
+        @test f(Random.Xoshiro(1), g1, g2) isa AbelianGradedArray{Float64, <:Any, 2}
+        @test f(Random.Xoshiro(1), (g1, g2)) isa AbelianGradedArray{Float64, <:Any, 2}
         # Seeded shorthand == seeded canonical, for every shape that fills in defaults.
         @test Array(f(Random.Xoshiro(1), Float64, g1, g2)) ==
             Array(f(Random.Xoshiro(1), Float64, (g1, g2)))
@@ -563,7 +563,7 @@ end
     TensorAlgebra.projectto!(ref, randn(5, 5))
     src = Array(ref)
     a = src[g, dual(g)]
-    @test a isa AbelianGradedArray{Float64, 2}
+    @test a isa AbelianGradedArray{Float64, <:Any, 2}
     @test axes(a) == (g, dual(g))
     @test Array(a) ≈ src
 
@@ -576,7 +576,7 @@ end
     # matrix is reshaped up before projecting.
     aux = gradedrange([U1(0) => 1])
     a3 = src[g, dual(g), aux]
-    @test a3 isa AbelianGradedArray{Float64, 3}
+    @test a3 isa AbelianGradedArray{Float64, <:Any, 3}
     @test size(a3) == (5, 5, 1)
 
     # A single graded axis is disambiguated against `Base.getindex(::Array,
@@ -584,7 +584,7 @@ end
     vsrc = zeros(5)
     vsrc[1:2] .= randn(2)              # weight only in the trivial (U1(0)) block
     av = vsrc[g]
-    @test av isa AbelianGradedArray{Float64, 1}
+    @test av isa AbelianGradedArray{Float64, <:Any, 1}
     @test Array(av) ≈ vsrc
 end
 

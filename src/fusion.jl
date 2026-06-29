@@ -63,7 +63,7 @@ end
 # ========================  SectorFusion AbelianGradedArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbelianGradedArray{T, N}, ndims_codomain::Val{K}
+        ::SectorFusion, a::AbelianGradedArray{T, <:Any, N}, ndims_codomain::Val{K}
     ) where {T, N, K}
     # Gather the stored blocks straight into the sector-merged `FusedGradedMatrix`, rather
     # than materializing the unmerged 2D block array and sector-merging it as a second pass.
@@ -113,7 +113,7 @@ end
 # codomain/domain axes must be SectorOneTo (carrying multiplicity info).
 # Works for both AbelianSectorMatrix and SectorMatrix.
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::AbstractSectorArray{<:Any, 2},
+        ::SectorFusion, m::AbstractSectorArray{<:Any, <:Any, 2},
         codomain_axes::Tuple{Vararg{SectorOneTo}},
         domain_axes::Tuple{Vararg{SectorOneTo}}
     )
