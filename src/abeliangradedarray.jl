@@ -298,11 +298,9 @@ function Base.similar(
     ) where {T}
     return similar(a, T, axes)
 end
-# Scalar (rank-0) destination: a graded full contraction collapses to the trivial
-# sector, so allocate a rank-0 graded array carrying that sector. This keeps the
-# contraction's matricize/mul!/unmatricize path entirely in graded land instead of
-# falling back to a plain dense `Array{T,0}`. The block datatype is carried over from the
-# prototype (the empty-axes case of the `GradedOneTo` `similar` above).
+# Rank-0 destination: the empty axes carry no sector type, so unlike the `GradedOneTo`
+# `similar` above (which binds `S` from the axes), both the sector type and the block
+# datatype are taken from the prototype `a`.
 function Base.similar(a::AbstractGradedArray, ::Type{T}, ::Tuple{}) where {T}
     D = datatype(a)
     D_0 = Base.promote_op(similar, D, Type{T}, Tuple{})
