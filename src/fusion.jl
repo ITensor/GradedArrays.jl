@@ -27,9 +27,13 @@ end
 # `flip`ed (same sectors and sizes, opposite arrow) so the matrix reads as a
 # `codomain ← domain` map and the matmul pairs contracted legs correctly.
 function unmerged_matricize_axes(
+        S::Type{<:SectorRange},
         axes_codomain::Tuple{Vararg{GradedOneTo}}, axes_domain::Tuple{Vararg{GradedOneTo}}
     )
-    init = trivial_gradedrange((axes_codomain..., axes_domain...))
+    # The trivial-sector init seeds each `reduce`, so a group with no axes (a rank-0
+    # codomain or domain, as in a full contraction to a scalar) fuses to the trivial
+    # sector. `S` supplies that sector when no axis is present to carry it.
+    init = trivial_gradedrange(S)
     ax_codomain = reduce(unmerged_tensor_product, axes_codomain; init)
     ax_domain = flip(reduce(unmerged_tensor_product, axes_domain; init))
     return ax_codomain, ax_domain
@@ -63,15 +67,15 @@ function TensorAlgebra.matricize(
     ) where {T, N, K}
     # Gather the stored blocks straight into the sector-merged `FusedGradedMatrix`, rather
     # than materializing the unmerged 2D block array and sector-merging it as a second pass.
+    S = sectortype(a)
     unfused_row, unfused_col =
-        unmerged_matricize_axes(bipartition(axes(a), ndims_codomain)...)
+        unmerged_matricize_axes(S, bipartition(axes(a), ndims_codomain)...)
     merged_row = sectormergesort(unfused_row)
     merged_col = sectormergesort(unfused_col)
     # Where each unmerged block lands inside its merged block: `Block(j)[subrange]`.
     row_dest = invblockmergeperm(unfused_row, sectorsortperm(unfused_row), merged_row)
     col_dest = invblockmergeperm(unfused_col, sectorsortperm(unfused_col), merged_col)
 
-    S = sectortype(a)
     codomain = Dictionary{S, Int}(eachsectoraxis(merged_row), datalengths(merged_row))
     domain = Dictionary{S, Int}(dual.(eachsectoraxis(merged_col)), datalengths(merged_col))
     m = FusedGradedMatrix{T}(undef, codomain, domain)
@@ -148,7 +152,8 @@ function TensorAlgebra.unmatricize(
     K = length(codomain_axes)
     N = K + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
-    unfused_row, unfused_col = unmerged_matricize_axes(codomain_axes, domain_axes)
+    unfused_row, unfused_col =
+        unmerged_matricize_axes(sectortype(m), codomain_axes, domain_axes)
     merged_row = sectormergesort(unfused_row)
     merged_col = sectormergesort(unfused_col)
     row_dest = invblockmergeperm(unfused_row, sectorsortperm(unfused_row), merged_row)

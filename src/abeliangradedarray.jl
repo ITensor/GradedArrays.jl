@@ -41,6 +41,16 @@ function AbelianGradedArray{T, N, D, S}(
     return AbelianGradedArray{T, N, D, S}(blockdata, axs)
 end
 
+# Rank-0 (scalar) array: a single trivial-sector block keyed by `()`. `S` cannot be
+# inferred from the empty axes, so it is supplied by the caller (e.g. `similar` from the
+# operand's sector type) rather than matched from the signature.
+function AbelianGradedArray{T, 0, D, S}(
+        ::UndefInitializer, axs::Tuple{}
+    ) where {T, D <: AbstractArray{T, 0}, S <: SectorRange}
+    blockdata = Dict{NTuple{0, Int}, D}(() => similar(D, ()))
+    return AbelianGradedArray{T, 0, D, S}(blockdata, axs)
+end
+
 # Convenience: infer D = Array{T,N} and S from axes.
 function AbelianGradedArray{T}(
         ::UndefInitializer, axs::NTuple{N, GradedOneTo{S}}
@@ -86,11 +96,14 @@ datatype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = D
 # ---------------------------------------------------------------------------
 
 # Shared implementation: build the `AbelianSectorArray` view for a stored block.
+# Construct through `blocktype(a)` so the sector type `S` comes from the parent rather
+# than being inferred from `sects`, which is empty (and so carries no `S`) for a rank-0
+# array.
 function view_abelian(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N}
     bk = Int.(Tuple(I))
     haskey(a.blockdata, bk) || error("Block $bk is not stored.")
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
-    return AbelianSectorArray(sects, a.blockdata[bk])
+    return blocktype(typeof(a))(sects, a.blockdata[bk])
 end
 
 Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N} = view_abelian(a, I)
@@ -98,6 +111,17 @@ Base.view(a::AbelianGradedArray{T, N}, I::Block{N}) where {T, N} = view_abelian(
 # Disambiguate against `view(::AbstractGradedArray{T, N}, ::Vararg{Block{1}, N})` for
 # N=1, where the splatted form collapses to a single Block{1} argument.
 Base.view(a::AbelianGradedArray{T, 1}, I::Block{1}) where {T} = view_abelian(a, I)
+
+# Rank-0 (scalar) element access: a rank-0 graded array (e.g. the result of a full
+# contraction to a scalar) holds a single trivial-sector value. `a[]` is unambiguous —
+# there are no coordinates and exactly one element — unlike the banned higher-rank scalar
+# indexing. Defined on the concrete type to take precedence over the N-D block-indexing
+# methods, whose `Vararg` signatures also match a no-argument call when N=0.
+Base.getindex(a::AbelianGradedArray{T, 0}) where {T} = view(a, Block())[]
+function Base.setindex!(a::AbelianGradedArray{T, 0}, value) where {T}
+    view(a, Block())[] = value
+    return a
+end
 
 # ---------------------------------------------------------------------------
 #  blocks — lazy view delegating to view (following BlockArrays convention)
@@ -278,6 +302,13 @@ function Base.similar(
         a::AbstractGradedArray{T}, axes::Tuple{Vararg{GradedOneTo}}
     ) where {T}
     return similar(a, T, axes)
+end
+# Scalar (rank-0) destination: a graded full contraction collapses to the trivial
+# sector, so allocate a rank-0 graded array carrying that sector. This keeps the
+# contraction's matricize/mul!/unmatricize path entirely in graded land instead of
+# falling back to a plain dense `Array{T,0}`.
+function Base.similar(a::AbstractGradedArray, ::Type{T}, ::Tuple{}) where {T}
+    return AbelianGradedArray{T, 0, Array{T, 0}, sectortype(a)}(undef, ())
 end
 function Base.similar(a::AbelianGradedArray{T}, ::Type{Tv}) where {T, Tv}
     return similar(a, Tv, axes(a))

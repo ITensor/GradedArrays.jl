@@ -311,6 +311,23 @@ end
     @test data(result[Block(2, 2)]) ≈ a_22 * b_22
 end
 
+@testset "contract AbelianGradedArray to a scalar (elt=$elt)" for elt in
+    (Float64, ComplexF64)
+    # A full contraction over every index collapses to a rank-0 result. The
+    # destination is allocated as a rank-0 graded array (trivial sector), so the
+    # whole matricize/mul!/unmatricize path stays in graded land; the result reads
+    # back as a scalar via `result[]`.
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn(elt, (g, dual(g)))
+    b = randn(elt, (dual(g), g))
+
+    result = contract((), a, (1, 2), b, (1, 2))
+    @test result isa AbelianGradedArray{elt, 0}
+    @test ndims(result) == 0
+    @test sectortype(result) === U1
+    @test result[] ≈ sum(Array(a) .* Array(b))
+end
+
 @testset "unmatricize AbelianSectorMatrix with SectorOneTo axes" begin
     # Create a 3D AbelianSectorArray, matricize it, then unmatricize and verify roundtrip
     codomain_ax = SectorOneTo(U1(0), 2)
