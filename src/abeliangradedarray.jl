@@ -25,9 +25,11 @@ const AbelianGradedMatrix{T, D, S} = AbelianGradedArray{T, 2, D, S}
 # ---------------------------------------------------------------------------
 
 # Fully-parameterized undef constructor: finds allowed blocks, allocates, calls inner.
-# (allowedblocks is defined in fusion.jl)
+# (allowedblocks is defined in fusion.jl). The axes element type is left unparameterized so
+# `S` binds from the type parameters rather than from `axs`, which is empty (and so carries
+# no `S`) for a rank-0 array; `allowedblocks` returns the single empty block in that case.
 function AbelianGradedArray{T, N, D, S}(
-        ::UndefInitializer, axs::NTuple{N, GradedOneTo{S}}
+        ::UndefInitializer, axs::NTuple{N, GradedOneTo}
     ) where {T, N, D <: AbstractArray{T, N}, S <: SectorRange}
     block_axes = map(eachdataaxis, axs)
     function allocate_block(bk)
@@ -41,27 +43,21 @@ function AbelianGradedArray{T, N, D, S}(
     return AbelianGradedArray{T, N, D, S}(blockdata, axs)
 end
 
-# Rank-0 (scalar) array: a single trivial-sector block keyed by `()`. `S` cannot be
-# inferred from the empty axes, so it is supplied by the caller (e.g. `similar` from the
-# operand's sector type) rather than matched from the signature.
-function AbelianGradedArray{T, 0, D, S}(
-        ::UndefInitializer, axs::Tuple{}
-    ) where {T, D <: AbstractArray{T, 0}, S <: SectorRange}
-    blockdata = Dict{NTuple{0, Int}, D}(() => similar(D, ()))
-    return AbelianGradedArray{T, 0, D, S}(blockdata, axs)
-end
-
-# Convenience: infer D = Array{T,N} and S from axes.
+# Convenience: infer D = Array{T,N} and S from the axes. Requires at least one axis: the
+# sector type of a rank-0 array cannot be inferred from empty axes (there is no symmetry to
+# read it from), so a rank-0 array is built through the fully-parameterized constructor with
+# an explicit `S`.
 function AbelianGradedArray{T}(
-        ::UndefInitializer, axs::NTuple{N, GradedOneTo{S}}
-    ) where {T, N, S <: SectorRange}
-    return AbelianGradedArray{T, N, Array{T, N}, S}(undef, axs)
+        ::UndefInitializer, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    ) where {T}
+    N = length(axs)
+    return AbelianGradedArray{T, N, Array{T, N}, sectortype(eltype(axs))}(undef, axs)
 end
 
 function AbelianGradedArray{T}(
-        init::UndefInitializer, axs::Vararg{GradedOneTo{S}, N}
-    ) where {T, N, S <: SectorRange}
-    return AbelianGradedArray{T}(init, axs)
+        init::UndefInitializer, ax1::GradedOneTo, axs::GradedOneTo...
+    ) where {T}
+    return AbelianGradedArray{T}(init, (ax1, axs...))
 end
 
 # Convert any `AbstractGradedMatrix` (e.g. a `FusedGradedMatrix`) to an
@@ -89,7 +85,6 @@ function blocktype(
     return AbelianSectorArray{T, N, D, S}
 end
 blocktype(a::AbelianGradedArray) = blocktype(typeof(a))
-datatype(::Type{<:AbelianGradedArray{T, N, D, S}}) where {T, N, D, S} = D
 
 # ---------------------------------------------------------------------------
 #  view (primitive): returns AbelianSectorArray sharing data with blockdata
@@ -275,7 +270,7 @@ function Base.similar(
         axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
     ) where {T, S}
     N = length(axes)
-    D = datatype(blocktype(a))
+    D = datatype(a)
     data_ax_types = Tuple{ntuple(d -> dataaxistype(typeof(axes[d])), Val(N))...}
     D_N = Base.promote_op(similar, D, Type{T}, data_ax_types)
     D_N′ = isconcretetype(D_N) ? D_N : Array{T, N}
@@ -306,9 +301,13 @@ end
 # Scalar (rank-0) destination: a graded full contraction collapses to the trivial
 # sector, so allocate a rank-0 graded array carrying that sector. This keeps the
 # contraction's matricize/mul!/unmatricize path entirely in graded land instead of
-# falling back to a plain dense `Array{T,0}`.
+# falling back to a plain dense `Array{T,0}`. The block datatype is carried over from the
+# prototype (the empty-axes case of the `GradedOneTo` `similar` above).
 function Base.similar(a::AbstractGradedArray, ::Type{T}, ::Tuple{}) where {T}
-    return AbelianGradedArray{T, 0, Array{T, 0}, sectortype(a)}(undef, ())
+    D = datatype(a)
+    D_0 = Base.promote_op(similar, D, Type{T}, Tuple{})
+    D_0′ = isconcretetype(D_0) ? D_0 : Array{T, 0}
+    return AbelianGradedArray{T, 0, D_0′, sectortype(a)}(undef, ())
 end
 function Base.similar(a::AbelianGradedArray{T}, ::Type{Tv}) where {T, Tv}
     return similar(a, Tv, axes(a))

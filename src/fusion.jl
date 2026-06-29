@@ -182,9 +182,9 @@ end
 
 # ========================  Allowed block keys  ========================
 
-function allowedblocks(axs::NTuple{N, GradedOneTo{S}}) where {N, S}
+function allowedblocks(axs::NTuple{N, GradedOneTo}) where {N}
     N == 0 && return Block{0, Int}[Block()]
-    @assert SymmetryStyle(S) === AbelianStyle()
+    @assert SymmetryStyle(sectortype(eltype(axs))) === AbelianStyle()
     unfused = reduce(axs; init = trivial_gradedrange(axs)) do ax1, ax2
         return unmerged_tensor_product(ax1, ax2)
     end

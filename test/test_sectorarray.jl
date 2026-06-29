@@ -78,6 +78,12 @@ using Test: @test, @test_throws, @testset
         rebuilt = AbelianSectorArray(sd, fill(5.0))
         @test rebuilt isa AbelianSectorArray{Float64, 0, Array{Float64, 0}, U1}
         @test rebuilt[] == 5.0
+
+        # The convenience constructors infer `S` from the axes/sectors, which is
+        # impossible for an empty tuple, so they require at least one; a rank-0 value
+        # uses the fully-parameterized form above.
+        @test_throws MethodError AbelianSectorArray{Float64}(undef, ())
+        @test_throws MethodError AbelianSectorDelta{Float64}(())
     end
 
     @testset "AbstractArray interface — size, getindex, setindex!" begin

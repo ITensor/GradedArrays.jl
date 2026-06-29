@@ -109,6 +109,11 @@ using Test: @test, @test_throws, @testset
         @test sectortype(a) === U1
         @test collect(eachblockstoredindex(a)) == [Block()]
 
+        # The convenience constructor infers `S` from the axes, which is impossible for
+        # empty axes, so it requires at least one axis; a rank-0 array uses the
+        # fully-parameterized form above.
+        @test_throws MethodError AbelianGradedArray{Float64}(undef, ())
+
         # `a[]` is allowed (one element, no coordinates), unlike higher-rank scalar
         # indexing.
         a[] = 3.5

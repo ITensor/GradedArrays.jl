@@ -22,11 +22,14 @@ function AbelianSectorArray{T, N, A, S}(
     return AbelianSectorArray{T, N, A, S}(sects, similar(A, data.(axs)))
 end
 
-# Convenience: infer A = Array{T,N} and S from axes.
+# Convenience: infer A = Array{T,N} and S from the axes. Requires at least one axis: the
+# sector type of a rank-0 array cannot be inferred from empty axes, so a rank-0 array is
+# built through the fully-parameterized constructor with an explicit `S`.
 function AbelianSectorArray{T}(
-        ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
-    ) where {T, N, S <: SectorRange}
-    return AbelianSectorArray{T, N, Array{T, N}, S}(undef, axs)
+        ::UndefInitializer, axs::Tuple{SectorOneTo, Vararg{SectorOneTo}}
+    ) where {T}
+    N = length(axs)
+    return AbelianSectorArray{T, N, Array{T, N}, sectortype(eltype(axs))}(undef, axs)
 end
 
 # Construct from AbelianSectorDelta (inverse of sector/data decomposition). Take `S` from
