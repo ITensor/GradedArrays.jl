@@ -55,11 +55,11 @@ end
 function Base.setindex!(
         a::AbstractGradedArray{<:Any, N}, value, I::Vararg{Block{1}, N}
     ) where {N}
-    view(a, I...) .= value
+    copy!(view(a, I...), value)
     return a
 end
 function Base.setindex!(a::AbstractGradedArray{<:Any, 1}, value, I::Block{1})
-    view(a, I) .= value
+    copy!(view(a, I), value)
     return a
 end
 

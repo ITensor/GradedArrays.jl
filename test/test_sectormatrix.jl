@@ -116,25 +116,10 @@ using Test: @test, @test_throws, @testset
         @test data(sm) === d
     end
 
-    @testset "SectorMatrix linear broadcasting" begin
+    @testset "broadcasting is unsupported" begin
         sm = SectorMatrix(U1(0), [1.0 2.0; 3.0 4.0])
-
-        sm2 = 2.0 .* sm
-        @test sm2 isa SectorMatrix
-        @test sectoraxes(sm2, 1) == U1(0)
-        @test data(sm2) ≈ [2.0 4.0; 6.0 8.0]
-
-        sm3 = sm ./ 2.0
-        @test sm3 isa SectorMatrix
-        @test data(sm3) ≈ [0.5 1.0; 1.5 2.0]
-
-        sm4 = sm .+ sm
-        @test sm4 isa SectorMatrix
-        @test data(sm4) ≈ 2.0 .* data(sm)
-
-        sa = AbelianSectorArray((U1(0), conj(U1(0))), zeros(2, 2))
-        sa .= sm
-        @test data(sa) ≈ data(sm)
+        @test_throws ArgumentError 2.0 .* sm
+        @test_throws ArgumentError sm .+ sm
     end
 
     @testset "Undef constructor (Int dims)" begin

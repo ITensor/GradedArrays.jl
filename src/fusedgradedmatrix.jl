@@ -424,7 +424,7 @@ function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
 
     m = FusedGradedMatrix{T, datatype(a), S}(undef, cod, dom)
     for I in eachblockstoredindex(a)
-        view(m, I) .= view(a, I)
+        copy!(view(m, I), view(a, I))
     end
     return m
 end
