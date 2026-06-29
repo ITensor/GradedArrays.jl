@@ -88,6 +88,9 @@ end
 #  Accessors
 # ---------------------------------------------------------------------------
 
+# The block storage type is the datatype of the blocks, so a concrete graded array only
+# needs to define `blocktype`.
+datatype(::Type{T}) where {T <: AbstractGradedArray} = datatype(blocktype(T))
 datatype(a::AbstractGradedArray) = datatype(typeof(a))
 sectortype(a::AbstractGradedArray) = sectortype(typeof(a))
 

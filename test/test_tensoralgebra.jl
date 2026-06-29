@@ -311,6 +311,46 @@ end
     @test data(result[Block(2, 2)]) ≈ a_22 * b_22
 end
 
+@testset "contract AbelianGradedArray to a scalar (elt=$elt)" for elt in
+    (Float64, ComplexF64)
+    # A full contraction over every index collapses to a rank-0 result. The
+    # destination is allocated as a rank-0 graded array (trivial sector), so the
+    # whole matricize/mul!/unmatricize path stays in graded land; the result reads
+    # back as a scalar via `result[]`.
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn(elt, (g, dual(g)))
+    b = randn(elt, (dual(g), g))
+
+    result = contract((), a, (1, 2), b, (1, 2))
+    @test result isa AbelianGradedArray{elt, 0}
+    @test ndims(result) == 0
+    @test sectortype(result) === U1
+    @test result[] ≈ sum(Array(a) .* Array(b))
+end
+
+@testset "matricize/unmatricize a rank-0 graded array" begin
+    # The rank-0 limit of the matricize path, exercised directly. With no axes, the
+    # codomain/domain groups fuse to the trivial sector, so the unmerged axes are a
+    # single trivial block (the sector type is supplied explicitly).
+    row, col = GradedArrays.unmerged_matricize_axes(U1, (), ())
+    @test sectors(row) == [U1(0)]
+    @test sectors(col) == [U1(0)]
+    @test isdual(col)
+
+    # A rank-0 graded array matricizes to a 1×1 trivial-sector `FusedGradedMatrix`,
+    # and unmatricizing back recovers the scalar.
+    a = AbelianGradedArray{Float64, 0, Array{Float64, 0}, U1}(undef, ())
+    a[] = 4.0
+    m = matricize(GradedArrays.SectorFusion(), a, Val(0))
+    @test m isa FusedGradedMatrix{Float64}
+    @test size(m) == (1, 1)
+    @test data(m[Block(1, 1)]) == fill(4.0, 1, 1)
+
+    back = unmatricize(GradedArrays.SectorFusion(), m, (), ())
+    @test back isa Array{Float64, 0}
+    @test back[] == 4.0
+end
+
 @testset "unmatricize AbelianSectorMatrix with SectorOneTo axes" begin
     # Create a 3D AbelianSectorArray, matricize it, then unmatricize and verify roundtrip
     codomain_ax = SectorOneTo(U1(0), 2)

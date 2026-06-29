@@ -157,8 +157,6 @@ function blocktype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S}
 end
 blocktype(v::FusedGradedVector) = blocktype(typeof(v))
 sectortype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S} = S
-datatype(::Type{<:FusedGradedVector{T, D, S}}) where {T, D, S} = D
-datatype(v::FusedGradedVector) = datatype(typeof(v))
 
 function Base.axes(v::FusedGradedVector)
     return (gradedrange([s => l for (s, l) in pairs(v.axis)]),)

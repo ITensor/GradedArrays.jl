@@ -7,10 +7,11 @@ For abelian symmetries, every element equals `one(T)` (the Kronecker delta selec
 struct AbelianSectorDelta{T, N, S <: SectorRange} <: AbstractSectorDelta{T, N}
     sectors::NTuple{N, S}
 end
-function AbelianSectorDelta{T}(
-        sectors::NTuple{N, S}
-    ) where {T, N, S <: SectorRange}
-    return AbelianSectorDelta{T, N, S}(sectors)
+# Convenience: infer N and S from the sectors. Requires at least one sector: the sector
+# type of a rank-0 delta cannot be inferred from an empty tuple, so a rank-0 delta is built
+# through the fully-parameterized constructor with an explicit `S`.
+function AbelianSectorDelta{T}(sectors::Tuple{SectorRange, Vararg{SectorRange}}) where {T}
+    return AbelianSectorDelta{T, length(sectors), eltype(sectors)}(sectors)
 end
 
 # ========================  AbstractArray interface  ========================

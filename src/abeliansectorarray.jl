@@ -22,19 +22,24 @@ function AbelianSectorArray{T, N, A, S}(
     return AbelianSectorArray{T, N, A, S}(sects, similar(A, data.(axs)))
 end
 
-# Convenience: infer A = Array{T,N} and S from axes.
+# Convenience: infer A = Array{T,N} and S from the axes. Requires at least one axis: the
+# sector type of a rank-0 array cannot be inferred from empty axes, so a rank-0 array is
+# built through the fully-parameterized constructor with an explicit `S`.
 function AbelianSectorArray{T}(
-        ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
-    ) where {T, N, S <: SectorRange}
-    return AbelianSectorArray{T, N, Array{T, N}, S}(undef, axs)
+        ::UndefInitializer, axs::Tuple{SectorOneTo, Vararg{SectorOneTo}}
+    ) where {T}
+    N = length(axs)
+    return AbelianSectorArray{T, N, Array{T, N}, sectortype(eltype(axs))}(undef, axs)
 end
 
-# Construct from AbelianSectorDelta (inverse of sector/data decomposition)
+# Construct from AbelianSectorDelta (inverse of sector/data decomposition). Take `S` from
+# the delta's type rather than inferring it from `delta.sectors`, which is empty (and so
+# carries no `S`) for a rank-0 array.
 function AbelianSectorArray(
-        delta::AbelianSectorDelta{<:Any, N},
-        data::AbstractArray{<:Any, N}
-    ) where {N}
-    return AbelianSectorArray(delta.sectors, data)
+        delta::AbelianSectorDelta{<:Any, N, S},
+        data::AbstractArray{T, N}
+    ) where {T, N, S}
+    return AbelianSectorArray{T, N, typeof(data), S}(delta.sectors, data)
 end
 function AbelianSectorArray{T, N, A, S}(
         delta::AbelianSectorDelta{<:Any, N, S},
@@ -50,8 +55,12 @@ const AbelianSectorMatrix{T, A <: AbstractMatrix{T}, S <: SectorRange} =
 
 # Accessors
 
-# Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data
-sector(sa::AbelianSectorArray) = AbelianSectorDelta{eltype(sa)}(sa.sectors)
+# Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data.
+# Pass `N`/`S` explicitly so the structural factor of a rank-0 array (empty `sectors`,
+# which carry no `S`) still resolves its sector type.
+function sector(sa::AbelianSectorArray{T, N, A, S}) where {T, N, A, S}
+    return AbelianSectorDelta{T, N, S}(sa.sectors)
+end
 sectoraxes(sa::AbelianSectorArray) = axes(sector(sa))
 dataaxes(sa::AbelianSectorArray) = axes(data(sa))
 

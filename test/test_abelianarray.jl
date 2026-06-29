@@ -99,6 +99,38 @@ using Test: @test, @test_throws, @testset
         @test_throws ErrorException (a[1, 1] = 42.0)
     end
 
+    @testset "rank-0 (scalar) array" begin
+        # A rank-0 graded array holds a single trivial-sector value. `S` can't be
+        # inferred from the empty axes, so the undef constructor takes it explicitly.
+        a = AbelianGradedArray{Float64, 0, Array{Float64, 0}, U1}(undef, ())
+        @test ndims(a) == 0
+        @test size(a) == ()
+        @test axes(a) == ()
+        @test sectortype(a) === U1
+        @test collect(eachblockstoredindex(a)) == [Block()]
+
+        # The convenience constructor infers `S` from the axes, which is impossible for
+        # empty axes, so it requires at least one axis; a rank-0 array uses the
+        # fully-parameterized form above.
+        @test_throws MethodError AbelianGradedArray{Float64}(undef, ())
+
+        # `a[]` is allowed (one element, no coordinates), unlike higher-rank scalar
+        # indexing.
+        a[] = 3.5
+        @test a[] == 3.5
+
+        # The block view shares data as a rank-0 `AbelianSectorArray`.
+        v = view(a, Block())
+        @test v isa AbelianSectorArray{Float64, 0}
+        @test v[] == 3.5
+
+        # `similar` with empty axes builds a rank-0 graded array carrying the
+        # prototype's sector type, even from a higher-rank prototype.
+        s = similar(AbelianGradedArray{Float64}(undef, g1, g2), ComplexF64, ())
+        @test s isa AbelianGradedArray{ComplexF64, 0}
+        @test sectortype(s) === U1
+    end
+
     @testset "Dual axes" begin
         g1_dual = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
         g2_dual = conj(gradedrange([U1(0) => 1, U1(-1) => 2]))
