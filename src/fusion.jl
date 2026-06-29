@@ -145,7 +145,6 @@ function TensorAlgebra.unmatricize(
     # Scatter each merged sector block of `m` straight into the N-D destination blocks,
     # the inverse of the `matricize` gather: each destination block reads a `[rows, cols]`
     # subrange of its coupled sector's matrix and reshapes it into the N-D block shape.
-    T = eltype(m)
     K = length(codomain_axes)
     N = K + length(domain_axes)
     dest_axes = (codomain_axes..., domain_axes...)
@@ -156,9 +155,8 @@ function TensorAlgebra.unmatricize(
     col_dest = invblockmergeperm(unfused_col, sectorsortperm(unfused_col), merged_col)
     merged_row_sectors = eachsectoraxis(merged_row)
 
-    # `undef` allocates every allowed N-D block; blocks whose coupled sector is unstored
-    # in `m` have no source and must read back as zero.
-    a = zero!(AbelianGradedArray{T}(undef, dest_axes))
+    # Not every allocated block gets written below, so we zero first.
+    a = zero!(similar(m, dest_axes))
     cod_lin = LinearIndices(Tuple(map(blocklength, codomain_axes)))
     dom_lin = LinearIndices(Tuple(map(blocklength, domain_axes)))
     for bI in eachblockstoredindex(a)
