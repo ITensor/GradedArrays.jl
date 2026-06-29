@@ -63,13 +63,27 @@ end
 # ========================  SectorFusion AbelianGradedArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbelianGradedArray{T, <:Any, N}, ndims_codomain::Val{K}
-    ) where {T, N, K}
-    # Gather the stored blocks straight into the sector-merged `FusedGradedMatrix`, rather
-    # than materializing the unmerged 2D block array and sector-merging it as a second pass.
+        ::SectorFusion, a::AbelianGradedArray{<:Any, <:Any, N}, ::Val{K}
+    ) where {N, K}
+    return TensorAlgebra.matricizeop(
+        SectorFusion(), identity, a, ntuple(identity, Val(K)),
+        ntuple(i -> K + i, Val(N - K))
+    )
+end
+
+# Build the sector-merged `FusedGradedMatrix` for the bipartition `(perm_codomain, perm_domain)`.
+# `op` transforms the fused axes (`conj` dualizes them), and the per-block `matricizeop` permutes
+# and reshapes each stored block to 2D, carrying `op` and the block's fermion permutation sign.
+function TensorAlgebra.matricizeop(
+        ::SectorFusion, op, a::AbelianGradedArray{T, <:Any, N},
+        perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
+    ) where {T, N}
+    K = length(perm_codomain)
+    K + length(perm_domain) == N || throw(ArgumentError("Invalid bipermutation"))
     S = sectortype(a)
-    unfused_row, unfused_col =
-        unmerged_matricize_axes(S, bipartition(axes(a), ndims_codomain)...)
+    codomain_axes = ntuple(i -> op(axes(a)[perm_codomain[i]]), Val(K))
+    domain_axes = ntuple(i -> op(axes(a)[perm_domain[i]]), Val(N - K))
+    unfused_row, unfused_col = unmerged_matricize_axes(S, codomain_axes, domain_axes)
     merged_row = sectormergesort(unfused_row)
     merged_col = sectormergesort(unfused_col)
     # Where each unmerged block lands inside its merged block: `Block(j)[subrange]`.
@@ -79,21 +93,26 @@ function TensorAlgebra.matricize(
     codomain = Dictionary{S, Int}(eachsectoraxis(merged_row), datalengths(merged_row))
     domain = Dictionary{S, Int}(dual.(eachsectoraxis(merged_col)), datalengths(merged_col))
     m = FusedGradedMatrix{T}(undef, codomain, domain)
-    # `undef` leaves the per-sector blocks uninitialized; unmerged blocks with no stored
-    # source must read back as zero, so zero every block before scattering.
+    # Allowed blocks with no stored source must read back as zero.
     foreach(b -> fill!(b, zero(T)), m.blocks)
 
-    cod_lin = LinearIndices(Tuple(blocklength.(axes(a)[1:K])))
-    dom_lin = LinearIndices(Tuple(blocklength.(axes(a)[(K + 1):N])))
+    cod_lin = LinearIndices(Tuple(blocklength.(codomain_axes)))
+    dom_lin = LinearIndices(Tuple(blocklength.(domain_axes)))
     merged_row_sectors = eachsectoraxis(merged_row)
     for bI_src in eachblockstoredindex(a)
         src = Tuple(bI_src)
-        row_fine = cod_lin[ntuple(i -> Int(src[i]), Val(K))...]
-        col_fine = dom_lin[ntuple(i -> Int(src[K + i]), Val(N - K))...]
+        row_fine = cod_lin[ntuple(i -> Int(src[perm_codomain[i]]), Val(K))...]
+        col_fine = dom_lin[ntuple(i -> Int(src[perm_domain[i]]), Val(N - K))...]
         row_bir = row_dest[row_fine]
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
-        block_2d = matricize(a[bI_src], ndims_codomain)
+        block_2d = TensorAlgebra.matricizeop(
+            SectorFusion(),
+            op,
+            a[bI_src],
+            perm_codomain,
+            perm_domain
+        )
         m.blocks[s][only(row_bir.indices), only(col_bir.indices)] = data(block_2d)
     end
     return m
