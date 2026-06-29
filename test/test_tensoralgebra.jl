@@ -328,6 +328,29 @@ end
     @test result[] ≈ sum(Array(a) .* Array(b))
 end
 
+@testset "matricize/unmatricize a rank-0 graded array" begin
+    # The rank-0 limit of the matricize path, exercised directly. With no axes, the
+    # codomain/domain groups fuse to the trivial sector, so the unmerged axes are a
+    # single trivial block (the sector type is supplied explicitly).
+    row, col = GradedArrays.unmerged_matricize_axes(U1, (), ())
+    @test sectors(row) == [U1(0)]
+    @test sectors(col) == [U1(0)]
+    @test isdual(col)
+
+    # A rank-0 graded array matricizes to a 1×1 trivial-sector `FusedGradedMatrix`,
+    # and unmatricizing back recovers the scalar.
+    a = AbelianGradedArray{Float64, 0, Array{Float64, 0}, U1}(undef, ())
+    a[] = 4.0
+    m = matricize(GradedArrays.SectorFusion(), a, Val(0))
+    @test m isa FusedGradedMatrix{Float64}
+    @test size(m) == (1, 1)
+    @test data(m[Block(1, 1)]) == fill(4.0, 1, 1)
+
+    back = unmatricize(GradedArrays.SectorFusion(), m, (), ())
+    @test back isa Array{Float64, 0}
+    @test back[] == 4.0
+end
+
 @testset "unmatricize AbelianSectorMatrix with SectorOneTo axes" begin
     # Create a 3D AbelianSectorArray, matricize it, then unmatricize and verify roundtrip
     codomain_ax = SectorOneTo(U1(0), 2)

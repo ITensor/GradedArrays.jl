@@ -63,6 +63,23 @@ using Test: @test, @test_throws, @testset
         @test sectortype(typeof(sa)) == U1
     end
 
+    @testset "rank-0 (scalar) array" begin
+        # A rank-0 array has an empty `sectors` tuple, so `sector` and the delta/data
+        # constructor take the sector type from the type rather than inferring it.
+        sa = AbelianSectorArray{Float64, 0, Array{Float64, 0}, U1}((), fill(2.0))
+        @test ndims(sa) == 0
+        @test sectortype(sa) === U1
+        @test sa[] == 2.0
+
+        sd = sector(sa)
+        @test sd isa AbelianSectorDelta{Float64, 0, U1}
+        @test sectortype(sd) === U1
+
+        rebuilt = AbelianSectorArray(sd, fill(5.0))
+        @test rebuilt isa AbelianSectorArray{Float64, 0, Array{Float64, 0}, U1}
+        @test rebuilt[] == 5.0
+    end
+
     @testset "AbstractArray interface — size, getindex, setindex!" begin
         data = [1.0 2.0; 3.0 4.0]
         sa = AbelianSectorArray((U1(1), U1(0)), data)
