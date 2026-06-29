@@ -74,7 +74,7 @@ using Test: @test, @test_throws, @testset
             blocks = [[2.0 0.0; 0.0 2.0], [3.0 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 3.0]]
             m = FusedGradedMatrix([U1(0), U1(1)], blocks)
             fm = f(m)
-            @test fm isa FusedGradedMatrix{Float64, Matrix{Float64}}
+            @test fm isa FusedGradedMatrix{Float64, <:Any, Matrix{Float64}}
             @test fm.blocks[U1(0)] ≈ f(blocks[1])
             @test fm.blocks[U1(1)] ≈ f(blocks[2])
         end

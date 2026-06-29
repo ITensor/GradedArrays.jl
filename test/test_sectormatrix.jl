@@ -8,7 +8,7 @@ using Test: @test, @test_throws, @testset
     @testset "Construction from SectorRange + data" begin
         d = [1.0 2.0; 3.0 4.0]
         sm = SectorMatrix(U1(1), d)
-        @test sm isa SectorMatrix{Float64, Matrix{Float64}, U1}
+        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
         @test eltype(sm) == Float64
         @test sectoraxes(sm, 1) == U1(1)
     end
@@ -36,7 +36,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "sectortype and datatype" begin
-        T = SectorMatrix{Float64, Matrix{Float64}, U1}
+        T = SectorMatrix{Float64, U1, Matrix{Float64}}
         @test sectortype(T) == U1
         @test GradedArrays.datatype(T) == Matrix{Float64}
     end
@@ -94,7 +94,7 @@ using Test: @test, @test_throws, @testset
     @testset "convert" begin
         d = [1 2; 3 4]
         sm = SectorMatrix(U1(0), d)
-        T = SectorMatrix{Float64, Matrix{Float64}, U1}
+        T = SectorMatrix{Float64, U1, Matrix{Float64}}
         sm2 = convert(T, sm)
         @test eltype(sm2) == Float64
         @test sm2[1, 1] === 1.0
@@ -124,23 +124,23 @@ using Test: @test, @test_throws, @testset
 
     @testset "Undef constructor (Int dims)" begin
         sm = SectorMatrix{Float64}(undef, U1(0), 3, 4)
-        @test sm isa SectorMatrix{Float64, Matrix{Float64}, U1}
+        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (3, 4)
         @test sectoraxes(sm, 1) == U1(0)
     end
 
     @testset "Undef constructor (AbstractUnitRange dims)" begin
         sm = SectorMatrix{Float64}(undef, U1(1), Base.OneTo(2), Base.OneTo(5))
-        @test sm isa SectorMatrix{Float64, Matrix{Float64}, U1}
+        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (2, 5)
         @test sectoraxes(sm, 1) == U1(1)
     end
 
     @testset "Undef constructor (fully parameterized)" begin
-        sm = SectorMatrix{Float64, Matrix{Float64}, U1}(
+        sm = SectorMatrix{Float64, U1, Matrix{Float64}}(
             undef, U1(0), Base.OneTo(3), Base.OneTo(4)
         )
-        @test sm isa SectorMatrix{Float64, Matrix{Float64}, U1}
+        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (3, 4)
     end
 end

@@ -5,8 +5,12 @@ using Base.Broadcast: Broadcast as BC
 struct SectorStyle{N} <: BC.AbstractArrayStyle{N} end
 SectorStyle{N}(::Val{M}) where {N, M} = SectorStyle{M}()
 
-BC.BroadcastStyle(::Type{<:AbelianSectorDelta{<:Any, N}}) where {N} = SectorStyle{N}()
-BC.BroadcastStyle(::Type{<:AbelianSectorArray{<:Any, N}}) where {N} = SectorStyle{N}()
+function BC.BroadcastStyle(::Type{<:AbelianSectorDelta{<:Any, <:Any, N}}) where {N}
+    return SectorStyle{N}()
+end
+function BC.BroadcastStyle(::Type{<:AbelianSectorArray{<:Any, <:Any, N}}) where {N}
+    return SectorStyle{N}()
+end
 BC.BroadcastStyle(style::SectorStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = style
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::SectorStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::SectorStyle{N}, ::SectorStyle{N}) where {N} = s1
@@ -48,7 +52,7 @@ end
 struct GradedStyle{N} <: BC.AbstractArrayStyle{N} end
 GradedStyle{N}(::Val{M}) where {N, M} = GradedStyle{M}()
 
-function BC.BroadcastStyle(::Type{<:AbstractGradedArray{<:Any, N}}) where {N}
+function BC.BroadcastStyle(::Type{<:AbstractGradedArray{<:Any, <:Any, N}}) where {N}
     return GradedStyle{N}()
 end
 function BC.BroadcastStyle(

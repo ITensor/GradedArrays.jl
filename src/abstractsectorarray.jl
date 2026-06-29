@@ -1,5 +1,5 @@
 """
-    AbstractSectorArray{T,N} <: AbstractArray{T,N}
+    AbstractSectorArray{T,S,N} <: AbstractArray{T,N}
 
 Abstract supertype for data tensors labeled by sector information.
 Concrete subtypes:
@@ -7,7 +7,9 @@ Concrete subtypes:
   - [`AbelianSectorArray`](@ref): unfused N-D abelian data tensor (one sector per axis)
   - [`SectorMatrix`](@ref): fused 2D data matrix (one coupled sector label)
 """
-abstract type AbstractSectorArray{T, N} <: AbstractArray{T, N} end
+abstract type AbstractSectorArray{T, S, N} <: AbstractArray{T, N} end
+
+sectortype(::Type{<:AbstractSectorArray{T, S}}) where {T, S} = S
 
 """
     data(sa::AbstractSectorArray)
@@ -23,14 +25,14 @@ function sector_kron end
 Base.size(sa::AbstractSectorArray) = map(length, axes(sa))
 
 Base.@propagate_inbounds function Base.getindex(
-        A::AbstractSectorArray{T, N},
+        A::AbstractSectorArray{T, <:Any, N},
         I::Vararg{Int, N}
     ) where {T, N}
     @boundscheck checkbounds(A, I...)
     return @inbounds data(A)[I...]
 end
 Base.@propagate_inbounds function Base.setindex!(
-        A::AbstractSectorArray{T, N},
+        A::AbstractSectorArray{T, <:Any, N},
         v,
         I::Vararg{Int, N}
     ) where {T, N}

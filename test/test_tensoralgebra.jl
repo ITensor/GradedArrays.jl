@@ -306,7 +306,7 @@ end
     b[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), b_22)
 
     result, dimnames = contract(a, (1, -1), b, (-1, 2))
-    @test result isa AbelianGradedArray{Float64, 2}
+    @test result isa AbelianGradedArray{Float64, <:Any, 2}
     @test data(result[Block(1, 1)]) ≈ a_11 * b_11
     @test data(result[Block(2, 2)]) ≈ a_22 * b_22
 end
@@ -322,7 +322,7 @@ end
     b = randn(elt, (dual(g), g))
 
     result = contract((), a, (1, 2), b, (1, 2))
-    @test result isa AbelianGradedArray{elt, 0}
+    @test result isa AbelianGradedArray{elt, <:Any, 0}
     @test ndims(result) == 0
     @test sectortype(result) === U1
     @test result[] ≈ sum(Array(a) .* Array(b))
@@ -339,7 +339,7 @@ end
 
     # A rank-0 graded array matricizes to a 1×1 trivial-sector `FusedGradedMatrix`,
     # and unmatricizing back recovers the scalar.
-    a = AbelianGradedArray{Float64, 0, Array{Float64, 0}, U1}(undef, ())
+    a = AbelianGradedArray{Float64, U1, 0, Array{Float64, 0}}(undef, ())
     a[] = 4.0
     m = matricize(GradedArrays.SectorFusion(), a, Val(0))
     @test m isa FusedGradedMatrix{Float64}

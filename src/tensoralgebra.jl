@@ -174,7 +174,7 @@ function TensorAlgebra.bipermutedimsopadd!(
 end
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractGradedArray{<:Any, N}, op, x::AbstractGradedArray{<:Any, N},
+        y::AbstractGradedArray{<:Any, <:Any, N}, op, x::AbstractGradedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}
