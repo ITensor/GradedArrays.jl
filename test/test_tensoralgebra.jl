@@ -338,7 +338,7 @@ end
     @test isdual(col)
 
     # A rank-0 graded array matricizes to a 1×1 trivial-sector `FusedGradedMatrix`,
-    # and unmatricizing back recovers the scalar.
+    # and unmatricizing back recovers the scalar as a rank-0 graded array.
     a = AbelianGradedArray{Float64, U1, 0, Array{Float64, 0}}(undef, ())
     a[] = 4.0
     m = matricize(GradedArrays.SectorFusion(), a, Val(0))
@@ -347,7 +347,7 @@ end
     @test data(m[Block(1, 1)]) == fill(4.0, 1, 1)
 
     back = unmatricize(GradedArrays.SectorFusion(), m, (), ())
-    @test back isa Array{Float64, 0}
+    @test back isa AbelianGradedArray{Float64, <:Any, 0}
     @test back[] == 4.0
 end
 
