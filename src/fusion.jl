@@ -159,8 +159,10 @@ function TensorAlgebra.unmatricize(
     if isempty(codomain_axes) && isempty(domain_axes)
         # Scalar (rank-0) result: only the trivial-sector block contributes, and
         # `cod ∩ dom = {trivial}` for a fused scalar means `m.blocks` is at most
-        # one 1×1 entry. Return a 0-D `Array` matching the eltype.
-        a = fill(zero(eltype(m)))
+        # one 1×1 entry. Return a graded rank-0 array, like the result at every other
+        # rank, so the permute-add back into the destination dispatches to the graded
+        # `bipermutedimsopadd!` overload rather than the generic strided path.
+        a = zero!(similar(m, ()))
         triv = trivial(sectortype(m))
         haskey(m.blocks, triv) && (a[] = m.blocks[triv][1, 1])
         return a

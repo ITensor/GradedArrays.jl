@@ -1,4 +1,5 @@
 using SplitApplyCombine: groupcount
+using StridedViews: StridedViews
 
 function tensor_product(r1, r2, r3, rs...)
     return tensor_product(tensor_product(r1, r2), r3, rs...)
@@ -172,6 +173,12 @@ function TensorAlgebra.bipermutedimsopadd!(
     )
     return y
 end
+
+# An abelian sector array's dense form is its data block (each abelian sector is
+# one-dimensional, so the structural sector-delta factor is an identity selection).
+# Wrapping it as a `StridedView` of its data lets it flow through the generic strided
+# permute-add path when the other operand is a plain dense array.
+StridedViews.StridedView(a::AbelianSectorArray) = StridedViews.StridedView(data(a))
 
 function TensorAlgebra.bipermutedimsopadd!(
         y::AbstractGradedArray{<:Any, <:Any, N}, op, x::AbstractGradedArray{<:Any, <:Any, N},
