@@ -4,7 +4,7 @@ using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
     SectorProduct, SectorRange, U1, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sectoraxes, sectors
 using Random: randn!
-using TensorAlgebra: contract, matricize, unmatricize
+using TensorAlgebra: contract, matricize, matricizeop, permutedimsop, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -350,5 +350,42 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a_dest, _ = contract(a1, (-1, -2, 1, 2), a2, (2, 1, -3, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, -2, 1, 2), a2_dense, (2, 1, -3, -4))
         @test Array(a_dest) ≈ -1 * a_dest_dense
+    end
+end
+
+# The fused permuting `matricizeop` (folding the permute into the gather) must agree
+# block-by-block with the reference two-pass `permutedimsop` then `matricize`, including
+# the per-block fermion permutation sign. `U1` exercises the non-self-dual `op = conj`
+# axis dualization that `FermionParity` (self-dual) hides.
+@testset "fused matricizeop matches permute-then-matricize (eltype=$elt)" for elt in
+    (
+        Float64,
+        ComplexF64,
+    )
+    # The two-pass permute-then-matricize that the fused `matricizeop` replaces.
+    matricizeop_ref(op, a, perm_codomain, perm_domain) =
+        matricize(
+        permutedimsop(op, a, perm_codomain, perm_domain),
+        Val(length(perm_codomain))
+    )
+
+    gb = gradedrange([U1(0) => 2, U1(1) => 3])
+    gf = gradedrange([fP0 => 2, fP1 => 3])
+    ro = gradedrange([fP1 => 2])
+    for op in (identity, conj)
+        cases = [
+            (randn(elt, (gb, dual(gb))), (1,), (2,)),
+            (randn(elt, (gb, dual(gb))), (2,), (1,)),
+            (randn(elt, (gf, dual(gf))), (1,), (2,)),
+            (randn(elt, (gf, dual(gf))), (2,), (1,)),
+            (randn(elt, (gf, dual(gf), gf)), (2, 1), (3,)),
+            (randn(elt, (gf, dual(gf), gf)), (3,), (1, 2)),
+            (randn(elt, (ro, ro, dual(ro), dual(ro))), (3, 1), (4, 2)),
+            (randn(elt, (gb, dual(gb), gb, dual(gb))), (3, 1), (2, 4)),
+        ]
+        for (a, perm_codomain, perm_domain) in cases
+            @test matricizeop(op, a, perm_codomain, perm_domain) ≈
+                matricizeop_ref(op, a, perm_codomain, perm_domain)
+        end
     end
 end
