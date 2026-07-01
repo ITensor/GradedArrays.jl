@@ -4,7 +4,7 @@ using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
     SectorProduct, SectorRange, U1, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sectoraxes, sectors
 using Random: randn!
-using TensorAlgebra: contract, matricize, matricizeop, permutedimsop, unmatricize
+using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, unmatricize
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -353,17 +353,17 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
     end
 end
 
-# The fused permuting `matricizeop` (folding the permute into the gather) must agree
+# The fused permuting `matricizeopperm` (folding the permute into the gather) must agree
 # block-by-block with the reference two-pass `permutedimsop` then `matricize`, including
 # the per-block fermion permutation sign. `U1` exercises the non-self-dual `op = conj`
 # axis dualization that `FermionParity` (self-dual) hides.
-@testset "fused matricizeop matches permute-then-matricize (eltype=$elt)" for elt in
+@testset "fused matricizeopperm matches permute-then-matricize (eltype=$elt)" for elt in
     (
         Float64,
         ComplexF64,
     )
-    # The two-pass permute-then-matricize that the fused `matricizeop` replaces.
-    matricizeop_ref(op, a, perm_codomain, perm_domain) =
+    # The two-pass permute-then-matricize that the fused `matricizeopperm` replaces.
+    matricizeopperm_ref(op, a, perm_codomain, perm_domain) =
         matricize(
         permutedimsop(op, a, perm_codomain, perm_domain),
         Val(length(perm_codomain))
@@ -384,8 +384,8 @@ end
             (randn(elt, (gb, dual(gb), gb, dual(gb))), (3, 1), (2, 4)),
         ]
         for (a, perm_codomain, perm_domain) in cases
-            @test matricizeop(op, a, perm_codomain, perm_domain) ≈
-                matricizeop_ref(op, a, perm_codomain, perm_domain)
+            @test matricizeopperm(op, a, perm_codomain, perm_domain) ≈
+                matricizeopperm_ref(op, a, perm_codomain, perm_domain)
         end
     end
 end

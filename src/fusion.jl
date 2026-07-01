@@ -65,16 +65,16 @@ end
 function TensorAlgebra.matricize(
         ::SectorFusion, a::AbelianGradedArray{<:Any, <:Any, N}, ::Val{K}
     ) where {N, K}
-    return TensorAlgebra.matricizeop(
+    return TensorAlgebra.matricizeopperm(
         SectorFusion(), identity, a, ntuple(identity, Val(K)),
         ntuple(i -> K + i, Val(N - K))
     )
 end
 
 # Build the sector-merged `FusedGradedMatrix` for the bipartition `(perm_codomain, perm_domain)`.
-# `op` transforms the fused axes (`conj` dualizes them), and the per-block `matricizeop` permutes
+# `op` transforms the fused axes (`conj` dualizes them), and the per-block `matricizeopperm` permutes
 # and reshapes each stored block to 2D, carrying `op` and the block's fermion permutation sign.
-function TensorAlgebra.matricizeop(
+function TensorAlgebra.matricizeopperm(
         ::SectorFusion, op, a::AbelianGradedArray{T, <:Any, N},
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     ) where {T, N}
@@ -106,7 +106,7 @@ function TensorAlgebra.matricizeop(
         row_bir = row_dest[row_fine]
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
-        block_2d = TensorAlgebra.matricizeop(
+        block_2d = TensorAlgebra.matricizeopperm(
             SectorFusion(),
             op,
             a[bI_src],

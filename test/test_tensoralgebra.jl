@@ -6,8 +6,8 @@ using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
     tensor_product
 using Random: randn!
-using TensorAlgebra:
-    TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize, unmatricize
+using TensorAlgebra: TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize,
+    matricizeperm, unmatricize
 using Test: @test, @test_broken, @test_throws, @testset
 
 @testset "AbelianSectorArray linear broadcasting" begin
@@ -165,7 +165,7 @@ end
     a[Block(1, 1)] = AbelianSectorArray((U1(0), U1(0)), block_11)
     a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_22)
 
-    fsm = matricize(a, (1,), (2,))
+    fsm = matricizeperm(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
     @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
     @test blocklength(fsm, 1) == 2
@@ -190,7 +190,7 @@ end
     a[Block(1, 1)] = AbelianSectorArray((U1(0), U1(0)), block_11)
     a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_22)
 
-    fsm = matricize(a, (1,), (2,))
+    fsm = matricizeperm(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
     # Each stored N-D block lands in the coupled sector pairing its row charge with
     # the dual of its column charge: (U1(0), U1(0)) → U1(0), (U1(1), U1(-1)) → U1(1).
@@ -210,7 +210,7 @@ end
         (U1(1), U1(1), dual(U1(1)), dual(U1(1))), 2 * ones(1, 1, 1, 1)
     )
 
-    fsm = matricize(a, (1, 2), (3, 4))
+    fsm = matricizeperm(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
     @test collect(keys(fsm.blocks)) == [U1(0), U1(1), U1(2)]
     @test blocklength(fsm, 1) == 3
@@ -232,7 +232,7 @@ end
     a[Block(1, 2, 2)] = fill(2.0, 1, 2, 2)
     a[Block(2, 1, 2)] = fill(3.0, 2, 1, 2)
 
-    fsm = matricize(a, (1, 2), (3,))
+    fsm = matricizeperm(a, (1, 2), (3,))
     @test fsm isa FusedGradedMatrix{Float64}
     # Codomain carries all three sectors, domain only the two that exist on
     # the contracted leg — the new asymmetric design.
