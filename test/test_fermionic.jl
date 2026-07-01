@@ -4,7 +4,8 @@ using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
     SectorProduct, SectorRange, U1, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sectoraxes, sectors
 using Random: randn!
-using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, unmatricize
+using TensorAlgebra:
+    contract, matricize, matricizeopperm, permutedimsop, unmatricize, unmatricizeperm!
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -351,6 +352,28 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a_dest_dense, _ = contract(a1_dense, (-1, -2, 1, 2), a2_dense, (2, 1, -3, -4))
         @test Array(a_dest) ≈ -1 * a_dest_dense
     end
+
+    @testset "full contraction to a scalar (rank-0)" begin
+        # A full contraction collapses to a rank-0 graded array. The rank-0 unmatricize is
+        # sign-free (a 1×1 block, no permute), so all fermion signs come from the matricize
+        # twist and must still reach the scalar. Legs (r,r,dr,dr) contracted with
+        # (dr,dr,r,r): parallel pairing has no twist, swapping the first two contracted (odd)
+        # legs is one transposition and twists by -1.
+        a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
+        a2 = randn_blockdiagonal(elt, (dual(r_odd), dual(r_odd), r_odd, r_odd))
+        a1_dense = Array(a1)
+        a2_dense = Array(a2)
+
+        parallel = contract((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
+        @test parallel isa AbelianGradedArray{elt, <:Any, 0}
+        @test Array(parallel) ≈
+            contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
+
+        crossed = contract((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
+        @test crossed isa AbelianGradedArray{elt, <:Any, 0}
+        @test Array(crossed) ≈
+            -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
+    end
 end
 
 # The fused permuting `matricizeopperm` (folding the permute into the gather) must agree
@@ -387,5 +410,43 @@ end
             @test matricizeopperm(op, a, perm_codomain, perm_domain) ≈
                 matricizeopperm_ref(op, a, perm_codomain, perm_domain)
         end
+    end
+end
+
+# The fused `unmatricizeperm!` folds the permutation into the scatter. Check it against the
+# two-pass it replaces: the non-permuting `unmatricize` into codomain/domain order, then an
+# array-level permute back to destination order, carrying the per-block fermion sign.
+@testset "fused unmatricizeperm! matches unmatricize-then-permute (eltype=$elt)" for elt in
+    (
+        Float64,
+        ComplexF64,
+    )
+    function unmatricizeperm_ref(a_dest, m, invperm_codomain, invperm_domain)
+        K = length(invperm_codomain)
+        codomain_axes = ntuple(i -> axes(a_dest)[invperm_codomain[i]], K)
+        domain_axes = ntuple(i -> axes(a_dest)[invperm_domain[i]], ndims(a_dest) - K)
+        return permutedims(
+            unmatricize(m, codomain_axes, domain_axes),
+            invperm((invperm_codomain..., invperm_domain...))
+        )
+    end
+
+    gb = gradedrange([U1(0) => 2, U1(1) => 3])
+    gf = gradedrange([fP0 => 2, fP1 => 3])
+    ro = gradedrange([fP1 => 2])
+    cases = [
+        (randn(elt, (gb, dual(gb))), (1,), (2,)),
+        (randn(elt, (gb, dual(gb))), (2,), (1,)),
+        (randn(elt, (gf, dual(gf))), (1,), (2,)),
+        (randn(elt, (gf, dual(gf))), (2,), (1,)),
+        (randn(elt, (gf, dual(gf), gf)), (2, 1), (3,)),
+        (randn(elt, (gf, dual(gf), gf)), (3,), (1, 2)),
+        (randn(elt, (ro, ro, dual(ro), dual(ro))), (3, 1), (4, 2)),
+        (randn(elt, (gb, dual(gb), gb, dual(gb))), (3, 1), (2, 4)),
+    ]
+    for (a, invperm_codomain, invperm_domain) in cases
+        m = matricizeopperm(identity, a, invperm_codomain, invperm_domain)
+        @test unmatricizeperm!(similar(a), m, invperm_codomain, invperm_domain) ≈
+            unmatricizeperm_ref(similar(a), m, invperm_codomain, invperm_domain)
     end
 end

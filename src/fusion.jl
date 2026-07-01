@@ -156,49 +156,66 @@ function TensorAlgebra.unmatricize(
         codomain_axes::Tuple{Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
-    if isempty(codomain_axes) && isempty(domain_axes)
-        # Scalar (rank-0) result: only the trivial-sector block contributes, and
-        # `cod ∩ dom = {trivial}` for a fused scalar means `m.blocks` is at most
-        # one 1×1 entry. Return a graded rank-0 array, like the result at every other
-        # rank, so the permute-add back into the destination dispatches to the graded
-        # `bipermutedimsopadd!` overload rather than the generic strided path.
-        a = zero!(similar(m, ()))
-        triv = trivial(sectortype(m))
-        haskey(m.blocks, triv) && (a[] = m.blocks[triv][1, 1])
-        return a
-    end
-    # Scatter each merged sector block of `m` straight into the N-D destination blocks,
-    # the inverse of the `matricize` gather: each destination block reads a `[rows, cols]`
-    # subrange of its coupled sector's matrix and reshapes it into the N-D block shape.
     K = length(codomain_axes)
     N = K + length(domain_axes)
-    dest_axes = (codomain_axes..., domain_axes...)
-    unfused_row, unfused_col =
-        unmerged_matricize_axes(sectortype(m), codomain_axes, domain_axes)
+    a = similar(m, (codomain_axes..., domain_axes...))
+    return TensorAlgebra.unmatricizeperm!(
+        SectorFusion(), a, m, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
+    )
+end
+
+# Scatter `m`'s merged sector blocks straight into the N-D destination blocks of `a_dest`,
+# folding the inverse permutation into the scatter: the inverse of the `matricizeopperm`
+# gather. `(invperm_codomain, invperm_domain)` is the same bipermutation `matricize` used, so
+# the matrix's codomain/domain axes sit at those positions of `axes(a_dest)`. Each destination
+# block reads the `[rows, cols]` subrange of its coupled sector's matrix, reshapes it to the
+# codomain/domain-order block shape, and permutes back to destination order, carrying the
+# block's fermion sign.
+function TensorAlgebra.unmatricizeperm!(
+        ::SectorFusion, a_dest::AbelianGradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
+        invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
+    ) where {N}
+    K = length(invperm_codomain)
+    K + length(invperm_domain) == N || throw(ArgumentError("Invalid bipermutation"))
+    S = sectortype(m)
+    codomain_axes = ntuple(i -> axes(a_dest)[invperm_codomain[i]], Val(K))
+    domain_axes = ntuple(i -> axes(a_dest)[invperm_domain[i]], Val(N - K))
+    unfused_row, unfused_col = unmerged_matricize_axes(S, codomain_axes, domain_axes)
     merged_row = sectormergesort(unfused_row)
     merged_col = sectormergesort(unfused_col)
     row_dest = invblockmergeperm(unfused_row, sectorsortperm(unfused_row), merged_row)
     col_dest = invblockmergeperm(unfused_col, sectorsortperm(unfused_col), merged_col)
     merged_row_sectors = eachsectoraxis(merged_row)
 
+    # Legs land in codomain/domain order; `biperm_dest` puts them back to destination order.
+    biperm_dest = invperm((invperm_codomain..., invperm_domain...))
+    noperm = biperm_dest == ntuple(identity, Val(N))
     # Not every allocated block gets written below, so we zero first.
-    a = zero!(similar(m, dest_axes))
+    zero!(a_dest)
     cod_lin = LinearIndices(Tuple(map(blocklength, codomain_axes)))
     dom_lin = LinearIndices(Tuple(map(blocklength, domain_axes)))
-    for bI in eachblockstoredindex(a)
+    for bI in eachblockstoredindex(a_dest)
         dest_bk = Int.(Tuple(bI))
-        row_fine = cod_lin[ntuple(i -> dest_bk[i], Val(K))...]
-        col_fine = dom_lin[ntuple(i -> dest_bk[K + i], Val(N - K))...]
+        row_fine = cod_lin[ntuple(i -> dest_bk[invperm_codomain[i]], Val(K))...]
+        col_fine = dom_lin[ntuple(i -> dest_bk[invperm_domain[i]], Val(N - K))...]
         row_bir = row_dest[row_fine]
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
         haskey(m.blocks, s) || continue
         sub = m.blocks[s][only(row_bir.indices), only(col_bir.indices)]
-        dest_sects = ntuple(d -> eachsectoraxis(dest_axes[d])[dest_bk[d]], Val(N))
-        dest_dims = ntuple(d -> blocklengths(dest_axes[d])[dest_bk[d]], Val(N))
-        a[bI] = AbelianSectorArray(dest_sects, reshape(sub, dest_dims))
+        cd_leg = ntuple(d -> d <= K ? invperm_codomain[d] : invperm_domain[d - K], Val(N))
+        cd_dims =
+            ntuple(d -> blocklengths(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
+        cd_sects =
+            ntuple(d -> eachsectoraxis(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
+        block = reshape(sub, cd_dims)
+        # Build the block's structural factor with `S` from the input: `cd_sects` is empty
+        # for a rank-0 destination (a full contraction to a scalar) and so carries no `S`.
+        block_cd =
+            AbelianSectorArray(AbelianSectorDelta{eltype(block), S, N}(cd_sects), block)
+        a_dest[bI] = noperm ? block_cd : permutedims(block_cd, biperm_dest)
     end
-    return a
+    return a_dest
 end
 
 # ========================  Allowed block keys  ========================

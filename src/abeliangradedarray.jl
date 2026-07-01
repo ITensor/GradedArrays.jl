@@ -117,6 +117,13 @@ function Base.setindex!(a::AbelianGradedArray{T, <:Any, 0}, value) where {T}
     view(a, Block())[] = value
     return a
 end
+# Block assignment copies the sector-array block in, matching the N≥1 path. Distinct from the
+# scalar `a[] = value` above: block access carries a `Block` index, scalar access takes none,
+# which for a rank-0 array would otherwise collide on the same no-coordinate `setindex!`.
+function Base.setindex!(a::AbelianGradedArray{T, <:Any, 0}, value, ::Block{0}) where {T}
+    copy!(view(a, Block()), value)
+    return a
+end
 
 # ---------------------------------------------------------------------------
 #  blocks — lazy view delegating to view (following BlockArrays convention)
