@@ -210,7 +210,7 @@ end
 # Fermionic contractions need the second (right) factor's contracted legs twisted before
 # matricization, so the result does not depend on contraction order. This rides on
 # TensorAlgebra v0.10's per-position fusion styles: `default_contract_algorithm` puts
-# `TwistedSectorFusion` on the right factor only, and its `matricizeop` inserts the twist
+# `TwistedSectorFusion` on the right factor only, and its `matricizeopperm` inserts the twist
 # between the permute and the matricize. The twist is a no-op for bosonic sectors.
 
 """
@@ -261,7 +261,7 @@ function TensorAlgebra.default_contract_algorithm(
     return TensorAlgebra.Matricize(SectorFusion(), TwistedSectorFusion(), SectorFusion())
 end
 
-function TensorAlgebra.matricizeop(
+function TensorAlgebra.matricizeopperm(
         ::TwistedSectorFusion, op, a::AbstractArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     )
