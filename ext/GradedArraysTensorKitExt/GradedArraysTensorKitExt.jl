@@ -9,7 +9,7 @@ using TensorKit: TensorKit, Vect
 # TensorKit convention: a shared dual flag across the pairs becomes a dual space. Raw
 # `TKS.Sector` keys are normalized to `SectorRange` so both key kinds are handled.
 function GradedArrays.to_tensorkit_space(space::AbstractVector{<:Pair})
-    reps = _to_sectorrange.(first.(space))
+    reps = SectorRange.(first.(space))
     d = isdual(first(reps))
     all(r -> isdual(r) == d, reps) ||
         throw(ArgumentError("All sectors must have the same isdual flag"))
@@ -17,8 +17,5 @@ function GradedArrays.to_tensorkit_space(space::AbstractVector{<:Pair})
     V = Vect[irreptype]((label(r) => m for (r, m) in zip(reps, last.(space)))...)
     return d ? TensorKit.dual(V) : V
 end
-
-_to_sectorrange(r::SectorRange) = r
-_to_sectorrange(c) = SectorRange(c)
 
 end

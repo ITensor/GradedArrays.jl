@@ -261,26 +261,30 @@ function gradedrange(
 end
 
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
-# `to_range([U1(0) => 2, U1(1) => 3])`. Defined over each key type separately
-# rather than a `Union` so each method stays specific enough not to capture
-# unrelated `Pair` vectors. The result is routed by symmetry: abelian sectors
-# build a block-sparse `GradedOneTo`; non-abelian sectors have no block-sparse
-# representation and instead build a native TensorKit `GradedSpace` via
-# `to_tensorkit_space` (provided by the GradedArrays–TensorKit extension).
-for S in (:(TKS.Sector), :SectorRange)
-    @eval function TensorAlgebra.to_range(space::AbstractVector{<:Pair{<:$S, <:Integer}})
-        isempty(space) && return gradedrange(space)
-        return _to_range(_sectorstyle(eltype(space)), space)
+# `to_range([U1(0) => 2, U1(1) => 3])`, routed by symmetry: abelian sectors build a
+# block-sparse `GradedOneTo`, while non-abelian sectors have no block-sparse representation
+# and build a native TensorKit `GradedSpace` via `to_tensorkit_space`. Defined over each
+# key type separately rather than a `Union` so each method stays specific enough not to
+# capture unrelated `Pair` vectors. A raw `TKS.Sector` key is wrapped in `SectorRange` so
+# `SymmetryStyle` consults the fusion rule rather than its `AbelianStyle` default.
+function TensorAlgebra.to_range(
+        space::AbstractVector{<:Pair{K, <:Integer}}
+    ) where {K <: SectorRange}
+    return if SymmetryStyle(K) === AbelianStyle()
+        gradedrange(space)
+    else
+        to_tensorkit_space(space)
     end
 end
-
-# `SymmetryStyle` of a sector-pair key, normalizing a raw `TKS.Sector` to `SectorRange`
-# (whose `SymmetryStyle` consults the fusion rule) so both key kinds route identically.
-_sectorstyle(::Type{<:Pair{K}}) where {K <: SectorRange} = SymmetryStyle(K)
-_sectorstyle(::Type{<:Pair{K}}) where {K <: TKS.Sector} = SymmetryStyle(SectorRange{K})
-
-_to_range(::AbelianStyle, space) = gradedrange(space)
-_to_range(::NotAbelianStyle, space) = to_tensorkit_space(space)
+function TensorAlgebra.to_range(
+        space::AbstractVector{<:Pair{K, <:Integer}}
+    ) where {K <: TKS.Sector}
+    return if SymmetryStyle(SectorRange{K}) === AbelianStyle()
+        gradedrange(space)
+    else
+        to_tensorkit_space(space)
+    end
+end
 
 """
     to_tensorkit_space(sectors)
