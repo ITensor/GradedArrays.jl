@@ -92,10 +92,8 @@ end
 # type-preserving broadcast handles it, which keeps a non-strided factorization block (a
 # `Diagonal` `S`) on its own array type. Any other non-strided region would need a permute or
 # reshape, which is unsupported.
-function unmatricizeperm_block!(
-        dst, src, grouped_dims::NTuple{N, Int}, phase, perm::NTuple{N, Int}
-    ) where {N}
-    if perm == ntuple(identity, Val(N)) && size(src) == grouped_dims
+function unmatricizeperm_block!(dst, src, phase, perm::NTuple{N, Int}) where {N}
+    if perm == ntuple(identity, Val(N)) && size(src) == size(dst)
         dst .= phase .* src
         return dst
     end
@@ -104,6 +102,7 @@ function unmatricizeperm_block!(
             "non-strided blocks needing a permute or reshape are not supported in unmatricize"
         )
     )
+    grouped_dims = ntuple(i -> size(dst, invperm(perm)[i]), Val(N))
     grouped = reshape(StridedView(src), grouped_dims)
     StridedView(dst) .= phase .* permutedims(grouped, perm)
     return dst
@@ -243,8 +242,6 @@ function TensorAlgebra.unmatricizeperm!(
         haskey(m.blocks, s) || continue
         slice = view(m.blocks[s], only(row_bir.indices), only(col_bir.indices))
         cd_leg = ntuple(d -> d <= K ? invperm_codomain[d] : invperm_domain[d - K], Val(N))
-        cd_dims =
-            ntuple(d -> blocklengths(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
         cd_sects =
             ntuple(d -> eachsectoraxis(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
         # The block's fermion sign takes `S` from the input: `cd_sects` is empty for a rank-0
@@ -252,7 +249,7 @@ function TensorAlgebra.unmatricizeperm!(
         phase = fermion_permutation_phase(
             identity, AbelianSectorDelta{eltype(slice), S, N}(cd_sects), perm_dest
         )
-        unmatricizeperm_block!(data(view(a_dest, bI)), slice, cd_dims, phase, perm_dest)
+        unmatricizeperm_block!(data(view(a_dest, bI)), slice, phase, perm_dest)
     end
     return a_dest
 end
