@@ -26,6 +26,14 @@ using Test: @test, @test_throws, @testset
         @test dim(r) == 1 * 1 + 3 * 2
     end
 
+    # A raw list of TensorKit sectors (no `SectorRange` wrapper) is a valid input and builds
+    # the same non-dual space.
+    @testset "raw TensorKit sectors" begin
+        r = to_range([SU2Irrep(0) => 1, SU2Irrep(1) => 2])
+        @test r isa GradedSpace
+        @test r == Vect[SU2Irrep](0 => 1, 1 => 2)
+    end
+
     # The sector arrow rides inside the space: a shared dual flag makes a dual space.
     @testset "dual arrow rides inside the space" begin
         r = to_range([dual(SU2(0)) => 1, dual(SU2(1)) => 2])

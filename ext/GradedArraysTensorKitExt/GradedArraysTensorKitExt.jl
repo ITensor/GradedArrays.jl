@@ -1,30 +1,21 @@
 module GradedArraysTensorKitExt
 
-using GradedArrays: GradedArrays, SectorRange, isdual, label
-using TensorKit: TensorKit, Vect
+using GradedArrays: GradedArrays
+using TensorKit: TensorKit, ElementarySpace, Vect
 
-# Build a native TensorKit `GradedSpace` from non-abelian `sector => multiplicity` pairs.
-# `GradedArrays.to_range` routes non-abelian sectors here (they have no block-sparse
-# `GradedOneTo` representation). This layer works in GradedArrays terms: normalize keys to
-# `SectorRange` (a raw `TKS.Sector` is non-dual) and read off the shared arrow, then hand the
-# sector labels and that arrow to the pure-TensorKit builder.
-function GradedArrays.to_tensorkit_space(space::AbstractVector{<:Pair})
-    reps = SectorRange.(first.(space))
-    d = isdual(first(reps))
-    all(r -> isdual(r) == d, reps) ||
-        throw(ArgumentError("All sectors must have the same isdual flag"))
-    return _to_tensorkit_space([label(r) => m for (r, m) in zip(reps, last.(space))], d)
-end
-
-# Pure TensorKit: the keys are sector labels and the arrow is a flag. A raw sector carries no
-# duality, so the arrow rides inside the space as a whole-space `dual(V)` (distinct from a
-# space of dual sectors, and the form a dual index must take for contraction).
-function _to_tensorkit_space(
-        space::AbstractVector{<:Pair{S}},
-        isdual::Bool
+# Non-abelian `sector => multiplicity` pairs have no block-sparse `GradedOneTo` representation,
+# so `GradedArrays.to_range` routes them here to build a native TensorKit `GradedSpace`. A raw
+# TensorKit sector carries no arrow, so this is the non-dual builder. It is the entry point
+# both for the `SectorRange` routing in GradedArrays and for a user-supplied list of TensorKit
+# sectors passed to `to_range`.
+function GradedArrays.to_tensorkit_space(
+        space::AbstractVector{<:Pair{S}}
     ) where {S <: TensorKit.Sector}
-    V = Vect[S](space...)
-    return isdual ? TensorKit.dual(V) : V
+    return Vect[S](space...)
 end
+
+# A TensorKit space is a first-class graded axis under the direct-wrap design, so `dual` on
+# one flips its arrow. This is the whole-space dual the `SectorRange` routing applies.
+GradedArrays.dual(V::ElementarySpace) = TensorKit.dual(V)
 
 end

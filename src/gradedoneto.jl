@@ -294,3 +294,16 @@ function to_tensorkit_space(space)
         )
     )
 end
+
+# `SectorRange` sector-pairs carry an arrow: strip to sector labels, check the shared arrow,
+# and apply it as a whole-space `dual` (distinct from a space of dual sectors, and the form a
+# dual index must take for contraction). The label-keyed `to_tensorkit_space` builder and
+# `dual` on the resulting space come from the GradedArrays–TensorKit extension.
+function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: SectorRange}
+    arrows = isdual.(first.(space))
+    allequal(arrows) ||
+        throw(ArgumentError("All sectors must have the same isdual flag"))
+    labels_space = [label(first(p)) => last(p) for p in space]
+    nondual_space = to_tensorkit_space(labels_space)
+    return first(arrows) ? dual(nondual_space) : nondual_space
+end
