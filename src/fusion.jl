@@ -77,18 +77,12 @@ end
 # destination group order and `phase` is its ±1 fermion sign. The block must be strided (an
 # `AbelianGradedArray` stores dense blocks); `op` and `permutedims` ride on the `StridedView`
 # lazily.
-function matricizeopperm_block!(
-        matrix_region,
-        op,
-        block,
-        phase,
-        perm::NTuple{N, Int}
-    ) where {N}
-    isstrided(block) ||
+function matricizeopperm_block!(dst, op, src, phase, perm::NTuple{N, Int}) where {N}
+    isstrided(src) ||
         throw(ArgumentError("non-strided blocks are not supported in matricize"))
-    grouped = reshape(StridedView(matrix_region), ntuple(i -> size(block, perm[i]), Val(N)))
-    grouped .= phase .* op(permutedims(StridedView(block), perm))
-    return matrix_region
+    grouped = reshape(StridedView(dst), ntuple(i -> size(src, perm[i]), Val(N)))
+    grouped .= phase .* op(permutedims(StridedView(src), perm))
+    return dst
 end
 
 # The block-level piece of `unmatricizeperm!` and the inverse of `matricizeopperm_block!`: write
@@ -99,20 +93,20 @@ end
 # `Diagonal` `S`) on its own array type. Any other non-strided region would need a permute or
 # reshape, which is unsupported.
 function unmatricizeperm_block!(
-        block, matrix_region, block_dims::NTuple{N, Int}, phase, perm::NTuple{N, Int}
+        dst, src, grouped_dims::NTuple{N, Int}, phase, perm::NTuple{N, Int}
     ) where {N}
-    if perm == ntuple(identity, Val(N)) && size(matrix_region) == block_dims
-        block .= phase .* matrix_region
-        return block
+    if perm == ntuple(identity, Val(N)) && size(src) == grouped_dims
+        dst .= phase .* src
+        return dst
     end
-    isstrided(matrix_region) || throw(
+    isstrided(src) || throw(
         ArgumentError(
             "non-strided blocks needing a permute or reshape are not supported in unmatricize"
         )
     )
-    grouped = reshape(StridedView(matrix_region), block_dims)
-    StridedView(block) .= phase .* permutedims(grouped, perm)
-    return block
+    grouped = reshape(StridedView(src), grouped_dims)
+    StridedView(dst) .= phase .* permutedims(grouped, perm)
+    return dst
 end
 
 # Build the sector-merged `FusedGradedMatrix` for the bipartition `(perm_codomain, perm_domain)`.
