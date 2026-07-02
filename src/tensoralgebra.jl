@@ -1,5 +1,5 @@
 using SplitApplyCombine: groupcount
-using StridedViews: StridedViews
+using StridedViews: StridedViews, StridedView, isstrided
 
 function tensor_product(r1, r2, r3, rs...)
     return tensor_product(tensor_product(r1, r2), r3, rs...)

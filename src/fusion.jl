@@ -71,9 +71,46 @@ function TensorAlgebra.matricize(
     )
 end
 
+# The block-level piece of `matricizeopperm`: write one stored block into its region of the
+# coupled-sector matrix, folding the permute, reshape to 2D, `op`, and fermion sign into a single
+# strided in-place write with no intermediate. `perm` reorders the block's legs into the
+# destination group order and `phase` is its ±1 fermion sign. The block must be strided (an
+# `AbelianGradedArray` stores dense blocks); `op` and `permutedims` ride on the `StridedView`
+# lazily.
+function matricizeopperm_block!(dst, op, src, phase, perm::NTuple{N, Int}) where {N}
+    isstrided(src) ||
+        throw(ArgumentError("non-strided blocks are not supported in matricize"))
+    grouped = reshape(StridedView(dst), ntuple(i -> size(src, perm[i]), Val(N)))
+    grouped .= phase .* op(permutedims(StridedView(src), perm))
+    return dst
+end
+
+# The block-level piece of `unmatricizeperm!` and the inverse of `matricizeopperm_block!`: write
+# one region of the coupled-sector matrix into its destination N-D block, folding the reshape,
+# permute back to destination order, and fermion sign into a single in-place write. When the
+# block needs neither a reshape nor a permute (a rank-2 factor whose axes already match), a plain
+# type-preserving broadcast handles it, which keeps a non-strided factorization block (a
+# `Diagonal` `S`) on its own array type. Any other non-strided region would need a permute or
+# reshape, which is unsupported.
+function unmatricizeperm_block!(dst, src, phase, perm::NTuple{N, Int}) where {N}
+    if perm == ntuple(identity, Val(N)) && size(src) == size(dst)
+        dst .= phase .* src
+        return dst
+    end
+    isstrided(src) || throw(
+        ArgumentError(
+            "non-strided blocks needing a permute or reshape are not supported in unmatricize"
+        )
+    )
+    grouped_dims = ntuple(i -> size(dst, invperm(perm)[i]), Val(N))
+    grouped = reshape(StridedView(src), grouped_dims)
+    StridedView(dst) .= phase .* permutedims(grouped, perm)
+    return dst
+end
+
 # Build the sector-merged `FusedGradedMatrix` for the bipartition `(perm_codomain, perm_domain)`.
-# `op` transforms the fused axes (`conj` dualizes them), and the per-block `matricizeopperm` permutes
-# and reshapes each stored block to 2D, carrying `op` and the block's fermion permutation sign.
+# `op` transforms the fused axes (`conj` dualizes them), and each stored block is scattered
+# straight into its coupled-sector matrix slice, carrying `op` and the block's fermion sign.
 function TensorAlgebra.matricizeopperm(
         ::SectorFusion, op, a::AbelianGradedArray{T, <:Any, N},
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
@@ -99,6 +136,7 @@ function TensorAlgebra.matricizeopperm(
     cod_lin = LinearIndices(Tuple(blocklength.(codomain_axes)))
     dom_lin = LinearIndices(Tuple(blocklength.(domain_axes)))
     merged_row_sectors = eachsectoraxis(merged_row)
+    perm = (perm_codomain..., perm_domain...)
     for bI_src in eachblockstoredindex(a)
         src = Tuple(bI_src)
         row_fine = cod_lin[ntuple(i -> Int(src[perm_codomain[i]]), Val(K))...]
@@ -106,14 +144,11 @@ function TensorAlgebra.matricizeopperm(
         row_bir = row_dest[row_fine]
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
-        block_2d = TensorAlgebra.matricizeopperm(
-            SectorFusion(),
-            op,
-            a[bI_src],
-            perm_codomain,
-            perm_domain
+        blk = view(a, bI_src)
+        matricizeopperm_block!(
+            view(m.blocks[s], only(row_bir.indices), only(col_bir.indices)),
+            op, data(blk), fermion_permutation_phase(op, sector(blk), perm), perm
         )
-        m.blocks[s][only(row_bir.indices), only(col_bir.indices)] = data(block_2d)
     end
     return m
 end
@@ -191,9 +226,8 @@ function TensorAlgebra.unmatricizeperm!(
     col_dest = invblockmergeperm(unfused_col, sectorsortperm(unfused_col), merged_col)
     merged_row_sectors = eachsectoraxis(merged_row)
 
-    # Legs land in codomain/domain order; `biperm_dest` puts them back to destination order.
-    biperm_dest = invperm((invperm_codomain..., invperm_domain...))
-    noperm = biperm_dest == ntuple(identity, Val(N))
+    # Legs land in codomain/domain order; `perm_dest` puts them back to destination order.
+    perm_dest = invperm((invperm_codomain..., invperm_domain...))
     # Not every allocated block gets written below, so we zero first.
     zero!(a_dest)
     cod_lin = LinearIndices(Tuple(map(blocklength, codomain_axes)))
@@ -206,18 +240,16 @@ function TensorAlgebra.unmatricizeperm!(
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
         haskey(m.blocks, s) || continue
-        sub = m.blocks[s][only(row_bir.indices), only(col_bir.indices)]
+        slice = view(m.blocks[s], only(row_bir.indices), only(col_bir.indices))
         cd_leg = ntuple(d -> d <= K ? invperm_codomain[d] : invperm_domain[d - K], Val(N))
-        cd_dims =
-            ntuple(d -> blocklengths(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
         cd_sects =
             ntuple(d -> eachsectoraxis(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
-        block = reshape(sub, cd_dims)
-        # Build the block's structural factor with `S` from the input: `cd_sects` is empty
-        # for a rank-0 destination (a full contraction to a scalar) and so carries no `S`.
-        block_cd =
-            AbelianSectorArray(AbelianSectorDelta{eltype(block), S, N}(cd_sects), block)
-        a_dest[bI] = noperm ? block_cd : permutedims(block_cd, biperm_dest)
+        # The block's fermion sign takes `S` from the input: `cd_sects` is empty for a rank-0
+        # destination (a full contraction to a scalar) and so carries no `S`.
+        phase = fermion_permutation_phase(
+            identity, AbelianSectorDelta{eltype(slice), S, N}(cd_sects), perm_dest
+        )
+        unmatricizeperm_block!(data(view(a_dest, bI)), slice, phase, perm_dest)
     end
     return a_dest
 end
