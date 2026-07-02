@@ -90,21 +90,25 @@ function fused_block_scatter!(dest, op, srcdata, phase, biperm::NTuple{N, Int}) 
     return dest
 end
 
-# The coupled-sector matrix may have non-strided blocks (e.g. a `Diagonal` middle factor from a
-# factorization), which `StridedView` cannot wrap; densify those slices, leaving the common
-# dense-block contraction path a view.
-stridedslice(x::StridedArray) = x
-stridedslice(x) = Array(x)
-
 # Inverse of `fused_block_scatter!`: read one coupled-sector matrix slice straight into its
 # destination N-D block, folding the reshape, permute back to destination order, and fermion
 # sign into a single strided in-place write with no intermediate. `slice` is the `(rows, cols)`
 # matrix view; `sreshape`d into the grouped codomain/domain shape `cd_dims`, then `biperm_dest`
 # reorders those grouped legs back to destination order.
+#
+# When the block needs neither a leg-fusion reshape nor a permute (`cd_dims` already matches the
+# slice and `biperm_dest` is the identity, e.g. unmatricizing a rank-2 factor), the write is a
+# plain type-preserving broadcast. That path avoids `StridedView`, which cannot wrap the
+# non-strided blocks a factorization can produce (a `Diagonal` `S`), and keeps such blocks on
+# their own array type rather than densifying them.
 function fused_block_gather!(
         destdata, slice, cd_dims::NTuple{N, Int}, phase, biperm_dest::NTuple{N, Int}
     ) where {N}
-    cd_block = StridedViews.sreshape(StridedViews.StridedView(stridedslice(slice)), cd_dims)
+    if biperm_dest == ntuple(identity, Val(N)) && size(slice) == cd_dims
+        destdata .= phase .* slice
+        return destdata
+    end
+    cd_block = StridedViews.sreshape(StridedViews.StridedView(slice), cd_dims)
     StridedViews.StridedView(destdata) .= phase .* permutedims(cd_block, biperm_dest)
     return destdata
 end
