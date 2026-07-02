@@ -263,9 +263,38 @@ end
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
 # `to_range([U1(0) => 2, U1(1) => 3])`. Defined over each key type separately
 # rather than a `Union` so each method stays specific enough not to capture
-# unrelated `Pair` vectors.
+# unrelated `Pair` vectors. The result is routed by symmetry: abelian sectors
+# build a block-sparse `GradedOneTo`; non-abelian sectors have no block-sparse
+# representation and instead build a native TensorKit `GradedSpace` via
+# `to_tensorkit_space` (provided by the GradedArrays–TensorKit extension).
 for S in (:(TKS.Sector), :SectorRange)
     @eval function TensorAlgebra.to_range(space::AbstractVector{<:Pair{<:$S, <:Integer}})
-        return gradedrange(space)
+        isempty(space) && return gradedrange(space)
+        return _to_range(_sectorstyle(eltype(space)), space)
     end
+end
+
+# `SymmetryStyle` of a sector-pair key, normalizing a raw `TKS.Sector` to `SectorRange`
+# (whose `SymmetryStyle` consults the fusion rule) so both key kinds route identically.
+_sectorstyle(::Type{<:Pair{K}}) where {K <: SectorRange} = SymmetryStyle(K)
+_sectorstyle(::Type{<:Pair{K}}) where {K <: TKS.Sector} = SymmetryStyle(SectorRange{K})
+
+_to_range(::AbelianStyle, space) = gradedrange(space)
+_to_range(::NotAbelianStyle, space) = to_tensorkit_space(space)
+
+"""
+    to_tensorkit_space(sectors)
+
+Convert a vector of non-abelian `sector => multiplicity` pairs into a native TensorKit
+`GradedSpace`. Non-abelian symmetries have no block-sparse (`GradedOneTo`) representation,
+so `to_range` routes them here. Requires TensorKit to be loaded; the method that builds the
+space lives in the GradedArrays–TensorKit extension.
+"""
+function to_tensorkit_space(space)
+    return throw(
+        ArgumentError(
+            "building a native non-abelian graded space from $(space) requires TensorKit; \
+            run `using TensorKit` to enable it"
+        )
+    )
 end
