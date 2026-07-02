@@ -145,7 +145,7 @@ function TensorAlgebra.matricizeopperm(
         row_bir = row_dest[row_fine]
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
-        blk = a[bI_src]
+        blk = view(a, bI_src)
         fused_block_scatter!(
             view(m.blocks[s], only(row_bir.indices), only(col_bir.indices)),
             op, data(blk), fermion_permutation_phase(op, sector(blk), biperm), biperm
