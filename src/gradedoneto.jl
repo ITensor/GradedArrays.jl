@@ -265,24 +265,16 @@ end
 # block-sparse `GradedOneTo`, while non-abelian sectors have no block-sparse representation
 # and build a native TensorKit `GradedSpace` via `to_tensorkit_space`. Defined over each
 # key type separately rather than a `Union` so each method stays specific enough not to
-# capture unrelated `Pair` vectors. A raw `TKS.Sector` key is wrapped in `SectorRange` so
-# `SymmetryStyle` consults the fusion rule rather than its `AbelianStyle` default.
-function TensorAlgebra.to_range(
-        space::AbstractVector{<:Pair{K, <:Integer}}
-    ) where {K <: SectorRange}
-    return if SymmetryStyle(K) === AbelianStyle()
-        gradedrange(space)
-    else
-        to_tensorkit_space(space)
-    end
-end
-function TensorAlgebra.to_range(
-        space::AbstractVector{<:Pair{K, <:Integer}}
-    ) where {K <: TKS.Sector}
-    return if SymmetryStyle(SectorRange{K}) === AbelianStyle()
-        gradedrange(space)
-    else
-        to_tensorkit_space(space)
+# capture unrelated `Pair` vectors.
+for S in (:(TKS.Sector), :SectorRange)
+    @eval function TensorAlgebra.to_range(
+            space::AbstractVector{<:Pair{K, <:Integer}}
+        ) where {K <: $S}
+        return if SymmetryStyle(K) === AbelianStyle()
+            gradedrange(space)
+        else
+            to_tensorkit_space(space)
+        end
     end
 end
 
