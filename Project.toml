@@ -1,6 +1,6 @@
 name = "GradedArrays"
 uuid = "bc96ca6e-b7c8-4bb6-888e-c93f838762c2"
-version = "0.13.5"
+version = "0.13.6"
 authors = ["ITensor developers <support@itensor.org> and contributors"]
 
 [workspace]
@@ -24,9 +24,11 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 
 [weakdeps]
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
+TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
 
 [extensions]
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"
+GradedArraysTensorKitExt = "TensorKit"
 
 [compat]
 ArrayLayouts = "1"
@@ -43,5 +45,6 @@ SparseArraysBase = "0.10"
 SplitApplyCombine = "1.2.3"
 StridedViews = "0.5"
 TensorAlgebra = "0.16"
+TensorKit = "0.17"
 TensorKitSectors = "0.3"
 julia = "1.10"

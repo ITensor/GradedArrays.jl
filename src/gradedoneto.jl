@@ -261,11 +261,49 @@ function gradedrange(
 end
 
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
-# `to_range([U1(0) => 2, U1(1) => 3])`. Defined over each key type separately
-# rather than a `Union` so each method stays specific enough not to capture
-# unrelated `Pair` vectors.
+# `to_range([U1(0) => 2, U1(1) => 3])`, routed by symmetry: abelian sectors build a
+# block-sparse `GradedOneTo`, while non-abelian sectors have no block-sparse representation
+# and build a native TensorKit `GradedSpace` via `to_tensorkit_space`. Defined over each
+# key type separately rather than a `Union` so each method stays specific enough not to
+# capture unrelated `Pair` vectors.
 for S in (:(TKS.Sector), :SectorRange)
-    @eval function TensorAlgebra.to_range(space::AbstractVector{<:Pair{<:$S, <:Integer}})
-        return gradedrange(space)
+    @eval function TensorAlgebra.to_range(
+            space::AbstractVector{<:Pair{K, <:Integer}}
+        ) where {K <: $S}
+        return if SymmetryStyle(K) === AbelianStyle()
+            gradedrange(space)
+        else
+            to_tensorkit_space(space)
+        end
     end
+end
+
+"""
+    to_tensorkit_space(sectors)
+
+Convert a vector of non-abelian `sector => multiplicity` pairs into a native TensorKit
+`GradedSpace`. Non-abelian symmetries have no block-sparse (`GradedOneTo`) representation,
+so `to_range` routes them here. Requires TensorKit to be loaded; the method that builds the
+space lives in the GradedArrays–TensorKit extension.
+"""
+function to_tensorkit_space(space)
+    return throw(
+        ArgumentError(
+            "building a native non-abelian graded space from $(space) requires TensorKit; \
+            run `using TensorKit` to enable it"
+        )
+    )
+end
+
+# `SectorRange` sector-pairs carry an arrow: strip to sector labels, check the shared arrow,
+# and apply it as a whole-space `dual` (distinct from a space of dual sectors, and the form a
+# dual index must take for contraction). The label-keyed `to_tensorkit_space` builder and
+# `dual` on the resulting space come from the GradedArrays–TensorKit extension.
+function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: SectorRange}
+    arrows = isdual.(first.(space))
+    allequal(arrows) ||
+        throw(ArgumentError("All sectors must have the same isdual flag"))
+    labels_space = [label(first(p)) => last(p) for p in space]
+    nondual_space = to_tensorkit_space(labels_space)
+    return first(arrows) ? dual(nondual_space) : nondual_space
 end

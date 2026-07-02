@@ -13,6 +13,7 @@ struct SectorRange{I <: TKS.Sector} <: AbstractUnitRange{Int}
 end
 SectorRange{I}(label) where {I} = SectorRange{I}(label, false)
 SectorRange(label::TKS.Sector) = SectorRange(label, false)
+SectorRange(r::SectorRange) = r
 
 label(r::SectorRange) = r.label
 isdual(r::SectorRange) = r.isdual
@@ -141,13 +142,10 @@ SymmetryStyle(x) = SymmetryStyle(typeof(x))
 # allows for abelian-like slicing style for GradedOneTo: assume length(::label) = 1
 # and preserve labels in any slicing operation
 SymmetryStyle(T::Type) = AbelianStyle()
-function SymmetryStyle(::Type{T}) where {T <: SectorRange}
-    if TKS.FusionStyle(T) === TKS.UniqueFusion()
-        return AbelianStyle()
-    else
-        return NotAbelianStyle()
-    end
+function SymmetryStyle(::Type{T}) where {T <: TKS.Sector}
+    return TKS.FusionStyle(T) === TKS.UniqueFusion() ? AbelianStyle() : NotAbelianStyle()
 end
+SymmetryStyle(::Type{SectorRange{I}}) where {I} = SymmetryStyle(I)
 SymmetryStyle(G::Type{<:AbstractUnitRange}) = SymmetryStyle(sectortype(G))
 
 combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
