@@ -426,7 +426,9 @@ end
         codomain_axes = ntuple(i -> axes(a_dest)[invperm_codomain[i]], K)
         domain_axes = ntuple(i -> axes(a_dest)[invperm_domain[i]], ndims(a_dest) - K)
         return permutedims(
-            unmatricize(m, codomain_axes, domain_axes),
+            # `axes(a_dest)` are stored (dualized) domain axes, but `unmatricize` takes them
+            # codomain-facing, so un-dualize with `conj` before the call.
+            unmatricize(m, codomain_axes, conj.(domain_axes)),
             invperm((invperm_codomain..., invperm_domain...))
         )
     end

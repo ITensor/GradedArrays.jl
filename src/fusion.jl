@@ -120,12 +120,14 @@ end
 
 # ========================  AbelianGradedArray unmatricize  ========================
 
+# `unmatricize` receives the domain axes codomain-facing (un-dualized); a graded array stores
+# them dualized, so `conj` re-dualizes them before they are placed.
 function TensorAlgebra.unmatricize(
         ::SectorFusion, m::AbstractSectorDelta,
         codomain_axes::Tuple{Vararg{SectorRange}},
         domain_axes::Tuple{Vararg{SectorRange}}
     )
-    return AbelianSectorDelta{eltype(m)}((codomain_axes..., domain_axes...))
+    return AbelianSectorDelta{eltype(m)}((codomain_axes..., conj.(domain_axes)...))
 end
 
 # Unmatricize a 2D sector array back to an N-D AbelianSectorArray. The
@@ -158,7 +160,9 @@ function TensorAlgebra.unmatricize(
     )
     K = length(codomain_axes)
     N = K + length(domain_axes)
-    a = similar(m, (codomain_axes..., domain_axes...))
+    # The domain axes arrive codomain-facing (un-dualized); dualize them into the stored
+    # convention with `conj` as they are flattened into the destination axes.
+    a = similar(m, (codomain_axes..., conj.(domain_axes)...))
     return TensorAlgebra.unmatricizeperm!(
         SectorFusion(), a, m, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
     )

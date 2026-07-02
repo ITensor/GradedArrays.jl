@@ -240,8 +240,10 @@ end
     @test collect(keys(fsm.domain)) == [U1(0), U1(1)]
     @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
 
-    # Round-trip through `unmatricize` recovers the original blocks.
-    a_back = unmatricize(fsm, (r, r), (dual(r),))
+    # Round-trip through `unmatricize` recovers the original blocks. The domain axes are
+    # passed codomain-facing (un-dualized), so the original `dual(r)` domain axis is given
+    # as `r`.
+    a_back = unmatricize(fsm, (r, r), (r,))
     @test a_back isa AbelianGradedArray
     @test ndims(a_back) == 3
     for I in eachblockstoredindex(a)
@@ -368,8 +370,9 @@ end
     @test sm isa SectorMatrix
     @test ndims(sm) == 2
 
-    # Unmatricize back to 3D
-    s_back = unmatricize(sm, (codomain_ax,), (domain_ax1, domain_ax2))
+    # Unmatricize back to 3D. The domain axes are passed codomain-facing (un-dualized),
+    # so the stored `conj`-ed domain axes are given as their un-dualized counterparts.
+    s_back = unmatricize(sm, (codomain_ax,), (conj(domain_ax1), conj(domain_ax2)))
     @test s_back isa AbelianSectorArray
     @test ndims(s_back) == 3
     @test size(s_back) == size(s)
