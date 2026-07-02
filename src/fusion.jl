@@ -71,46 +71,48 @@ function TensorAlgebra.matricize(
     )
 end
 
-# Scatter one stored source block straight into its `(rows, cols)` slice of a coupled-sector
-# matrix, folding the permute, reshape, `op`, and fermion sign into a single strided in-place
-# write with no permuted-block intermediate. `biperm` reorders the source legs into the
-# destination group order; `phase` is the block's ±1 fermion sign for that reordering. The
-# 2D slice is `sreshape`d into the block's grouped N-D shape (a strided view of the slice) and
-# the permuted source is broadcast into it.
-function fused_block_scatter!(dest, op, srcdata, phase, biperm::NTuple{N, Int}) where {N}
-    dest_grouped = StridedViews.sreshape(
-        StridedViews.StridedView(dest), ntuple(i -> size(srcdata, biperm[i]), Val(N))
-    )
-    src = permutedims(StridedViews.StridedView(srcdata), biperm)
-    if op === identity
-        dest_grouped .= phase .* src
-    else
-        dest_grouped .= phase .* op.(src)
-    end
-    return dest
+# The block-level piece of `matricizeopperm`: write one stored block into its region of the
+# coupled-sector matrix, folding the permute, reshape to 2D, `op`, and fermion sign into a single
+# strided in-place write with no intermediate. `perm` reorders the block's legs into the
+# destination group order and `phase` is its ±1 fermion sign. The block must be strided (an
+# `AbelianGradedArray` stores dense blocks); `op` and `permutedims` ride on the `StridedView`
+# lazily.
+function matricizeopperm_block!(
+        matrix_region,
+        op,
+        block,
+        phase,
+        perm::NTuple{N, Int}
+    ) where {N}
+    isstrided(block) ||
+        throw(ArgumentError("non-strided blocks are not supported in matricize"))
+    grouped = reshape(StridedView(matrix_region), ntuple(i -> size(block, perm[i]), Val(N)))
+    grouped .= phase .* op(permutedims(StridedView(block), perm))
+    return matrix_region
 end
 
-# Inverse of `fused_block_scatter!`: read one coupled-sector matrix slice straight into its
-# destination N-D block, folding the reshape, permute back to destination order, and fermion
-# sign into a single strided in-place write with no intermediate. `slice` is the `(rows, cols)`
-# matrix view; `sreshape`d into the grouped codomain/domain shape `cd_dims`, then `biperm_dest`
-# reorders those grouped legs back to destination order.
-#
-# When the block needs neither a leg-fusion reshape nor a permute (`cd_dims` already matches the
-# slice and `biperm_dest` is the identity, e.g. unmatricizing a rank-2 factor), the write is a
-# plain type-preserving broadcast. That path avoids `StridedView`, which cannot wrap the
-# non-strided blocks a factorization can produce (a `Diagonal` `S`), and keeps such blocks on
-# their own array type rather than densifying them.
-function fused_block_gather!(
-        destdata, slice, cd_dims::NTuple{N, Int}, phase, biperm_dest::NTuple{N, Int}
+# The block-level piece of `unmatricizeperm!` and the inverse of `matricizeopperm_block!`: write
+# one region of the coupled-sector matrix into its destination N-D block, folding the reshape,
+# permute back to destination order, and fermion sign into a single in-place write. When the
+# block needs neither a reshape nor a permute (a rank-2 factor whose axes already match), a plain
+# type-preserving broadcast handles it, which keeps a non-strided factorization block (a
+# `Diagonal` `S`) on its own array type. Any other non-strided region would need a permute or
+# reshape, which is unsupported.
+function unmatricizeperm_block!(
+        block, matrix_region, block_dims::NTuple{N, Int}, phase, perm::NTuple{N, Int}
     ) where {N}
-    if biperm_dest == ntuple(identity, Val(N)) && size(slice) == cd_dims
-        destdata .= phase .* slice
-        return destdata
+    if perm == ntuple(identity, Val(N)) && size(matrix_region) == block_dims
+        block .= phase .* matrix_region
+        return block
     end
-    cd_block = StridedViews.sreshape(StridedViews.StridedView(slice), cd_dims)
-    StridedViews.StridedView(destdata) .= phase .* permutedims(cd_block, biperm_dest)
-    return destdata
+    isstrided(matrix_region) || throw(
+        ArgumentError(
+            "non-strided blocks needing a permute or reshape are not supported in unmatricize"
+        )
+    )
+    grouped = reshape(StridedView(matrix_region), block_dims)
+    StridedView(block) .= phase .* permutedims(grouped, perm)
+    return block
 end
 
 # Build the sector-merged `FusedGradedMatrix` for the bipartition `(perm_codomain, perm_domain)`.
@@ -141,7 +143,7 @@ function TensorAlgebra.matricizeopperm(
     cod_lin = LinearIndices(Tuple(blocklength.(codomain_axes)))
     dom_lin = LinearIndices(Tuple(blocklength.(domain_axes)))
     merged_row_sectors = eachsectoraxis(merged_row)
-    biperm = (perm_codomain..., perm_domain...)
+    perm = (perm_codomain..., perm_domain...)
     for bI_src in eachblockstoredindex(a)
         src = Tuple(bI_src)
         row_fine = cod_lin[ntuple(i -> Int(src[perm_codomain[i]]), Val(K))...]
@@ -150,9 +152,9 @@ function TensorAlgebra.matricizeopperm(
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
         blk = view(a, bI_src)
-        fused_block_scatter!(
+        matricizeopperm_block!(
             view(m.blocks[s], only(row_bir.indices), only(col_bir.indices)),
-            op, data(blk), fermion_permutation_phase(op, sector(blk), biperm), biperm
+            op, data(blk), fermion_permutation_phase(op, sector(blk), perm), perm
         )
     end
     return m
@@ -231,8 +233,8 @@ function TensorAlgebra.unmatricizeperm!(
     col_dest = invblockmergeperm(unfused_col, sectorsortperm(unfused_col), merged_col)
     merged_row_sectors = eachsectoraxis(merged_row)
 
-    # Legs land in codomain/domain order; `biperm_dest` puts them back to destination order.
-    biperm_dest = invperm((invperm_codomain..., invperm_domain...))
+    # Legs land in codomain/domain order; `perm_dest` puts them back to destination order.
+    perm_dest = invperm((invperm_codomain..., invperm_domain...))
     # Not every allocated block gets written below, so we zero first.
     zero!(a_dest)
     cod_lin = LinearIndices(Tuple(map(blocklength, codomain_axes)))
@@ -254,9 +256,9 @@ function TensorAlgebra.unmatricizeperm!(
         # The block's fermion sign takes `S` from the input: `cd_sects` is empty for a rank-0
         # destination (a full contraction to a scalar) and so carries no `S`.
         phase = fermion_permutation_phase(
-            identity, AbelianSectorDelta{eltype(slice), S, N}(cd_sects), biperm_dest
+            identity, AbelianSectorDelta{eltype(slice), S, N}(cd_sects), perm_dest
         )
-        fused_block_gather!(data(view(a_dest, bI)), slice, cd_dims, phase, biperm_dest)
+        unmatricizeperm_block!(data(view(a_dest, bI)), slice, cd_dims, phase, perm_dest)
     end
     return a_dest
 end
