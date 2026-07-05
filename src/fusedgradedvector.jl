@@ -149,6 +149,18 @@ end
 
 # ========================  Accessors  ========================
 
+# Blockwise copyto!: the generic `AbstractArray` fallback copies elementwise, which
+# scalar-indexes (disallowed for graded arrays). Also the write path for mutating a
+# `MAK.diagview(::FusedGradedMatrix)` (whose blocks alias the matrix diagonals).
+function Base.copyto!(dest::FusedGradedVector, src::FusedGradedVector)
+    keys(dest.blocks) == keys(src.blocks) ||
+        throw(ArgumentError("`copyto!` requires matching sectors"))
+    for s in keys(src.blocks)
+        copyto!(dest.blocks[s], src.blocks[s])
+    end
+    return dest
+end
+
 BlockArrays.blocklength(v::FusedGradedVector) = length(v.axis)
 
 function blocktype(::Type{<:FusedGradedVector{T, S, D}}) where {T, S, D}

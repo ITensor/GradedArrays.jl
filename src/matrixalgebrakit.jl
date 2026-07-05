@@ -12,6 +12,7 @@ for f in [
         :lq_compact, :lq_full, :lq_null,
         :eig_full, :eig_vals, :eigh_full, :eigh_vals,
         :left_polar, :right_polar,
+        :project_hermitian, :project_antihermitian, :project_isometric,
     ]
     f! = Symbol(f, :!)
     @eval function MAK.default_algorithm(
@@ -281,6 +282,32 @@ function MAK.initialize_output(
     P = similar(A, A.codomain, A.codomain)
     Wᴴ = similar(A)
     return P, Wᴴ
+end
+
+# Projections
+# -----------
+# Same output conventions as the generic implementations: hermitian and
+# antihermitian project in place, isometric writes to a fresh output.
+function MAK.initialize_output(
+        ::typeof(MAK.project_hermitian!),
+        A::FusedGradedMatrix,
+        alg::GradedBlockAlgorithm
+    )
+    return A
+end
+function MAK.initialize_output(
+        ::typeof(MAK.project_antihermitian!),
+        A::FusedGradedMatrix,
+        alg::GradedBlockAlgorithm
+    )
+    return A
+end
+function MAK.initialize_output(
+        ::typeof(MAK.project_isometric!),
+        A::FusedGradedMatrix,
+        alg::GradedBlockAlgorithm
+    )
+    return similar(A)
 end
 
 # Truncation support

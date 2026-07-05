@@ -487,13 +487,12 @@ end
 
 # Orthogonal projection of a dense source into the symmetry-allowed subspace.
 # Magnitude-blind: forbidden-block entries of `src` are dropped without inspection.
-# Use `TensorAlgebra.checked_projectto!` to verify the discarded weight is small.
+# The `TensorAlgebra.project` wrapper verifies the discarded weight is small.
 function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
-    size(dest) == size(src) || throw(
-        DimensionMismatch(
-            "projectto!: dest has size $(size(dest)), src has size $(size(src))"
-        )
-    )
+    # Reshape `src` to `size(dest)` (a no-op when the ranks already match), so a lower-rank
+    # `src` may omit trailing length-1 axes (e.g. an auxiliary flux-canceling leg); a genuine
+    # size mismatch still errors in `reshape`.
+    src = reshape(src, size(dest))
     zero!(dest)
     for b in allowedblocks(axes(dest))
         block_ranges = ntuple(d -> axes(dest, d)[Block(Int(Tuple(b)[d]))], ndims(dest))
@@ -502,20 +501,65 @@ function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
     return dest
 end
 
-# Compare via `Array(dest)` so the generic `isapprox(::AbstractArray, ::AbelianGradedArray)`
-# path doesn't fall back to a `src - dest` broadcast that scalar-indexes the block storage.
-# `kwargs` (e.g. `atol`/`rtol`) are forwarded to `isapprox`, matching the generic verb.
-function TensorAlgebra.checked_projectto!(
-        dest::AbelianGradedArray, src::AbstractArray; kwargs...
-    )
-    TensorAlgebra.projectto!(dest, src)
-    isapprox(src, Array(dest); kwargs...) ||
-        throw(InexactError(:checked_projectto!, typeof(dest), src))
-    return dest
+# Net charge of a dense operator, read from its dominant-magnitude entry: find the block
+# holding that entry over the stored axes (domain dualized to match `zeros_map`/`similar_map`)
+# and fuse that block's per-axis sectors, each with its axis's arrow applied (the same fusion
+# `allowedblocks` is built on, so the charge lines up with which blocks `project` keeps). This
+# is the abelian fast path for aux derivation; the general (possibly multi-sector) derivation
+# lives in the `TensorMap` backend.
+function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
+    stored = (codomain_axes..., conj.(domain_axes)...)
+    src = reshape(src, length.(stored))
+    I = Tuple(findmax(abs, src)[2])
+    secs = map(stored, I) do ax, i
+        return eachsectoraxis(ax)[Int(BlockArrays.findblock(ax, i))]
+    end
+    return reduce(tensor_product, secs)
 end
 
-# Materialize the graded array into a dense `Array` for the default
-# `checked_projectto!`/`isapprox`-after path.
+# `allocate_project` with graded axes: the destination allocation, which is where a trailing
+# surplus axis gets its space derived. With one axis more
+# in `src` than the given axes account for, that trailing surplus axis is an auxiliary leg
+# appended as the last domain axis: derive its space so the result is symmetry-allowed. The
+# trailing position matches how `stack` lays out an operator multiplet and the Julia convention
+# that trailing length-1 axes are implicit/flexible. Abelian sectors are one-dimensional, so each
+# length-1 slice along the aux axis gets its own projected charge — the per-slice lookup is the
+# whole derivation, and a multi-slice aux comes out as a direct sum (e.g. stacking `[S⁺, S⁻]`
+# gives `[U1(2), U1(-2)]`, an MPO-virtual-leg structure). For the matricized result `X` the Gram
+# matrix `X * X'` contracts the aux away (for a spin multiplet, `X * X' = S·S`, the Casimir).
+# The aux is a genuine axis of the result, read off `axes(dest)`.
+function TensorAlgebra.allocate_project(
+        src::AbstractArray, codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}, domain_axes
+    )
+    nphys = length(codomain_axes) + length(domain_axes)
+    if ndims(src) > nphys
+        ndims(src) == nphys + 1 || throw(
+            ArgumentError(
+                "`project`: expected at most one trailing auxiliary axis beyond the \
+                $nphys given axes, got a rank-$(ndims(src)) input"
+            )
+        )
+        qs = map(eachslice(src; dims = nphys + 1)) do slice
+            return projected_charge(slice, codomain_axes, domain_axes)
+        end
+        # Merge contiguous equal charges into one sector of that multiplicity (matching the
+        # `TensorMap` backend); non-contiguous repeats stay separate to preserve slice order.
+        ps = Pair{eltype(qs), Int}[]
+        for q in qs
+            if isempty(ps) || first(ps[end]) != q
+                push!(ps, q => 1)
+            else
+                ps[end] = q => (last(ps[end]) + 1)
+            end
+        end
+        domain_axes = (domain_axes..., gradedrange(ps))
+    end
+    return TensorAlgebra.similar_map(src, codomain_axes, domain_axes)
+end
+
+# Materialize the graded array into a dense `Array`. The checked projection verbs reach this
+# through `convert(Array, dest)` to compare elementwise against a dense source, which would
+# otherwise fall back to a `src - dest` broadcast that scalar-indexes the block storage.
 function Base.Array(a::AbelianGradedArray{T, <:Any, N}) where {T, N}
     dest = zeros(T, size(a))
     for bI in eachblockstoredindex(a)
@@ -727,17 +771,16 @@ end
 
 Construct an `AbelianGradedArray` by projecting the dense data of `a` onto the
 symmetry-allowed blocks of the graded axes `(ax1, axs...)`, via
-`TensorAlgebra.checked_projectto!` (which errors if `a` has weight outside
+`TensorAlgebra.project` (which errors if `a` has weight outside
 the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a
 trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
 so index with `dual`/`conj` axes to set duality.
 """
 function Base.getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
     dest_axes = (ax1, axs...)
-    a_reshaped = reshape(a, length.(dest_axes))
-    return TensorAlgebra.checked_projectto!(
-        similar(a_reshaped, eltype(a), dest_axes), a_reshaped
-    )
+    # Reshape first so the rank matches the requested axes: indexing selects exactly
+    # these axes, so the surplus-axis derivation branch of `project` must not trigger.
+    return TensorAlgebra.project(reshape(a, length.(dest_axes)), dest_axes)
 end
 # Disambiguate the single-axis case for a concrete `Array`: `Base.getindex(::Array,
 # ::AbstractUnitRange{<:Integer})` and the projection method above are otherwise equally

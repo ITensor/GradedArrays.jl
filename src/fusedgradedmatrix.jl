@@ -69,6 +69,12 @@ end
 # Block-diagonal by construction (one block per sector), so just check each block.
 LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 
+# Blockwise copy: the generic `AbstractArray` fallback copies elementwise, which
+# scalar-indexes (disallowed for graded arrays).
+function Base.copy(A::FusedGradedMatrix)
+    return FusedGradedMatrix(A.codomain, A.domain, map(copy, A.blocks))
+end
+
 # Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
 # each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
 # `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
