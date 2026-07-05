@@ -288,6 +288,18 @@ function Base.copy(v::FusedGradedVector)
     return FusedGradedVector(copy(v.axis), map(copy, v.blocks))
 end
 
+# Materialize into a dense `Array` blockwise, like the `AbelianGradedArray` method
+# (the generic fallback copies elementwise, which scalar-indexes).
+function Base.Array(v::FusedGradedVector{T}) where {T}
+    dest = zeros(T, size(v))
+    ax = only(axes(v))
+    sectors = collect(keys(v.axis))
+    for (s, b) in pairs(v.blocks)
+        copyto!(view(dest, ax[Block(findfirst(==(s), sectors))]), b)
+    end
+    return dest
+end
+
 # ======================== LinearAlgebra ======================
 
 function LinearAlgebra.norm(A::FusedGradedVector, p::Real = 2)

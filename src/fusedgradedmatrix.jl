@@ -75,6 +75,21 @@ function Base.copy(A::FusedGradedMatrix)
     return FusedGradedMatrix(A.codomain, A.domain, map(copy, A.blocks))
 end
 
+# Materialize into a dense `Array` blockwise, like the `AbelianGradedArray` method
+# (the generic fallback copies elementwise, which scalar-indexes). Sectors present
+# in only one of the two axes have no stored block and stay zero.
+function Base.Array(a::FusedGradedMatrix{T}) where {T}
+    dest = zeros(T, size(a))
+    rowax, colax = axes(a)
+    rowsectors, colsectors = collect(keys(a.codomain)), collect(keys(a.domain))
+    for (s, b) in pairs(a.blocks)
+        r = rowax[Block(findfirst(==(s), rowsectors))]
+        c = colax[Block(findfirst(==(s), colsectors))]
+        copyto!(view(dest, r, c), b)
+    end
+    return dest
+end
+
 # Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
 # each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
 # `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
