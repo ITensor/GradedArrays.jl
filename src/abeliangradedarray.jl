@@ -489,7 +489,7 @@ end
 # size's rank counts as length 1, mirroring `Base.size(A, d)` for `d > ndims(A)`), guarding a
 # `reshape` against silently reinterpreting same-length data of a genuinely different shape.
 # Vendored from TensorAlgebra rather than reused because it is not part of its public API.
-function check_project_shape(sz1::Dims, sz2::Dims)
+function check_project_size(sz1::Dims, sz2::Dims)
     all(i -> get(sz1, i, 1) == get(sz2, i, 1), 1:max(length(sz1), length(sz2))) || throw(
         DimensionMismatch("sizes $sz1 and $sz2 differ beyond trailing length-1 axes")
     )
@@ -503,7 +503,7 @@ function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
     # Reshape `src` to `size(dest)` (a no-op when the ranks already match), so a lower-rank
     # `src` may omit trailing length-1 axes (e.g. an auxiliary flux-canceling leg); a genuine
     # shape mismatch errors rather than reinterpreting the data.
-    check_project_shape(size(src), size(dest))
+    check_project_size(size(src), size(dest))
     src = reshape(src, size(dest))
     zero!(dest)
     for b in allowedblocks(axes(dest))
@@ -513,16 +513,31 @@ function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
     return dest
 end
 
-# `allocate_project` with graded axes: the destination allocation, and where a trailing surplus
-# axis in `src` gets its space derived. With no surplus this is plain `similar_map`; a single
-# trailing surplus axis is an auxiliary leg appended as the last domain axis, its space derived
-# (see `infer_aux_space`) so the result is symmetry-allowed. The trailing position matches how
-# `stack` lays out an operator multiplet and the Julia convention that trailing length-1 axes are
-# implicit. For the matricized result `X` the Gram matrix `X * X'` contracts the aux away (for a
-# spin multiplet, `X * X' = S·S`, the Casimir).
+# `allocate_project` with graded axes routes both the codomain-led and the (empty-codomain)
+# domain-led cases to `allocate_project_graded`, taking the graded structure from whichever side
+# is non-empty, the same two-entry split `similar_map` uses.
 function TensorAlgebra.allocate_project(
-        src::AbstractArray, codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}, domain_axes
+        src::AbstractArray,
+        codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+        domain_axes::Tuple{Vararg{GradedOneTo}}
     )
+    return allocate_project_graded(src, codomain_axes, domain_axes)
+end
+function TensorAlgebra.allocate_project(
+        src::AbstractArray,
+        codomain_axes::Tuple{},
+        domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    )
+    return allocate_project_graded(src, codomain_axes, domain_axes)
+end
+
+# The destination allocation, and where a trailing surplus axis in `src` gets its space derived.
+# With no surplus this is plain `similar_map`; a single trailing surplus axis is an auxiliary leg
+# appended as the last domain axis, its space derived (see `infer_aux_space`) so the result is
+# symmetry-allowed. The trailing position matches how `stack` lays out an operator multiplet and
+# the Julia convention that trailing length-1 axes are implicit. For the matricized result `X` the
+# Gram matrix `X * X'` contracts the aux away (for a spin multiplet, `X * X' = S·S`, the Casimir).
+function allocate_project_graded(src, codomain_axes, domain_axes)
     nphys = length(codomain_axes) + length(domain_axes)
     ndims(src) <= nphys &&
         return TensorAlgebra.similar_map(src, codomain_axes, domain_axes)
@@ -798,7 +813,7 @@ function Base.getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
     # Match `a` to the requested axes up to trailing length-1 axes: indexing selects exactly these
     # axes, so the surplus-axis derivation branch of `project` must not trigger, and a genuine
     # shape mismatch errors rather than reinterpreting the data.
-    check_project_shape(size(a), length.(dest_axes))
+    check_project_size(size(a), length.(dest_axes))
     return TensorAlgebra.project(reshape(a, length.(dest_axes)), dest_axes)
 end
 # Disambiguate the single-axis case for a concrete `Array`: `Base.getindex(::Array,
