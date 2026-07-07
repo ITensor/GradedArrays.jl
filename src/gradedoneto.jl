@@ -63,6 +63,9 @@ end
 trivial(g::GradedOneTo) = trivial(typeof(g))
 
 TensorAlgebra.trivialrange(R::Type{<:GradedOneTo}) = trivial(R)
+function TensorAlgebra.trivialrange(::Type{GradedOneTo{S}}, n::Integer) where {S}
+    return gradedrange([trivial(S) => n])
+end
 
 """
     gradedrange(xs::AbstractVector{<:Pair})

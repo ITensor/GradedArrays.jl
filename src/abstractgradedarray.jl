@@ -117,6 +117,11 @@ function TensorAlgebra.scale!(a::AbstractGradedArray, β::Number)
     return a
 end
 
+# The `LinearAlgebra` spelling of blockwise scaling (the generic fallback
+# scalar-indexes).
+LinearAlgebra.rmul!(a::AbstractGradedArray, β::Number) = TensorAlgebra.scale!(a, β)
+LinearAlgebra.lmul!(β::Number, a::AbstractGradedArray) = TensorAlgebra.scale!(a, β)
+
 function TensorAlgebra.zero!(a::AbstractGradedArray)
     for bI in eachblockstoredindex(a)
         zero!(view(a, bI))

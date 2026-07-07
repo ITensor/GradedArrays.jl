@@ -12,6 +12,7 @@ for f in [
         :lq_compact, :lq_full, :lq_null,
         :eig_full, :eig_vals, :eigh_full, :eigh_vals,
         :left_polar, :right_polar,
+        :project_hermitian, :project_antihermitian, :project_isometric,
     ]
     f! = Symbol(f, :!)
     @eval function MAK.default_algorithm(
@@ -283,6 +284,32 @@ function MAK.initialize_output(
     return P, Wᴴ
 end
 
+# Projections
+# -----------
+# Same output conventions as the generic implementations: hermitian and
+# antihermitian project in place, isometric writes to a fresh output.
+function MAK.initialize_output(
+        ::typeof(MAK.project_hermitian!),
+        A::FusedGradedMatrix,
+        alg::GradedBlockAlgorithm
+    )
+    return A
+end
+function MAK.initialize_output(
+        ::typeof(MAK.project_antihermitian!),
+        A::FusedGradedMatrix,
+        alg::GradedBlockAlgorithm
+    )
+    return A
+end
+function MAK.initialize_output(
+        ::typeof(MAK.project_isometric!),
+        A::FusedGradedMatrix,
+        alg::GradedBlockAlgorithm
+    )
+    return similar(A)
+end
+
 # Truncation support
 # ------------------
 
@@ -302,6 +329,26 @@ function MAK.diagonal(v::FusedGradedVector)
     diag_blocks = map(Diagonal, v.blocks)
     return FusedGradedMatrix(v.axis, v.axis, diag_blocks)
 end
+
+# `pow_diag_safe!` for a block-diagonal graded matrix: clamp-power each reduced diagonal
+# block. Only the reduced (degeneracy) data is touched, and that is correct even in the
+# non-abelian case: a diagonal factor is `Diagonal(λ) ⊗ I` per sector, and `f(A ⊗ I) =
+# f(A) ⊗ I`, so the power passes straight to the reduced eigenvalues. This is why the
+# diagonal power is well defined here whereas a general element-wise `map!` on a graded
+# array is not.
+function TensorAlgebra.MatrixAlgebra.pow_diag_safe!(
+        Dp::FusedGradedMatrix, D::FusedGradedMatrix, p, tol
+    )
+    foreachblock(MAK.diagview(Dp), MAK.diagview(D)) do _, (σp, σ)
+        return map!(d -> _clamped_pow(d, p, tol), σp, σ)
+    end
+    return Dp
+end
+
+# Vendored from `TensorAlgebra.MatrixAlgebra` (not part of its public API): clamp entries
+# below `tol` to zero, then raise to `p`; a negative entry above `tol` lets `real(d)^p`
+# error for fractional `p`, enforcing the PSD precondition per-power.
+_clamped_pow(d, p, tol) = abs(d) < tol ? zero(d) : real(d)^p
 
 # Count how many elements are kept for a given index specification and block size
 _count_kept(::Colon, n) = n
