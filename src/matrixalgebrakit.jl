@@ -330,6 +330,26 @@ function MAK.diagonal(v::FusedGradedVector)
     return FusedGradedMatrix(v.axis, v.axis, diag_blocks)
 end
 
+# `pow_diag_safe!` for a block-diagonal graded matrix: clamp-power each reduced diagonal
+# block. Only the reduced (degeneracy) data is touched, and that is correct even in the
+# non-abelian case: a diagonal factor is `Diagonal(λ) ⊗ I` per sector, and `f(A ⊗ I) =
+# f(A) ⊗ I`, so the power passes straight to the reduced eigenvalues. This is why the
+# diagonal power is well defined here whereas a general element-wise `map!` on a graded
+# array is not.
+function TensorAlgebra.MatrixAlgebra.pow_diag_safe!(
+        Dp::FusedGradedMatrix, D::FusedGradedMatrix, p, tol
+    )
+    foreachblock(MAK.diagview(Dp), MAK.diagview(D)) do _, (σp, σ)
+        return map!(d -> _clamped_pow(d, p, tol), σp, σ)
+    end
+    return Dp
+end
+
+# Vendored from `TensorAlgebra.MatrixAlgebra` (not part of its public API): clamp entries
+# below `tol` to zero, then raise to `p`; a negative entry above `tol` lets `real(d)^p`
+# error for fractional `p`, enforcing the PSD precondition per-power.
+_clamped_pow(d, p, tol) = abs(d) < tol ? zero(d) : real(d)^p
+
 # Count how many elements are kept for a given index specification and block size
 _count_kept(::Colon, n) = n
 _count_kept(ind::AbstractVector{Bool}, _) = count(ind)
