@@ -26,14 +26,6 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
 
-[sources.SparseArraysBase]
-rev = "mf/tensoralgebra-0.17"
-url = "https://github.com/ITensor/SparseArraysBase.jl"
-
-[sources.TensorAlgebra]
-rev = "mf/project-trailing-axes"
-url = "https://github.com/ITensor/TensorAlgebra.jl"
-
 [extensions]
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"
 GradedArraysTensorKitExt = "TensorKit"
