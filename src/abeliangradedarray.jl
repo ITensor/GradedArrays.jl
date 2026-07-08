@@ -822,3 +822,15 @@ end
 function Base.getindex(a::Array, ax1::GradedOneTo)
     return invoke(getindex, Tuple{AbstractArray, GradedOneTo, Vararg{GradedOneTo}}, a, ax1)
 end
+
+# ---------------------------------------------------------------------------
+#  matrix multiplication
+# ---------------------------------------------------------------------------
+
+# Matrix-matrix multiply via `TensorAlgebra.contract` (which matricizes internally). The
+# contracted label `2` pairs `a`'s column axis with `b`'s row axis; the explicit output
+# labels `(1, 3)` fix the result as `a`'s row axis (codomain) × `b`'s column axis (domain),
+# so `(a * b)[i, j] == sum_k a[i, k] * b[k, j]`.
+function Base.:*(a::AbelianGradedMatrix, b::AbelianGradedMatrix)
+    return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
+end

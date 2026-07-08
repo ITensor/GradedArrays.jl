@@ -449,14 +449,11 @@ end
     A = AbelianGradedArray{Float64}(undef, s, dual(s))
     randn!(A)
     U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
-    # The natural `U * S * Vᴴ` form falls into LinearAlgebra's `_tri_matmul`,
-    # which scalar-indexes on `AbstractGradedArray`. `contract` is the
-    # block-wise route, but the chain form should also work once a block-aware
-    # matmul lands on `AbstractGradedMatrix`.
     US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
     USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
     @test A ≈ USV
-    @test_broken A ≈ U * S * Vᴴ
+    # `*` on `AbelianGradedMatrix` routes through the block-wise `contract`.
+    @test A ≈ U * S * Vᴴ
 end
 
 @testset "TA.gram_eigh_full_with_pinv on AbelianGradedMatrix (axes_Y regression)" begin
@@ -467,14 +464,13 @@ end
     # so we stay on the graded matmul path; the natural `*` form is broken
     # against the same scalar-indexing path as the SVD round-trip above.
     A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
+    # `*` on two `AbelianGradedMatrix` works, but the adjoint forms (`B * B'`,
+    # `X * X'` below) still need a block-aware `adjoint`; `B'` is an `Adjoint`
+    # wrapper that falls through to LinearAlgebra's scalar-indexing path.
     @test_broken A ≈ B * B'
     X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
     # X · conj(X) ≈ A on the rank subspace.
     @test A ≈ contract((:a, :b), X, (:a, :r), conj(X), (:b, :r))
-    # Matmul (`*`) on `AbelianGradedMatrix` is unimplemented, so any `X * Y`
-    # falls through to LinearAlgebra's scalar-indexing path and throws. The
-    # adjoint forms (`X * X'`, `B * B'`) additionally need a block-aware
-    # `adjoint`. Both will pass once those land.
     @test_broken A ≈ X * X'
     # Y is a left inverse of X on the rank subspace.
     YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))

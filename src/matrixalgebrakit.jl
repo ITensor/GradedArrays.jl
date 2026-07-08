@@ -34,6 +34,30 @@ for f in [
     end
 end
 
+# Bare-matrix factorizations
+# ---------------------------
+# There is no in-place block algorithm for an unfused `AbelianGradedMatrix`, so the plain
+# matrix forms (`MAK.svd_compact(m)`, etc.) route through the matricizing `TensorAlgebra`
+# factorizations: matricize to a `FusedGradedMatrix`, run the block factorization, then
+# unmatricize back. The factors are returned as graded matrices. Only the functions with an
+# identically-named `TensorAlgebra` perm-form are delegated here (`qr_null`/`lq_null` are
+# spelled `left_null`/`right_null` there, and `project_antihermitian`/`project_isometric`
+# have no perm-form).
+for f in (
+        :svd_compact, :svd_full, :svd_vals, :qr_compact, :qr_full, :lq_compact,
+        :lq_full, :eig_full, :eig_vals, :eigh_full, :eigh_vals, :left_polar,
+        :right_polar, :project_hermitian,
+    )
+    @eval function MAK.$f(m::AbelianGradedMatrix; kwargs...)
+        return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
+    end
+end
+
+# In-place graded identity fill. Filling the unfused data blocks with identities is not the
+# graded identity map in general, so route through the fused path: `TensorAlgebra.one!`
+# matricizes, fills the fused matrix with `MAK.one!`, and scatters it back into `a`.
+MAK.one!(a::AbelianGradedMatrix) = TensorAlgebra.one!(a, Val(1))
+
 # Generic Implementations
 # -----------------------
 # utility function to do something with each block
