@@ -1,6 +1,7 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, AbelianSectorDelta,
     AbelianSectorMatrix, AbelianSectorVector, SU2, SectorOneTo, SectorRange, U1, data, dual,
     isdual, sector, sectoraxes, sectortype
+using LinearAlgebra: tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -214,4 +215,14 @@ using Test: @test, @test_throws, @testset
         TensorAlgebra.zero!(sa)
         @test all(iszero, data(sa))
     end
+end
+
+@testset "AbelianSectorDelta tr — canonical dual ordering" begin
+    # Canonical: non-dual first axis paired with its dual as the second.
+    @test tr(AbelianSectorDelta{Float64}((U1(1), dual(U1(1))))) == 1
+    @test tr(AbelianSectorDelta{Float64}((SU2(1 // 2), dual(SU2(1 // 2))))) == 2
+    # Axes not mutually dual.
+    @test_throws ArgumentError tr(AbelianSectorDelta{Float64}((U1(1), U1(1))))
+    # Mutually dual but dual-first (non-canonical).
+    @test_throws ArgumentError tr(AbelianSectorDelta{Float64}((dual(U1(1)), U1(1))))
 end
