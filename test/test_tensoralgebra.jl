@@ -5,6 +5,7 @@ using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     SectorRange, U1, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
     tensor_product
+using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize,
     matricizeperm, unmatricize
@@ -219,6 +220,18 @@ end
     @test data(fsm[Block(1, 1)]) ≈ ones(1, 1)
     @test data(fsm[Block(2, 2)]) ≈ zeros(2, 2)
     @test data(fsm[Block(3, 3)]) ≈ 2 * ones(1, 1)
+end
+
+@testset "tr of a matricized AbelianGradedArray" begin
+    g = gradedrange([U1(0) => 1, U1(1) => 1])
+    a = ones(Float64, g, g, dual(g), dual(g))
+    a[Block(2, 2, 2, 2)] .*= 2  # give the blocks distinct traces
+
+    # `tr` on the matricized graded matrix sums the diagonal blocks and matches the dense trace.
+    fsm = matricizeperm(a, (1, 2), (3, 4))
+    @test tr(fsm) ≈ tr(Array(fsm))
+    # `TensorAlgebra.tr` over the (1, 2) | (3, 4) bipartition routes through the same path.
+    @test TensorAlgebra.tr(a, (1, 2, 3, 4), (1, 2), (3, 4)) ≈ tr(Array(fsm))
 end
 
 @testset "matricize 3D AbelianGradedArray and unmatricize round-trip" begin
@@ -449,14 +462,11 @@ end
     A = AbelianGradedArray{Float64}(undef, s, dual(s))
     randn!(A)
     U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
-    # The natural `U * S * Vᴴ` form falls into LinearAlgebra's `_tri_matmul`,
-    # which scalar-indexes on `AbstractGradedArray`. `contract` is the
-    # block-wise route, but the chain form should also work once a block-aware
-    # matmul lands on `AbstractGradedMatrix`.
     US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
     USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
     @test A ≈ USV
-    @test_broken A ≈ U * S * Vᴴ
+    # `*` on `AbelianGradedMatrix` routes through the block-wise `contract`.
+    @test A ≈ U * S * Vᴴ
 end
 
 @testset "TA.gram_eigh_full_with_pinv on AbelianGradedMatrix (axes_Y regression)" begin
@@ -467,14 +477,13 @@ end
     # so we stay on the graded matmul path; the natural `*` form is broken
     # against the same scalar-indexing path as the SVD round-trip above.
     A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
+    # `*` on two `AbelianGradedMatrix` works, but the adjoint forms (`B * B'`,
+    # `X * X'` below) still need a block-aware `adjoint`; `B'` is an `Adjoint`
+    # wrapper that falls through to LinearAlgebra's scalar-indexing path.
     @test_broken A ≈ B * B'
     X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
     # X · conj(X) ≈ A on the rank subspace.
     @test A ≈ contract((:a, :b), X, (:a, :r), conj(X), (:b, :r))
-    # Matmul (`*`) on `AbelianGradedMatrix` is unimplemented, so any `X * Y`
-    # falls through to LinearAlgebra's scalar-indexing path and throws. The
-    # adjoint forms (`X * X'`, `B * B'`) additionally need a block-aware
-    # `adjoint`. Both will pass once those land.
     @test_broken A ≈ X * X'
     # Y is a left inverse of X on the rank subspace.
     YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))

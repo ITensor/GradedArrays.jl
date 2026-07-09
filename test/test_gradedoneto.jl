@@ -230,4 +230,10 @@ using Test: @test, @test_throws, @testset
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         @test TensorAlgebra.to_range(g) === g
     end
+
+    @testset "ungrade drops sectors and arrow" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        @test TensorAlgebra.ungrade(g) == Base.OneTo(length(g))
+        @test TensorAlgebra.ungrade(dual(g)) == TensorAlgebra.ungrade(g)
+    end
 end

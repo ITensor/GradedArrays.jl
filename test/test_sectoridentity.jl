@@ -1,7 +1,8 @@
 using GradedArrays:
     SU2, SectorIdentity, SectorRange, U1, dual, isdual, sectoraxes, sectortype
+using LinearAlgebra: tr
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "SectorIdentity" begin
     @testset "Construction and eltype" begin
@@ -64,5 +65,12 @@ using Test: @test, @testset
         si = SectorIdentity{Float64}(U1(1))
         @test isdual(si, 1) == false
         @test isdual(si, 2) == true
+    end
+
+    @testset "tr — quantum dimension of the sector" begin
+        @test tr(SectorIdentity{Float64}(U1(0))) == 1
+        @test tr(SectorIdentity{Float64}(SU2(1 // 2))) == 2
+        # Only the canonical ordering (non-dual first axis) is allowed.
+        @test_throws ArgumentError tr(SectorIdentity{Float64}(conj(U1(1))))
     end
 end

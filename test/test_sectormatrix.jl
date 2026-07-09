@@ -1,6 +1,7 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, SU2, SectorIdentity, SectorMatrix,
     SectorOneTo, SectorRange, U1, data, dataaxes, dual, isdual, sector, sector_kron,
     sectoraxes, sectortype
+using LinearAlgebra: tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -142,5 +143,11 @@ using Test: @test, @test_throws, @testset
         )
         @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (3, 4)
+    end
+
+    @testset "tr — sector quantum dimension times reduced-data trace" begin
+        d = [1.0 2.0; 3.0 4.0]
+        @test tr(SectorMatrix(U1(0), d)) == tr(d)         # dim 1
+        @test tr(SectorMatrix(SU2(1 // 2), d)) == 2 * tr(d)  # dim 2
     end
 end

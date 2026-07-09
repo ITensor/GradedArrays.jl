@@ -71,6 +71,15 @@ function TensorAlgebra.zero!(a::AbstractSectorArray)
     return a
 end
 
+# ========================  trace  ========================
+
+# A 2D sector block is the tensor product of its structural factor `sector(a)` and its reduced
+# data `data(a)`, so the trace factorizes: the sector's quantum dimension times the trace of
+# the reduced data.
+function LinearAlgebra.tr(a::AbstractSectorArray{<:Any, <:Any, 2})
+    return LinearAlgebra.tr(sector(a)) * LinearAlgebra.tr(data(a))
+end
+
 # ========================  display  ========================
 
 function Base.print_array(io::IO, sa::AbstractSectorArray)

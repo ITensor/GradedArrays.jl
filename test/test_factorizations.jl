@@ -1,7 +1,9 @@
 import MatrixAlgebraKit as MAK
-using GradedArrays: FusedGradedMatrix, FusedGradedVector, GradedBlockAlgorithm, U1, Z2
+using GradedArrays: AbelianGradedMatrix, FusedGradedMatrix, FusedGradedVector,
+    GradedBlockAlgorithm, U1, Z2, dual, gradedrange
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, norm
 using MatrixAlgebraKit: isisometric, isunitary
+using TensorAlgebra: TensorAlgebra
 using Test: @test, @testset
 
 # ---------------------------------------------------------------------------
@@ -407,5 +409,113 @@ end
                 @test all(≥(atol) ∘ abs, MAK.diagview(b))
             end
         end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "matrix multiplication" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+        h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
+        a = randn(Float64, (g, dual(g)))
+        b = randn(Float64, (g, dual(h)))
+        c = a * b
+        @test c isa AbelianGradedMatrix
+        # `(a * b)[i, j] == sum_k a[i, k] * b[k, j]`.
+        @test Array(c) ≈ Array(a) * Array(b)
+        # Result axes: codomain from `a`, domain from `b`.
+        @test axes(c, 1) == axes(a, 1)
+        @test axes(c, 2) == axes(b, 2)
+    end
+
+    # -----------------------------------------------------------------------
+    # Bare-matrix factorizations delegate to the matricizing `TensorAlgebra` forms.
+    @testset "factorizations on a bare AbelianGradedMatrix" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+        h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
+        m_rect = randn(Float64, (g, dual(h)))
+        m_sq = randn(Float64, (g, dual(g)))
+        m_herm = MAK.project_hermitian(randn(Float64, (g, dual(g))))
+
+        # helper: compare two `FusedGradedVector`s block-by-block (the broadcasting `-`
+        # path they would otherwise take is not supported).
+        fgv_approx(x, y) =
+            keys(x.blocks) == keys(y.blocks) &&
+            all(x.blocks[k] ≈ y.blocks[k] for k in keys(x.blocks))
+
+        @testset "svd_compact" begin
+            U, S, Vᴴ = MAK.svd_compact(m_rect)
+            @test all(x -> x isa AbelianGradedMatrix, (U, S, Vᴴ))
+            @test axes(U, 1) == axes(m_rect, 1)
+            @test axes(Vᴴ, 2) == axes(m_rect, 2)
+            @test U * S * Vᴴ ≈ m_rect
+            @test Array(U) * Array(S) * Array(Vᴴ) ≈ Array(m_rect)
+        end
+
+        @testset "svd_full" begin
+            U, S, Vᴴ = MAK.svd_full(m_rect)
+            @test all(x -> x isa AbelianGradedMatrix, (U, S, Vᴴ))
+            @test Array(U) * Array(S) * Array(Vᴴ) ≈ Array(m_rect)
+        end
+
+        @testset "svd_vals" begin
+            @test fgv_approx(MAK.svd_vals(m_rect), MAK.svd_vals(FusedGradedMatrix(m_rect)))
+        end
+
+        @testset "qr_compact / qr_full" begin
+            Q, R = MAK.qr_compact(m_rect)
+            @test Array(Q) * Array(R) ≈ Array(m_rect)
+            Q, R = MAK.qr_full(m_rect)
+            @test Array(Q) * Array(R) ≈ Array(m_rect)
+        end
+
+        @testset "lq_compact / lq_full" begin
+            L, Q = MAK.lq_compact(m_rect)
+            @test Array(L) * Array(Q) ≈ Array(m_rect)
+            L, Q = MAK.lq_full(m_rect)
+            @test Array(L) * Array(Q) ≈ Array(m_rect)
+        end
+
+        @testset "eig_full / eig_vals" begin
+            D, V = MAK.eig_full(m_sq)
+            @test Array(m_sq) * Array(V) ≈ Array(V) * Array(D)
+            @test fgv_approx(MAK.eig_vals(m_sq), MAK.eig_vals(FusedGradedMatrix(m_sq)))
+        end
+
+        @testset "eigh_full / eigh_vals" begin
+            D, V = MAK.eigh_full(m_herm)
+            @test Array(m_herm) ≈ Array(V) * Array(D) * Array(V)'
+            @test fgv_approx(
+                MAK.eigh_vals(m_herm),
+                MAK.eigh_vals(FusedGradedMatrix(m_herm))
+            )
+        end
+
+        @testset "left_polar / right_polar" begin
+            W, P = MAK.left_polar(m_sq)
+            @test Array(W) * Array(P) ≈ Array(m_sq)
+            P, W = MAK.right_polar(m_sq)
+            @test Array(P) * Array(W) ≈ Array(m_sq)
+        end
+
+        @testset "project_hermitian" begin
+            m = randn(Float64, (g, dual(g)))
+            @test Array(MAK.project_hermitian(m)) ≈ (Array(m) + Array(m)') / 2
+        end
+    end
+
+    # -----------------------------------------------------------------------
+    @testset "one! on an AbelianGradedMatrix" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+        a = randn(Float64, (g, dual(g)))
+        a_before = Array(copy(a))
+
+        b = MAK.one!(a)
+        # In place: returns `a` and mutates its contents.
+        @test b === a
+        @test Array(a) != a_before
+
+        # Same as the existing graded identity constructor and the dense identity.
+        id = TensorAlgebra.one(randn(Float64, (g, dual(g))), (1,), (2,))
+        @test Array(a) ≈ Array(id)
+        @test Array(a) ≈ Matrix(1.0I, size(a)...)
     end
 end  # @testset "Factorizations"
