@@ -67,6 +67,10 @@ function TensorAlgebra.trivialrange(::Type{GradedOneTo{S}}, n::Integer) where {S
     return gradedrange([trivial(S) => n])
 end
 
+# The ungraded extent of a graded range is the plain range over its total dimension, dropping
+# sectors and the arrow so a range and its `dual` share an ungraded value.
+TensorAlgebra.ungrade(g::GradedOneTo) = Base.OneTo(length(g))
+
 """
     gradedrange(xs::AbstractVector{<:Pair})
 

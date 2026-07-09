@@ -13,3 +13,7 @@ sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
 
 Base.copy(A::AbstractSectorDelta) = A
 Base.size(A::AbstractSectorDelta) = length.(axes(A))
+
+# A 2D structural delta on a diagonal (coupled) block is the identity over the sector, so its
+# trace is the sector's quantum dimension: the length of the diagonal.
+LinearAlgebra.tr(A::AbstractSectorDelta{<:Any, <:Any, 2}) = size(A, 1)

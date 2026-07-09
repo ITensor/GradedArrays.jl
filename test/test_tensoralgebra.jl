@@ -5,6 +5,7 @@ using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
     SectorRange, U1, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
     tensor_product
+using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize,
     matricizeperm, unmatricize
@@ -219,6 +220,18 @@ end
     @test data(fsm[Block(1, 1)]) ≈ ones(1, 1)
     @test data(fsm[Block(2, 2)]) ≈ zeros(2, 2)
     @test data(fsm[Block(3, 3)]) ≈ 2 * ones(1, 1)
+end
+
+@testset "tr of a matricized AbelianGradedArray" begin
+    g = gradedrange([U1(0) => 1, U1(1) => 1])
+    a = ones(Float64, g, g, dual(g), dual(g))
+    a[Block(2, 2, 2, 2)] .*= 2  # give the blocks distinct traces
+
+    # `tr` on the matricized graded matrix sums the diagonal blocks and matches the dense trace.
+    fsm = matricizeperm(a, (1, 2), (3, 4))
+    @test tr(fsm) ≈ tr(Array(fsm))
+    # `TensorAlgebra.tr` over the (1, 2) | (3, 4) bipartition routes through the same path.
+    @test TensorAlgebra.tr(a, (1, 2, 3, 4), (1, 2), (3, 4)) ≈ tr(Array(fsm))
 end
 
 @testset "matricize 3D AbelianGradedArray and unmatricize round-trip" begin
