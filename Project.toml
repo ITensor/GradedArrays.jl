@@ -26,10 +26,6 @@ TensorKitSectors = "13a9c161-d5da-41f0-bcbd-e1a08ae0647f"
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
 
-[sources.TensorAlgebra]
-rev = "mf/nextgen-followups-round1"
-url = "https://github.com/ITensor/TensorAlgebra.jl"
-
 [extensions]
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"
 GradedArraysTensorKitExt = "TensorKit"
@@ -48,7 +44,7 @@ SUNRepresentations = "0.3, 0.4"
 SparseArraysBase = "0.10"
 SplitApplyCombine = "1.2.3"
 StridedViews = "0.5"
-TensorAlgebra = "0.17"
+TensorAlgebra = "0.17.1"
 TensorKit = "0.17"
 TensorKitSectors = "0.3"
 julia = "1.10"
