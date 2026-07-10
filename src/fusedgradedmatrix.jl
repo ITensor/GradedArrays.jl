@@ -248,6 +248,31 @@ function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return mul!(C, A, B)
 end
 
+# ========================  lmul! / rmul! (matrix-matrix)  ========================
+#
+# MatrixAlgebraKit's SVD-based `left_orth!` / `right_orth!` fold the singular values into the
+# orthogonal factor in place with `lmul!(S, C)` / `rmul!(C, S)`, where `S` is the (diagonal)
+# singular-value matrix. The scalar-argument `lmul!` / `rmul!` in `abstractgradedarray.jl` do not
+# cover this two-matrix form, so define it block-wise: each stored sector block delegates to the
+# `LinearAlgebra` method for that block pair, an in-place row / column scaling for the diagonal
+# `S` blocks the factorizations feed in. The `check_input(mul!, ...)` call validates the contracted
+# axes and that the product fits the mutated operand (the operand plays the role of the `mul!`
+# destination `C`: `B` for `lmul!`, `A` for `rmul!`), so the block sectors line up by construction.
+function LinearAlgebra.lmul!(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    check_input(mul!, B, A, B)
+    for (s, b) in pairs(B.blocks)
+        LinearAlgebra.lmul!(A.blocks[s], b)
+    end
+    return B
+end
+function LinearAlgebra.rmul!(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    check_input(mul!, A, A, B)
+    for (s, a) in pairs(A.blocks)
+        LinearAlgebra.rmul!(a, B.blocks[s])
+    end
+    return A
+end
+
 # ========================  Block-wise +, - ========================
 #
 # FusedGradedMatrix has no `BroadcastStyle`, so the AbstractArray fallback for `+`/`-`
