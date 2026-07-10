@@ -59,6 +59,7 @@ include("broadcast.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
 include("vectorinterface.jl")
+include("cat.jl")
 
 include("matrixalgebrakit.jl")
 
