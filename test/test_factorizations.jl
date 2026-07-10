@@ -1,7 +1,7 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: AbelianGradedMatrix, FusedGradedMatrix, FusedGradedVector,
     GradedBlockAlgorithm, U1, Z2, dual, gradedrange
-using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, norm
+using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using TensorAlgebra: TensorAlgebra
 using Test: @test, @testset
@@ -424,6 +424,43 @@ end
         # Result axes: codomain from `a`, domain from `b`.
         @test axes(c, 1) == axes(a, 1)
         @test axes(c, 2) == axes(b, 2)
+    end
+
+    @testset "lmul! / rmul! (block-wise matrix-matrix)" begin
+        dims = [3, 4, 2]
+        Sblocks = [Diagonal(randn(n)) for n in dims]
+        S = FusedGradedMatrix(sectors_u1, Sblocks)
+
+        # `lmul!(S, C)`: `C <- S * C` block-wise, `S` square (diagonal, as singular values).
+        Cblocks = [randn(dims[i], d) for (i, d) in enumerate([2, 3, 5])]
+        C = FusedGradedMatrix(sectors_u1, copy.(Cblocks))
+        @test lmul!(S, C) === C
+        for (i, s) in enumerate(sectors_u1)
+            @test C.blocks[s] ≈ Sblocks[i] * Cblocks[i]
+        end
+
+        # `rmul!(A, S)`: `A <- A * S` block-wise.
+        Ablocks = [randn(d, dims[i]) for (i, d) in enumerate([2, 3, 5])]
+        A = FusedGradedMatrix(sectors_u1, copy.(Ablocks))
+        @test rmul!(A, S) === A
+        for (i, s) in enumerate(sectors_u1)
+            @test A.blocks[s] ≈ Ablocks[i] * Sblocks[i]
+        end
+    end
+
+    @testset "left_orth / right_orth (SVD path)" begin
+        # Passing `trunc` selects the SVD-based orth, which folds the singular values into the
+        # returned factor with `lmul!(S, C)` / `rmul!(C, S)` on `FusedGradedMatrix`es.
+        V, C = MAK.left_orth(A_rect; trunc = MAK.notrunc())
+        @test V isa FusedGradedMatrix
+        @test C isa FusedGradedMatrix
+        @test isisometric(V)
+        @test A_rect ≈ V * C
+
+        Cr, Vᴴ = MAK.right_orth(A_rect; trunc = MAK.notrunc())
+        @test Vᴴ isa FusedGradedMatrix
+        @test isisometric(Vᴴ; side = :right)
+        @test A_rect ≈ Cr * Vᴴ
     end
 
     # -----------------------------------------------------------------------
