@@ -26,12 +26,13 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
     BlockIndexRange, BlockVector, BlockedOneTo, blockedrange, blocklasts, blocklength,
     blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
-using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, kron, mul!
+using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG
 using SparseArraysBase: SparseArraysBase
 using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
     check_input, matricize, permutedimsadd!, scale!, tryflattenlinear, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
+using VectorInterface: VectorInterface as VI
 
 include("kron.jl")
 include("blocksparseinterface.jl")
@@ -56,6 +57,7 @@ include("sectorproduct.jl")
 include("broadcast.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
+include("vectorinterface.jl")
 
 include("matrixalgebrakit.jl")
 
