@@ -186,6 +186,18 @@ function TensorAlgebra.bipermutedimsopadd!(
         α::Number, β::Number
     ) where {N}
     check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
+    if Base.mightalias(y, x)
+        # A self-aliased permute-add with the identity permutation and no conjugation is really a
+        # scale, `y = α*y + β*y = (α+β)*y`, so route it to the block-wise `scale!` (which handles
+        # aliasing). This keeps `a .*= 2` working. Any other aliased permute-add can't run in
+        # place: the `zero!`/`scale!` step below overwrites `y` before the block loop reads `x`, so
+        # refuse it rather than silently corrupt the result, matching `TensorOperations`.
+        if y === x && op === identity &&
+                (perm_codomain..., perm_domain...) == ntuple(identity, Val(N))
+            return scale!(y, α + β)
+        end
+        throw(ArgumentError("output array must not be aliased with the input array"))
+    end
     # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
     # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
     # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent
