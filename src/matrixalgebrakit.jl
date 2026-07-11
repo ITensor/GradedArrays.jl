@@ -61,14 +61,12 @@ MAK.one!(a::AbelianGradedMatrix) = TensorAlgebra.one!(a, Val(1))
 # Generic Implementations
 # -----------------------
 # utility function to do something with each block
-const FusedGradedArray = Union{FusedGradedMatrix, FusedGradedVector}
-
 function _blockdataaxes(a::FusedGradedMatrix, c)
     return (Base.OneTo(get(a.codomain, c, 0)), Base.OneTo(get(a.domain, c, 0)))
 end
 _blockdataaxes(a::FusedGradedVector, c) = (Base.OneTo(get(a.axis, c, 0)),)
 
-function foreachblock(f, A::FusedGradedArray, As::FusedGradedArray...)
+function foreachblock(f, A::FusedGradedVecOrMat, As::FusedGradedVecOrMat...)
     cs = union(map(keys ∘ Base.Fix2(getproperty, :blocks), (A, As...))...)
 
     for c in cs

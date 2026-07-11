@@ -218,6 +218,44 @@ function TensorAlgebra.bipermutedimsopadd!(
     return y
 end
 
+# Structural factor of the block at coupled sector `s`, the same delta `sector(view(x, block))`
+# returns: `SectorIdentity` (codomain and dualized domain legs) for the paired-index matrix,
+# `SectorOnesVector` (single leg) for the vector. Feeding it to `fermion_permutation_phase` gives
+# the block's `conj` leg-reversal sign — no sign for the single-index vector, the sector `twist`
+# for the paired-index matrix.
+_blockstructure(::FusedGradedMatrix, s) = SectorIdentity{Bool}(s)
+_blockstructure(::FusedGradedVector, s) = SectorOnesVector{Bool}(s)
+
+# Fused (sector-keyed) graded arrays store their blocks keyed by coupled sector rather than by
+# cartesian block index, so the cartesian overload above does not apply. Iterate the stored blocks
+# and add each dense block into the destination block for its (possibly conjugated) sector.
+#
+# `op` is `identity` or `conj` (enforced by `check_input`). `conj` dualizes the axes, so a block
+# moves to `conj(s) == dual(s)` and picks up the block's fermionic phase.
+function TensorAlgebra.bipermutedimsopadd!(
+        y::FusedGradedVecOrMat, op, x::FusedGradedVecOrMat,
+        perm_codomain, perm_domain,
+        α::Number, β::Number
+    )
+    check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
+    if Base.mightalias(y, x)
+        if y === x && op === identity &&
+                (perm_codomain..., perm_domain...) == ntuple(identity, Val(ndims(y)))
+            return scale!(y, α + β)
+        end
+        throw(ArgumentError("output array must not be aliased with the input array"))
+    end
+    iszero(β) ? zero!(y) : scale!(y, β)
+    perm = (perm_codomain..., perm_domain...)
+    for (s, x_b) in pairs(x.blocks)
+        phase = fermion_permutation_phase(op, _blockstructure(x, s), perm)
+        bipermutedimsopadd!(
+            y.blocks[op(s)], op, x_b, perm_codomain, perm_domain, phase * α, one(β)
+        )
+    end
+    return y
+end
+
 # ========================  fermionic contraction twist  ========================
 # Fermionic contractions need the second (right) factor's contracted legs twisted before
 # matricization, so the result does not depend on contraction order. This rides on

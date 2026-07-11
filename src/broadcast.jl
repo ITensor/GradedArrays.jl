@@ -89,36 +89,45 @@ function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:GradedStyl
     return copyto!(dest, lb)
 end
 
-# ====================  FusedGradedMatrix broadcasting  ====================
+# ========================  FusedGradedArray broadcasting  ========================
 #
-# `FusedGradedMatrix` stores blocks keyed by coupled sector rather than by
-# cartesian block index, so the `GradedStyle` path (which lowers to
-# `bipermutedimsopadd!` over cartesian block storage) silently produces wrong
-# results. Until a proper sector-keyed broadcast path lands, FGM broadcasting
-# is an explicit error; use `Base.:(+)` / `Base.:(-)` or block-wise operations
-# instead.
+# `FusedGradedMatrix` and `FusedGradedVector` store their blocks keyed by coupled sector, a
+# different layout from `AbelianGradedArray`'s cartesian blocks. They broadcast through a
+# dedicated `FusedGradedStyle` so allocating the result rebuilds the fused block structure,
+# rather than routing through the shared axes-based `similar` that `unmatricize` relies on
+# to build an *unfused* `AbelianGradedArray` destination. Only linear broadcasts are
+# supported; the block arithmetic is the `bipermutedimsopadd!` overload in `tensoralgebra.jl`.
 
-struct FusedGradedStyle <: BC.AbstractArrayStyle{2} end
-FusedGradedStyle(::Val{N}) where {N} = FusedGradedStyle()
+struct FusedGradedStyle{N} <: BC.AbstractArrayStyle{N} end
+FusedGradedStyle{N}(::Val{M}) where {N, M} = FusedGradedStyle{M}()
 
-BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle()
-BC.BroadcastStyle(s::FusedGradedStyle, ::BC.DefaultArrayStyle{0}) = s
-BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, s::FusedGradedStyle) = s
-BC.BroadcastStyle(s::FusedGradedStyle, ::FusedGradedStyle) = s
+BC.BroadcastStyle(::Type{<:FusedGradedVector}) = FusedGradedStyle{1}()
+BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle{2}()
+BC.BroadcastStyle(style::FusedGradedStyle{N}, ::BC.DefaultArrayStyle{0}) where {N} = style
+BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::FusedGradedStyle{N}) where {N} = style
+BC.BroadcastStyle(s1::FusedGradedStyle{N}, ::FusedGradedStyle{N}) where {N} = s1
 
-function Base.copy(::BC.Broadcasted{FusedGradedStyle})
-    return throw(
-        ArgumentError(
-            "Broadcasting on `FusedGradedMatrix` is not supported; use `+`/`-` " *
-                "or operate block-wise via `blocks(A)` instead."
-        )
-    )
+# Rebuild an undef fused array from the linear expression's axes (a `conj` operand dualizes those
+# axes, so the result lands in the dual sectors). Isolated from `Base.similar` on purpose: the
+# fused-vs-unfused destination cannot be told apart by axis type alone, so the broadcast path
+# allocates here rather than through the shared axes-based `similar`.
+function _similar_fused(::Type{T}, ax::Tuple{<:GradedOneTo}) where {T}
+    return FusedGradedVector{T}(undef, _fusedcodomain(only(ax)))
 end
-function Base.copyto!(::AbstractArray, ::BC.Broadcasted{FusedGradedStyle})
-    return throw(
-        ArgumentError(
-            "Broadcasting on `FusedGradedMatrix` is not supported; use `+`/`-` " *
-                "or operate block-wise via `blocks(A)` instead."
-        )
-    )
+function _similar_fused(::Type{T}, ax::Tuple{<:GradedOneTo, <:GradedOneTo}) where {T}
+    return FusedGradedMatrix{T}(undef, _fusedcodomain(ax[1]), _fuseddomain(ax[2]))
+end
+
+function Base.similar(bc::BC.Broadcasted{<:FusedGradedStyle}, elt::Type)
+    lb = tryflattenlinear(bc)
+    isnothing(lb) &&
+        throw(ArgumentError("FusedGradedArray broadcasting requires linear operations"))
+    return _similar_fused(elt, axes(lb))
+end
+
+function Base.copyto!(dest::FusedGradedVecOrMat, bc::BC.Broadcasted{<:FusedGradedStyle})
+    lb = tryflattenlinear(bc)
+    isnothing(lb) &&
+        throw(ArgumentError("FusedGradedArray broadcasting requires linear operations"))
+    return copyto!(dest, lb)
 end

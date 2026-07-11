@@ -24,8 +24,9 @@ end
 
 # ---- accessors ----
 
-# Return the SectorRange directly (no structural delta for scalar data).
-sector(sv::SectorVector) = sv.sector
+# Return the structural delta factor (`SectorOnesVector`, the diagonal of the block's
+# `SectorIdentity`), mirroring `sector(::SectorMatrix)`. The stored `SectorRange` is `sv.sector`.
+sector(sv::SectorVector) = SectorOnesVector{eltype(sv)}(sv.sector)
 dataaxes(sv::SectorVector) = axes(data(sv))
 sectoraxes(sv::SectorVector) = (sv.sector,)
 
@@ -129,15 +130,19 @@ Build a `FusedGradedVector` whose `axis` and `blocks` carry the same sector
 list. `axis[sectors[i]]` is `length(blocks[i])`.
 """
 function FusedGradedVector(
-        sectors::AbstractVector{S},
+        sectors::AbstractVector,
         blocks::AbstractVector{D}
-    ) where {S <: SectorRange, D <: AbstractVector}
+    ) where {D <: AbstractVector}
     length(sectors) == length(blocks) ||
         throw(ArgumentError("sectors and blocks must have the same length"))
-    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
-    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
-    ax = Dictionary{S, Int}(sectors, [length(b) for b in blocks])
-    blks = Dictionary{S, D}(sectors, collect(blocks))
+    # Accept bare `TKS.Sector`s (e.g. `FermionNumber(1)`) alongside `SectorRange`s, as
+    # `gradedrange` does; `SectorRange` wraps the former and is the identity on the latter.
+    rs = map(SectorRange, sectors)
+    issorted(rs) || throw(ArgumentError("sectors must be sorted"))
+    allunique(rs) || throw(ArgumentError("sectors must be unique"))
+    S = eltype(rs)
+    ax = Dictionary{S, Int}(rs, [length(b) for b in blocks])
+    blks = Dictionary{S, D}(rs, collect(blocks))
     return FusedGradedVector(ax, blks)
 end
 
@@ -145,6 +150,28 @@ function FusedGradedVector{T}(
         ::UndefInitializer, axis::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
     return FusedGradedVector{T, S, Vector{T}}(undef, axis)
+end
+
+"""
+    FusedGradedVector{T}(undef, sectors, datalengths)
+    FusedGradedVector{T}(undef, sectors .=> datalengths)
+
+Allocate a `FusedGradedVector` with uninitialized blocks, `datalengths[i]` the reduced length of the
+block at `sectors[i]`. The two forms mirror the `Dictionary(keys, values)` and `dictionary(pairs)`
+constructors from `Dictionaries`. Bare `TKS.Sector`s are accepted alongside `SectorRange`s. Pair with
+`randn!`/`rand!` to fill.
+"""
+function FusedGradedVector{T}(
+        ::UndefInitializer, sectors::AbstractVector, datalengths::AbstractVector
+    ) where {T}
+    rs = map(SectorRange, sectors)
+    return FusedGradedVector{T}(
+        undef,
+        Dictionary{eltype(rs), Int}(rs, collect(Int, datalengths))
+    )
+end
+function FusedGradedVector{T}(::UndefInitializer, blocks::AbstractVector{<:Pair}) where {T}
+    return FusedGradedVector{T}(undef, first.(blocks), last.(blocks))
 end
 
 # ========================  Accessors  ========================
@@ -288,17 +315,11 @@ function Base.copy(v::FusedGradedVector)
     return FusedGradedVector(copy(v.axis), map(copy, v.blocks))
 end
 
-# Materialize into a dense `Array` blockwise, like the `AbelianGradedArray` method
-# (the generic fallback copies elementwise, which scalar-indexes).
-function Base.Array(v::FusedGradedVector{T}) where {T}
-    dest = zeros(T, size(v))
-    ax = only(axes(v))
-    sectors = collect(keys(v.axis))
-    for (s, b) in pairs(v.blocks)
-        copyto!(view(dest, ax[Block(findfirst(==(s), sectors))]), b)
-    end
-    return dest
-end
+# Materialize into a dense `Array` (the generic fallback copies elementwise, which
+# scalar-indexes). `_to_blockarray` reintroduces each block's structural factor
+# (`SectorOnesVector`, i.e. `ones ⊗ reduced`), which is the identity for abelian sectors but
+# repeats each reduced value over the irrep's quantum dimension for non-abelian ones.
+Base.Array(v::FusedGradedVector) = Array(_to_blockarray(v))
 
 # ======================== LinearAlgebra ======================
 
@@ -315,4 +336,37 @@ function LinearAlgebra.norm(A::FusedGradedVector, p::Real = 2)
     else
         throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
     end
+end
+
+# ========================  FusedGradedVecOrMat  ========================
+
+# Union of the two fused block-structured graded array types, following the
+# `Base.AbstractVecOrMat` naming convention.
+const FusedGradedVecOrMat = Union{FusedGradedMatrix, FusedGradedVector}
+
+# Rebuild a fused sector→length axis dictionary from a graded range, inverting the `gradedrange`
+# that `axes` builds. `eachsectoraxis` keeps each sector's `isdual` (unlike `sectors`), so a
+# dualized axis (from a `conj` broadcast) round-trips to dualized keys. The codomain stores the
+# axis sectors directly; the domain stores their duals, inverting the `dual` in `axes(m, 2)`.
+# Used by the `_similar_fused` broadcast allocators.
+function _fusedcodomain(g::GradedOneTo)
+    return Dictionary(collect(eachsectoraxis(g)), collect(Int, blocklengths(g)))
+end
+function _fuseddomain(g::GradedOneTo)
+    return Dictionary(map(dual, eachsectoraxis(g)), collect(Int, blocklengths(g)))
+end
+
+# Block-aware random fills, mirroring `AbelianGradedArray`: fill each stored block, bypassing the
+# scalar-indexing `AbstractArray` fallback (disallowed for graded arrays).
+function Random.rand!(rng::AbstractRNG, a::FusedGradedVecOrMat, sp::Random.Sampler)
+    for b in values(a.blocks)
+        Random.rand!(rng, b, sp)
+    end
+    return a
+end
+function Random.randn!(rng::AbstractRNG, a::FusedGradedVecOrMat)
+    for b in values(a.blocks)
+        Random.randn!(rng, b)
+    end
+    return a
 end

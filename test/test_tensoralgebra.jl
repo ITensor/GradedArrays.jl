@@ -1,14 +1,15 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
 using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, AbelianSectorArray,
-    AbelianSectorDelta, FusedGradedMatrix, GradedOneTo, SectorMatrix, SectorOneTo,
-    SectorRange, U1, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
-    gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
-    tensor_product
+    AbelianSectorDelta, FusedGradedMatrix, FusedGradedVector, GradedOneTo, SU2,
+    SectorMatrix, SectorOneTo, SectorOnesVector, U1, data, datalengths, dual,
+    eachblockstoredindex, eachsectoraxis, flip, gradedrange, isdual, sector, sectoraxes,
+    sectormergesort, sectors, sectortype, tensor_product
 using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, FusionStyle, contract, linearbroadcasted, matricize,
     matricizeperm, unmatricize
+using TensorKitSectors: FermionNumber
 using Test: @test, @test_broken, @test_throws, @testset
 
 @testset "AbelianSectorArray linear broadcasting" begin
@@ -444,14 +445,77 @@ end
     @test data(s[Block(2, 2)]) == [6.0 1.0; 1.0 7.0]
 end
 
-@testset "FusedGradedMatrix broadcasting errors" begin
+@testset "FusedGradedMatrix linear broadcasting" begin
     m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
     n = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(2, 2)])
-    @test_throws ArgumentError m .+ n
-    @test_throws ArgumentError 3 .* m
-    @test_throws ArgumentError conj.(m)
+
+    s = m .+ n
+    @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
+    @test data(s[Block(2, 2)]) == [6.0 1.0; 1.0 7.0]
+
+    p = 3 .* m
+    @test data(p[Block(1, 1)]) == [3.0 6.0; 9.0 12.0]
+    @test data(p[Block(2, 2)]) == [15.0 0.0; 0.0 18.0]
+
     c = similar(m, Float64)
-    @test_throws ArgumentError c .= 3 .* m .+ 2 .* n
+    c .= 3 .* m .+ 2 .* n
+    @test data(c[Block(1, 1)]) == [5.0 8.0; 11.0 14.0]
+    @test data(c[Block(2, 2)]) == [17.0 2.0; 2.0 20.0]
+
+    # Nonlinear broadcasts are rejected rather than silently mishandled.
+    @test_throws ArgumentError m .+ 1
+    @test_throws ArgumentError m .^ 2
+end
+
+@testset "FusedGradedMatrix conj ($label)" for (label, g) in (
+        "bosonic" => gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 1]),
+        "fermionic" => gradedrange(
+            [
+                FermionNumber(0) => 1, FermionNumber(1) => 2, FermionNumber(2) => 1,
+            ]
+        ),
+    )
+    a = randn(ComplexF64, (g, dual(g)))
+    m = FusedGradedMatrix(a)
+    ref = FusedGradedMatrix(conj(a))  # oracle: conj on the unfused array, then matricize
+
+    for cm in (conj(m), conj.(m))  # eager and dotted forms agree
+        @test cm isa FusedGradedMatrix
+        @test axes(cm) == axes(ref)
+        @test collect(keys(cm.blocks)) == collect(keys(ref.blocks))
+        @test all(cm.blocks[c] ≈ ref.blocks[c] for c in keys(ref.blocks))
+    end
+end
+
+@testset "FusedGradedVector conj (single index carries no sign)" begin
+    # A single index has no leg-reversal parity, so conj dualizes the sectors but adds no
+    # fermionic sign even for odd-parity blocks (unlike the paired-index matrix).
+    # n=1 is odd parity
+    v = randn!(
+        FusedGradedVector{ComplexF64}(
+            undef,
+            [FermionNumber(n) => l for (n, l) in zip(0:2, (1, 2, 1))]
+        )
+    )
+
+    for cv in (conj(v), conj.(v))
+        @test cv isa FusedGradedVector
+        @test collect(keys(cv.blocks)) == map(conj, collect(keys(v.blocks)))
+        @test all(cv.blocks[conj(s)] ≈ conj(v.blocks[s]) for s in keys(v.blocks))
+    end
+    @test conj(conj(v)) ≈ v
+end
+
+@testset "FusedGradedVector non-abelian Array reconstruction" begin
+    # The structural factor of a block is `SectorOnesVector`, the all-ones vector of length equal
+    # to the sector's quantum dimension, so materializing repeats each reduced value over the
+    # irrep (`SU2(j)` has quantum dimension `2j + 1`: 1, 2, 3 here).
+    v = FusedGradedVector(
+        [SU2(0), SU2(1 // 2), SU2(1)], [Float64[10.0], Float64[20.0], Float64[30.0]]
+    )
+    @test sector(view(v, Block(2))) isa SectorOnesVector
+    @test Array(sector(view(v, Block(2)))) == ones(2)
+    @test Array(v) == [10.0, 20.0, 20.0, 30.0, 30.0, 30.0]
 end
 
 # Regression coverage for TensorAlgebra-level unmatricize-axis bugs on graded
