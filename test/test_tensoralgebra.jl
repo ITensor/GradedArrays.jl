@@ -487,6 +487,29 @@ end
     end
 end
 
+@testset "FusedGradedMatrix non-abelian (SU2) broadcasting and conj" begin
+    # A non-abelian block's axis length is its reduced length times the sector's quantum dimension
+    # (SU2(1) has dimension 3), so the broadcast allocator has to key on reduced lengths, and the
+    # per-block phase must not require unique fusion.
+    m = randn!(FusedGradedMatrix{ComplexF64}(undef, [SU2(0) => 2, SU2(1) => 3]))
+    n = randn!(FusedGradedMatrix{ComplexF64}(undef, [SU2(0) => 2, SU2(1) => 3]))
+
+    s = 2 .* m .- n
+    @test s isa FusedGradedMatrix
+    @test Array(s) ≈ 2 .* Array(m) .- Array(n)
+
+    for cm in (conj(m), conj.(m))
+        @test cm isa FusedGradedMatrix
+        @test Array(cm) ≈ conj(Array(m))
+    end
+
+    v = randn!(
+        FusedGradedVector{ComplexF64}(undef, [SU2(0) => 1, SU2(1 // 2) => 2, SU2(1) => 1])
+    )
+    @test (3 .* v) isa FusedGradedVector
+    @test Array(3 .* v) ≈ 3 .* Array(v)
+end
+
 @testset "FusedGradedVector conj (single index carries no sign)" begin
     # A single index has no leg-reversal parity, so conj dualizes the sectors but adds no
     # fermionic sign even for odd-parity blocks (unlike the paired-index matrix).

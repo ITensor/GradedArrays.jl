@@ -80,6 +80,20 @@ function LinearAlgebra.tr(a::AbstractSectorArray{<:Any, <:Any, 2})
     return LinearAlgebra.tr(sector(a)) * LinearAlgebra.tr(data(a))
 end
 
+# ========================  random fills  ========================
+
+# Fill the reduced data block, bypassing the generic `AbstractArray` fallbacks that go through
+# (disallowed) scalar indexing. The 3-arg `rand!(rng, a, sp)` form is what Random's `rand!` entry
+# points ultimately call.
+function Random.rand!(rng::AbstractRNG, a::AbstractSectorArray, sp::Random.Sampler)
+    Random.rand!(rng, data(a), sp)
+    return a
+end
+function Random.randn!(rng::AbstractRNG, a::AbstractSectorArray)
+    Random.randn!(rng, data(a))
+    return a
+end
+
 # ========================  display  ========================
 
 function Base.print_array(io::IO, sa::AbstractSectorArray)

@@ -75,12 +75,6 @@ function Base.copy(A::FusedGradedMatrix)
     return FusedGradedMatrix(A.codomain, A.domain, map(copy, A.blocks))
 end
 
-# Materialize into a dense `Array` (the generic fallback copies elementwise, which
-# scalar-indexes). `_to_blockarray` reintroduces each block's structural factor
-# (`SectorIdentity`, i.e. `I ⊗ reduced`), which is the identity for abelian sectors but
-# repeats the reduced block over the irrep's quantum dimension for non-abelian ones.
-Base.Array(a::FusedGradedMatrix) = Array(_to_blockarray(a))
-
 # Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
 # each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
 # `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
@@ -307,13 +301,6 @@ function Base.adjoint(A::FusedGradedMatrix)
     return FusedGradedMatrix(A.domain, A.codomain, new_blocks)
 end
 # note: not defining transpose here since that has requirements on sectors
-
-# Route eager `conj` through the conjugating broadcast, matching `AbelianGradedArray`: `conj.`
-# dualizes the axes (moving each block to its dual coupled sector) and carries the fermionic
-# `twist`, handled in the `bipermutedimsopadd!` overload in `tensoralgebra.jl`. This also
-# overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit so a real-eltype fused matrix
-# still dualizes its axes.
-Base.conj(A::FusedGradedMatrix) = conj.(A)
 
 function LinearAlgebra.norm(A::FusedGradedMatrix, p::Real = 2)
     if p == Inf

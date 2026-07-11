@@ -107,6 +107,17 @@ BC.BroadcastStyle(style::FusedGradedStyle{N}, ::BC.DefaultArrayStyle{0}) where {
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::FusedGradedStyle{N}) where {N} = style
 BC.BroadcastStyle(s1::FusedGradedStyle{N}, ::FusedGradedStyle{N}) where {N} = s1
 
+# Rebuild a fused sector→length axis dictionary from a graded range, inverting the `gradedrange`
+# that `axes` builds. `eachsectoraxis` keeps each sector's `isdual` (unlike `sectors`), so a
+# dualized axis (from a `conj` broadcast) round-trips to dualized keys. The codomain stores the
+# axis sectors directly; the domain stores their conjugates, inverting the dualization in `axes(m, 2)`.
+function _fusedcodomain(g::GradedOneTo)
+    return Dictionary(collect(eachsectoraxis(g)), collect(Int, datalengths(g)))
+end
+function _fuseddomain(g::GradedOneTo)
+    return Dictionary(map(conj, eachsectoraxis(g)), collect(Int, datalengths(g)))
+end
+
 # Rebuild an undef fused array from the linear expression's axes (a `conj` operand dualizes those
 # axes, so the result lands in the dual sectors). Isolated from `Base.similar` on purpose: the
 # fused-vs-unfused destination cannot be told apart by axis type alone, so the broadcast path

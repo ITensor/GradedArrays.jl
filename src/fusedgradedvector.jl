@@ -315,12 +315,6 @@ function Base.copy(v::FusedGradedVector)
     return FusedGradedVector(copy(v.axis), map(copy, v.blocks))
 end
 
-# Materialize into a dense `Array` (the generic fallback copies elementwise, which
-# scalar-indexes). `_to_blockarray` reintroduces each block's structural factor
-# (`SectorOnesVector`, i.e. `ones ⊗ reduced`), which is the identity for abelian sectors but
-# repeats each reduced value over the irrep's quantum dimension for non-abelian ones.
-Base.Array(v::FusedGradedVector) = Array(_to_blockarray(v))
-
 # ======================== LinearAlgebra ======================
 
 function LinearAlgebra.norm(A::FusedGradedVector, p::Real = 2)
@@ -343,30 +337,3 @@ end
 # Union of the two fused block-structured graded array types, following the
 # `Base.AbstractVecOrMat` naming convention.
 const FusedGradedVecOrMat = Union{FusedGradedMatrix, FusedGradedVector}
-
-# Rebuild a fused sector→length axis dictionary from a graded range, inverting the `gradedrange`
-# that `axes` builds. `eachsectoraxis` keeps each sector's `isdual` (unlike `sectors`), so a
-# dualized axis (from a `conj` broadcast) round-trips to dualized keys. The codomain stores the
-# axis sectors directly; the domain stores their duals, inverting the `dual` in `axes(m, 2)`.
-# Used by the `_similar_fused` broadcast allocators.
-function _fusedcodomain(g::GradedOneTo)
-    return Dictionary(collect(eachsectoraxis(g)), collect(Int, blocklengths(g)))
-end
-function _fuseddomain(g::GradedOneTo)
-    return Dictionary(map(dual, eachsectoraxis(g)), collect(Int, blocklengths(g)))
-end
-
-# Block-aware random fills, mirroring `AbelianGradedArray`: fill each stored block, bypassing the
-# scalar-indexing `AbstractArray` fallback (disallowed for graded arrays).
-function Random.rand!(rng::AbstractRNG, a::FusedGradedVecOrMat, sp::Random.Sampler)
-    for b in values(a.blocks)
-        Random.rand!(rng, b, sp)
-    end
-    return a
-end
-function Random.randn!(rng::AbstractRNG, a::FusedGradedVecOrMat)
-    for b in values(a.blocks)
-        Random.randn!(rng, b)
-    end
-    return a
-end

@@ -170,6 +170,43 @@ function _to_blockarray(a::AbstractGradedArray{T, <:Any, N}) where {T, N}
     return mortar(blockmat)
 end
 
+# A rank-0 graded array is a single trivial-sector scalar block. There is no block structure to
+# `mortar` (it does not support a 0-dimensional block array), so materialize the one (possibly
+# unstored) block directly.
+function _to_blockarray(a::AbstractGradedArray{T, <:Any, 0}) where {T}
+    for bI in eachblockstoredindex(a)
+        blk = view(a, bI)
+        return kron_nd(Array(sector(blk)), collect(data(blk)))
+    end
+    return fill(zero(T))
+end
+
 function Base.print_array(io::IO, a::AbstractGradedArray)
     return Base.print_array(io, _to_blockarray(a))
+end
+
+# Materialize into a dense `Array` (the generic fallback copies elementwise, which scalar-indexes).
+# `_to_blockarray` reintroduces each block's structural factor (`I ⊗ reduced`), the identity for
+# abelian sectors but a repeat over the irrep's quantum dimension for non-abelian ones.
+Base.Array(a::AbstractGradedArray) = Array(_to_blockarray(a))
+
+# Conjugate through broadcasting, which conjugates each block and dualizes the sectors and axes
+# (and folds in the fermionic leg-reversal sign). Overrides `Base`'s real-eltype short-circuit,
+# which would keep the axes non-dual.
+Base.conj(a::AbstractGradedArray) = conj.(a)
+
+# Block-aware random fills: dispatch to each stored block's `rand!`/`randn!`, bypassing the generic
+# `AbstractArray` fallbacks that go through (disallowed) scalar indexing. The 3-arg
+# `rand!(rng, a, sp)` form is what Random's `rand!` entry points ultimately call.
+function Random.rand!(rng::AbstractRNG, a::AbstractGradedArray, sp::Random.Sampler)
+    for I in eachblockstoredindex(a)
+        Random.rand!(rng, view(a, I), sp)
+    end
+    return a
+end
+function Random.randn!(rng::AbstractRNG, a::AbstractGradedArray)
+    for I in eachblockstoredindex(a)
+        Random.randn!(rng, view(a, I))
+    end
+    return a
 end

@@ -24,3 +24,6 @@ function kron_nd(a::AbstractArray{<:Any, N}, b::AbstractArray{<:Any, N}) where {
 end
 kron_nd(a1::AbstractMatrix, a2::AbstractMatrix) = kron(a1, a2)
 kron_nd(a1::AbstractVector, a2::AbstractVector) = kron(a1, a2)
+# Rank-0 (scalar) block, e.g. from materializing a full contraction to a scalar: the general
+# `permutedims`-based path has no zero-length permutation to reverse, so multiply directly.
+kron_nd(a1::AbstractArray{<:Any, 0}, a2::AbstractArray{<:Any, 0}) = fill(a1[] * a2[])

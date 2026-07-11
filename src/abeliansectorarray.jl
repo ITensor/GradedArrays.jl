@@ -149,13 +149,13 @@ end
 
 # ========================  conj  ========================
 
-# Op A (the ket->bra involution): conjugate the data, flip the duality of every axis, and
-# apply the fermionic phase from reversing the leg order. Routed through the lazy conjugating
-# broadcast so there is a single implementation: `conj.` lowers to a `ConjArray` (dualizing
-# the axes) and materializes via `bipermutedimsopadd!` with `op = conj`, which carries the
-# reversal phase that a bare data conjugation drops. This also overrides Base's
-# `conj(::AbstractArray{<:Real}) = A` short-circuit, so a real-eltype sector array still
-# dualizes its axes.
+# Conjugate the data, flip the duality of every axis, and (for fermions) apply the fermionic
+# phase from reversing the leg order. Routed through the lazy conjugating broadcast so there is a
+# single implementation: `conj.` lowers to a `ConjArray` (dualizing the axes) and materializes via
+# `bipermutedimsopadd!` with `op = conj`, which carries the reversal phase that a bare data
+# conjugation drops. This also overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit,
+# so a real-eltype sector array still dualizes its axes. Not lifted to `AbstractSectorArray`
+# because the structural block types (`SectorMatrix`/`SectorVector`) have no broadcast style yet.
 Base.conj(x::AbelianSectorArray) = conj.(x)
 
 # ========================  Other  ========================
