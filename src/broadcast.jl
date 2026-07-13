@@ -1,16 +1,5 @@
 using Base.Broadcast: Broadcast as BC
 
-# Flatten a broadcast expression to its linear form (α·x + β·y + …), throwing if it is nonlinear.
-# The throwing counterpart to TensorAlgebra's `tryflattenlinear` (which returns `nothing`), following
-# the `parse`/`tryparse` convention. Shared by every sector/graded `similar` and `copyto!`, since
-# only linear broadcasts are supported.
-# TODO: Replace with `TensorAlgebra.flattenlinear` once a TensorAlgebra release provides it.
-function flattenlinear(bc)
-    lb = tryflattenlinear(bc)
-    isnothing(lb) && throw(ArgumentError("broadcasting only supports linear operations"))
-    return lb
-end
-
 # ========================  Sector-array broadcasting  ========================
 #
 # Every sector array/delta broadcasts data-wise (operate on the reduced data, keep the sector), so
