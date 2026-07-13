@@ -1,24 +1,16 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: AbelianGradedMatrix, FusedGradedMatrix, FusedGradedVector,
-    GradedBlockAlgorithm, U1, Z2, dual, gradedrange
+    GradedBlockAlgorithm, U1, Z2, data, dual, eachblockstoredindex, gradedrange
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
+using Random: randn!
+using StableRNGs: StableRNG
 using TensorAlgebra: TensorAlgebra
 using Test: @test, @testset
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-function random_fgm(sectors, cod_dims, dom_dims; T = Float64)
-    blocks = [randn(T, m, n) for (m, n) in zip(cod_dims, dom_dims)]
-    return FusedGradedMatrix(collect(sectors), blocks)
-end
-
-function random_hermitian_fgm(sectors, dims; T = Float64)
-    blocks = [MAK.project_hermitian!(randn(T, n, n)) for n in dims]
-    return FusedGradedMatrix(collect(sectors), blocks)
-end
 
 precision(::Type{T}) where {T <: Number} = sqrt(eps(real(T)))
 precision(::Type{T}) where {T} = precision(eltype(T))
@@ -41,6 +33,7 @@ function isrightnull(Nᴴ, A; atol::Real = 0, rtol::Real = precision(eltype(A)))
 end
 
 @testset "Factorizations" begin
+    rng = StableRNG(1234)
 
     # -----------------------------------------------------------------------
     # Setup: two test matrices (rectangular and square) with U1 sectors
@@ -49,17 +42,23 @@ end
     cod_dims_u1 = [3, 4, 2]
     dom_dims_u1 = [2, 3, 5]
 
-    A_rect = random_fgm(sectors_u1, cod_dims_u1, dom_dims_u1)
-    A_tall = random_fgm(sectors_u1, [4, 5, 3], [2, 3, 2])  # tall: m >= n per block
-    A_wide = random_fgm(sectors_u1, [2, 3, 2], [4, 5, 3])  # wide: n >= m per block
+    A_rect =
+        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, cod_dims_u1, dom_dims_u1))
+    A_tall =
+        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, [4, 5, 3], [2, 3, 2]))
+    A_wide =
+        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, [2, 3, 2], [4, 5, 3]))
 
     sq_dims_u1 = [3, 4, 2]
-    A_sq = random_fgm(sectors_u1, sq_dims_u1, sq_dims_u1)
-    A_herm = random_hermitian_fgm(sectors_u1, sq_dims_u1)
+    A_sq = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, sq_dims_u1))
+    A_herm = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, sq_dims_u1))
+    for I in eachblockstoredindex(A_herm)
+        MAK.project_hermitian!(data(view(A_herm, I)))
+    end
 
     # Z2 sectors for variety
     sectors_z2 = [Z2(0), Z2(1)]
-    A_z2 = random_fgm(sectors_z2, [3, 4], [3, 4])
+    A_z2 = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_z2, [3, 4]))
 
     @testset "GradedBlockAlgorithm" begin
         alg = MAK.select_algorithm(MAK.svd_compact!, A_rect)
@@ -413,10 +412,11 @@ end
 
     # -----------------------------------------------------------------------
     @testset "matrix multiplication" begin
+        rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
         h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
-        a = randn(Float64, (g, dual(g)))
-        b = randn(Float64, (g, dual(h)))
+        a = randn(rng, Float64, (g, dual(g)))
+        b = randn(rng, Float64, (g, dual(h)))
         c = a * b
         @test c isa AbelianGradedMatrix
         # `(a * b)[i, j] == sum_k a[i, k] * b[k, j]`.
@@ -427,12 +427,13 @@ end
     end
 
     @testset "lmul! / rmul! (block-wise matrix-matrix)" begin
+        rng = StableRNG(1234)
         dims = [3, 4, 2]
-        Sblocks = [Diagonal(randn(n)) for n in dims]
+        Sblocks = [Diagonal(randn(rng, n)) for n in dims]
         S = FusedGradedMatrix(sectors_u1, Sblocks)
 
         # `lmul!(S, C)`: `C <- S * C` block-wise, `S` square (diagonal, as singular values).
-        Cblocks = [randn(dims[i], d) for (i, d) in enumerate([2, 3, 5])]
+        Cblocks = [randn(rng, dims[i], d) for (i, d) in enumerate([2, 3, 5])]
         C = FusedGradedMatrix(sectors_u1, copy.(Cblocks))
         @test lmul!(S, C) === C
         for (i, s) in enumerate(sectors_u1)
@@ -440,7 +441,7 @@ end
         end
 
         # `rmul!(A, S)`: `A <- A * S` block-wise.
-        Ablocks = [randn(d, dims[i]) for (i, d) in enumerate([2, 3, 5])]
+        Ablocks = [randn(rng, d, dims[i]) for (i, d) in enumerate([2, 3, 5])]
         A = FusedGradedMatrix(sectors_u1, copy.(Ablocks))
         @test rmul!(A, S) === A
         for (i, s) in enumerate(sectors_u1)
@@ -466,11 +467,12 @@ end
     # -----------------------------------------------------------------------
     # Bare-matrix factorizations delegate to the matricizing `TensorAlgebra` forms.
     @testset "factorizations on a bare AbelianGradedMatrix" begin
+        rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
         h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
-        m_rect = randn(Float64, (g, dual(h)))
-        m_sq = randn(Float64, (g, dual(g)))
-        m_herm = MAK.project_hermitian(randn(Float64, (g, dual(g))))
+        m_rect = randn(rng, Float64, (g, dual(h)))
+        m_sq = randn(rng, Float64, (g, dual(g)))
+        m_herm = MAK.project_hermitian(randn(rng, Float64, (g, dual(g))))
 
         # helper: compare two `FusedGradedVector`s block-by-block (the broadcasting `-`
         # path they would otherwise take is not supported).
@@ -534,15 +536,16 @@ end
         end
 
         @testset "project_hermitian" begin
-            m = randn(Float64, (g, dual(g)))
+            m = randn(rng, Float64, (g, dual(g)))
             @test Array(MAK.project_hermitian(m)) ≈ (Array(m) + Array(m)') / 2
         end
     end
 
     # -----------------------------------------------------------------------
     @testset "one! on an AbelianGradedMatrix" begin
+        rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
-        a = randn(Float64, (g, dual(g)))
+        a = randn(rng, Float64, (g, dual(g)))
         a_before = Array(copy(a))
 
         b = MAK.one!(a)
@@ -551,7 +554,7 @@ end
         @test Array(a) != a_before
 
         # Same as the existing graded identity constructor and the dense identity.
-        id = TensorAlgebra.one(randn(Float64, (g, dual(g))), (1,), (2,))
+        id = TensorAlgebra.one(randn(rng, Float64, (g, dual(g))), (1,), (2,))
         @test Array(a) ≈ Array(id)
         @test Array(a) ≈ Matrix(1.0I, size(a)...)
     end
