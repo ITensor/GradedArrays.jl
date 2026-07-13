@@ -58,6 +58,20 @@ end
 # matricizes, fills the fused matrix with `MAK.one!`, and scatters it back into `a`.
 MAK.one!(a::AbelianGradedMatrix) = TensorAlgebra.one!(a, Val(1))
 
+# Projections on a fused block (`SectorMatrix`)
+# ---------------------------------------------
+# The hermitian (antihermitian) projection of a fused block reduces to the same projection of
+# its reduced data: by Schur's lemma the block is `I ⊗ data(A)`, with the structural factor
+# the identity, and `project(I ⊗ M) = I ⊗ project(M)`, so the projection passes straight to
+# the reduced data. This is why it is well defined in the non-abelian case, where the generic
+# `AbstractMatrix` path scalar-indexes the block and hits the unique-fusion guard.
+for f! in (:project_hermitian!, :project_antihermitian!)
+    @eval function MAK.$f!(A::SectorMatrix, out::SectorMatrix, alg::MAK.NativeBlocked)
+        MAK.$f!(data(A), data(out), alg)
+        return out
+    end
+end
+
 # Generic Implementations
 # -----------------------
 # utility function to do something with each block

@@ -2,7 +2,9 @@ using GradedArrays: GradedArrays, AbelianSectorArray, SU2, SectorIdentity, Secto
     SectorOneTo, SectorRange, SectorVector, U1, data, dataaxes, dual, isdual, sector,
     sector_kron, sectoraxes, sectortype
 using LinearAlgebra: dot, norm, tr
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
+using StableRNGs: StableRNG
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -199,5 +201,26 @@ using Test: @test, @test_throws, @testset
         na = SectorMatrix{Float64}(undef, SU2(1), 2, 3)
         @test_throws ErrorException na[1, 1]
         @test_throws ErrorException (na[1, 1] = 0.0)
+    end
+
+    # The projection acts on the reduced data and factorizes through the structural identity,
+    # so it is well defined even in the non-abelian case where scalar indexing is not.
+    @testset "project_hermitian!/project_antihermitian! project the reduced data" for s in
+        (
+            U1(1),
+            SU2(1 // 2),
+        )
+        rng = StableRNG(1234)
+
+        a = randn!(rng, SectorMatrix{Float64}(undef, s, 3, 3))
+        d = copy(data(a))
+        @test MAK.project_hermitian!(a) === a
+        @test data(a) ≈ (d + d') / 2
+        @test Array(a) ≈ (Array(SectorMatrix(s, d)) + Array(SectorMatrix(s, d))') / 2
+
+        b = randn!(rng, SectorMatrix{Float64}(undef, s, 3, 3))
+        d2 = copy(data(b))
+        @test MAK.project_antihermitian!(b) === b
+        @test data(b) ≈ (d2 - d2') / 2
     end
 end

@@ -1,6 +1,6 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: AbelianGradedMatrix, FusedGradedMatrix, FusedGradedVector,
-    GradedBlockAlgorithm, U1, Z2, data, dual, eachblockstoredindex, gradedrange
+    GradedBlockAlgorithm, U1, Z2, dual, gradedrange
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
@@ -51,10 +51,9 @@ end
 
     sq_dims_u1 = [3, 4, 2]
     A_sq = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, sq_dims_u1))
-    A_herm = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, sq_dims_u1))
-    for I in eachblockstoredindex(A_herm)
-        MAK.project_hermitian!(data(view(A_herm, I)))
-    end
+    A_herm = MAK.project_hermitian!(
+        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, sq_dims_u1))
+    )
 
     # Z2 sectors for variety
     sectors_z2 = [Z2(0), Z2(1)]
