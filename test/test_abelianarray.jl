@@ -320,6 +320,16 @@ end
         cod_bad = Dictionary{U1, Int}([U1(1), U1(0)], [2, 3])
         @test_throws ArgumentError FusedGradedMatrix{Float64}(undef, cod_bad, dom)
     end
+
+    @testset "Square shorthands set domain = codomain" begin
+        # The `(sectors, lengths)`, single-argument pairs, and single-`GradedOneTo` forms all build
+        # square blocks equal to the two-argument form with the codomain repeated as the domain.
+        square = FusedGradedMatrix{Float64}(undef, sectors, [2, 3], [2, 3])
+        @test axes(FusedGradedMatrix{Float64}(undef, sectors, [2, 3])) == axes(square)
+        @test axes(FusedGradedMatrix{Float64}(undef, sectors .=> [2, 3])) == axes(square)
+        @test axes(FusedGradedMatrix{Float64}(undef, gradedrange(sectors .=> [2, 3]))) ==
+            axes(square)
+    end
 end
 
 @testset "FusedGradedMatrix asymmetric (cod ≠ dom) sectors" begin

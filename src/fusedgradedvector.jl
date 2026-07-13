@@ -22,17 +22,37 @@ struct SectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
     data::D
 end
 
+# ---- undef constructors ----
+
+# Innermost: fully parameterized, takes an AbstractUnitRange data axis.
+function SectorVector{T, S, D}(
+        ::UndefInitializer, sector::S, r::AbstractUnitRange
+    ) where {T, S <: SectorRange, D <: AbstractVector{T}}
+    return SectorVector{T, S, D}(sector, similar(D, (r,)))
+end
+
+# Convenience: default D = Vector{T}.
+function SectorVector{T}(
+        ::UndefInitializer, sector::S, r::AbstractUnitRange
+    ) where {T, S <: SectorRange}
+    return SectorVector{T, S, Vector{T}}(undef, sector, r)
+end
+
+# Int convenience: maps to Base.OneTo.
+function SectorVector{T}(::UndefInitializer, sector::SectorRange, n::Int) where {T}
+    return SectorVector{T}(undef, sector, Base.OneTo(n))
+end
+
 # ---- accessors ----
 
 # Return the structural delta factor (`SectorOnesVector`, the diagonal of the block's
 # `SectorIdentity`), mirroring `sector(::SectorMatrix)`. The stored `SectorRange` is `sv.sector`.
+# sectoraxes, dataaxes, and axes are derived generically on AbstractSectorArray from sector and data;
+# a `SectorVector`'s single axis is thus a `SectorOneTo` carrying the sector (its `size` is the
+# block's full graded length, not the reduced data length), matching the matrix blocks.
 sector(sv::SectorVector) = SectorOnesVector{eltype(sv)}(sv.sector)
-dataaxes(sv::SectorVector) = axes(data(sv))
-sectoraxes(sv::SectorVector) = (sv.sector,)
 
 datatype(::Type{SectorVector{T, S, D}}) where {T, S, D} = D
-
-Base.axes(sv::SectorVector) = axes(data(sv))
 
 Base.copy(sv::SectorVector) = SectorVector(sv.sector, copy(data(sv)))
 
@@ -40,11 +60,6 @@ function Base.similar(sv::SectorVector{<:Any, S, <:Any}, ::Type{T}) where {T, S}
     new_data = similar(data(sv), T)
     D = typeof(new_data)
     return SectorVector{T, S, D}(sv.sector, new_data)
-end
-
-function Base.fill!(sv::SectorVector, v)
-    fill!(data(sv), v)
-    return sv
 end
 
 # ---- display ----
@@ -150,6 +165,16 @@ function FusedGradedVector{T}(
         ::UndefInitializer, axis::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
     return FusedGradedVector{T, S, Vector{T}}(undef, axis)
+end
+
+# Build from the axis graded range, the inverse of `axes(v)`. Used to allocate a broadcast result.
+# TODO: Supersede this graded-range→dictionary rebuild with a dedicated `FusedGradedOneTo` axis type.
+function FusedGradedVector{T}(::UndefInitializer, g::GradedOneTo) where {T}
+    axis = Dictionary(collect(eachsectoraxis(g)), collect(Int, datalengths(g)))
+    return FusedGradedVector{T}(undef, axis)
+end
+function FusedGradedVector{T}(::UndefInitializer, axs::Tuple{<:GradedOneTo}) where {T}
+    return FusedGradedVector{T}(undef, only(axs))
 end
 
 """
@@ -313,23 +338,6 @@ end
 
 function Base.copy(v::FusedGradedVector)
     return FusedGradedVector(copy(v.axis), map(copy, v.blocks))
-end
-
-# ======================== LinearAlgebra ======================
-
-function LinearAlgebra.norm(A::FusedGradedVector, p::Real = 2)
-    if p == Inf
-        isempty(A.blocks) && return zero(float(real(eltype(A))))
-        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(A.blocks))
-    elseif p > 0
-        s = zero(float(real(eltype(A))))
-        for (c, a) in pairs(A.blocks)
-            s += length(c) * LinearAlgebra.norm(a, p)^p
-        end
-        return s^inv(p)
-    else
-        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
-    end
 end
 
 # ========================  FusedGradedVecOrMat  ========================

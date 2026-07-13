@@ -61,16 +61,8 @@ const AbelianSectorMatrix{T, S <: SectorRange, A <: AbstractMatrix{T}} =
 function sector(sa::AbelianSectorArray{T, S, N, A}) where {T, S, N, A}
     return AbelianSectorDelta{T, S, N}(sa.sectors)
 end
-sectoraxes(sa::AbelianSectorArray) = axes(sector(sa))
-dataaxes(sa::AbelianSectorArray) = axes(data(sa))
 
 datatype(::Type{AbelianSectorArray{T, S, N, A}}) where {T, S, N, A} = A
-
-# AbstractArray interface
-# -----------------------
-function Base.axes(sa::AbelianSectorArray)
-    return map(SectorOneTo, sectoraxes(sa), dataaxes(sa))
-end
 
 Base.copy(A::AbelianSectorArray) = AbelianSectorArray(sector(A), copy(data(A)))
 
@@ -82,15 +74,6 @@ function Base.similar(
         axes::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
     return AbelianSectorArray{T}(undef, axes)
-end
-
-function Base.fill!(A::AbelianSectorArray, v)
-    if iszero(v)
-        return zero!(A)
-    end
-    require_unique_fusion(A)
-    fill!(data(A), v)
-    return A
 end
 
 function Base.convert(
@@ -146,17 +129,6 @@ function twist!(a::AbelianSectorArray, dims)
     isone(phase) || (data(a) .*= phase)
     return a
 end
-
-# ========================  conj  ========================
-
-# Conjugate the data, flip the duality of every axis, and (for fermions) apply the fermionic
-# phase from reversing the leg order. Routed through the lazy conjugating broadcast so there is a
-# single implementation: `conj.` lowers to a `ConjArray` (dualizing the axes) and materializes via
-# `bipermutedimsopadd!` with `op = conj`, which carries the reversal phase that a bare data
-# conjugation drops. This also overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit,
-# so a real-eltype sector array still dualizes its axes. Not lifted to `AbstractSectorArray`
-# because the structural block types (`SectorMatrix`/`SectorVector`) have no broadcast style yet.
-Base.conj(x::AbelianSectorArray) = conj.(x)
 
 # ========================  Other  ========================
 

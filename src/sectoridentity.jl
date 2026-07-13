@@ -24,6 +24,18 @@ function Base.axes(A::SectorIdentity)
     return (A.sector, dual(A.sector))
 end
 
+# Structural inner product: the identity contracts to its dimension, the quantum dimension.
+function LinearAlgebra.dot(a::SectorIdentity, b::SectorIdentity)
+    axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
+    return length(a.sector)
+end
+
+# `p`-norm: the identity has `length(sector)` unit entries (its diagonal), so `norm^p` counts them.
+# The single formula also covers `p == Inf` (`count^0 == 1`, the max entry).
+function LinearAlgebra.norm(a::SectorIdentity{T}, p::Real = 2) where {T}
+    return convert(real(float(T)), length(a.sector)^(1 / p))
+end
+
 function Base.permutedims(a::SectorIdentity, perm)
     perm == ntuple(identity, ndims(a)) && return a
     return SectorIdentity{eltype(a)}(dual(a.sector))

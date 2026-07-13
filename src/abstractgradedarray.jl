@@ -190,6 +190,35 @@ end
 # abelian sectors but a repeat over the irrep's quantum dimension for non-abelian ones.
 Base.Array(a::AbstractGradedArray) = Array(_to_blockarray(a))
 
+# Block-diagonal inner product: sum the inner products of the stored blocks, each a sector array
+# whose own `dot` carries the quantum-dimension weight of its coupled sector (unit weight for
+# abelian sectors). Matching axes mean matching allocated blocks (every allowed block is stored),
+# so iterating one operand's stored indices lines up one-to-one with the other's.
+function LinearAlgebra.dot(a::AbstractGradedArray, b::AbstractGradedArray)
+    axes(a) == axes(b) ||
+        throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
+    init = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
+    return sum(eachblockstoredindex(a); init) do I
+        return LinearAlgebra.dot(view(a, I), view(b, I))
+    end
+end
+
+# Block-diagonal `p`-norm: the stored blocks have disjoint support, so the `p`-th powers add (a
+# `max` at `p == Inf`), and each block is a sector array carrying its own quantum-dimension weight.
+# This is the `BlockSparseArrays` block reduction, with the `Inf` case handled correctly (unlike the
+# `p`-sum formula, which collapses to `1` there).
+function LinearAlgebra.norm(a::AbstractGradedArray, p::Real = 2)
+    p > 0 || throw(ArgumentError("norm with non-positive p ($p) is not defined"))
+    init = zero(float(real(eltype(a))))
+    p == Inf && return maximum(eachblockstoredindex(a); init) do I
+        return LinearAlgebra.norm(view(a, I), p)
+    end
+    s = sum(eachblockstoredindex(a); init) do I
+        return LinearAlgebra.norm(view(a, I), p)^p
+    end
+    return s^inv(p)
+end
+
 # Conjugate through broadcasting, which conjugates each block and dualizes the sectors and axes
 # (and folds in the fermionic leg-reversal sign). Overrides `Base`'s real-eltype short-circuit,
 # which would keep the axes non-dual.

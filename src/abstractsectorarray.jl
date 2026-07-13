@@ -22,12 +22,24 @@ data(sa::AbstractSectorArray) = sa.data
 # (the inverse of the `sector` / `data` split). Each concrete subtype defines a method.
 function sector_kron end
 
+# The axes decompose into the structural sector factor and the reduced data, derived once here from
+# the `sector`/`data` primitives every concrete subtype provides, so no type re-derives them and
+# they cannot drift apart. `size` follows from `axes`.
+sectoraxes(sa::AbstractSectorArray) = axes(sector(sa))
+dataaxes(sa::AbstractSectorArray) = axes(data(sa))
+Base.axes(sa::AbstractSectorArray) = map(SectorOneTo, sectoraxes(sa), dataaxes(sa))
+
 Base.size(sa::AbstractSectorArray) = map(length, axes(sa))
 
+# Scalar indexing reads/writes the reduced data directly, which only coincides with the full array
+# for unique (abelian) fusion, where the structural factor is trivial and `size == size(data)`. For
+# non-abelian fusion the full extent exceeds the reduced data, so scalar indexing would run past it;
+# require unique fusion rather than silently reading/writing out of bounds.
 Base.@propagate_inbounds function Base.getindex(
         A::AbstractSectorArray{T, <:Any, N},
         I::Vararg{Int, N}
     ) where {T, N}
+    require_unique_fusion(A)
     @boundscheck checkbounds(A, I...)
     return @inbounds data(A)[I...]
 end
@@ -36,6 +48,7 @@ Base.@propagate_inbounds function Base.setindex!(
         v,
         I::Vararg{Int, N}
     ) where {T, N}
+    require_unique_fusion(A)
     @boundscheck checkbounds(A, I...)
     @inbounds data(A)[I...] = v
     return A
@@ -71,6 +84,16 @@ function TensorAlgebra.zero!(a::AbstractSectorArray)
     return a
 end
 
+# `fill!` sets the symmetry-allowed (reduced) data, leaving the structural sector factor unchanged;
+# it is a shorthand for setting the allowed values, like `rand!`/`randn!`, not a fill of the dense
+# array (which the structural factor would scale for a non-abelian sector). A zero fill routes
+# through `zero!`, which storage backends can implement more efficiently than a general fill.
+function Base.fill!(a::AbstractSectorArray, v)
+    iszero(v) && return zero!(a)
+    fill!(data(a), v)
+    return a
+end
+
 # ========================  trace  ========================
 
 # A 2D sector block is the tensor product of its structural factor `sector(a)` and its reduced
@@ -79,6 +102,30 @@ end
 function LinearAlgebra.tr(a::AbstractSectorArray{<:Any, <:Any, 2})
     return LinearAlgebra.tr(sector(a)) * LinearAlgebra.tr(data(a))
 end
+
+# The inner product factorizes the same way: the structural factors contract to their inner product
+# (the squared Frobenius norm of the delta, a quantum-dimension weight) times the reduced-data inner
+# product. Matches `dot(Array(a), Array(b))` (the `kron`/`dot` mixed-product identity) and the
+# quantum-dimension weighting a fused graded array applies to each block.
+function LinearAlgebra.dot(a::AbstractSectorArray, b::AbstractSectorArray)
+    return LinearAlgebra.dot(sector(a), sector(b)) * LinearAlgebra.dot(data(a), data(b))
+end
+
+# The `p`-norm factorizes through the Kronecker structure the same way: the product of the
+# structural-factor norm and the reduced-data norm (the `norm(A ⊗ B, p) = norm(A, p) * norm(B, p)`
+# identity that `KroneckerArrays` uses). Correct for every `p`, `Inf` included, with no special case.
+function LinearAlgebra.norm(a::AbstractSectorArray, p::Real = 2)
+    return LinearAlgebra.norm(sector(a), p) * LinearAlgebra.norm(data(a), p)
+end
+
+# ========================  densification  ========================
+
+# Materialize the structural factor `sector(a) ⊗ data(a)` densely, the same per-block densification
+# a fused graded array uses (`I ⊗ reduced` for the identity/ones structural factor, repeating each
+# reduced value over the irrep's quantum dimension). The generic `AbstractArray` fallback can't be
+# used: `size` is the full (structural × reduced) extent while `data` is only the reduced block, so
+# copying elementwise scalar-indexes past the reduced data into garbage.
+Base.Array(a::AbstractSectorArray) = kron_nd(Array(sector(a)), Array(data(a)))
 
 # ========================  random fills  ========================
 
@@ -93,6 +140,16 @@ function Random.randn!(rng::AbstractRNG, a::AbstractSectorArray)
     Random.randn!(rng, data(a))
     return a
 end
+
+# ========================  conj  ========================
+
+# Conjugate the data, flip the duality of every axis, and (for fermions) apply the fermionic phase
+# from reversing the leg order. Routed through the lazy conjugating broadcast so there is a single
+# implementation: `conj.` lowers to a `ConjArray` (dualizing the axes) and materializes via
+# `bipermutedimsopadd!` with `op = conj`, which carries the reversal phase that a bare data
+# conjugation drops. This also overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit,
+# so a real-eltype sector array still dualizes its axes.
+Base.conj(a::AbstractSectorArray) = conj.(a)
 
 # ========================  display  ========================
 

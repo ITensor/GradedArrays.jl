@@ -27,6 +27,17 @@ end
 
 Base.axes(A::AbelianSectorDelta) = A.sectors
 
+# Structural inner product: an abelian delta has a single allowed (unique-fusion) unit entry.
+function LinearAlgebra.dot(a::AbelianSectorDelta, b::AbelianSectorDelta)
+    axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
+    return 1
+end
+
+# `p`-norm: a single unit entry, so the norm is `1` for every `p` (including `Inf`), like its `dot`.
+function LinearAlgebra.norm(a::AbelianSectorDelta{T}, p::Real = 2) where {T}
+    return oneunit(real(float(T)))
+end
+
 # ========================  Accessors  ========================
 
 isdual(x, d::Int) = isdual(axes(x, d))

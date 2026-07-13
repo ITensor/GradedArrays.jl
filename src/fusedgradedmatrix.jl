@@ -128,16 +128,41 @@ function FusedGradedMatrix{T}(
     return FusedGradedMatrix{T, S, Matrix{T}}(undef, codomain, domain)
 end
 
+# Build from the codomain and domain graded ranges, both in the stored (non-dual codomain)
+# convention. TODO: Supersede this graded-range→dictionary rebuild with a `FusedGradedOneTo` axis.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, codomain::GradedOneTo, domain::GradedOneTo
+    ) where {T}
+    cod = Dictionary(collect(eachsectoraxis(codomain)), collect(Int, datalengths(codomain)))
+    dom = Dictionary(collect(eachsectoraxis(domain)), collect(Int, datalengths(domain)))
+    return FusedGradedMatrix{T}(undef, cod, dom)
+end
+# A single graded range sets the domain equal to the codomain (square blocks), mirroring the
+# single-argument pairs form below.
+function FusedGradedMatrix{T}(::UndefInitializer, codomain::GradedOneTo) where {T}
+    return FusedGradedMatrix{T}(undef, codomain, codomain)
+end
+# Build from the axes as `axes(m)` returns them: `axes(m, 2)` dualizes the domain, so undo it.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, axs::Tuple{<:GradedOneTo, <:GradedOneTo}
+    ) where {T}
+    return FusedGradedMatrix{T}(undef, axs[1], dual(axs[2]))
+end
+
 """
     FusedGradedMatrix{T}(undef, sectors, rowlengths, collengths)
+    FusedGradedMatrix{T}(undef, sectors, lengths)
     FusedGradedMatrix{T}(undef, sectors .=> rowlengths, sectors .=> collengths)
     FusedGradedMatrix{T}(undef, sectors .=> lengths)
+    FusedGradedMatrix{T}(undef, codomain::GradedOneTo, domain::GradedOneTo)
+    FusedGradedMatrix{T}(undef, codomain::GradedOneTo)
 
 Allocate a block-diagonal `FusedGradedMatrix` with uninitialized blocks keyed by a shared set of
 `sectors`. `rowlengths[i]`/`collengths[i]` give the reduced row and column lengths of the block at
 `sectors[i]`. The pairs forms mirror the `dictionary(pairs)` constructor from `Dictionaries`; the
-single-argument pairs form sets the domain equal to the codomain (square blocks). Bare `TKS.Sector`s
-are accepted alongside `SectorRange`s. Pair with `randn!`/`rand!` to fill.
+forms taking a single `lengths` vector, single-argument pairs, or single-`GradedOneTo` set the domain
+equal to the codomain (square blocks). Bare `TKS.Sector`s are accepted alongside `SectorRange`s. Pair
+with `randn!`/`rand!` to fill.
 """
 function FusedGradedMatrix{T}(
         ::UndefInitializer,
@@ -148,6 +173,12 @@ function FusedGradedMatrix{T}(
     codomain = Dictionary{S, Int}(rs, collect(Int, rowlengths))
     domain = Dictionary{S, Int}(rs, collect(Int, collengths))
     return FusedGradedMatrix{T}(undef, codomain, domain)
+end
+# A single `lengths` vector sets the domain equal to the codomain (square blocks).
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, sectors::AbstractVector, lengths::AbstractVector
+    ) where {T}
+    return FusedGradedMatrix{T}(undef, sectors, lengths, lengths)
 end
 function FusedGradedMatrix{T}(
         ::UndefInitializer, codomain::AbstractVector{<:Pair}, domain::AbstractVector{<:Pair}
@@ -302,37 +333,9 @@ function Base.adjoint(A::FusedGradedMatrix)
 end
 # note: not defining transpose here since that has requirements on sectors
 
-function LinearAlgebra.norm(A::FusedGradedMatrix, p::Real = 2)
-    if p == Inf
-        isempty(A.blocks) && return zero(float(real(eltype(A))))
-        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(A.blocks))
-    elseif p > 0
-        s = zero(float(real(eltype(A))))
-        for (c, a) in pairs(A.blocks)
-            s += length(c) * LinearAlgebra.norm(a, p)^p
-        end
-        return s^inv(p)
-    else
-        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
-    end
-end
-
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
-
-function LinearAlgebra.dot(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    A.codomain == B.codomain ||
-        throw(DimensionMismatch("dot: codomain mismatch"))
-    A.domain == B.domain ||
-        throw(DimensionMismatch("dot: domain mismatch"))
-    T = promote_type(eltype(A), eltype(B))
-    s = zero(T)
-    for c in intersect(keys(A.blocks), keys(B.blocks))
-        s += length(c) * LinearAlgebra.dot(A.blocks[c], B.blocks[c])
-    end
-    return s
-end
 
 # ========================  similar  ========================
 

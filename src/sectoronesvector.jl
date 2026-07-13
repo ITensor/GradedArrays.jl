@@ -21,5 +21,17 @@ end
 
 Base.axes(A::SectorOnesVector) = (A.sector,)
 
+# Structural inner product: the all-ones vector contracts to its length, the quantum dimension.
+function LinearAlgebra.dot(a::SectorOnesVector, b::SectorOnesVector)
+    axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
+    return length(a.sector)
+end
+
+# `p`-norm: the all-ones vector has `length(sector)` unit entries, so `norm^p` counts them.
+# The single formula also covers `p == Inf` (`count^0 == 1`, the max entry).
+function LinearAlgebra.norm(a::SectorOnesVector{T}, p::Real = 2) where {T}
+    return convert(real(float(T)), length(a.sector)^(1 / p))
+end
+
 # A single index has only the identity permutation.
 Base.permutedims(a::SectorOnesVector, perm) = a

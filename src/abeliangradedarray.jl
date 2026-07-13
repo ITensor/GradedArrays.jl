@@ -564,33 +564,6 @@ function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
     return reduce(tensor_product, secs)
 end
 
-function LinearAlgebra.norm(a::AbelianGradedArray, p::Real = 2)
-    if p == Inf
-        isempty(a.blockdata) && return zero(float(real(eltype(a))))
-        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(a.blockdata))
-    elseif p > 0
-        s = zero(float(real(eltype(a))))
-        for b in values(a.blockdata)
-            s += LinearAlgebra.norm(b, p)^p
-        end
-        return s^inv(p)
-    else
-        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
-    end
-end
-
-function LinearAlgebra.dot(a::AbelianGradedArray, b::AbelianGradedArray)
-    axes(a) == axes(b) ||
-        throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
-    # Matching axes mean matching allowed-block keys, so each `a` block has a
-    # counterpart in `b`.
-    s = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
-    for (k, ablk) in pairs(a.blockdata)
-        s += LinearAlgebra.dot(ablk, b.blockdata[k])
-    end
-    return s
-end
-
 # Forbidden blocks are zero, so the total is the sum over the stored blocks.
 function Base.sum(a::AbelianGradedArray)
     s = zero(eltype(a))
