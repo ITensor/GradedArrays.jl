@@ -27,6 +27,17 @@ end
 
 Base.axes(A::AbelianSectorDelta) = A.sectors
 
+# Structural inner product: an abelian delta has a single allowed (unique-fusion) unit entry.
+function LinearAlgebra.dot(a::AbelianSectorDelta, b::AbelianSectorDelta)
+    axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
+    return 1
+end
+
+# `p`-norm: a single unit entry, so the norm is `1` for every `p` (including `Inf`), like its `dot`.
+function LinearAlgebra.norm(a::AbelianSectorDelta{T}, p::Real = 2) where {T}
+    return oneunit(real(float(T)))
+end
+
 # ========================  Accessors  ========================
 
 isdual(x, d::Int) = isdual(axes(x, d))
@@ -61,45 +72,4 @@ function Base.:(*)(
         throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
     T = Base.promote_type(T₁, T₂)
     return AbelianSectorDelta{T}((axes(a, 1), axes(b, 2)))
-end
-
-# ========================  Fermionic specializations  ========================
-
-"""
-Compute the parity of the number of inversions of a masked permutation
-"""
-function masked_inversion_parity(mask::NTuple{N, Bool}, perm::NTuple{N, Int}) where {N}
-    parity = false
-    @inbounds for i in 1:N
-        mask[i] || continue
-        for j in (i + 1):N
-            parity ⊻= mask[j] & (perm[i] > perm[j]) # branchless is important here
-        end
-    end
-    return ifelse(parity, -1, 1)
-end
-
-function fermion_permutation_phase(
-        x::AbstractSectorDelta{<:Any, <:Any, N},
-        perm::NTuple{N, Int}
-    ) where {N}
-    require_unique_fusion(x)
-    BS = TKS.BraidingStyle(sectortype(x))
-    BS isa TKS.Bosonic && return true
-    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
-
-    mask = map(fermionparity, axes(x))
-    return masked_inversion_parity(mask, perm)
-end
-
-# Fermionic phase for permuting `x` by `perm` under the conjugation flag `op`. `op === conj`
-# is the ket->bra involution, which reverses leg order, so it contributes the sign of that
-# reversal on top of the permutation's own sign. `op === identity` leaves only the
-# permutation sign.
-function fermion_permutation_phase(
-        op, x::AbstractSectorDelta{<:Any, <:Any, N}, perm::NTuple{N, Int}
-    ) where {N}
-    phase = fermion_permutation_phase(x, perm)
-    op === conj || return phase
-    return phase * fermion_permutation_phase(x, reverse(ntuple(identity, Val(N))))
 end

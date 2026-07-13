@@ -30,7 +30,7 @@ using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG
 using SparseArraysBase: SparseArraysBase
 using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
-    check_input, matricize, permutedimsadd!, scale!, tryflattenlinear, unmatricize, zero!
+    check_input, flattenlinear, matricize, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 
@@ -45,6 +45,7 @@ include("abstractsectorarray.jl")
 include("abeliansectordelta.jl")
 include("abeliansectorarray.jl")
 include("sectoridentity.jl")
+include("sectoronesvector.jl")
 include("sectormatrix.jl")
 include("abstractgradedarray.jl")
 include("abeliangradedarray.jl")

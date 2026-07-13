@@ -1,6 +1,6 @@
 using GradedArrays:
     SU2, SectorIdentity, SectorRange, U1, dual, isdual, sectoraxes, sectortype
-using LinearAlgebra: tr
+using LinearAlgebra: norm, tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -72,5 +72,12 @@ using Test: @test, @test_throws, @testset
         @test tr(SectorIdentity{Float64}(SU2(1 // 2))) == 2
         # Only the canonical ordering (non-dual first axis) is allowed.
         @test_throws ArgumentError tr(SectorIdentity{Float64}(conj(U1(1))))
+    end
+
+    @testset "norm — counts the unit diagonal entries" begin
+        si = SectorIdentity{Float64}(SU2(1))  # 3×3 identity, quantum dimension 3
+        for p in (1, 2, 3, Inf)
+            @test norm(si, p) ≈ norm(Array(si), p) ≈ 3^(1 / p)
+        end
     end
 end

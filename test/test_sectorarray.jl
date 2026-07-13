@@ -198,15 +198,18 @@ using Test: @test, @test_throws, @testset
         @test all(iszero, data(sa))
     end
 
-    @testset "fill! non-abelian errors for nonzero" begin
+    @testset "fill! non-abelian sets the reduced data" begin
+        # `fill!` is a shorthand for setting the symmetry-allowed (reduced) values, like `rand!`, so
+        # it fills the reduced data even for a non-abelian sector (it is not a dense-array fill).
         sa = AbelianSectorArray(
             (SU2(1 // 2), dual(SU2(1 // 2))),
             ones(2, 2)
         )
+        fill!(sa, 3.0)
+        @test all(==(3.0), data(sa))
+
         fill!(sa, 0.0)
         @test all(iszero, data(sa))
-
-        @test_throws ErrorException fill!(sa, 1.0)
     end
 
     @testset "zero!" begin

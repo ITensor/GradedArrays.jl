@@ -75,21 +75,6 @@ function Base.copy(A::FusedGradedMatrix)
     return FusedGradedMatrix(A.codomain, A.domain, map(copy, A.blocks))
 end
 
-# Materialize into a dense `Array` blockwise, like the `AbelianGradedArray` method
-# (the generic fallback copies elementwise, which scalar-indexes). Sectors present
-# in only one of the two axes have no stored block and stay zero.
-function Base.Array(a::FusedGradedMatrix{T}) where {T}
-    dest = zeros(T, size(a))
-    rowax, colax = axes(a)
-    rowsectors, colsectors = collect(keys(a.codomain)), collect(keys(a.domain))
-    for (s, b) in pairs(a.blocks)
-        r = rowax[Block(findfirst(==(s), rowsectors))]
-        c = colax[Block(findfirst(==(s), colsectors))]
-        copyto!(view(dest, r, c), b)
-    end
-    return dest
-end
-
 # Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
 # each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
 # `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
@@ -120,16 +105,20 @@ Build a `FusedGradedMatrix` whose codomain and domain carry the same sector list
 `codomain[sectors[i]]` is `size(blocks[i], 1)` and `domain[sectors[i]]` is `size(blocks[i], 2)`.
 """
 function FusedGradedMatrix(
-        sectors::AbstractVector{S},
+        sectors::AbstractVector,
         blocks::AbstractVector{D}
-    ) where {S <: SectorRange, D <: AbstractMatrix}
+    ) where {D <: AbstractMatrix}
     length(sectors) == length(blocks) ||
         throw(ArgumentError("sectors and blocks must have the same length"))
-    issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
-    allunique(sectors) || throw(ArgumentError("sectors must be unique"))
-    cod = Dictionary{S, Int}(sectors, [size(b, 1) for b in blocks])
-    dom = Dictionary{S, Int}(sectors, [size(b, 2) for b in blocks])
-    blks = Dictionary{S, D}(sectors, collect(blocks))
+    # Accept bare `TKS.Sector`s (e.g. `FermionNumber(1)`) alongside `SectorRange`s, as
+    # `gradedrange` does; `SectorRange` wraps the former and is the identity on the latter.
+    rs = map(SectorRange, sectors)
+    issorted(rs) || throw(ArgumentError("sectors must be sorted"))
+    allunique(rs) || throw(ArgumentError("sectors must be unique"))
+    S = eltype(rs)
+    cod = Dictionary{S, Int}(rs, [size(b, 1) for b in blocks])
+    dom = Dictionary{S, Int}(rs, [size(b, 2) for b in blocks])
+    blks = Dictionary{S, D}(rs, collect(blocks))
     return FusedGradedMatrix(cod, dom, blks)
 end
 
@@ -137,6 +126,69 @@ function FusedGradedMatrix{T}(
         ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
     return FusedGradedMatrix{T, S, Matrix{T}}(undef, codomain, domain)
+end
+
+# Build from the codomain and domain graded ranges, both in the stored (non-dual codomain)
+# convention. TODO: Supersede this graded-range→dictionary rebuild with a `FusedGradedOneTo` axis.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, codomain::GradedOneTo, domain::GradedOneTo
+    ) where {T}
+    cod = Dictionary(collect(eachsectoraxis(codomain)), collect(Int, datalengths(codomain)))
+    dom = Dictionary(collect(eachsectoraxis(domain)), collect(Int, datalengths(domain)))
+    return FusedGradedMatrix{T}(undef, cod, dom)
+end
+# A single graded range sets the domain equal to the codomain (square blocks), mirroring the
+# single-argument pairs form below.
+function FusedGradedMatrix{T}(::UndefInitializer, codomain::GradedOneTo) where {T}
+    return FusedGradedMatrix{T}(undef, codomain, codomain)
+end
+# Build from the axes as `axes(m)` returns them: `axes(m, 2)` dualizes the domain, so undo it.
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, axs::Tuple{<:GradedOneTo, <:GradedOneTo}
+    ) where {T}
+    return FusedGradedMatrix{T}(undef, axs[1], dual(axs[2]))
+end
+
+"""
+    FusedGradedMatrix{T}(undef, sectors, rowlengths, collengths)
+    FusedGradedMatrix{T}(undef, sectors, lengths)
+    FusedGradedMatrix{T}(undef, sectors .=> rowlengths, sectors .=> collengths)
+    FusedGradedMatrix{T}(undef, sectors .=> lengths)
+    FusedGradedMatrix{T}(undef, codomain::GradedOneTo, domain::GradedOneTo)
+    FusedGradedMatrix{T}(undef, codomain::GradedOneTo)
+
+Allocate a block-diagonal `FusedGradedMatrix` with uninitialized blocks keyed by a shared set of
+`sectors`. `rowlengths[i]`/`collengths[i]` give the reduced row and column lengths of the block at
+`sectors[i]`. The pairs forms mirror the `dictionary(pairs)` constructor from `Dictionaries`; the
+forms taking a single `lengths` vector, single-argument pairs, or single-`GradedOneTo` set the domain
+equal to the codomain (square blocks). Bare `TKS.Sector`s are accepted alongside `SectorRange`s. Pair
+with `randn!`/`rand!` to fill.
+"""
+function FusedGradedMatrix{T}(
+        ::UndefInitializer,
+        sectors::AbstractVector, rowlengths::AbstractVector, collengths::AbstractVector
+    ) where {T}
+    rs = map(SectorRange, sectors)
+    S = eltype(rs)
+    codomain = Dictionary{S, Int}(rs, collect(Int, rowlengths))
+    domain = Dictionary{S, Int}(rs, collect(Int, collengths))
+    return FusedGradedMatrix{T}(undef, codomain, domain)
+end
+# A single `lengths` vector sets the domain equal to the codomain (square blocks).
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, sectors::AbstractVector, lengths::AbstractVector
+    ) where {T}
+    return FusedGradedMatrix{T}(undef, sectors, lengths, lengths)
+end
+function FusedGradedMatrix{T}(
+        ::UndefInitializer, codomain::AbstractVector{<:Pair}, domain::AbstractVector{<:Pair}
+    ) where {T}
+    map(SectorRange, first.(codomain)) == map(SectorRange, first.(domain)) ||
+        throw(ArgumentError("codomain and domain sectors must match"))
+    return FusedGradedMatrix{T}(undef, first.(codomain), last.(codomain), last.(domain))
+end
+function FusedGradedMatrix{T}(::UndefInitializer, blocks::AbstractVector{<:Pair}) where {T}
+    return FusedGradedMatrix{T}(undef, blocks, blocks)
 end
 
 # ========================  Accessors  ========================
@@ -273,63 +325,6 @@ function LinearAlgebra.rmul!(A::FusedGradedMatrix, B::FusedGradedMatrix)
     return A
 end
 
-# ========================  Block-wise +, - ========================
-#
-# FusedGradedMatrix has no `BroadcastStyle`, so the AbstractArray fallback for `+`/`-`
-# (`broadcast_preserving_zero_d`) ends up trying scalar indexing on a sector-block
-# structure, which silently produces wrong results. As a stand-in, define the
-# operations directly block-by-block, taking the union of sectors so an absent block
-# on one side is treated as zero. Once structure-preserving broadcasting is
-# implemented for FusedGradedMatrix, `_broadcast_fusedgradedmatrix` (and the
-# scalar-op methods below) are superseded by it.
-
-function _broadcast_fusedgradedmatrix(op, A::FusedGradedMatrix, B::FusedGradedMatrix)
-    axes(A) == axes(B) ||
-        throw(DimensionMismatch("axes mismatch: A $(axes(A)), B $(axes(B))"))
-    T = promote_type(eltype(A), eltype(B))
-    DA = datatype(A)
-    DB = datatype(B)
-    D = Base.promote_op(op, DA, DB)
-    D′ = isconcretetype(D) ? D : Matrix{T}
-    S = sectortype(typeof(A))
-    sectors = sort!(collect(union(keys(A.blocks), keys(B.blocks))))
-    blocks = Dictionary{S, D′}()
-    for c in sectors
-        rows = get(A.codomain, c, get(B.codomain, c, 0))
-        cols = get(A.domain, c, get(B.domain, c, 0))
-        a = get(() -> zeros(eltype(A), rows, cols), A.blocks, c)
-        b = get(() -> zeros(eltype(B), rows, cols), B.blocks, c)
-        insert!(blocks, c, op(a, b))
-    end
-    return FusedGradedMatrix(A.codomain, A.domain, blocks)
-end
-
-# Single-array form: apply `f` to each stored block. Absent blocks stay absent
-# (zero), which is correct for `f` with `f(0) == 0` such as scalar `*` / `/`.
-function _broadcast_fusedgradedmatrix(f, A::FusedGradedMatrix)
-    blocks = map(f, A.blocks)
-    return FusedGradedMatrix(A.codomain, A.domain, blocks)
-end
-
-function Base.:(+)(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    return _broadcast_fusedgradedmatrix(+, A, B)
-end
-function Base.:(-)(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    return _broadcast_fusedgradedmatrix(-, A, B)
-end
-
-# TODO: these explicit scalar-op methods exist only because broadcasting is
-# disabled for `FusedGradedMatrix`. Once structure-preserving broadcasting is
-# supported, drop them and let Base's `AbstractArray`-scalar `*` / `/` forward to
-# broadcasting (as `AbelianGradedArray` already does).
-function Base.:(*)(A::FusedGradedMatrix, x::Number)
-    return _broadcast_fusedgradedmatrix(Base.Fix2(*, x), A)
-end
-Base.:(*)(x::Number, A::FusedGradedMatrix) = A * x
-function Base.:(/)(A::FusedGradedMatrix, x::Number)
-    return _broadcast_fusedgradedmatrix(Base.Fix2(/, x), A)
-end
-
 # ======================== LinearAlgebra ======================
 
 function Base.adjoint(A::FusedGradedMatrix)
@@ -338,37 +333,9 @@ function Base.adjoint(A::FusedGradedMatrix)
 end
 # note: not defining transpose here since that has requirements on sectors
 
-function LinearAlgebra.norm(A::FusedGradedMatrix, p::Real = 2)
-    if p == Inf
-        isempty(A.blocks) && return zero(float(real(eltype(A))))
-        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(A.blocks))
-    elseif p > 0
-        s = zero(float(real(eltype(A))))
-        for (c, a) in pairs(A.blocks)
-            s += length(c) * LinearAlgebra.norm(a, p)^p
-        end
-        return s^inv(p)
-    else
-        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
-    end
-end
-
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
-
-function LinearAlgebra.dot(A::FusedGradedMatrix, B::FusedGradedMatrix)
-    A.codomain == B.codomain ||
-        throw(DimensionMismatch("dot: codomain mismatch"))
-    A.domain == B.domain ||
-        throw(DimensionMismatch("dot: domain mismatch"))
-    T = promote_type(eltype(A), eltype(B))
-    s = zero(T)
-    for c in intersect(keys(A.blocks), keys(B.blocks))
-        s += length(c) * LinearAlgebra.dot(A.blocks[c], B.blocks[c])
-    end
-    return s
-end
 
 # ========================  similar  ========================
 

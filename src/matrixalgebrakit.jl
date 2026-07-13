@@ -58,17 +58,47 @@ end
 # matricizes, fills the fused matrix with `MAK.one!`, and scatters it back into `a`.
 MAK.one!(a::AbelianGradedMatrix) = TensorAlgebra.one!(a, Val(1))
 
+# Projections on a fused block (`SectorMatrix`)
+# ---------------------------------------------
+# The hermitian (antihermitian) projection of a fused block reduces to the same projection of
+# its reduced data: by Schur's lemma the block is `I ⊗ data(A)`, with the structural factor
+# the identity, and `project(I ⊗ M) = I ⊗ project(M)`, so the projection passes straight to
+# the reduced data. This is why it is well defined in the non-abelian case, where the generic
+# `AbstractMatrix` path scalar-indexes the block and hits the unique-fusion guard.
+#
+# `SectorMatrixAlgorithm` wraps the reduced-data algorithm so the block projection dispatches on
+# a distinct type (mirroring `GradedBlockAlgorithm` one level up), forwarding the wrapped inner
+# algorithm to the data and staying clear of the generic `AbstractMatrix` projection methods.
+struct SectorMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
+    alg::A
+end
+
+for f! in (:project_hermitian!, :project_antihermitian!)
+    @eval function MAK.default_algorithm(
+            ::typeof(MAK.$f!), ::Type{<:SectorMatrix{<:Any, <:Any, D}}; kwargs...
+        ) where {D}
+        return SectorMatrixAlgorithm(MAK.default_algorithm(MAK.$f!, D; kwargs...))
+    end
+    @eval function MAK.initialize_output(
+            ::typeof(MAK.$f!), A::SectorMatrix, ::SectorMatrixAlgorithm
+        )
+        return A
+    end
+    @eval function MAK.$f!(A::SectorMatrix, out::SectorMatrix, alg::SectorMatrixAlgorithm)
+        MAK.$f!(data(A), data(out), alg.alg)
+        return out
+    end
+end
+
 # Generic Implementations
 # -----------------------
 # utility function to do something with each block
-const FusedGradedArray = Union{FusedGradedMatrix, FusedGradedVector}
-
 function _blockdataaxes(a::FusedGradedMatrix, c)
     return (Base.OneTo(get(a.codomain, c, 0)), Base.OneTo(get(a.domain, c, 0)))
 end
 _blockdataaxes(a::FusedGradedVector, c) = (Base.OneTo(get(a.axis, c, 0)),)
 
-function foreachblock(f, A::FusedGradedArray, As::FusedGradedArray...)
+function foreachblock(f, A::FusedGradedVecOrMat, As::FusedGradedVecOrMat...)
     cs = union(map(keys ∘ Base.Fix2(getproperty, :blocks), (A, As...))...)
 
     for c in cs
@@ -106,18 +136,28 @@ end
 for f! in (
         :qr_null!, :lq_null!,
         :svd_vals!, :eig_vals!, :eigh_vals!,
-        :project_hermitian!, :project_antihermitian!, :project_isometric!,
+        :project_isometric!,
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::GradedBlockAlgorithm)
-        $(
-            f! in (:eig_vals!, :eigh_vals!, :project_hermitian!, :project_antihermitian!) &&
-                :(LinearAlgebra.checksquare(A))
-        )
+        $(f! in (:eig_vals!, :eigh_vals!) && :(LinearAlgebra.checksquare(A)))
         foreachblock(A, N) do _, (Ablock, Nblock)
             Nblock′ = MAK.$f!(Ablock, Nblock, alg.alg)
             return _ensure_inplace!(Nblock, Nblock′)
         end
         return N
+    end
+end
+
+# Hermitian/antihermitian projection of a fused matrix is the per-block projection of each
+# stored block, reusing the `SectorMatrix` methods above. Both are pure in-place projections
+# with the same block structure as the input, so they iterate the stored blocks directly.
+for f! in (:project_hermitian!, :project_antihermitian!)
+    @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::GradedBlockAlgorithm)
+        LinearAlgebra.checksquare(A)
+        for I in eachblockstoredindex(A)
+            MAK.$f!(view(A, I), view(out, I), SectorMatrixAlgorithm(alg.alg))
+        end
+        return out
     end
 end
 

@@ -41,27 +41,14 @@ end
 
 # ---- accessors ----
 
-# Primitive accessors: sector(sm) and data(sm).
-# sector() returns the structural delta factor (SectorIdentity), not the stored SectorRange.
-# Access the stored SectorRange via sm.sector or sectoraxes(sm)[1].
+# Primitive accessor: sector(sm) returns the structural delta factor (SectorIdentity), not the
+# stored SectorRange. Access the stored SectorRange via sm.sector or sectoraxes(sm)[1]. sectoraxes,
+# dataaxes, and axes are derived generically on AbstractSectorArray from sector and data.
 sector(sm::SectorMatrix) = SectorIdentity{eltype(sm)}(sm.sector)
-dataaxes(sm::SectorMatrix) = axes(data(sm))
-
-# Derived accessors: sectoraxes and axes are written in terms of sector and data.
-sectoraxes(sm::SectorMatrix) = axes(sector(sm))
 
 datatype(::Type{SectorMatrix{T, S, D}}) where {T, S, D} = D
 
-function Base.axes(sm::SectorMatrix)
-    return map(SectorOneTo, sectoraxes(sm), dataaxes(sm))
-end
-
 Base.copy(sm::SectorMatrix) = SectorMatrix(sm.sector, copy(data(sm)))
-
-function Base.fill!(sm::SectorMatrix, v)
-    fill!(data(sm), v)
-    return sm
-end
 
 function Base.convert(
         ::Type{SectorMatrix{T₁, S, D}},

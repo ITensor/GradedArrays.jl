@@ -1,6 +1,8 @@
 using BlockArrays: Block
-using GradedArrays: AbelianSectorArray, U1, gradedrange
-using LinearAlgebra: dot
+using GradedArrays: AbelianSectorArray, FusedGradedMatrix, FusedGradedVector, SU2,
+    SectorMatrix, SectorVector, U1, data, gradedrange
+using LinearAlgebra: dot, norm
+using Random: randn!
 using TensorAlgebra: TensorAlgebra
 using Test: @test, @test_throws, @testset
 using VectorInterface: VectorInterface
@@ -104,6 +106,50 @@ end
     @test VectorInterface.scalartype(w) === ComplexF64
     @test VectorInterface.scalartype(VectorInterface.zerovector!!(copy(a), Float64)) ===
         Float64
+end
+
+@testset "VectorInterface on sector arrays ($(typeof(a0).name.name))" for (a0, b0) in (
+        let s = SU2(1)
+            (SectorMatrix{Float64}(undef, s, 2, 3), SectorMatrix{Float64}(undef, s, 2, 3))
+        end,
+        let s = SU2(1)
+            (SectorVector{Float64}(undef, s, 4), SectorVector{Float64}(undef, s, 4))
+        end,
+    )
+    randn!(a0)
+    randn!(b0)
+
+    @test VectorInterface.scalartype(a0) === Float64
+    @test iszero(data(VectorInterface.zerovector(a0, Float64)))
+    @test data(VectorInterface.scale(a0, 2)) ≈ 2 .* data(a0)
+    @test data(VectorInterface.add(a0, b0, 2, 3)) ≈ 3 .* data(a0) .+ 2 .* data(b0)
+    @test VectorInterface.inner(a0, b0) ≈ dot(a0, b0)
+
+    # Scaling a real block by a complex coefficient widens to a complex result.
+    c = VectorInterface.scale(a0, 2im)
+    @test VectorInterface.scalartype(c) === ComplexF64
+    @test data(c) ≈ 2im .* data(a0)
+end
+
+@testset "graded dot/norm factorize block-wise ($(typeof(a).name.name))" for (a, b) in (
+        (
+            FusedGradedMatrix{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
+            FusedGradedMatrix{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
+        ),
+        (
+            FusedGradedVector{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
+            FusedGradedVector{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
+        ),
+    )
+    randn!(a)
+    randn!(b)
+    # The block-wise sum (each block weighted by its sector's quantum dimension) equals the dense
+    # inner product, and the block `p`-norm matches the dense norm for every `p` (`Inf` included).
+    @test dot(a, b) ≈ dot(Array(a), Array(b))
+    @test VectorInterface.inner(a, b) == dot(a, b)
+    for p in (1, 2, 3, Inf)
+        @test norm(a, p) ≈ norm(Array(a), p)
+    end
 end
 
 @testset "aliased trivial permute-add is a scale" begin

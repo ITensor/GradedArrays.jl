@@ -347,13 +347,6 @@ function Base.copyto!(
     return dest
 end
 
-# Route eager `conj` through the lazy conjugating broadcast so there is a single
-# implementation: `conj.` lowers to a `ConjArray` (dualizing the axes) and materializes via
-# `bipermutedimsopadd!` with `op = conj`, which carries the fermionic reversal phase. This
-# also overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit, so a real-eltype
-# graded array still dualizes its axes.
-Base.conj(a::AbelianGradedArray) = conj.(a)
-
 # ---------------------------------------------------------------------------
 #  permutedims
 # ---------------------------------------------------------------------------
@@ -379,24 +372,6 @@ end
 # which throws on the no-scalar-indexing guard.
 function Base.iszero(a::AbelianGradedArray)
     return all(iszero, values(a.blockdata))
-end
-
-# Block-aware random fills: dispatch to the underlying block's `rand!`/`randn!`,
-# bypassing the generic `AbstractArray` fallbacks that go through scalar indexing.
-# The 3-arg `Random.rand!(rng, A, sp::Sampler)` form is what Random's `rand!(A)`
-# / `rand!(A, X)` / `rand!(rng, A, X)` shims ultimately call, so overriding it
-# covers every entry point.
-function Random.rand!(rng::AbstractRNG, a::AbelianGradedArray, sp::Random.Sampler)
-    for b in values(a.blockdata)
-        Random.rand!(rng, b, sp)
-    end
-    return a
-end
-function Random.randn!(rng::AbstractRNG, a::AbelianGradedArray)
-    for b in values(a.blockdata)
-        Random.randn!(rng, b)
-    end
-    return a
 end
 
 # Constructors `rand(rng, T, axes)` / `randn(rng, T, axes)` for graded axes:
@@ -587,45 +562,6 @@ function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
         return eachsectoraxis(ax)[Int(BlockArrays.findblock(ax, i))]
     end
     return reduce(tensor_product, secs)
-end
-
-# Materialize the graded array into a dense `Array`. The checked projection verbs reach this
-# through `convert(Array, dest)` to compare elementwise against a dense source, which would
-# otherwise fall back to a `src - dest` broadcast that scalar-indexes the block storage.
-function Base.Array(a::AbelianGradedArray{T, <:Any, N}) where {T, N}
-    dest = zeros(T, size(a))
-    for bI in eachblockstoredindex(a)
-        block_ranges = ntuple(d -> axes(a, d)[Block(Int(Tuple(bI)[d]))], N)
-        copyto!(view(dest, block_ranges...), view(a, bI))
-    end
-    return dest
-end
-
-function LinearAlgebra.norm(a::AbelianGradedArray, p::Real = 2)
-    if p == Inf
-        isempty(a.blockdata) && return zero(float(real(eltype(a))))
-        return maximum(Base.Fix2(LinearAlgebra.norm, p), values(a.blockdata))
-    elseif p > 0
-        s = zero(float(real(eltype(a))))
-        for b in values(a.blockdata)
-            s += LinearAlgebra.norm(b, p)^p
-        end
-        return s^inv(p)
-    else
-        throw(ArgumentError("Norm with non-positive p ($p) is not defined"))
-    end
-end
-
-function LinearAlgebra.dot(a::AbelianGradedArray, b::AbelianGradedArray)
-    axes(a) == axes(b) ||
-        throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
-    # Matching axes mean matching allowed-block keys, so each `a` block has a
-    # counterpart in `b`.
-    s = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
-    for (k, ablk) in pairs(a.blockdata)
-        s += LinearAlgebra.dot(ablk, b.blockdata[k])
-    end
-    return s
 end
 
 # Forbidden blocks are zero, so the total is the sum over the stored blocks.

@@ -1,7 +1,10 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, SU2, SectorIdentity, SectorMatrix,
-    SectorOneTo, SectorRange, U1, data, dataaxes, dual, isdual, sector, sector_kron,
-    sectoraxes, sectortype
-using LinearAlgebra: tr
+    SectorOneTo, SectorRange, SectorVector, U1, data, dataaxes, dual, isdual, sector,
+    sector_kron, sectoraxes, sectortype
+using LinearAlgebra: dot, norm, tr
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
+using Random: randn!
+using StableRNGs: StableRNG
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -117,10 +120,17 @@ using Test: @test, @test_throws, @testset
         @test data(sm) === d
     end
 
-    @testset "broadcasting is unsupported" begin
+    @testset "broadcasting (data-wise, keeps sector)" begin
         sm = SectorMatrix(U1(0), [1.0 2.0; 3.0 4.0])
-        @test_throws ArgumentError 2.0 .* sm
-        @test_throws ArgumentError sm .+ sm
+        r = 2.0 .* sm
+        @test r isa SectorMatrix
+        @test sectoraxes(r) == sectoraxes(sm)
+        @test data(r) == 2.0 .* data(sm)
+        s = sm .+ sm
+        @test s isa SectorMatrix
+        @test sectoraxes(s) == sectoraxes(sm)
+        @test data(s) == 2.0 .* data(sm)
+        @test_throws ArgumentError sm .* sm
     end
 
     @testset "Undef constructor (Int dims)" begin
@@ -149,5 +159,68 @@ using Test: @test, @test_throws, @testset
         d = [1.0 2.0; 3.0 4.0]
         @test tr(SectorMatrix(U1(0), d)) == tr(d)         # dim 1
         @test tr(SectorMatrix(SU2(1 // 2), d)) == 2 * tr(d)  # dim 2
+    end
+
+    @testset "dot, norm, and dense Array factorize through the structural factor" for s in
+        (
+            U1(1),
+            SU2(1 // 2),
+            SU2(1),
+        )
+        a = SectorMatrix{Float64}(undef, s, 2, 3)
+        b = SectorMatrix{Float64}(undef, s, 2, 3)
+        randn!(a)
+        randn!(b)
+        # The inner product factorizes into the sector's quantum-dimension weight and the
+        # reduced-data inner product, matching the dense form.
+        @test dot(a, b) ≈ length(s) * dot(data(a), data(b))
+        @test dot(a, b) ≈ dot(Array(a), Array(b))
+        # `Array` densifies the structural factor `I ⊗ reduced` to the full extent (the generic
+        # elementwise fallback would scalar-index past the reduced data).
+        @test size(Array(a)) == size(a)
+
+        av = SectorVector{Float64}(undef, s, 4)
+        bv = SectorVector{Float64}(undef, s, 4)
+        randn!(av)
+        randn!(bv)
+        @test dot(av, bv) ≈ length(s) * dot(data(av), data(bv))
+        @test dot(av, bv) ≈ dot(Array(av), Array(bv))
+        @test length(Array(av)) == length(av)
+
+        # The `p`-norm factorizes through the Kronecker structure and matches the dense form for
+        # every `p`, `Inf` included.
+        for p in (1, 2, 3, Inf)
+            @test norm(a, p) ≈ norm(Array(a), p)
+            @test norm(av, p) ≈ norm(Array(av), p)
+        end
+    end
+
+    @testset "scalar indexing requires unique fusion" begin
+        ab = SectorMatrix(U1(0), [1.0 2.0; 3.0 4.0])
+        @test ab[1, 1] == 1.0
+        na = SectorMatrix{Float64}(undef, SU2(1), 2, 3)
+        @test_throws ErrorException na[1, 1]
+        @test_throws ErrorException (na[1, 1] = 0.0)
+    end
+
+    # The projection acts on the reduced data and factorizes through the structural identity,
+    # so it is well defined even in the non-abelian case where scalar indexing is not.
+    @testset "project_hermitian!/project_antihermitian! project the reduced data" for s in
+        (
+            U1(1),
+            SU2(1 // 2),
+        )
+        rng = StableRNG(1234)
+
+        a = randn!(rng, SectorMatrix{Float64}(undef, s, 3, 3))
+        d = copy(data(a))
+        @test MAK.project_hermitian!(a) === a
+        @test data(a) ≈ (d + d') / 2
+        @test Array(a) ≈ (Array(SectorMatrix(s, d)) + Array(SectorMatrix(s, d))') / 2
+
+        b = randn!(rng, SectorMatrix{Float64}(undef, s, 3, 3))
+        d2 = copy(data(b))
+        @test MAK.project_antihermitian!(b) === b
+        @test data(b) ≈ (d2 - d2') / 2
     end
 end
