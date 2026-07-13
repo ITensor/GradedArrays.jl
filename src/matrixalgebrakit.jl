@@ -65,9 +65,27 @@ MAK.one!(a::AbelianGradedMatrix) = TensorAlgebra.one!(a, Val(1))
 # the identity, and `project(I ⊗ M) = I ⊗ project(M)`, so the projection passes straight to
 # the reduced data. This is why it is well defined in the non-abelian case, where the generic
 # `AbstractMatrix` path scalar-indexes the block and hits the unique-fusion guard.
+#
+# `SectorMatrixAlgorithm` wraps the reduced-data algorithm so the block projection dispatches on
+# a distinct type (mirroring `GradedBlockAlgorithm` one level up), forwarding the wrapped inner
+# algorithm to the data and staying clear of the generic `AbstractMatrix` projection methods.
+struct SectorMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
+    alg::A
+end
+
 for f! in (:project_hermitian!, :project_antihermitian!)
-    @eval function MAK.$f!(A::SectorMatrix, out::SectorMatrix, alg::MAK.NativeBlocked)
-        MAK.$f!(data(A), data(out), alg)
+    @eval function MAK.default_algorithm(
+            ::typeof(MAK.$f!), ::Type{<:SectorMatrix{<:Any, <:Any, D}}; kwargs...
+        ) where {D}
+        return SectorMatrixAlgorithm(MAK.default_algorithm(MAK.$f!, D; kwargs...))
+    end
+    @eval function MAK.initialize_output(
+            ::typeof(MAK.$f!), A::SectorMatrix, ::SectorMatrixAlgorithm
+        )
+        return A
+    end
+    @eval function MAK.$f!(A::SectorMatrix, out::SectorMatrix, alg::SectorMatrixAlgorithm)
+        MAK.$f!(data(A), data(out), alg.alg)
         return out
     end
 end
@@ -137,7 +155,7 @@ for f! in (:project_hermitian!, :project_antihermitian!)
     @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::GradedBlockAlgorithm)
         LinearAlgebra.checksquare(A)
         for I in eachblockstoredindex(A)
-            MAK.$f!(view(A, I), view(out, I), alg.alg)
+            MAK.$f!(view(A, I), view(out, I), SectorMatrixAlgorithm(alg.alg))
         end
         return out
     end
