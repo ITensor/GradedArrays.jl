@@ -5,7 +5,7 @@
 # deliberately not handled here.
 
 using BlockArrays: blocks
-using TensorAlgebra: cat!
+using TensorAlgebra: concatenate!
 
 # `dual` on a `GradedOneTo` is again a `GradedOneTo`, so this binary method covers dual axes too,
 # and `TensorAlgebra` folds `cat_axis` pairwise so binary suffices for any number of arguments.
@@ -19,15 +19,15 @@ function TensorAlgebra.cat_similar(::AbelianGradedStyle, ::Type{T}, ax, args...)
     return similar(first(args), T, ax)
 end
 
-# Place whole blocks (no scalar indexing) with the inner `cat!` on the block containers. That works
-# because `AbelianBlocks` is an `AbstractSparseArray`, so the placement visits only the stored
+# Place whole blocks (no scalar indexing) with the inner `concatenate!` on the block containers. That
+# works because `AbelianBlocks` is an `AbstractSparseArray`, so the placement visits only the stored
 # (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions.
 function TensorAlgebra.cat_copyto!(dest, ::AbelianGradedStyle, dims, args...)
-    cat!(blocks(dest), blocks.(args)...; dims = dims)
+    concatenate!(blocks(dest), blocks.(args)...; dims = dims)
     return dest
 end
 
-# Route `Base.cat` through the same machinery, so plain `cat` matches `TensorAlgebra.cat`.
+# Route `Base.cat` through the same machinery so it uses the graded destination and placement.
 function Base._cat(dims, as::AbelianGradedArray...)
     return TensorAlgebra.concatenate(dims, as...)
 end

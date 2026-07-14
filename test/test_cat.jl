@@ -44,14 +44,14 @@ using Test: @test, @test_broken, @test_throws, @testset
     @testset "cat data placement" begin
         a1 = randn(g1, g1)
         a2 = randn(g2, g2)
-        @test let r = TensorAlgebra.cat(a1, a2; dims = (1, 2))
+        @test let r = TensorAlgebra.concatenate((1, 2), a1, a2)
             axes(r) == (mortar_axis([g1, g2]), mortar_axis([g1, g2])) &&
                 Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
         end
 
         b1 = randn(g1, g1)
         b2 = randn(g2, g1)
-        @test let r = TensorAlgebra.cat(b1, b2; dims = 1)
+        @test let r = TensorAlgebra.concatenate(1, b1, b2)
             axes(r) == (mortar_axis([g1, g2]), g1) &&
                 Array(r) == cat(Array(b1), Array(b2); dims = 1)
         end
