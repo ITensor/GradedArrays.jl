@@ -1,6 +1,6 @@
 using GradedArrays:
     GradedArrays, AbstractGradedArray, U1, dual, gradedrange, isdual, mortar_axis, sectors
-using TensorAlgebra: TensorAlgebra, concatenated
+using TensorAlgebra: TensorAlgebra, cat_axes, cat_similar, cat_style
 using Test: @test, @test_broken, @test_throws, @testset
 
 @testset "cat / directsum" begin
@@ -24,19 +24,18 @@ using Test: @test, @test_broken, @test_throws, @testset
         @test_throws ArgumentError TensorAlgebra.cat_axis(dual(g1), g2)
     end
 
-    @testset "concatenated axes" begin
+    @testset "cat_axes" begin
         a1 = randn(g1, g1)
         a2 = randn(g2, g2)
-        c = concatenated(Val((1, 2)), a1, a2)
-        @test axes(c) == (mortar_axis([g1, g2]), mortar_axis([g1, g2]))
-        @test eltype(c) == Float64
+        @test cat_axes(Val((1, 2)), a1, a2) ==
+            (mortar_axis([g1, g2]), mortar_axis([g1, g2]))
     end
 
-    @testset "similar allocates a graded array with concat axes" begin
+    @testset "cat_similar allocates a graded array with concat axes" begin
         a1 = randn(g1, g1)
         a2 = randn(g2, g2)
-        c = concatenated(Val((1, 2)), a1, a2)
-        d = similar(c)
+        ax = cat_axes(Val((1, 2)), a1, a2)
+        d = cat_similar(cat_style(Val((1, 2)), a1, a2), Float64, ax, a1, a2)
         @test d isa AbstractGradedArray
         @test eltype(d) == Float64
         @test axes(d) == (mortar_axis([g1, g2]), mortar_axis([g1, g2]))
