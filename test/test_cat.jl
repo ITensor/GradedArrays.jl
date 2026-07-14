@@ -60,7 +60,7 @@ using Test: @test, @test_broken, @test_throws, @testset
     @testset "directsum defaults to cat" begin
         a1 = randn(g1, g1)
         a2 = randn(g2, g2)
-        @test let r = TensorAlgebra.directsum(a1, a2; dims = (1, 2))
+        @test let r = TensorAlgebra.directsum((1, 2), a1, a2)
             Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
         end
     end
