@@ -221,10 +221,8 @@ using Test: @test, @test_throws, @testset
         @test b11 isa AbelianSectorArray
         @test data(b11) ≈ ones(2, 2)
 
-        # Unstored blocks read back as a zero block (`AbstractSparseArray` semantics)
-        b12 = b[1, 2]
-        @test b12 isa AbelianSectorArray
-        @test iszero(data(b12))
+        # Unstored (symmetry-forbidden) blocks error rather than reading back as zero
+        @test_throws ErrorException b[1, 2]
 
         # Writing through blocks
         b[1, 1] = AbelianSectorArray((U1(0), dual(U1(0))), 5 * ones(2, 2))

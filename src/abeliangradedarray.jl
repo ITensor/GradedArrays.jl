@@ -169,28 +169,18 @@ function SparseArraysBase.setstoredindex!(
     copyto!(view(b.parent, Block.(I)...), value)
     return b
 end
-# An unstored entry is a fresh zero block, built from the parent's sectors and data axes.
+# An unstored index is a symmetry-forbidden block, not a lazily-omitted zero: an
+# `AbelianGradedArray` allocates exactly its allowed blocks, so reading or writing an unstored
+# block is a structural error.
 function SparseArraysBase.getunstoredindex(
         b::AbelianBlocks{T, N}, I::Vararg{Int, N}
     ) where {T, N}
-    a = b.parent
-    sects = ntuple(d -> eachsectoraxis(axes(a, d))[I[d]], Val(N))
-    block = fill!(
-        similar(datatype(a), ntuple(d -> eachdataaxis(axes(a, d))[I[d]], Val(N))),
-        zero(T)
-    )
-    return blocktype(a)(sects, block)
+    return error("Block $(I) is not stored.")
 end
 function SparseArraysBase.setunstoredindex!(
         b::AbelianBlocks{T, N}, value, I::Vararg{Int, N}
     ) where {T, N}
-    a = b.parent
-    block = copyto!(
-        similar(datatype(a), ntuple(d -> eachdataaxis(axes(a, d))[I[d]], Val(N))),
-        data(value)
-    )
-    a.blockdata[I] = block
-    return b
+    return error("Block $(I) is not stored.")
 end
 
 # ---------------------------------------------------------------------------
