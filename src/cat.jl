@@ -22,8 +22,8 @@ end
 # Place whole blocks (no scalar indexing) with the inner `concatenate!` on the block containers. That
 # works because `AbelianBlocks` is an `AbstractSparseArray`, so the placement visits only the stored
 # (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions.
-function TensorAlgebra.concatenate!(::AbelianGradedStyle, dest, dims, args...)
-    concatenate!(blocks(dest), blocks.(args)...; dims = dims)
+function TensorAlgebra.concatenate!(dest::AbelianGradedArray, dims, args...)
+    concatenate!(blocks(dest), dims, blocks.(args)...)
     return dest
 end
 
