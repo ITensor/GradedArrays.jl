@@ -221,7 +221,7 @@ using Test: @test, @test_throws, @testset
         @test b11 isa AbelianSectorArray
         @test data(b11) ≈ ones(2, 2)
 
-        # Unstored blocks error
+        # Unstored (symmetry-forbidden) blocks error rather than reading back as zero
         @test_throws ErrorException b[1, 2]
 
         # Writing through blocks

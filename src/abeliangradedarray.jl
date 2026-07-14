@@ -126,34 +126,61 @@ function Base.setindex!(a::AbelianGradedArray{T, <:Any, 0}, value, ::Block{0}) w
 end
 
 # ---------------------------------------------------------------------------
-#  blocks — lazy view delegating to view (following BlockArrays convention)
+#  blocks — lazy sparse view over the parent's stored blocks
 # ---------------------------------------------------------------------------
 
 """
-    AbelianBlocks{T,N,A<:AbelianGradedArray{T,<:Any,N}} <: AbstractArray{AbelianSectorArray,N}
+    AbelianBlocks{T,N,A<:AbelianGradedArray{T,<:Any,N}} <: AbstractSparseArray{AbelianSectorArray,N}
 
-Lazy view of an `AbelianGradedArray`'s block storage, following the BlockArrays
-convention: `getindex` delegates to `view(parent, Block.(I)...)` (shares data),
-`setindex!` copies into the existing view.
+Lazy view of an `AbelianGradedArray`'s block storage as an `AbstractSparseArray` whose
+stored entries are the parent's allowed, allocated blocks. Following the BlockArrays
+convention, a stored entry is `view(parent, Block(I)...)` (shares data); an unstored entry
+is a fresh zero block. Being an `AbstractSparseArray` means generic `zero!`, `map!`, and the
+offset range-assignment used by the concatenation machinery visit only the stored blocks.
 """
 struct AbelianBlocks{T, N, A <: AbelianGradedArray{T, <:Any, N}} <:
-    AbstractArray{AbelianSectorArray, N}
+    SparseArraysBase.AbstractSparseArray{AbelianSectorArray, N}
     parent::A
 end
 
 BlockArrays.blocks(a::AbelianGradedArray) = AbelianBlocks(a)
 Base.size(b::AbelianBlocks) = Tuple(blocklength.(axes(b.parent)))
 
-function Base.getindex(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
+# SparseArraysBase interface. The stored entries are the parent's allocated blocks, keyed by
+# block index in `parent.blockdata`.
+# Return a `Vector` (not a lazy generator): the `SubArray` wrapper path in SparseArraysBase
+# `filter`s over this, and `filter` is not defined for `Base.Generator`.
+function SparseArraysBase.eachstoredindex(::IndexCartesian, b::AbelianBlocks)
+    return [CartesianIndex(k) for k in keys(b.parent.blockdata)]
+end
+SparseArraysBase.storedvalues(b::AbelianBlocks) = values(b.parent.blockdata)
+function SparseArraysBase.isstored(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
+    return haskey(b.parent.blockdata, I)
+end
+# A stored entry is the block view, sharing data with the parent.
+function SparseArraysBase.getstoredindex(
+        b::AbelianBlocks{T, N}, I::Vararg{Int, N}
+    ) where {T, N}
     return view(b.parent, Block.(I)...)
 end
-
-function Base.setindex!(
+function SparseArraysBase.setstoredindex!(
         b::AbelianBlocks{T, N}, value, I::Vararg{Int, N}
     ) where {T, N}
-    dest = view(b.parent, Block.(I)...)
-    copyto!(dest, value)
+    copyto!(view(b.parent, Block.(I)...), value)
     return b
+end
+# An unstored index is a symmetry-forbidden block, not a lazily-omitted zero: an
+# `AbelianGradedArray` allocates exactly its allowed blocks, so reading or writing an unstored
+# block is a structural error.
+function SparseArraysBase.getunstoredindex(
+        b::AbelianBlocks{T, N}, I::Vararg{Int, N}
+    ) where {T, N}
+    return error("Block $(I) is not stored.")
+end
+function SparseArraysBase.setunstoredindex!(
+        b::AbelianBlocks{T, N}, value, I::Vararg{Int, N}
+    ) where {T, N}
+    return error("Block $(I) is not stored.")
 end
 
 # ---------------------------------------------------------------------------
@@ -251,18 +278,6 @@ end
 
 function eachblockstoredindex(a::AbelianGradedArray{T, <:Any, N}) where {T, N}
     return (Block(k) for k in keys(a.blockdata))
-end
-
-# Implement the `SparseArraysBase` interface on `AbelianBlocks` (the lazy
-# block view) so that `storedlength(blocks(a))` — and by extension
-# `blockstoredlength(a)` — reflects the dict-of-keys storage rather than
-# treating every slot as stored.
-function SparseArraysBase.eachstoredindex(b::AbelianBlocks{T, N}) where {T, N}
-    return (CartesianIndex(k) for k in keys(b.parent.blockdata))
-end
-SparseArraysBase.storedvalues(b::AbelianBlocks) = values(b.parent.blockdata)
-function SparseArraysBase.isstored(b::AbelianBlocks{T, N}, I::Vararg{Int, N}) where {T, N}
-    return haskey(b.parent.blockdata, I)
 end
 
 # ---------------------------------------------------------------------------
