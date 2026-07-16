@@ -28,7 +28,7 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG
-using SparseArraysBase: SparseArraysBase
+using SparseArraysBase: SparseArraysBase, AbstractSparseMatrix
 using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
     check_input, flattenlinear, matricize, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
@@ -52,6 +52,7 @@ include("abeliangradedarray.jl")
 
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
+include("fusedgradedblocks.jl")
 
 include("sectorproduct.jl")
 

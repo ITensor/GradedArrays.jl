@@ -25,16 +25,43 @@ function LinearAlgebra.tr(A::AbstractGradedMatrix)
     end
 end
 
-# Scalar indexing is not supported for graded arrays.
-function Base.getindex(::AbstractGradedArray, ::Vararg{Int})
-    return error(
-        "Scalar indexing is not supported for AbstractGradedArray. Use block indexing."
-    )
+# Whether a block is stored (allocated), following the `SparseArraysBase.isstored(a, ::Block)`
+# interface `BlockSparseArrays` uses: delegate to the block container's element `isstored`.
+function SparseArraysBase.isstored(
+        a::AbstractGradedArray{<:Any, <:Any, N}, I::Block{N}
+    ) where {N}
+    return SparseArraysBase.isstored(blocks(a), Int.(Tuple(I))...)
 end
-function Base.setindex!(::AbstractGradedArray, _, ::Vararg{Int})
-    return error(
-        "Scalar indexing is not supported for AbstractGradedArray. Use block indexing."
-    )
+
+using BlockArrays: block, blockindex, findblockindex
+# Well-defined only for unique (abelian) fusion, where the trivial structural factor lets a
+# coordinate pick out a single element.
+function Base.getindex(a::AbstractGradedArray, I1::Int, I_rest::Vararg{Int})
+    require_unique_fusion(a)
+    I = (I1, I_rest...)
+    @boundscheck checkbounds(a, I...)
+    bis = map(findblockindex, axes(a), I)
+    b = Block(map(bi -> Int(block(bi)), bis))
+    SparseArraysBase.isstored(a, b) || return zero(eltype(a))
+    return view(a, b)[map(blockindex, bis)...]
+end
+function Base.setindex!(a::AbstractGradedArray, v, I1::Int, I_rest::Vararg{Int})
+    require_unique_fusion(a)
+    I = (I1, I_rest...)
+    @boundscheck checkbounds(a, I...)
+    bis = map(findblockindex, axes(a), I)
+    b = Block(map(bi -> Int(block(bi)), bis))
+    SparseArraysBase.isstored(a, b) ||
+        error("cannot set element at $(I): it lies in a symmetry-forbidden block.")
+    view(a, b)[map(blockindex, bis)...] = v
+    return a
+end
+
+# There is no generic block-aware `adjoint`: the lazy `Adjoint` wrapper falls back to
+# LinearAlgebra's scalar-indexing path, which silently produces a dense, non-graded result. Error
+# instead. `FusedGradedMatrix` defines its own working `adjoint` (more specific, so it still wins).
+function Base.adjoint(::AbstractGradedArray)
+    return error("`adjoint` is not supported for this graded array")
 end
 
 # ---------------------------------------------------------------------------

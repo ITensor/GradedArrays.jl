@@ -243,12 +243,6 @@ function eachblockstoredindex(m::FusedGradedMatrix)
     )
 end
 
-# ========================  blocks  ========================
-
-function BlockArrays.blocks(m::FusedGradedMatrix)
-    return [view(m, I) for I in eachblockstoredindex(m)]
-end
-
 # ========================  mul!  ========================
 
 function TensorAlgebra.check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)

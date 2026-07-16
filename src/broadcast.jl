@@ -77,6 +77,17 @@ BC.BroadcastStyle(style::AbstractGradedStyle, ::BC.DefaultArrayStyle{0}) = style
 BC.BroadcastStyle(::BC.DefaultArrayStyle{0}, style::AbstractGradedStyle) = style
 BC.BroadcastStyle(style::S, ::S) where {S <: AbstractGradedStyle} = style
 
+# Broadcasting a graded array together with a non-graded array (a plain dense array, `N ≥ 1`) has
+# no meaning: the block/symmetry structure has no counterpart in the dense operand, and the generic
+# fallback recurses instead of erroring. Reject it. Scalars (`DefaultArrayStyle{0}`) stay allowed
+# via the more specific methods above.
+function BC.BroadcastStyle(::AbstractGradedStyle, ::BC.DefaultArrayStyle)
+    return error("cannot broadcast a graded array together with a non-graded array")
+end
+function BC.BroadcastStyle(::BC.DefaultArrayStyle, ::AbstractGradedStyle)
+    return error("cannot broadcast a graded array together with a non-graded array")
+end
+
 function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:AbstractGradedStyle})
     return copyto!(dest, flattenlinear(bc))
 end

@@ -560,18 +560,17 @@ end
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
     B = AbelianGradedArray{Float64}(undef, s, dual(s))
     randn!(B)
-    # PSD by construction. Build `A = B * B'` block-wise via `contract`
-    # so we stay on the graded matmul path; the natural `*` form is broken
-    # against the same scalar-indexing path as the SVD round-trip above.
+    # PSD by construction. Build `A = B * B'` block-wise via `contract` so we stay on the graded
+    # matmul path; the natural `B * B'` form errors (see below).
     A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
-    # `*` on two `AbelianGradedMatrix` works, but the adjoint forms (`B * B'`,
-    # `X * X'` below) still need a block-aware `adjoint`; `B'` is an `Adjoint`
-    # wrapper that falls through to LinearAlgebra's scalar-indexing path.
-    @test_broken A ≈ B * B'
+    # `*` on two `AbelianGradedMatrix` works, but the adjoint forms (`B * B'`, `X * X'` below)
+    # error: an `AbelianGradedMatrix` has no block-aware `adjoint`, so `B'` throws rather than
+    # silently falling through to LinearAlgebra's scalar-indexing path.
+    @test_throws ErrorException B * B'
     X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
     # X · conj(X) ≈ A on the rank subspace.
     @test A ≈ contract((:a, :b), X, (:a, :r), conj(X), (:b, :r))
-    @test_broken A ≈ X * X'
+    @test_throws ErrorException X * X'
     # Y is a left inverse of X on the rank subspace.
     YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
     @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))

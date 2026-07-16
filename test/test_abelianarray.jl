@@ -1,11 +1,12 @@
 using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
-    AbstractGradedArray, FusedGradedMatrix, GradedOneTo, SU2, SectorRange, U1,
-    blockstoredlength, data, datalengths, dual, eachblockstoredindex, gradedrange, isdual,
-    sectoraxes, sectors, sectortype
+    AbstractGradedArray, FusedGradedMatrix, FusedGradedVector, GradedOneTo, SU2,
+    SectorRange, U1, blockstoredlength, data, datalengths, dual, eachblockstoredindex,
+    gradedrange, isdual, sectoraxes, sectors, sectortype
 using LinearAlgebra: LinearAlgebra
 using Random: Random
+using SparseArraysBase: isstored
 using TensorAlgebra: TensorAlgebra
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -92,11 +93,71 @@ using Test: @test, @test_throws, @testset
         @test length(stored) == 2
     end
 
-    @testset "Scalar indexing errors" begin
+    @testset "isstored(a, ::Block)" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         a[Block(1, 1)] = ones(2, 1)
-        @test_throws ErrorException a[1, 1]
-        @test_throws ErrorException (a[1, 1] = 42.0)
+        @test isstored(a, Block(1, 1))
+        @test !isstored(a, Block(2, 1))  # symmetry-forbidden block
+        m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), 2 * ones(3, 3)])
+        @test isstored(m, Block(1, 1))
+        @test !isstored(m, Block(1, 2))  # off-diagonal in sector space
+        @test !isstored(m, Block(3, 1))  # out of range
+    end
+
+    @testset "blocks accessor (fused)" begin
+        m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), 2 * ones(3, 3)])
+        b = BlockArrays.blocks(m)
+        @test size(b) == (2, 2)
+        @test data(b[1, 1]) ≈ ones(2, 2)     # stored diagonal block, shares data
+        @test_throws ErrorException b[1, 2]  # off-diagonal is symmetry-forbidden
+        v = FusedGradedVector([U1(0), U1(1)], [ones(2), 2 * ones(3)])
+        bv = BlockArrays.blocks(v)
+        @test size(bv) == (2,)
+        @test data(bv[2]) ≈ 2 * ones(3)
+    end
+
+    @testset "Scalar getindex" begin
+        # `zero!` so the other allowed block (2, 2) is initialized: the elementwise comparison
+        # below reads every position, and an undef block could hold `NaN` (never `==` itself).
+        a = TensorAlgebra.zero!(AbelianGradedArray{Float64}(undef, g1, g2))
+        a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        dense = Array(a)
+        # Scalar reads match the dense array elementwise, including forbidden positions
+        # (unstored blocks), which read as a structural zero.
+        @test all(a[i, j] == dense[i, j] for i in axes(a, 1), j in axes(a, 2))
+        @test a[1, 1] === 5.0
+        @test a[3, 1] === 0.0  # falls in an unstored (forbidden) block
+    end
+
+    @testset "Scalar setindex!" begin
+        a = AbelianGradedArray{Float64}(undef, g1, g2)
+        a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        # Writing into an allowed block updates the single element and reads back.
+        a[1, 1] = 42.0
+        @test a[1, 1] === 42.0
+        @test a[2, 1] === 7.0  # neighboring element in the same block is untouched
+        # A forbidden position has no valid target.
+        @test_throws ErrorException (a[3, 1] = 1.0)
+    end
+
+    @testset "Scalar indexing requires unique fusion" begin
+        # The fused representation can hold non-abelian sectors, where scalar indexing is
+        # not well defined; it must error rather than read/write past the reduced block data.
+        m = FusedGradedMatrix([SU2(0), SU2(1 // 2)], [ones(1, 1), ones(1, 1)])
+        @test_throws ErrorException m[1, 1]
+        @test_throws ErrorException (m[1, 1] = 1.0)
+    end
+
+    @testset "unsupported ops error gracefully" begin
+        a = TensorAlgebra.zero!(AbelianGradedArray{Float64}(undef, g1, g2))
+        # No block-aware `adjoint` for a general graded array (it would silently scalar-index).
+        @test_throws ErrorException a'
+        # Mixing a graded array with a plain dense array is rejected rather than recursing.
+        dense = zeros(size(a))
+        @test_throws ErrorException a ≈ dense
+        @test_throws ErrorException a - dense
+        # Broadcasting with a scalar still works.
+        @test 2 .* a isa AbelianGradedArray
     end
 
     @testset "rank-0 (scalar) array" begin
