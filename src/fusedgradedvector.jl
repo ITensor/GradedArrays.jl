@@ -264,12 +264,6 @@ function eachblockstoredindex(v::FusedGradedVector)
     return (Block(gettoken(v.axis, c)[2][2]) for c in keys(v.blocks))
 end
 
-# ========================  blocks  ========================
-
-function BlockArrays.blocks(v::FusedGradedVector)
-    return [view(v, I) for I in eachblockstoredindex(v)]
-end
-
 # ========================  similar  ========================
 
 function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
