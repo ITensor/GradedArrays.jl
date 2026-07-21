@@ -145,9 +145,12 @@ function TensorAlgebra.matricizeopperm(
         col_bir = col_dest[col_fine]
         s = merged_row_sectors[Int(Block(row_bir))]
         blk = view(a, bI_src)
+        phase =
+            fermion_permutation_phase(op, sector(blk), invperm(perm)) *
+            fermion_bend_phase(sector(blk), perm_domain)
         matricizeopperm_block!(
             view(m.blocks[s], only(row_bir.indices), only(col_bir.indices)),
-            op, data(blk), fermion_permutation_phase(op, sector(blk), perm), perm
+            op, data(blk), phase, perm
         )
     end
     return m
@@ -246,9 +249,10 @@ function TensorAlgebra.unmatricizeperm!(
             ntuple(d -> eachsectoraxis(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
         # The block's fermion sign takes `S` from the input: `cd_sects` is empty for a rank-0
         # destination (a full contraction to a scalar) and so carries no `S`.
-        phase = fermion_permutation_phase(
-            identity, AbelianSectorDelta{eltype(slice), S, N}(cd_sects), perm_dest
-        )
+        cd_delta = AbelianSectorDelta{eltype(slice), S, N}(cd_sects)
+        phase =
+            fermion_permutation_phase(identity, cd_delta, invperm(perm_dest)) *
+            fermion_bend_phase(cd_delta, ntuple(i -> K + i, Val(N - K)))
         unmatricizeperm_block!(data(view(a_dest, bI)), slice, phase, perm_dest)
     end
     return a_dest

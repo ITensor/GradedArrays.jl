@@ -66,3 +66,11 @@ function fermion_permutation_phase(
     op === conj || return phase
     return phase * fermion_permutation_phase(x, reverse(ntuple(identity, Val(N))))
 end
+
+function fermion_bend_phase(x::AbstractSectorDelta, dims::NTuple{M, Int}) where {M}
+    BS = TKS.BraidingStyle(sectortype(x))
+    BS isa TKS.Bosonic && return 1
+    @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
+    dmask = map(d -> fermionparity(axes(x, d)), dims)
+    return masked_inversion_parity(dmask, reverse(ntuple(identity, Val(M))))
+end

@@ -317,40 +317,34 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         end
     end
 
-    @testset "matrix-matrix contraction B: total phase -1" begin
-        # Canonical contraction (a1 codomain ↔ a2 domain). The two odd contracted
-        # indices appear in swapped order on a2, one transposition, so the
-        # contraction twists by -1 relative to the dense result.
+    @testset "matrix-matrix contraction B" begin
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a1_dense = Array(a1)
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (-3, -4, 2, 1))
         a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (-3, -4, 2, 1))
-        @test Array(a_dest) ≈ -1 * a_dest_dense
+        @test Array(a_dest) ≈ a_dest_dense
     end
 
-    @testset "matrix-matrix contraction D: total phase -1" begin
-        # labels (-1,1,2,-2) × (2,-3,1,-4): P1=+1, T1=-1, P2=+1, T2=-1, U=-1 → total=-1
+    @testset "matrix-matrix contraction D" begin
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a1_dense = Array(a1)
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
-        @test Array(a_dest) ≈ -1 * a_dest_dense
+        @test Array(a_dest) ≈ a_dest_dense
     end
 
-    @testset "matrix-matrix contraction G: total phase -1" begin
-        # Canonical contraction with the contracted indices on a1's domain (dual)
-        # side and a2's codomain side. Same single-transposition twist as case B.
+    @testset "matrix-matrix contraction G" begin
         a1 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a2 = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
         a1_dense = Array(a1)
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, -2, 1, 2), a2, (2, 1, -3, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, -2, 1, 2), a2_dense, (2, 1, -3, -4))
-        @test Array(a_dest) ≈ -1 * a_dest_dense
+        @test Array(a_dest) ≈ a_dest_dense
     end
 
     @testset "full contraction to a scalar (rank-0)" begin
@@ -374,6 +368,60 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         @test Array(crossed) ≈
             -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
     end
+end
+
+# One block per diagonal sector, each filled with a constant, for pinning exact fermion-sign
+# golden values.
+function const_blockdiagonal(elt::Type, axs::Tuple, vals)
+    a = AbelianGradedArray{elt}(undef, axs...)
+    N = ndims(a)
+    for (i, v) in enumerate(vals)
+        block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+        block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
+        a[Block(ntuple(Returns(i), N)...)] =
+            AbelianSectorArray(block_sectors, fill(elt(v), block_dims...))
+    end
+    return a
+end
+
+@testset "matricize applies the fermionic bend sign" begin
+    r = gradedrange([fP0 => 1, fP1 => 1])
+    a = const_blockdiagonal(Float64, (r, dual(r)), (1, 2))   # (even,even)=1, (odd,odd)=2
+    # Bending 0 or 1 leg into the domain: no reversal sign.
+    @test vec(Array(matricize(a, Val(2)))) ≈ [1, 2, 0, 0]
+    @test Array(matricize(a, Val(1))) ≈ [1 0; 0 2]
+    # Bending both odd legs into the domain reverses them: the (odd,odd) entry is negated.
+    @test vec(Array(matricize(a, Val(0)))) ≈ [1, -2, 0, 0]
+    # unmatricize inverts the bend; with the check above this pins both directions.
+    @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ Array(a)
+end
+
+@testset "contract fermion-sign golden values" begin
+    r = gradedrange([fP0 => 1, fP1 => 1])
+    # Reversed bond (the contracted dual leg sits on the left factor): even+odd, not even-odd.
+    M = const_blockdiagonal(Float64, (r, dual(r)), (1, 2))
+    N = const_blockdiagonal(Float64, (dual(r), r), (3, 5))
+    @test only(Array(contract((), M, (1, 2), N, (1, 2)))) ≈ 13   # 1*3 + 2*5
+    # Forward bond.
+    A = const_blockdiagonal(Float64, (dual(r), r), (2, 3))
+    B = const_blockdiagonal(Float64, (r, dual(r)), (1, 4))
+    @test only(Array(contract((), A, (1, 2), B, (1, 2)))) ≈ 14   # 2*1 + 3*4
+end
+
+# Triangle T1(a, b*) · T2(b, c*) · T3(c, a*) to a scalar: surviving odd legs braid past the
+# contracted ones, so a dropped sign shows up as contraction-order dependence.
+@testset "fermionic contraction is order-invariant (eltype=$elt)" for elt in elts
+    r = gradedrange([fP0 => 2, fP1 => 2])
+    scalar(a) = only(Array(a))
+    T1 = randn_blockdiagonal(elt, (r, dual(r)))
+    T2 = randn_blockdiagonal(elt, (r, dual(r)))
+    T3 = randn_blockdiagonal(elt, (r, dual(r)))
+    t12, l12 = contract(T1, (1, 2), T2, (2, 3))
+    s = scalar(contract((), t12, l12, T3, (3, 1)))
+    t23, l23 = contract(T2, (2, 3), T3, (3, 1))
+    @test scalar(contract((), T1, (1, 2), t23, l23)) ≈ s
+    t13, l13 = contract(T1, (1, 2), T3, (3, 1))
+    @test scalar(contract((), t13, l13, T2, (2, 3))) ≈ s
 end
 
 # The fused permuting `matricizeopperm` (folding the permute into the gather) must agree

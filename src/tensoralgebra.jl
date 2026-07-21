@@ -167,7 +167,11 @@ function TensorAlgebra.bipermutedimsopadd!(
     # rather than materializing a conjugated copy of `x`. The `op`-aware
     # `fermion_permutation_phase` folds in the leg-reversal fermion sign that a bare data
     # `conj` would drop.
-    phase = fermion_permutation_phase(op, sector(x), (perm_codomain..., perm_domain...))
+    phase = fermion_permutation_phase(
+        op,
+        sector(x),
+        invperm((perm_codomain..., perm_domain...))
+    )
     bipermutedimsopadd!(
         data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
     )
