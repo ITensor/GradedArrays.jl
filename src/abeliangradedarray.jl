@@ -503,6 +503,40 @@ function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
     return dest
 end
 
+# Multiply each block by the ±1 fermion sign from moving the `K+1:N` domain legs past the codomain.
+function _bend_domain!(a::AbelianGradedArray, ::Val{K}) where {K}
+    N = ndims(a)
+    domain = ntuple(i -> K + i, N - K)
+    for bI in eachblockstoredindex(a)
+        blk = view(a, bI)
+        phase = fermion_bend_phase(sector(blk), domain)
+        isone(phase) || (data(blk) .*= phase)
+    end
+    return a
+end
+
+function TensorAlgebra.unchecked_project(
+        raw, codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+        domain_axes::Tuple{Vararg{GradedOneTo}}
+    )
+    return unchecked_project_graded(raw, codomain_axes, domain_axes)
+end
+function TensorAlgebra.unchecked_project(
+        raw, codomain_axes::Tuple{}, domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    )
+    return unchecked_project_graded(raw, codomain_axes, domain_axes)
+end
+function unchecked_project_graded(raw, codomain_axes, domain_axes)
+    dest = TensorAlgebra.projectto!(
+        TensorAlgebra.allocate_project(raw, codomain_axes, domain_axes), raw
+    )
+    return _bend_domain!(dest, Val(length(codomain_axes)))
+end
+
+function TensorAlgebra.unproject(a::AbelianGradedArray, ndims_codomain::Val)
+    return convert(Array, _bend_domain!(copy(a), ndims_codomain))
+end
+
 # `allocate_project` with graded axes routes both the codomain-led and the (empty-codomain)
 # domain-led cases to `allocate_project_graded`, taking the graded structure from whichever side
 # is non-empty, the same two-entry split `similar_map` uses.

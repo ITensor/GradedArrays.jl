@@ -4,8 +4,8 @@ using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
     SectorProduct, SectorRange, U1, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sectoraxes, sectors
 using Random: randn!
-using TensorAlgebra:
-    contract, matricize, matricizeopperm, permutedimsop, unmatricize, unmatricizeperm!
+using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, project,
+    unmatricize, unmatricizeperm!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -394,6 +394,22 @@ end
     @test vec(Array(matricize(a, Val(0)))) ≈ [1, -2, 0, 0]
     # unmatricize inverts the bend; with the check above this pins both directions.
     @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ Array(a)
+end
+
+@testset "project bends the operator domain; unproject inverts it" begin
+    r = gradedrange([fP0 => 1, fP1 => 1])
+    # `|11⟩⟨11|`: the only nonzero is the both-odd diagonal entry.
+    A = zeros(Float64, 2, 2, 2, 2)
+    A[2, 2, 2, 2] = 1
+    a = project(A, (r, r), (r, r))
+    @test map(isdual, GradedArrays.axes(a)) == (false, false, true, true)
+    @test Array(a)[2, 2, 2, 2] ≈ -1   # both-odd domain entry picks up the fermion sign
+    @test unproject(a, Val(2)) ≈ A
+    # A state (empty domain) has no domain to bend, so `unproject` is the plain conversion.
+    v = zeros(Float64, 2, 2)
+    v[2, 2] = 1
+    s = project(v, (r, r))
+    @test unproject(s, Val(2)) ≈ Array(s) ≈ v
 end
 
 @testset "contract fermion-sign golden values" begin
