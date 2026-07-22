@@ -30,8 +30,8 @@ using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
 using SparseArraysBase: SparseArraysBase, AbstractSparseMatrix
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, FusionStyle, bipartition,
-    bipermutedimsopadd!, check_input, dual, flattenlinear, isdual, matricize,
-    permutedimsadd!, scale!, unmatricize, zero!
+    bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear, isdual,
+    matricize, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 
@@ -41,6 +41,7 @@ include("sectorrange.jl")
 include("data.jl")
 include("sectoroneto.jl")
 include("gradedoneto.jl")
+include("tensorkit.jl")
 include("abstractsectordelta.jl")
 include("abstractsectorarray.jl")
 include("abeliansectordelta.jl")
@@ -64,5 +65,7 @@ include("vectorinterface.jl")
 include("cat.jl")
 
 include("matrixalgebrakit.jl")
+
+include("fusionarray.jl")
 
 end
