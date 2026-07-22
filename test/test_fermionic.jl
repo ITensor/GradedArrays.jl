@@ -3,6 +3,7 @@ using BlockArrays: Block, blocklengths, blocksize
 using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
     SectorProduct, SectorRange, U1, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sectoraxes, sectors
+using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, project,
     unmatricize, unmatricizeperm!, unproject
@@ -38,6 +39,13 @@ const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
 
     # A sector with no fermion parity (an anyon) has no method.
     @test_throws MethodError GradedArrays.fermionparity(SectorRange(TKS.FibonacciAnyon(:τ)))
+end
+
+@testset "twist! is a no-op on non-graded arrays" begin
+    a = randn(2, 2)
+    @test GradedArrays.twist!(copy(a), (1,)) == a
+    d = Diagonal(randn(3))
+    @test GradedArrays.twist!(copy(d), (1,)) == d
 end
 
 function randn_blockdiagonal(elt::Type, axs::Tuple)
