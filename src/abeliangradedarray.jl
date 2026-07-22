@@ -675,6 +675,11 @@ function twist!(a::AbstractGradedArray, dims)
     return a
 end
 
+# A non-graded array carries no sector data, so there is no braiding and `twist!` is a no-op.
+# This keeps `twist!` total over array types, e.g. the dense or `Diagonal` blocks produced by a
+# factorization of an unsymmetric array.
+twist!(a::AbstractArray, dims) = a
+
 # ---------------------------------------------------------------------------
 #  Matrix multiplication (block-diagonal)
 # ---------------------------------------------------------------------------
