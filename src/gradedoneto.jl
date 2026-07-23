@@ -290,8 +290,8 @@ end
 
 Convert a vector of non-abelian `sector => multiplicity` pairs into a native TensorKit
 `GradedSpace`. Non-abelian symmetries have no block-sparse (`GradedOneTo`) representation,
-so `to_range` routes them here. Requires TensorKit to be loaded; the method that builds the
-space lives in the GradedArrays–TensorKit extension.
+so `to_range` routes them here. The method that builds the space is defined in
+`src/tensorkit.jl`.
 """
 function to_tensorkit_space(space)
     return throw(
@@ -305,7 +305,7 @@ end
 # `SectorRange` sector-pairs carry an arrow: strip to sector labels, check the shared arrow,
 # and apply it as a whole-space `dual` (distinct from a space of dual sectors, and the form a
 # dual index must take for contraction). The label-keyed `to_tensorkit_space` builder and
-# `dual` on the resulting space come from the GradedArrays–TensorKit extension.
+# `dual` on the resulting space are defined in `src/tensorkit.jl`.
 function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: SectorRange}
     arrows = isdual.(first.(space))
     allequal(arrows) ||

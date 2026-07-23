@@ -122,6 +122,18 @@ function FusedGradedMatrix(
     return FusedGradedMatrix(cod, dom, blks)
 end
 
+"""
+    FusedGradedMatrix(blocks::Dictionary, codomain::GradedOneTo, domain::GradedOneTo)
+
+Build a `FusedGradedMatrix` from its `blocks` and the `GradedOneTo` coupled row (`codomain`) and
+column (`domain`) axes, taking each block size from the axis multiplicity for that coupled sector.
+"""
+function FusedGradedMatrix(blocks::Dictionary, codomain::GradedOneTo, domain::GradedOneTo)
+    cod = Dictionary(collect(eachsectoraxis(codomain)), collect(Int, datalengths(codomain)))
+    dom = Dictionary(collect(eachsectoraxis(domain)), collect(Int, datalengths(domain)))
+    return FusedGradedMatrix(cod, dom, blocks)
+end
+
 function FusedGradedMatrix{T}(
         ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
