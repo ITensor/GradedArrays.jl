@@ -16,7 +16,7 @@ SectorRange(label::TKS.Sector) = SectorRange(label, false)
 SectorRange(r::SectorRange) = r
 
 label(r::SectorRange) = r.label
-isdual(r::SectorRange) = r.isdual
+TensorAlgebra.isdual(r::SectorRange) = r.isdual
 
 sectortype(x) = sectortype(typeof(x))
 sectortype(S::Type{<:SectorRange}) = S
@@ -97,8 +97,7 @@ function nsymbol(s1::SectorRange, s2::SectorRange, s3::SectorRange)
     return TKS.Nsymbol(label(s1), label(s2), label(s3))
 end
 
-dual(c::TKS.Sector) = TKS.dual(c)
-dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
+TensorAlgebra.dual(r1::SectorRange) = typeof(r1)(r1.label, !isdual(r1))
 flip(r1::SectorRange) = typeof(r1)(dual(r1.label), !isdual(r1))
 flip_dual(r::SectorRange) = isdual(r) ? flip(r) : r
 nondual(r::SectorRange) = isdual(r) ? dual(r) : r

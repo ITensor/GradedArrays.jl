@@ -30,7 +30,8 @@ using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG
 using SparseArraysBase: SparseArraysBase, AbstractSparseMatrix
 using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
-    check_input, flattenlinear, matricize, permutedimsadd!, scale!, unmatricize, zero!
+    check_input, dual, flattenlinear, isdual, matricize, permutedimsadd!, scale!,
+    unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 

@@ -1,7 +1,7 @@
 module GradedArraysTensorKitExt
 
 using GradedArrays: GradedArrays
-using TensorKit: TensorKit, ElementarySpace, Vect
+using TensorKit: TensorKit, Vect
 
 # Non-abelian `sector => multiplicity` pairs have no block-sparse `GradedOneTo` representation,
 # so `GradedArrays.to_range` routes them here to build a native TensorKit `GradedSpace`. A raw
@@ -14,9 +14,5 @@ function GradedArrays.to_tensorkit_space(
     ) where {S <: TensorKit.Sector}
     return Vect[S](space)
 end
-
-# A TensorKit space is a first-class graded axis under the direct-wrap design, so `dual` on
-# one flips its arrow. This is the whole-space dual the `SectorRange` routing applies.
-GradedArrays.dual(V::ElementarySpace) = TensorKit.dual(V)
 
 end

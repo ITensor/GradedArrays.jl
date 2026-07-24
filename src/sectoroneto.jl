@@ -21,7 +21,7 @@ sector(r::SectorOneTo) = r.sector
 datalength(r::SectorOneTo) = r.datalength
 
 # Derived accessors
-isdual(r::SectorOneTo) = isdual(sector(r))
+TensorAlgebra.isdual(r::SectorOneTo) = isdual(sector(r))
 sectorlength(r::SectorOneTo) = length(sector(r))
 
 # Kronecker factor decomposition:
@@ -51,7 +51,7 @@ sectortype(::Type{SectorOneTo{S}}) where {S} = S
 SymmetryStyle(::Type{<:SectorOneTo{S}}) where {S} = SymmetryStyle(S)
 
 # dual, flip, flip_dual
-dual(r::SectorOneTo) = SectorOneTo(dual(sector(r)), datalength(r))
+TensorAlgebra.dual(r::SectorOneTo) = SectorOneTo(dual(sector(r)), datalength(r))
 flip(r::SectorOneTo) = SectorOneTo(flip(sector(r)), datalength(r))
 flip_dual(r::SectorOneTo) = isdual(r) ? flip(r) : r
 
