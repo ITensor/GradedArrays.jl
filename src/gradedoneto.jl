@@ -30,7 +30,7 @@ end
 
 # Primitive accessors
 datalengths(g::GradedOneTo) = g.datalengths
-isdual(g::GradedOneTo) = g.isdual
+TensorAlgebra.isdual(g::GradedOneTo) = g.isdual
 
 # Derived accessors
 sectors(g::GradedOneTo) = g.sectors
@@ -129,7 +129,7 @@ function ×(g1::GradedOneTo, g2::GradedOneTo)
 end
 
 # dual, flip, flip_dual, adjoint
-function dual(g::GradedOneTo)
+function TensorAlgebra.dual(g::GradedOneTo)
     return GradedOneTo(g.sectors, datalengths(g), !isdual(g))
 end
 function flip(g::GradedOneTo)
