@@ -181,6 +181,23 @@ end
 using BlockArrays: mortar
 using FillArrays: Zeros
 
+# Compact type name for the summary line. The sector parameter is dotted (it is spelled out in
+# full in the `Dim` lines below, so repeating it in the header only adds noise); the element,
+# order, and storage parameters are kept. `make_typealias` recovers the `Vector`/`Matrix` alias
+# names and leaves the order `N` explicit for higher-rank arrays.
+function summary_typename(type::Type{<:AbstractGradedArray})
+    alias = Base.make_typealias(type)
+    base, params = if isnothing(alias)
+        string(nameof(type)), collect(type.parameters)
+    else
+        globalref, alias_params = alias
+        string(globalref.name), collect(alias_params)
+    end
+    isempty(params) && return base
+    strs = map(p -> (p isa Type && p <: SectorRange) ? "…" : string(p), params)
+    return string(base, "{", join(strs, ", "), "}")
+end
+
 function _to_blockarray(a::AbstractGradedArray{T, <:Any, N}) where {T, N}
     blens = map(blocklengths, axes(a))
     blockmat = Array{AbstractArray{T, N}, N}(undef, map(length, blens)...)

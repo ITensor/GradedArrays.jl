@@ -120,6 +120,30 @@ end
     @test occursin("U1(1)", s_plain)
 end
 
+@testset "compact type summary in display header" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 2])
+    s = sprint(show, MIME("text/plain"), zeros(Float64, g, dual(g)))
+    @test occursin("AbelianGradedMatrix{Float64, …, Matrix{Float64}}", s)
+    @test !occursin("SectorRange", s)
+    @test !occursin("GradedArrays.", s)
+
+    gf = gradedrange([FermionNumber(0) => 1, FermionNumber(1) => 2])
+    sf = sprint(show, MIME("text/plain"), zeros(ComplexF64, gf, dual(gf)))
+    @test occursin("AbelianGradedMatrix{ComplexF64, …, Matrix{ComplexF64}}", sf)
+    @test !occursin("ProductSector", sf)
+    @test !occursin("Irrep", sf)
+
+    # Higher-order arrays keep the order `N` explicit in the header.
+    s3 = sprint(show, MIME("text/plain"), zeros(Float32, g, dual(g), g))
+    @test occursin("AbelianGradedArray{Float32, …, 3, Array{Float32, 3}}", s3)
+
+    m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(3, 3)])
+    @test occursin(
+        "FusedGradedMatrix{Float64, …, Matrix{Float64}}",
+        sprint(show, MIME("text/plain"), m)
+    )
+end
+
 @testset "AbelianGradedArray text/plain display" begin
     g = gradedrange([U1(0) => 2, U1(1) => 2])
     a = zeros(Float64, g, dual(g))

@@ -755,7 +755,7 @@ function Base.summary(io::IO, a::AbelianGradedArray)
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
     nstored = blockstoredlength(a)
-    print(io, block_str, "-blocked ", size_str, " ", typeof(a))
+    print(io, block_str, "-blocked ", size_str, " ", summary_typename(typeof(a)))
     print(io, " with ", nstored, " stored block", nstored == 1 ? "" : "s")
     return nothing
 end
@@ -776,7 +776,7 @@ end
 function Base.show(io::IO, a::AbelianGradedArray)
     block_str = join(map(g -> string(blocklength(g)), axes(a)), "×")
     size_str = join(map(string, size(a)), "×")
-    print(io, block_str, "-blocked ", size_str, " ", typeof(a))
+    print(io, block_str, "-blocked ", size_str, " ", summary_typename(typeof(a)))
     return nothing
 end
 

@@ -291,7 +291,7 @@ end
 
 function Base.summary(io::IO, v::FusedGradedVector)
     print(
-        io, length(v.axis), "-block ", typeof(v),
+        io, length(v.axis), "-block ", summary_typename(typeof(v)),
         " with ", length(v.blocks), " stored block",
         length(v.blocks) == 1 ? "" : "s", " at sectors ["
     )
@@ -322,7 +322,7 @@ end
 
 function Base.show(io::IO, v::FusedGradedVector)
     print(
-        io, length(v.axis), "-block ", typeof(v),
+        io, length(v.axis), "-block ", summary_typename(typeof(v)),
         " (", length(v.blocks), " stored)"
     )
     return nothing
