@@ -45,7 +45,7 @@ Base.OneTo(r::SectorRange) = Base.OneTo(length(r))
 Base.first(r::SectorRange) = first(Base.OneTo(r))
 Base.last(r::SectorRange) = last(Base.OneTo(r))
 
-function Base.show(io::IO, r::SectorRange{I}) where {I}
+function Base.show(io::IO, r::SectorRange)
     # Print duals as `dual(...)` rather than using a trailing `'`: Julia already
     # uses `'` for adjoint of ranges (`(1:4)'` returns a 1×N adjoint matrix), so
     # reusing `'` here is ambiguous.
@@ -55,12 +55,54 @@ function Base.show(io::IO, r::SectorRange{I}) where {I}
         print(io, ")")
         return nothing
     end
-    show(io, typeof(r))
-    print(io, '(')
+    print(io, sector_name(r), '(')
     l = sector_label(r)
     isnothing(l) || show(io, l)
     print(io, ')')
     return nothing
+end
+
+# Name a `SectorRange` by the GradedArrays alias of its wrapped sector (`U1`, `SU2`,
+# `O2`, ...) by reusing Julia's own type-alias printing, pinned to this module so the
+# name comes out unqualified. A sector with no alias falls back to its bare type name.
+sector_name(r::SectorRange) = sector_name(typeof(label(r)))
+function sector_name(::Type{I}) where {I <: TKS.Sector}
+    aliased = sprint(show, SectorRange{I}; context = :module => GradedArrays)
+    return startswith(aliased, "SectorRange") ? string(nameof(I)) : aliased
+end
+# `Z{N}` is a parametric alias, which the printer above does not recover through the
+# `SectorRange` wrapper.
+sector_name(::Type{TKS.ZNIrrep{N}}) where {N} = "Z{$N}"
+sector_label(c::TKS.FermionParity) = Int(c.isodd)
+
+# Product sectors: recover the `FermionNumber` alias when the components are a U(1)
+# charge with matching fermion parity (so the shorthand round-trips), otherwise
+# decompose into the friendly component form `(a × b × ...)`.
+function Base.show(io::IO, r::SectorRange{<:TKS.ProductSector})
+    if isdual(r)
+        print(io, "dual(")
+        show(io, nondual(r))
+        print(io, ")")
+        return nothing
+    end
+    cs = label(r).sectors
+    n = fermionnumber_charge(cs)
+    if isnothing(n)
+        print(io, '(')
+        join(io, (sprint(show, SectorRange(c)) for c in cs), " × ")
+        print(io, ')')
+    else
+        print(io, "FermionNumber(", n, ')')
+    end
+    return nothing
+end
+
+fermionnumber_charge(cs) = nothing
+function fermionnumber_charge(cs::Tuple{TKS.U1Irrep, TKS.FermionParity})
+    q = cs[1].charge
+    isinteger(q) || return nothing
+    n = Int(q)
+    return isodd(n) == cs[2].isodd ? n : nothing
 end
 
 Base.axes(r::SectorRange) = (r,)
@@ -200,7 +242,7 @@ Base.promote_rule(::Type{TrivialSector}, ::Type{T}) where {T <: SectorRange} = T
 Base.convert(::Type{T}, ::TrivialSector) where {T <: SectorRange} = trivial(T)
 
 const Z{N} = SectorRange{TKS.ZNIrrep{N}}
-sector_label(c::TKS.ZNIrrep) = c.n
+sector_label(c::TKS.ZNIrrep) = Int(c.n)
 modulus(::Z{N}) where {N} = N
 const Z2 = SectorRange{TKS.ZNIrrep{2}}
 
