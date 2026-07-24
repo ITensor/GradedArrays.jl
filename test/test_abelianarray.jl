@@ -748,6 +748,60 @@ end
     @test ndims(t_inv) == 1
 end
 
+@testset "flux-canceling constructor" begin
+    using GradedArrays: to_gradedrange
+    using TensorAlgebra: fill_map, ones_map, randn_map, rand_map, zeros_map
+    r1 = gradedrange([U1(0) => 1, U1(1) => 2])
+    r2 = gradedrange([U1(0) => 2, U1(1) => 1])
+    r3 = gradedrange([U1(0) => 1, U1(1) => 1])
+    c = U1(1)
+
+    # Flat form `randn(c, codomain)`: the aux is the sole domain leg, so this is exactly the
+    # split constructor over `(codomain, (aux,))`. The aux is a multiplicity-1 leg carrying
+    # `c`, dualized (in the domain) and dangling last, and forces the physical legs to `+c`.
+    flat = randn(Random.Xoshiro(1), Float64, c, (r1, r2))
+    @test flat == randn_map(Random.Xoshiro(1), Float64, (r1, r2), (to_gradedrange(c),))
+    @test flat isa AbelianGradedArray{Float64}
+    @test ndims(flat) == 3
+    @test blockstoredlength(flat) > 0                 # a real, non-empty flux tensor
+    aux = axes(flat, 3)
+    @test length(aux) == 1
+    @test isdual(aux)
+    @test sectors(aux) == [c]
+
+    # Map form `randn(c, codomain, domain)`: the aux is appended to the (dualized) domain,
+    # dangling last, alongside the given domain legs.
+    mp = randn(Random.Xoshiro(2), Float64, c, (r1, r2), (r3,))
+    @test mp == randn_map(Random.Xoshiro(2), Float64, (r1, r2), (r3, to_gradedrange(c)))
+    @test ndims(mp) == 4
+    @test isdual(axes(mp, 3))                         # the given domain leg is dualized
+    @test isdual(axes(mp, 4)) && length(axes(mp, 4)) == 1 && sectors(axes(mp, 4)) == [c]
+
+    # The two-argument flat form is the empty-domain case of the map form.
+    @test randn(Random.Xoshiro(3), c, (r1, r2)) == randn(Random.Xoshiro(3), c, (r1, r2), ())
+
+    # A different flux changes the aux sector (the charge really is carried on the leg).
+    @test sectors(axes(randn(U1(0), (r1, r2)), 3)) == [U1(0)]
+
+    # A bare `TensorKitSectors.Sector` works as the flux (not only a `SectorRange`).
+    sf = gradedrange([TKS.FermionNumber(0) => 2, TKS.FermionNumber(1) => 2])
+    ferm = randn(Random.Xoshiro(4), TKS.FermionNumber(2), (sf, sf, sf, sf))
+    @test ferm == randn_map(
+        Random.Xoshiro(4), Float64, (sf, sf, sf, sf),
+        (to_gradedrange(TKS.FermionNumber(2)),)
+    )
+    @test ndims(ferm) == 5
+    @test isdual(axes(ferm, 5))
+
+    # `zeros`, `ones`, `rand`, and `fill` mirror `randn` (`fill` takes the value first).
+    @test zeros(c, (r1, r2)) == zeros_map((r1, r2), (to_gradedrange(c),))
+    @test ones(c, (r1, r2), (r3,)) == ones_map((r1, r2), (r3, to_gradedrange(c)))
+    @test fill(2.5, c, (r1, r2)) == fill_map(2.5, (r1, r2), (to_gradedrange(c),))
+    @test rand(Random.Xoshiro(5), Float64, c, (r1, r2), (r3,)) ==
+        rand_map(Random.Xoshiro(5), Float64, (r1, r2), (r3, to_gradedrange(c)))
+    @test eltype(randn(ComplexF64, c, (r1, r2))) == ComplexF64
+end
+
 @testset "getindex (project dense onto graded axes)" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
 

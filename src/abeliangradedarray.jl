@@ -465,6 +465,71 @@ function Base.randn(rng::AbstractRNG, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}
     return randn(rng, Float64, ax)
 end
 
+# Flux-canceling constructors: `randn(c, codomain[, domain])` (and `rand`/`zeros`/`ones`/
+# `fill`) build a symmetric array carrying total charge `c` by appending a multiplicity-1 leg
+# carrying sector `c` to the (implicitly dualized) domain, dangling last, which absorbs the
+# flux so the physical axes fuse to `c`. Sugar for the split constructor over
+# `(codomain, (domain..., aux))`; the domain `conj` dualizing the aux is what forces the
+# physical legs to `+c` (see `similar_map`). The two-argument `randn(c, codomain)` is the
+# `domain = ()` case (all physical legs in the codomain, aux the sole domain leg).
+# `to_gradedrange` normalizes either a bare `TensorKitSectors.Sector` or a `SectorRange`.
+for S in (TKS.Sector, SectorRange)
+    for (f, fmap) in ((:rand, :rand_map), (:randn, :randn_map))
+        @eval begin
+            function Base.$f(
+                    rng::AbstractRNG, ::Type{T}, c::$S,
+                    codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                ) where {T}
+                return TensorAlgebra.$fmap(rng, T, codomain, (domain..., to_gradedrange(c)))
+            end
+            function Base.$f(
+                    c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                )
+                return Base.$f(Random.default_rng(), Float64, c, codomain, domain)
+            end
+            function Base.$f(
+                    ::Type{T}, c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                ) where {T}
+                return Base.$f(Random.default_rng(), T, c, codomain, domain)
+            end
+            function Base.$f(
+                    rng::AbstractRNG, c::$S,
+                    codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                )
+                return Base.$f(rng, Float64, c, codomain, domain)
+            end
+        end
+    end
+    for (f, fmap) in ((:zeros, :zeros_map), (:ones, :ones_map))
+        @eval begin
+            function Base.$f(
+                    ::Type{T}, c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                ) where {T}
+                return TensorAlgebra.$fmap(T, codomain, (domain..., to_gradedrange(c)))
+            end
+            function Base.$f(
+                    c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                )
+                return Base.$f(Float64, c, codomain, domain)
+            end
+        end
+    end
+    # `fill` takes the fill value first (matching `Base.fill(v, axes)`), so it does not fit the
+    # eltype/rng-leading forms above.
+    @eval function Base.fill(
+            value, c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+            domain::Tuple{Vararg{GradedOneTo}} = ()
+        )
+        return TensorAlgebra.fill_map(value, codomain, (domain..., to_gradedrange(c)))
+    end
+end
+
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
 # stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
 function LinearAlgebra.isdiag(A::AbelianGradedMatrix)

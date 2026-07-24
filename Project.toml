@@ -1,6 +1,6 @@
 name = "GradedArrays"
 uuid = "bc96ca6e-b7c8-4bb6-888e-c93f838762c2"
-version = "0.14.1"
+version = "0.14.2"
 authors = ["ITensor developers <support@itensor.org> and contributors"]
 
 [workspace]
@@ -27,6 +27,10 @@ VectorInterface = "409d34a3-91d5-4945-b6ec-7529ddf182d8"
 SUNRepresentations = "1a50b95c-7aac-476d-a9ce-2bfc675fc617"
 TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
 
+[sources.TensorAlgebra]
+rev = "mf/ones-fill-map"
+url = "https://github.com/ITensor/TensorAlgebra.jl"
+
 [extensions]
 GradedArraysSUNRepresentationsExt = "SUNRepresentations"
 GradedArraysTensorKitExt = "TensorKit"
@@ -45,7 +49,7 @@ SUNRepresentations = "0.3, 0.4"
 SparseArraysBase = "0.10.8"
 SplitApplyCombine = "1.2.3"
 StridedViews = "0.5"
-TensorAlgebra = "0.17.9"
+TensorAlgebra = "0.17.10"
 TensorKit = "0.17"
 TensorKitSectors = "0.3"
 VectorInterface = "0.4.8, 0.5"
