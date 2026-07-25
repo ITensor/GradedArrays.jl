@@ -370,7 +370,7 @@ end
 
 function Base.summary(io::IO, m::FusedGradedMatrix)
     print(
-        io, length(m.codomain), "×", length(m.domain), " ", typeof(m),
+        io, length(m.codomain), "×", length(m.domain), " ", summary_typename(typeof(m)),
         " with ", length(m.blocks), " stored block",
         length(m.blocks) == 1 ? "" : "s", " at sectors ["
     )
@@ -394,7 +394,7 @@ end
 
 function Base.show(io::IO, m::FusedGradedMatrix)
     print(
-        io, length(m.codomain), "×", length(m.domain), " ", typeof(m),
+        io, length(m.codomain), "×", length(m.domain), " ", summary_typename(typeof(m)),
         " (", length(m.blocks), " stored)"
     )
     return nothing

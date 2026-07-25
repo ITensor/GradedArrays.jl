@@ -45,7 +45,7 @@ Base.OneTo(r::SectorRange) = Base.OneTo(length(r))
 Base.first(r::SectorRange) = first(Base.OneTo(r))
 Base.last(r::SectorRange) = last(Base.OneTo(r))
 
-function Base.show(io::IO, r::SectorRange{I}) where {I}
+function Base.show(io::IO, r::SectorRange)
     # Print duals as `dual(...)` rather than using a trailing `'`: Julia already
     # uses `'` for adjoint of ranges (`(1:4)'` returns a 1×N adjoint matrix), so
     # reusing `'` here is ambiguous.
@@ -55,12 +55,39 @@ function Base.show(io::IO, r::SectorRange{I}) where {I}
         print(io, ")")
         return nothing
     end
-    show(io, typeof(r))
-    print(io, '(')
-    l = sector_label(r)
-    isnothing(l) || show(io, l)
-    print(io, ')')
+    print(io, sector_name(label(r)))
     return nothing
+end
+
+# Alias name of a sector type: the GradedArrays alias (`U1`, `SU2`, `O2`, ...) recovered by
+# reusing Julia's own type-alias printing, pinned to this module so the name comes out
+# unqualified. A sector with no alias falls back to its bare type name.
+function sector_typename(::Type{I}) where {I <: TKS.Sector}
+    aliased = sprint(show, SectorRange{I}; context = :module => GradedArrays)
+    return startswith(aliased, "SectorRange") ? string(nameof(I)) : aliased
+end
+# `Z{N}` is a parametric alias, which the printer above does not recover through the
+# `SectorRange` wrapper.
+sector_typename(::Type{TKS.ZNIrrep{N}}) where {N} = "Z{$N}"
+sector_label(c::TKS.FermionParity) = Int(c.isodd)
+
+# Constructor-form display of a sector value: `name(label)` for a simple sector, the component
+# form `(a × b × ...)` for a product sector unless a named alias applies. Add a `sector_name`
+# method per named product sector (e.g. `FermionNumber`).
+function sector_name(c::TKS.Sector)
+    l = sector_label(c)
+    return string(sector_typename(typeof(c)), '(', isnothing(l) ? "" : sprint(show, l), ')')
+end
+function sector_name(c::TKS.ProductSector)
+    return string('(', join((sector_name(s) for s in c.sectors), " × "), ')')
+end
+function sector_name(c::TKS.ProductSector{Tuple{TKS.U1Irrep, TKS.FermionParity}})
+    q = c.sectors[1].charge
+    # Recover the alias only for a value `FermionNumber` actually produces; any other
+    # `(U1, FermionParity)` product shows as its components.
+    isinteger(q) && TKS.FermionNumber(Int(q)) == c ||
+        return @invoke sector_name(c::TKS.ProductSector)
+    return "FermionNumber($(Int(q)))"
 end
 
 Base.axes(r::SectorRange) = (r,)
@@ -200,7 +227,7 @@ Base.promote_rule(::Type{TrivialSector}, ::Type{T}) where {T <: SectorRange} = T
 Base.convert(::Type{T}, ::TrivialSector) where {T <: SectorRange} = trivial(T)
 
 const Z{N} = SectorRange{TKS.ZNIrrep{N}}
-sector_label(c::TKS.ZNIrrep) = c.n
+sector_label(c::TKS.ZNIrrep) = Int(c.n)
 modulus(::Z{N}) where {N} = N
 const Z2 = SectorRange{TKS.ZNIrrep{2}}
 
