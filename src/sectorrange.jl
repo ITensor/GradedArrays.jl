@@ -55,54 +55,39 @@ function Base.show(io::IO, r::SectorRange)
         print(io, ")")
         return nothing
     end
-    print(io, sector_name(r), '(')
-    l = sector_label(r)
-    isnothing(l) || show(io, l)
-    print(io, ')')
+    print(io, sector_name(label(r)))
     return nothing
 end
 
-# Name a `SectorRange` by the GradedArrays alias of its wrapped sector (`U1`, `SU2`,
-# `O2`, ...) by reusing Julia's own type-alias printing, pinned to this module so the
-# name comes out unqualified. A sector with no alias falls back to its bare type name.
-sector_name(r::SectorRange) = sector_name(typeof(label(r)))
-function sector_name(::Type{I}) where {I <: TKS.Sector}
+# Alias name of a sector type: the GradedArrays alias (`U1`, `SU2`, `O2`, ...) recovered by
+# reusing Julia's own type-alias printing, pinned to this module so the name comes out
+# unqualified. A sector with no alias falls back to its bare type name.
+function sector_typename(::Type{I}) where {I <: TKS.Sector}
     aliased = sprint(show, SectorRange{I}; context = :module => GradedArrays)
     return startswith(aliased, "SectorRange") ? string(nameof(I)) : aliased
 end
 # `Z{N}` is a parametric alias, which the printer above does not recover through the
 # `SectorRange` wrapper.
-sector_name(::Type{TKS.ZNIrrep{N}}) where {N} = "Z{$N}"
+sector_typename(::Type{TKS.ZNIrrep{N}}) where {N} = "Z{$N}"
 sector_label(c::TKS.FermionParity) = Int(c.isodd)
 
-# Product sectors: recover the `FermionNumber` alias when the components are a U(1)
-# charge with matching fermion parity (so the shorthand round-trips), otherwise
-# decompose into the friendly component form `(a × b × ...)`.
-function Base.show(io::IO, r::SectorRange{<:TKS.ProductSector})
-    if isdual(r)
-        print(io, "dual(")
-        show(io, nondual(r))
-        print(io, ")")
-        return nothing
-    end
-    cs = label(r).sectors
-    n = fermionnumber_charge(cs)
-    if isnothing(n)
-        print(io, '(')
-        join(io, (sprint(show, SectorRange(c)) for c in cs), " × ")
-        print(io, ')')
-    else
-        print(io, "FermionNumber(", n, ')')
-    end
-    return nothing
+# Constructor-form display of a sector value: `name(label)` for a simple sector, the component
+# form `(a × b × ...)` for a product sector unless a named alias applies. Add a `sector_name`
+# method per named product sector (e.g. `FermionNumber`).
+function sector_name(c::TKS.Sector)
+    l = sector_label(c)
+    return string(sector_typename(typeof(c)), '(', isnothing(l) ? "" : sprint(show, l), ')')
 end
-
-fermionnumber_charge(cs) = nothing
-function fermionnumber_charge(cs::Tuple{TKS.U1Irrep, TKS.FermionParity})
-    q = cs[1].charge
-    isinteger(q) || return nothing
-    n = Int(q)
-    return isodd(n) == cs[2].isodd ? n : nothing
+function sector_name(c::TKS.ProductSector)
+    return string('(', join((sector_name(s) for s in c.sectors), " × "), ')')
+end
+function sector_name(c::TKS.ProductSector{Tuple{TKS.U1Irrep, TKS.FermionParity}})
+    q = c.sectors[1].charge
+    # Recover the alias only for a value `FermionNumber` actually produces; any other
+    # `(U1, FermionParity)` product shows as its components.
+    isinteger(q) && TKS.FermionNumber(Int(q)) == c ||
+        return @invoke sector_name(c::TKS.ProductSector)
+    return "FermionNumber($(Int(q)))"
 end
 
 Base.axes(r::SectorRange) = (r,)
