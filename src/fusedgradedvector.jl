@@ -313,7 +313,7 @@ function Base.show(io::IO, ::MIME"text/plain", v::FusedGradedVector)
     summary(io, v)
     println(io, ":")
     print(io, "  Dim 1: ")
-    show(io, axes(v, 1))
+    show_axis(io, axes(v, 1))
     println(io)
     isempty(v.blocks) && return nothing
     Base.print_array(io, v)

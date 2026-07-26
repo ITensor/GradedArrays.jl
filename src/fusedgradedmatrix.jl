@@ -384,7 +384,7 @@ function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
     println(io, ":")
     for (d, g) in pairs(axes(m))
         print(io, "  Dim $d: ")
-        show(io, g)
+        show_axis(io, g)
         println(io)
     end
     isempty(m.blocks) && return nothing

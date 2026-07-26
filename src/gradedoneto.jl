@@ -209,14 +209,28 @@ end
 # through the constructor.
 function Base.show(io::IO, g::GradedOneTo)
     isdual(g) && print(io, "dual(")
-    print(io, "gradedrange([")
-    join(
-        io,
-        (s => m for (s, m) in zip(g.sectors, datalengths(g))),
-        ", "
-    )
-    print(io, "])")
+    print(io, "gradedrange(")
+    show_sector_pairs(io, g)
+    print(io, ")")
     isdual(g) && print(io, ")")
+    return nothing
+end
+
+# The `[sector => length, ...]` pair list, shared by the round-tripping `show` above (wrapped in
+# `gradedrange(...)`) and the compact `Dim` line a graded array prints for its axes.
+function show_sector_pairs(io::IO, g::GradedOneTo)
+    print(io, "[")
+    join(io, (s => m for (s, m) in zip(g.sectors, datalengths(g))), ", ")
+    print(io, "]")
+    return nothing
+end
+
+# A graded array's `Dim` line: the bare pair list, with a trailing `(dual)` for a dual axis. The
+# `gradedrange(...)` wrapper the standalone `show` adds is redundant next to the `Dim N:` label.
+show_axis(io::IO, g::AbstractUnitRange) = show(io, g)
+function show_axis(io::IO, g::GradedOneTo)
+    show_sector_pairs(io, g)
+    isdual(g) && print(io, " (dual)")
     return nothing
 end
 
