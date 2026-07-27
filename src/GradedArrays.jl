@@ -27,11 +27,11 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
     blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
-using Random: Random, AbstractRNG
+using Random: Random, AbstractRNG, rand!, randn!
 using SparseArraysBase: SparseArraysBase, AbstractSparseMatrix
-using TensorAlgebra: TensorAlgebra, FusionStyle, bipartition, bipermutedimsopadd!,
-    check_input, dual, flattenlinear, isdual, matricize, permutedimsadd!, scale!,
-    unmatricize, zero!
+using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, FusionStyle, bipartition,
+    bipermutedimsopadd!, check_input, dual, flattenlinear, isdual, matricize,
+    permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 

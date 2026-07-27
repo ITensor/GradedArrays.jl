@@ -284,9 +284,12 @@ end
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
 # `to_range([U1(0) => 2, U1(1) => 3])`, routed by symmetry: abelian sectors build a
 # block-sparse `GradedOneTo`, while non-abelian sectors have no block-sparse representation
-# and build a native TensorKit `GradedSpace` via `to_tensorkit_space`. Defined over each
-# key type separately rather than a `Union` so each method stays specific enough not to
-# capture unrelated `Pair` vectors.
+# and build a native TensorKit `GradedSpace` via `to_tensorkit_space`. Defined over each key
+# type separately rather than a `Union` so each method stays specific enough not to capture
+# unrelated `Pair` vectors. The bare `TensorKitSectors.Sector` key is deliberate type piracy
+# (GradedArrays owns neither `to_range` nor `TKS.Sector`), kept for now so raw sectors work as
+# axis descriptors (e.g. behind `Index([FermionNumber(0) => 2])`); it is allowlisted in the
+# Aqua piracy test and tracked as a follow-up to rehome onto a GradedArrays-owned entry point.
 for S in (:(TKS.Sector), :SectorRange)
     @eval function TensorAlgebra.to_range(
             space::AbstractVector{<:Pair{K, <:Integer}}

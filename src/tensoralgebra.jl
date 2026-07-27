@@ -237,13 +237,13 @@ This means that ``⟨i| ⋅ |j⟩ = δᵢⱼ``, and ``|i⟩ ⋅ ⟨j| = θᵢⱼ
 Here, ``θᵢⱼ = ±1`` is defined as the phase from applying a self-crossing,
 which is always ``1`` for bosonic symmetries, but can be ``-1`` for odd fermion charges.
 
-Equivalent to `twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))`.
+Equivalent to `twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`.
 A no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
 
 See also [`twist!`](@ref).
 """
 function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
-    return twist!(a, (i for i in 1:ndims_codomain if isdual(a, i)))
+    return twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
 end
 
 function TensorAlgebra.check_input(

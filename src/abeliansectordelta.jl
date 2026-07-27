@@ -40,7 +40,6 @@ end
 
 # ========================  Accessors  ========================
 
-TensorAlgebra.isdual(x, d::Int) = isdual(axes(x, d))
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
 
 # ========================  permutedims  ========================
