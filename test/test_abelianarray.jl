@@ -781,15 +781,19 @@ end
     # A different flux changes the aux sector (the charge really is carried on the leg).
     @test sectors(axes(randn(U1(0), (r1, r2)), 3)) == [U1(0)]
 
-    # A raw `TensorKitSectors.Sector` (here a fermionic sector) works as the flux once wrapped
-    # with `SectorRange`, which is required since GradedArrays has no native fermion sector yet.
-    fn(n) = SectorRange(TKS.FermionNumber(n))
+    # A raw `TensorKitSectors.Sector` (here a fermionic sector) works directly as the flux, with
+    # no `SectorRange` wrap: these forms carry a physical graded axis, so the signature holds a
+    # GradedArrays-owned type and a bare-sector flux is not type piracy. It matches the wrapped
+    # flux, and the empty-codomain form does too.
+    fn(n) = TKS.FermionNumber(n)
     sf = gradedrange([fn(0) => 2, fn(1) => 2])
     ferm = randn(Random.Xoshiro(4), fn(2), (sf, sf, sf, sf))
     @test ferm == randn_map(
         Random.Xoshiro(4), Float64, (sf, sf, sf, sf),
         (to_gradedrange(fn(2)),)
     )
+    @test ferm == randn(Random.Xoshiro(4), SectorRange(fn(2)), (sf, sf, sf, sf))
+    @test zeros(fn(0), (), (sf,)) == zeros(SectorRange(fn(0)), (), (sf,))
     @test ndims(ferm) == 5
     @test isdual(axes(ferm, 5))
 

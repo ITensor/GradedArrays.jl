@@ -596,189 +596,192 @@ for axis_type in (
 end
 
 # Flux `f(flux, (cod...)[, (dom...)])`: append a multiplicity-1 leg carrying `flux` to the
-# dualized domain, so the physical axes fuse to that total charge. The flux is a `SectorRange`
-# (which every GradedArrays sector subtypes); a bare `TensorKitSectors.Sector` is not accepted,
-# as overloading `Base` constructors on it would be type piracy. Wrap such sectors with
-# `SectorRange`.
+# dualized domain, so the physical axes fuse to that total charge. The flux may be a `SectorRange`
+# or a bare `TensorKitSectors.Sector`: these forms always carry a physical axis (`GradedOneTo` or
+# a `SectorRange`-keyed pairs vector), so the signature contains a GradedArrays-owned type and
+# accepting a bare sector is not type piracy. The axis-less flux-only forms below stay
+# `SectorRange`-only, where a bare-sector method would be piracy.
 for axis_type in (
         :GradedOneTo,
         :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
     )
     axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
-    for f in (:rand, :randn)
-        fmap = Symbol(f, :_map)
+    for flux_type in (:(TKS.Sector), :SectorRange)
+        for f in (:rand, :randn)
+            fmap = Symbol(f, :_map)
+            @eval begin
+                function Base.$f(
+                        rng::AbstractRNG,
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::$axs_type,
+                        dom::$axs_type
+                    ) where {T}
+                    return TA.$fmap(
+                        rng,
+                        T,
+                        map(TA.to_range, cod),
+                        (map(TA.to_range, dom)..., to_gradedrange(c))
+                    )
+                end
+                function Base.$f(
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::$axs_type,
+                        dom::$axs_type
+                    ) where {T}
+                    return $f(Random.default_rng(), T, c, cod, dom)
+                end
+                function Base.$f(
+                        rng::AbstractRNG,
+                        c::$flux_type,
+                        cod::$axs_type,
+                        dom::$axs_type
+                    )
+                    return $f(rng, Float64, c, cod, dom)
+                end
+                function Base.$f(c::$flux_type, cod::$axs_type, dom::$axs_type)
+                    return $f(Random.default_rng(), Float64, c, cod, dom)
+                end
+                function Base.$f(
+                        rng::AbstractRNG,
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::$axs_type,
+                        ::Tuple{}
+                    ) where {T}
+                    return TA.$fmap(rng, T, map(TA.to_range, cod), (to_gradedrange(c),))
+                end
+                function Base.$f(
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::$axs_type,
+                        dom::Tuple{}
+                    ) where {T}
+                    return $f(Random.default_rng(), T, c, cod, dom)
+                end
+                function Base.$f(
+                        rng::AbstractRNG,
+                        c::$flux_type,
+                        cod::$axs_type,
+                        dom::Tuple{}
+                    )
+                    return $f(rng, Float64, c, cod, dom)
+                end
+                function Base.$f(c::$flux_type, cod::$axs_type, dom::Tuple{})
+                    return $f(Random.default_rng(), Float64, c, cod, dom)
+                end
+                function Base.$f(
+                        rng::AbstractRNG,
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::$axs_type
+                    ) where {T}
+                    return $f(rng, T, c, cod, ())
+                end
+                function Base.$f(::Type{T}, c::$flux_type, cod::$axs_type) where {T}
+                    return $f(T, c, cod, ())
+                end
+                function Base.$f(rng::AbstractRNG, c::$flux_type, cod::$axs_type)
+                    return $f(rng, c, cod, ())
+                end
+                Base.$f(c::$flux_type, cod::$axs_type) = $f(c, cod, ())
+                function Base.$f(
+                        rng::AbstractRNG,
+                        ::Type{T},
+                        c::$flux_type,
+                        ::Tuple{},
+                        dom::$axs_type
+                    ) where {T}
+                    return TA.$fmap(
+                        rng,
+                        T,
+                        (),
+                        (map(TA.to_range, dom)..., to_gradedrange(c))
+                    )
+                end
+                function Base.$f(
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::Tuple{},
+                        dom::$axs_type
+                    ) where {T}
+                    return $f(Random.default_rng(), T, c, cod, dom)
+                end
+                function Base.$f(
+                        rng::AbstractRNG,
+                        c::$flux_type,
+                        cod::Tuple{},
+                        dom::$axs_type
+                    )
+                    return $f(rng, Float64, c, cod, dom)
+                end
+                function Base.$f(c::$flux_type, cod::Tuple{}, dom::$axs_type)
+                    return $f(Random.default_rng(), Float64, c, cod, dom)
+                end
+            end
+        end
+        for f in (:zeros, :ones)
+            fmap = Symbol(f, :_map)
+            @eval begin
+                function Base.$f(
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::$axs_type,
+                        dom::$axs_type
+                    ) where {T}
+                    return TA.$fmap(
+                        T,
+                        map(TA.to_range, cod),
+                        (map(TA.to_range, dom)..., to_gradedrange(c))
+                    )
+                end
+                function Base.$f(c::$flux_type, cod::$axs_type, dom::$axs_type)
+                    return $f(Float64, c, cod, dom)
+                end
+                function Base.$f(
+                        ::Type{T},
+                        c::$flux_type,
+                        cod::$axs_type,
+                        ::Tuple{}
+                    ) where {T}
+                    return TA.$fmap(T, map(TA.to_range, cod), (to_gradedrange(c),))
+                end
+                function Base.$f(c::$flux_type, cod::$axs_type, dom::Tuple{})
+                    return $f(Float64, c, cod, dom)
+                end
+                function Base.$f(::Type{T}, c::$flux_type, cod::$axs_type) where {T}
+                    return $f(T, c, cod, ())
+                end
+                Base.$f(c::$flux_type, cod::$axs_type) = $f(c, cod, ())
+                function Base.$f(
+                        ::Type{T},
+                        c::$flux_type,
+                        ::Tuple{},
+                        dom::$axs_type
+                    ) where {T}
+                    return TA.$fmap(T, (), (map(TA.to_range, dom)..., to_gradedrange(c)))
+                end
+                function Base.$f(c::$flux_type, cod::Tuple{}, dom::$axs_type)
+                    return $f(Float64, c, cod, dom)
+                end
+            end
+        end
         @eval begin
-            function Base.$f(
-                    rng::AbstractRNG,
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::$axs_type,
-                    dom::$axs_type
-                ) where {T}
-                return TA.$fmap(
-                    rng,
-                    T,
+            function Base.fill(value, c::$flux_type, cod::$axs_type, dom::$axs_type)
+                return TA.fill_map(
+                    value,
                     map(TA.to_range, cod),
                     (map(TA.to_range, dom)..., to_gradedrange(c))
                 )
             end
-            function Base.$f(
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::$axs_type,
-                    dom::$axs_type
-                ) where {T}
-                return $f(Random.default_rng(), T, c, cod, dom)
+            function Base.fill(value, c::$flux_type, cod::$axs_type, ::Tuple{})
+                return TA.fill_map(value, map(TA.to_range, cod), (to_gradedrange(c),))
             end
-            function Base.$f(
-                    rng::AbstractRNG,
-                    c::SectorRange,
-                    cod::$axs_type,
-                    dom::$axs_type
-                )
-                return $f(rng, Float64, c, cod, dom)
+            Base.fill(value, c::$flux_type, cod::$axs_type) = fill(value, c, cod, ())
+            function Base.fill(value, c::$flux_type, ::Tuple{}, dom::$axs_type)
+                return TA.fill_map(value, (), (map(TA.to_range, dom)..., to_gradedrange(c)))
             end
-            function Base.$f(c::SectorRange, cod::$axs_type, dom::$axs_type)
-                return $f(Random.default_rng(), Float64, c, cod, dom)
-            end
-            function Base.$f(
-                    rng::AbstractRNG,
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::$axs_type,
-                    ::Tuple{}
-                ) where {T}
-                return TA.$fmap(rng, T, map(TA.to_range, cod), (to_gradedrange(c),))
-            end
-            function Base.$f(
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::$axs_type,
-                    dom::Tuple{}
-                ) where {T}
-                return $f(Random.default_rng(), T, c, cod, dom)
-            end
-            function Base.$f(
-                    rng::AbstractRNG,
-                    c::SectorRange,
-                    cod::$axs_type,
-                    dom::Tuple{}
-                )
-                return $f(rng, Float64, c, cod, dom)
-            end
-            function Base.$f(c::SectorRange, cod::$axs_type, dom::Tuple{})
-                return $f(Random.default_rng(), Float64, c, cod, dom)
-            end
-            function Base.$f(
-                    rng::AbstractRNG,
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::$axs_type
-                ) where {T}
-                return $f(rng, T, c, cod, ())
-            end
-            function Base.$f(::Type{T}, c::SectorRange, cod::$axs_type) where {T}
-                return $f(T, c, cod, ())
-            end
-            function Base.$f(rng::AbstractRNG, c::SectorRange, cod::$axs_type)
-                return $f(rng, c, cod, ())
-            end
-            Base.$f(c::SectorRange, cod::$axs_type) = $f(c, cod, ())
-            function Base.$f(
-                    rng::AbstractRNG,
-                    ::Type{T},
-                    c::SectorRange,
-                    ::Tuple{},
-                    dom::$axs_type
-                ) where {T}
-                return TA.$fmap(
-                    rng,
-                    T,
-                    (),
-                    (map(TA.to_range, dom)..., to_gradedrange(c))
-                )
-            end
-            function Base.$f(
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::Tuple{},
-                    dom::$axs_type
-                ) where {T}
-                return $f(Random.default_rng(), T, c, cod, dom)
-            end
-            function Base.$f(
-                    rng::AbstractRNG,
-                    c::SectorRange,
-                    cod::Tuple{},
-                    dom::$axs_type
-                )
-                return $f(rng, Float64, c, cod, dom)
-            end
-            function Base.$f(c::SectorRange, cod::Tuple{}, dom::$axs_type)
-                return $f(Random.default_rng(), Float64, c, cod, dom)
-            end
-        end
-    end
-    for f in (:zeros, :ones)
-        fmap = Symbol(f, :_map)
-        @eval begin
-            function Base.$f(
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::$axs_type,
-                    dom::$axs_type
-                ) where {T}
-                return TA.$fmap(
-                    T,
-                    map(TA.to_range, cod),
-                    (map(TA.to_range, dom)..., to_gradedrange(c))
-                )
-            end
-            function Base.$f(c::SectorRange, cod::$axs_type, dom::$axs_type)
-                return $f(Float64, c, cod, dom)
-            end
-            function Base.$f(
-                    ::Type{T},
-                    c::SectorRange,
-                    cod::$axs_type,
-                    ::Tuple{}
-                ) where {T}
-                return TA.$fmap(T, map(TA.to_range, cod), (to_gradedrange(c),))
-            end
-            function Base.$f(c::SectorRange, cod::$axs_type, dom::Tuple{})
-                return $f(Float64, c, cod, dom)
-            end
-            function Base.$f(::Type{T}, c::SectorRange, cod::$axs_type) where {T}
-                return $f(T, c, cod, ())
-            end
-            Base.$f(c::SectorRange, cod::$axs_type) = $f(c, cod, ())
-            function Base.$f(
-                    ::Type{T},
-                    c::SectorRange,
-                    ::Tuple{},
-                    dom::$axs_type
-                ) where {T}
-                return TA.$fmap(T, (), (map(TA.to_range, dom)..., to_gradedrange(c)))
-            end
-            function Base.$f(c::SectorRange, cod::Tuple{}, dom::$axs_type)
-                return $f(Float64, c, cod, dom)
-            end
-        end
-    end
-    @eval begin
-        function Base.fill(value, c::SectorRange, cod::$axs_type, dom::$axs_type)
-            return TA.fill_map(
-                value,
-                map(TA.to_range, cod),
-                (map(TA.to_range, dom)..., to_gradedrange(c))
-            )
-        end
-        function Base.fill(value, c::SectorRange, cod::$axs_type, ::Tuple{})
-            return TA.fill_map(value, map(TA.to_range, cod), (to_gradedrange(c),))
-        end
-        Base.fill(value, c::SectorRange, cod::$axs_type) = fill(value, c, cod, ())
-        function Base.fill(value, c::SectorRange, ::Tuple{}, dom::$axs_type)
-            return TA.fill_map(value, (), (map(TA.to_range, dom)..., to_gradedrange(c)))
         end
     end
 end
