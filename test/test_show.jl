@@ -144,6 +144,19 @@ end
     )
 end
 
+@testset "compact axis lines in array display" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 2])
+    s = sprint(show, MIME("text/plain"), zeros(Float64, g, dual(g)))
+    # The `Dim` lines drop the `gradedrange(...)` wrapper and mark a dual axis with a suffix.
+    @test occursin("Dim 1: [U1(0) => 2, U1(1) => 2]\n", s)
+    @test occursin("Dim 2: [U1(0) => 2, U1(1) => 2] (dual)", s)
+    @test !occursin("gradedrange(", s)
+
+    # The axis's own show is unchanged and still round-trips through the constructor.
+    @test sprint(show, g) == "gradedrange([U1(0) => 2, U1(1) => 2])"
+    @test sprint(show, dual(g)) == "dual(gradedrange([U1(0) => 2, U1(1) => 2]))"
+end
+
 @testset "AbelianGradedArray text/plain display" begin
     g = gradedrange([U1(0) => 2, U1(1) => 2])
     a = zeros(Float64, g, dual(g))

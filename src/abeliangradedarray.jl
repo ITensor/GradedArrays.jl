@@ -765,7 +765,7 @@ function Base.show(io::IO, ::MIME"text/plain", a::AbelianGradedArray)
     println(io, ":")
     for (d, g) in pairs(axes(a))
         print(io, "  Dim $d: ")
-        show(io, g)
+        show_axis(io, g)
         println(io)
     end
     isempty(a) && return nothing
