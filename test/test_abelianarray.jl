@@ -3,11 +3,11 @@ using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
     AbstractGradedArray, FusedGradedMatrix, FusedGradedVector, GradedOneTo, SU2,
     SectorRange, U1, blockstoredlength, data, datalengths, dual, eachblockstoredindex,
-    gradedrange, isdual, sectoraxes, sectors, sectortype
+    gradedrange, isdual, sectoraxes, sectors, sectortype, to_gradedrange
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored
-using TensorAlgebra: TensorAlgebra
+using TensorAlgebra: TensorAlgebra, fill_map, ones_map, rand_map, randn_map, zeros_map
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -749,8 +749,6 @@ end
 end
 
 @testset "flux-canceling constructor" begin
-    using GradedArrays: to_gradedrange
-    using TensorAlgebra: fill_map, ones_map, randn_map, rand_map, zeros_map
     r1 = gradedrange([U1(0) => 1, U1(1) => 2])
     r2 = gradedrange([U1(0) => 2, U1(1) => 1])
     r3 = gradedrange([U1(0) => 1, U1(1) => 1])
@@ -777,18 +775,20 @@ end
     @test isdual(axes(mp, 3))                         # the given domain leg is dualized
     @test isdual(axes(mp, 4)) && length(axes(mp, 4)) == 1 && sectors(axes(mp, 4)) == [c]
 
-    # The two-argument flat form is the empty-domain case of the map form.
+    # The codomain-only form forwards to the empty-domain case, down to the RNG stream.
     @test randn(Random.Xoshiro(3), c, (r1, r2)) == randn(Random.Xoshiro(3), c, (r1, r2), ())
 
     # A different flux changes the aux sector (the charge really is carried on the leg).
     @test sectors(axes(randn(U1(0), (r1, r2)), 3)) == [U1(0)]
 
-    # A bare `TensorKitSectors.Sector` works as the flux (not only a `SectorRange`).
-    sf = gradedrange([TKS.FermionNumber(0) => 2, TKS.FermionNumber(1) => 2])
-    ferm = randn(Random.Xoshiro(4), TKS.FermionNumber(2), (sf, sf, sf, sf))
+    # A raw `TensorKitSectors.Sector` (here a fermionic sector) works as the flux once wrapped
+    # with `SectorRange`, which is required since GradedArrays has no native fermion sector yet.
+    fn(n) = SectorRange(TKS.FermionNumber(n))
+    sf = gradedrange([fn(0) => 2, fn(1) => 2])
+    ferm = randn(Random.Xoshiro(4), fn(2), (sf, sf, sf, sf))
     @test ferm == randn_map(
         Random.Xoshiro(4), Float64, (sf, sf, sf, sf),
-        (to_gradedrange(TKS.FermionNumber(2)),)
+        (to_gradedrange(fn(2)),)
     )
     @test ndims(ferm) == 5
     @test isdual(axes(ferm, 5))
@@ -800,6 +800,89 @@ end
     @test rand(Random.Xoshiro(5), Float64, c, (r1, r2), (r3,)) ==
         rand_map(Random.Xoshiro(5), Float64, (r1, r2), (r3, to_gradedrange(c)))
     @test eltype(randn(ComplexF64, c, (r1, r2))) == ComplexF64
+    # An explicit empty domain matches omitting the domain.
+    @test zeros(c, (r1, r2), ()) == zeros(c, (r1, r2))
+
+    # Empty codomain `f(flux, (), (dom...))`: the physical legs all live in the dualized domain,
+    # matching the flux form over `dual.(dom)` with no codomain.
+    @test randn(Random.Xoshiro(6), Float64, c, (), (r1,)) ==
+        randn(Random.Xoshiro(6), Float64, c, (dual(r1),))
+    @test zeros(c, (), (r1, r2)) == zeros(c, (dual(r1), dual(r2)))
+    @test ones(Float64, c, (), (r1,)) == ones(Float64, c, (dual(r1),))
+    @test fill(2.5, c, (), (r1,)) == fill(2.5, c, (dual(r1),))
+    @test zeros(c, (), ([U1(0) => 1, U1(1) => 2],)) == zeros(c, (dual(r1),))
+
+    # Flux-only forms `f(flux)` and `f(flux, ())`: no physical axes, just the dangling flux leg.
+    # Both are shorthands for `f(flux, (), ())`, a rank-1 array carrying `c` on a dualized leg.
+    fluxonly = randn(Random.Xoshiro(7), Float64, c, (), ())
+    @test fluxonly == randn(Random.Xoshiro(7), Float64, c)
+    @test fluxonly == randn(Random.Xoshiro(7), Float64, c, ())
+    @test ndims(fluxonly) == 1
+    @test length(axes(fluxonly, 1)) == 1
+    @test isdual(axes(fluxonly, 1))
+    @test sectors(axes(fluxonly, 1)) == [c]
+    @test zeros(c) == zeros(c, (), ())
+    @test zeros(c, ()) == zeros(c, (), ())
+    @test ones(Float64, c) == ones(Float64, c, (), ())
+    @test ones(c, ()) == ones(c, (), ())
+    @test fill(2.5, c) == fill(2.5, c, (), ())
+    @test fill(2.5, c, ()) == fill(2.5, c, (), ())
+    @test rand(Random.Xoshiro(8), c) == rand(Random.Xoshiro(8), c, (), ())
+    @test eltype(randn(ComplexF64, c)) == ComplexF64
+end
+
+@testset "pairs-vector axis constructors" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 2])
+    # An axis given as `sector => multiplicity` pairs is normalized to a `GradedOneTo`. Keys are
+    # `SectorRange`s, whether a native GradedArrays sector or a raw TensorKitSectors sector wrapped
+    # with `SectorRange`.
+    ps = [U1(0) => 2, U1(1) => 2]                                       # native SectorRange keys
+    pk = [SectorRange(TKS.U1Irrep(0)) => 2, SectorRange(TKS.U1Irrep(1)) => 2]  # wrapped raw keys
+    @testset "$f codomain-only" for (f, ref) in
+        ((zeros, zeros(g, g)), (ones, ones(g, g)))
+        @test f(ps, ps) == ref
+        @test f(pk, pk) == ref
+        @test f(Float64, ps) == f((g,))
+    end
+    @test fill(2.5, ps, ps) == fill(2.5, g, g)
+    @test axes(randn(ps)) == (g,)
+    @test Array(randn(Random.Xoshiro(1), Float64, ps, ps)) ==
+        Array(randn(Random.Xoshiro(1), Float64, g, g))
+    @test Array(rand(Random.Xoshiro(1), Float64, pk)) ==
+        Array(rand(Random.Xoshiro(1), Float64, (g,)))
+end
+
+@testset "split codomain/domain constructor" begin
+    g = gradedrange([U1(0) => 1, U1(1) => 2])
+    h = gradedrange([U1(0) => 2, U1(1) => 1])
+    # `f((cod...), (dom...))` builds a tensor map: the domain axes are stored dual, so it equals
+    # the codomain-only call over `(cod..., dual.(dom)...)` (and the `*_map` builder).
+    @test randn(Random.Xoshiro(1), Float64, (g,), (h,)) ==
+        randn(Random.Xoshiro(1), Float64, (g, dual(h)))
+    @test randn(Random.Xoshiro(1), Float64, (g,), (h,)) ==
+        randn_map(Random.Xoshiro(1), Float64, (g,), (h,))
+    @test zeros((g,), (h,)) == zeros(g, dual(h))
+    @test ones(Float64, (g,), (h,)) == ones(g, dual(h))
+    @test fill(2.5, (g,), (h,)) == fill(2.5, g, dual(h))
+    # Pairs-vector axes work in both slots, matching the `GradedOneTo` result.
+    @test zeros(([U1(0) => 1, U1(1) => 2],), ([U1(0) => 2, U1(1) => 1],)) ==
+        zeros(g, dual(h))
+
+    # An explicit empty domain matches the codomain-only call.
+    @test randn(Random.Xoshiro(1), Float64, (g, h), ()) ==
+        randn(Random.Xoshiro(1), Float64, (g, h))
+    @test zeros((g, h), ()) == zeros((g, h))
+    @test ones(Float64, (g, h), ()) == ones(Float64, (g, h))
+    @test fill(2.5, (g, h), ()) == fill(2.5, (g, h))
+
+    # Empty codomain: every leg lives in the dualized domain, matching the codomain-only call
+    # over `dual.(dom)`. Available for the pairs-vector spelling too.
+    @test randn(Random.Xoshiro(1), Float64, (), (g,)) ==
+        randn(Random.Xoshiro(1), Float64, (dual(g),))
+    @test zeros((), (g, h)) == zeros(dual(g), dual(h))
+    @test ones(Float64, (), (g,)) == ones(Float64, (dual(g),))
+    @test fill(2.5, (), (g,)) == fill(2.5, (dual(g),))
+    @test zeros((), ([U1(0) => 1, U1(1) => 2],)) == zeros(dual(g))
 end
 
 @testset "getindex (project dense onto graded axes)" begin

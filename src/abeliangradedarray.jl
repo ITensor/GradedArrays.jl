@@ -377,7 +377,7 @@ end
 function Base.permutedims!(
         y::AbelianGradedArray{<:Any, <:Any, N}, x::AbelianGradedArray{<:Any, <:Any, N}, perm
     ) where {N}
-    TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
+    TA.permutedimsopadd!(y, identity, x, perm, true, false)
     return y
 end
 
@@ -389,146 +389,504 @@ function Base.iszero(a::AbelianGradedArray)
     return all(iszero, values(a.blockdata))
 end
 
-# Constructors `rand(rng, T, axes)` / `randn(rng, T, axes)` for graded axes:
-# allocate an `AbelianGradedArray` from the axes, then fill via the block-aware
-# in-place methods above. The generic `Base.rand`/`randn` fallbacks build a
-# `Matrix` from `length.(axes)`, which loses the graded structure.
-function Base.rand(
-        rng::AbstractRNG, ::Type{T},
-        ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}
-    ) where {T}
-    return Random.rand!(rng, AbelianGradedArray{T}(undef, ax))
-end
-function Base.randn(
-        rng::AbstractRNG, ::Type{T},
-        ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}
-    ) where {T}
-    return Random.randn!(rng, AbelianGradedArray{T}(undef, ax))
+# An axis is a `GradedOneTo` or a vector of `sector => multiplicity` pairs (keyed by a
+# `SectorRange` or a bare `TensorKitSectors.Sector`), normalized to a `GradedOneTo` by
+# `TA.to_range`. Each of `rand`/`randn`/`zeros`/`ones`/`fill` supports three shapes:
+#     f(axs...) / f((axs...,))         codomain-only, allocated directly
+#     f((cod...), (dom...))            tensor map, `dom` axes stored dual
+#     f(flux, (cod...)[, (dom...)])    appends a multiplicity-1 leg carrying `flux`
+# A leading graded axis on every tuple/vararg form keeps these from pirating Base's
+# zero-argument and `Integer`/`Dims` calls.
+
+# A map over `(cod, dom)` is stored flat with the domain axes dualized. `allocate_graded` is the
+# single point building the block-sparse representation, so it can be swapped in one place.
+function allocate_graded(::Type{T}, cod, dom) where {T}
+    return AbelianGradedArray{T}(undef, (cod..., conj.(dom)...))
 end
 
-# Shorthand shims forwarding to the canonical `(rng, T, tuple)` forms above. Base's
-# `rand`/`randn` defaulting chain hardcodes `Integer` / `Dims` argument shapes, so the
-# non-canonical forms (`rand(i, j)`, `rand(T, i, j)`, `rand((i, j))`, ...) never reach the
-# graded constructor on their own. A leading `GradedOneTo` keeps these from shadowing the
-# zero-argument `rand()` / `randn()`.
-function Base.rand(ax::GradedOneTo, axs::GradedOneTo...)
-    return rand(Random.default_rng(), Float64, (ax, axs...))
+# Two anchored `*_map` entries — codomain-led and empty-codomain domain-led — each forwarding to
+# the `*_graded` worker, mirroring the `unchecked_project` / `allocate_project` split below. A
+# fully empty `((), ())` matches neither.
+for f in (:rand, :randn)
+    fmap, fgraded = Symbol(f, :_map), Symbol(f, :_graded)
+    @eval begin
+        function TA.$fmap(
+                rng::AbstractRNG, ::Type{T},
+                cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
+            ) where {T}
+            return $fgraded(rng, T, cod, dom)
+        end
+        function TA.$fmap(
+                rng::AbstractRNG, ::Type{T},
+                cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+            ) where {T}
+            return $fgraded(rng, T, cod, dom)
+        end
+    end
 end
-function Base.rand(::Type{T}, ax::GradedOneTo, axs::GradedOneTo...) where {T}
-    return rand(Random.default_rng(), T, (ax, axs...))
+function rand_graded(rng::AbstractRNG, ::Type{T}, cod, dom) where {T}
+    return rand!(rng, allocate_graded(T, cod, dom))
 end
-function Base.rand(rng::AbstractRNG, ax::GradedOneTo, axs::GradedOneTo...)
-    return rand(rng, Float64, (ax, axs...))
+function randn_graded(rng::AbstractRNG, ::Type{T}, cod, dom) where {T}
+    return randn!(rng, allocate_graded(T, cod, dom))
 end
-function Base.rand(
-        rng::AbstractRNG,
-        ::Type{T},
-        ax::GradedOneTo,
-        axs::GradedOneTo...
-    ) where {T}
-    return rand(rng, T, (ax, axs...))
+for f in (:zeros, :ones)
+    fmap, fgraded = Symbol(f, :_map), Symbol(f, :_graded)
+    @eval begin
+        function TA.$fmap(
+                ::Type{T},
+                cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
+            ) where {T}
+            return $fgraded(T, cod, dom)
+        end
+        function TA.$fmap(
+                ::Type{T}, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+            ) where {T}
+            return $fgraded(T, cod, dom)
+        end
+    end
 end
-function Base.rand(ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return rand(Random.default_rng(), Float64, ax)
+function zeros_graded(::Type{T}, cod, dom) where {T}
+    return zero!(allocate_graded(T, cod, dom))
 end
-function Base.rand(::Type{T}, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
-    return rand(Random.default_rng(), T, ax)
+function ones_graded(::Type{T}, cod, dom) where {T}
+    return fill!(allocate_graded(T, cod, dom), one(T))
 end
-function Base.rand(rng::AbstractRNG, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return rand(rng, Float64, ax)
+function TA.fill_map(
+        value, cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
+    )
+    return fill_graded(value, cod, dom)
 end
+function TA.fill_map(value, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+    return fill_graded(value, cod, dom)
+end
+fill_graded(value, cod, dom) = fill!(allocate_graded(typeof(value), cod, dom), value)
 
-function Base.randn(ax::GradedOneTo, axs::GradedOneTo...)
-    return randn(Random.default_rng(), Float64, (ax, axs...))
-end
-function Base.randn(::Type{T}, ax::GradedOneTo, axs::GradedOneTo...) where {T}
-    return randn(Random.default_rng(), T, (ax, axs...))
-end
-function Base.randn(rng::AbstractRNG, ax::GradedOneTo, axs::GradedOneTo...)
-    return randn(rng, Float64, (ax, axs...))
-end
-function Base.randn(
-        rng::AbstractRNG,
-        ::Type{T},
-        ax::GradedOneTo,
-        axs::GradedOneTo...
-    ) where {T}
-    return randn(rng, T, (ax, axs...))
-end
-function Base.randn(ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return randn(Random.default_rng(), Float64, ax)
-end
-function Base.randn(::Type{T}, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
-    return randn(Random.default_rng(), T, ax)
-end
-function Base.randn(rng::AbstractRNG, ax::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return randn(rng, Float64, ax)
-end
-
-# Flux-canceling constructors: `randn(c, codomain[, domain])` (and `rand`/`zeros`/`ones`/
-# `fill`) build a symmetric array carrying total charge `c` by appending a multiplicity-1 leg
-# carrying sector `c` to the (implicitly dualized) domain, dangling last, which absorbs the
-# flux so the physical axes fuse to `c`. Sugar for the split constructor over
-# `(codomain, (domain..., aux))`; the domain `conj` dualizing the aux is what forces the
-# physical legs to `+c` (see `similar_map`). The two-argument `randn(c, codomain)` is the
-# `domain = ()` case (all physical legs in the codomain, aux the sole domain leg).
-# `to_gradedrange` normalizes either a bare `TensorKitSectors.Sector` or a `SectorRange`.
-for S in (TKS.Sector, SectorRange)
-    for (f, fmap) in ((:rand, :rand_map), (:randn, :randn_map))
+# Public `Base` constructors: normalize pairs-vector axes with `to_range` and route to `*_map`.
+# Pairs-vector axes are keyed by `SectorRange` (which every GradedArrays sector subtypes); keying
+# by a bare `TensorKitSectors.Sector` is not accepted, since overloading `Base` constructors on a
+# purely TensorKitSectors signature would be type piracy. Wrap such sectors with `SectorRange`.
+for axis_type in (
+        :GradedOneTo,
+        :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
+    )
+    axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
+    for f in (:rand, :randn)
+        fmap = Symbol(f, :_map)
         @eval begin
             function Base.$f(
-                    rng::AbstractRNG, ::Type{T}, c::$S,
-                    codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    cod::$axs_type,
+                    dom::$axs_type
                 ) where {T}
-                return TensorAlgebra.$fmap(rng, T, codomain, (domain..., to_gradedrange(c)))
+                return TA.$fmap(rng, T, map(TA.to_range, cod), map(TA.to_range, dom))
+            end
+            function Base.$f(::Type{T}, cod::$axs_type, dom::$axs_type) where {T}
+                return $f(Random.default_rng(), T, cod, dom)
+            end
+            function Base.$f(rng::AbstractRNG, cod::$axs_type, dom::$axs_type)
+                return $f(rng, Float64, cod, dom)
+            end
+            function Base.$f(cod::$axs_type, dom::$axs_type)
+                return $f(Random.default_rng(), Float64, cod, dom)
             end
             function Base.$f(
-                    c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-                    domain::Tuple{Vararg{GradedOneTo}} = ()
-                )
-                return Base.$f(Random.default_rng(), Float64, c, codomain, domain)
-            end
-            function Base.$f(
-                    ::Type{T}, c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    cod::$axs_type,
+                    ::Tuple{}
                 ) where {T}
-                return Base.$f(Random.default_rng(), T, c, codomain, domain)
+                return TA.$fmap(rng, T, map(TA.to_range, cod), ())
+            end
+            function Base.$f(::Type{T}, cod::$axs_type, dom::Tuple{}) where {T}
+                return $f(Random.default_rng(), T, cod, dom)
+            end
+            function Base.$f(rng::AbstractRNG, cod::$axs_type, dom::Tuple{})
+                return $f(rng, Float64, cod, dom)
+            end
+            function Base.$f(cod::$axs_type, dom::Tuple{})
+                return $f(Random.default_rng(), Float64, cod, dom)
+            end
+            function Base.$f(rng::AbstractRNG, ::Type{T}, cod::$axs_type) where {T}
+                return $f(rng, T, cod, ())
+            end
+            function Base.$f(::Type{T}, cod::$axs_type) where {T}
+                return $f(T, cod, ())
+            end
+            function Base.$f(rng::AbstractRNG, cod::$axs_type)
+                return $f(rng, cod, ())
+            end
+            Base.$f(cod::$axs_type) = $f(cod, ())
+            function Base.$f(
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    ::Tuple{},
+                    dom::$axs_type
+                ) where {T}
+                return TA.$fmap(rng, T, (), map(TA.to_range, dom))
+            end
+            function Base.$f(::Type{T}, cod::Tuple{}, dom::$axs_type) where {T}
+                return $f(Random.default_rng(), T, cod, dom)
+            end
+            function Base.$f(rng::AbstractRNG, cod::Tuple{}, dom::$axs_type)
+                return $f(rng, Float64, cod, dom)
+            end
+            function Base.$f(cod::Tuple{}, dom::$axs_type)
+                return $f(Random.default_rng(), Float64, cod, dom)
             end
             function Base.$f(
-                    rng::AbstractRNG, c::$S,
-                    codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    ax::$axis_type,
+                    axs::$axis_type...
+                ) where {T}
+                return $f(rng, T, (ax, axs...))
+            end
+            Base.$f(::Type{T}, ax::$axis_type, axs::$axis_type...) where {T} =
+                $f(T, (ax, axs...))
+            Base.$f(rng::AbstractRNG, ax::$axis_type, axs::$axis_type...) =
+                $f(rng, (ax, axs...))
+            Base.$f(ax::$axis_type, axs::$axis_type...) = $f((ax, axs...))
+        end
+    end
+    for f in (:zeros, :ones)
+        fmap = Symbol(f, :_map)
+        @eval begin
+            function Base.$f(::Type{T}, cod::$axs_type, dom::$axs_type) where {T}
+                return TA.$fmap(T, map(TA.to_range, cod), map(TA.to_range, dom))
+            end
+            function Base.$f(cod::$axs_type, dom::$axs_type)
+                return $f(Float64, cod, dom)
+            end
+            function Base.$f(::Type{T}, cod::$axs_type, ::Tuple{}) where {T}
+                return TA.$fmap(T, map(TA.to_range, cod), ())
+            end
+            function Base.$f(cod::$axs_type, dom::Tuple{})
+                return $f(Float64, cod, dom)
+            end
+            function Base.$f(::Type{T}, cod::$axs_type) where {T}
+                return $f(T, cod, ())
+            end
+            Base.$f(cod::$axs_type) = $f(cod, ())
+            function Base.$f(::Type{T}, ::Tuple{}, dom::$axs_type) where {T}
+                return TA.$fmap(T, (), map(TA.to_range, dom))
+            end
+            function Base.$f(cod::Tuple{}, dom::$axs_type)
+                return $f(Float64, cod, dom)
+            end
+            Base.$f(::Type{T}, ax::$axis_type, axs::$axis_type...) where {T} =
+                $f(T, (ax, axs...))
+            Base.$f(ax::$axis_type, axs::$axis_type...) = $f((ax, axs...))
+        end
+    end
+    @eval begin
+        function Base.fill(value, cod::$axs_type, dom::$axs_type)
+            return TA.fill_map(value, map(TA.to_range, cod), map(TA.to_range, dom))
+        end
+        function Base.fill(value, cod::$axs_type, ::Tuple{})
+            return TA.fill_map(value, map(TA.to_range, cod), ())
+        end
+        Base.fill(value, cod::$axs_type) = fill(value, cod, ())
+        function Base.fill(value, ::Tuple{}, dom::$axs_type)
+            return TA.fill_map(value, (), map(TA.to_range, dom))
+        end
+        Base.fill(value, ax::$axis_type, axs::$axis_type...) = fill(value, (ax, axs...))
+    end
+end
+
+# Flux `f(flux, (cod...)[, (dom...)])`: append a multiplicity-1 leg carrying `flux` to the
+# dualized domain, so the physical axes fuse to that total charge. The flux is a `SectorRange`
+# (which every GradedArrays sector subtypes); a bare `TensorKitSectors.Sector` is not accepted,
+# as overloading `Base` constructors on it would be type piracy. Wrap such sectors with
+# `SectorRange`.
+for axis_type in (
+        :GradedOneTo,
+        :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
+    )
+    axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
+    for f in (:rand, :randn)
+        fmap = Symbol(f, :_map)
+        @eval begin
+            function Base.$f(
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::$axs_type,
+                    dom::$axs_type
+                ) where {T}
+                return TA.$fmap(
+                    rng,
+                    T,
+                    map(TA.to_range, cod),
+                    (map(TA.to_range, dom)..., to_gradedrange(c))
                 )
-                return Base.$f(rng, Float64, c, codomain, domain)
+            end
+            function Base.$f(
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::$axs_type,
+                    dom::$axs_type
+                ) where {T}
+                return $f(Random.default_rng(), T, c, cod, dom)
+            end
+            function Base.$f(
+                    rng::AbstractRNG,
+                    c::SectorRange,
+                    cod::$axs_type,
+                    dom::$axs_type
+                )
+                return $f(rng, Float64, c, cod, dom)
+            end
+            function Base.$f(c::SectorRange, cod::$axs_type, dom::$axs_type)
+                return $f(Random.default_rng(), Float64, c, cod, dom)
+            end
+            function Base.$f(
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::$axs_type,
+                    ::Tuple{}
+                ) where {T}
+                return TA.$fmap(rng, T, map(TA.to_range, cod), (to_gradedrange(c),))
+            end
+            function Base.$f(
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::$axs_type,
+                    dom::Tuple{}
+                ) where {T}
+                return $f(Random.default_rng(), T, c, cod, dom)
+            end
+            function Base.$f(
+                    rng::AbstractRNG,
+                    c::SectorRange,
+                    cod::$axs_type,
+                    dom::Tuple{}
+                )
+                return $f(rng, Float64, c, cod, dom)
+            end
+            function Base.$f(c::SectorRange, cod::$axs_type, dom::Tuple{})
+                return $f(Random.default_rng(), Float64, c, cod, dom)
+            end
+            function Base.$f(
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::$axs_type
+                ) where {T}
+                return $f(rng, T, c, cod, ())
+            end
+            function Base.$f(::Type{T}, c::SectorRange, cod::$axs_type) where {T}
+                return $f(T, c, cod, ())
+            end
+            function Base.$f(rng::AbstractRNG, c::SectorRange, cod::$axs_type)
+                return $f(rng, c, cod, ())
+            end
+            Base.$f(c::SectorRange, cod::$axs_type) = $f(c, cod, ())
+            function Base.$f(
+                    rng::AbstractRNG,
+                    ::Type{T},
+                    c::SectorRange,
+                    ::Tuple{},
+                    dom::$axs_type
+                ) where {T}
+                return TA.$fmap(
+                    rng,
+                    T,
+                    (),
+                    (map(TA.to_range, dom)..., to_gradedrange(c))
+                )
+            end
+            function Base.$f(
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::Tuple{},
+                    dom::$axs_type
+                ) where {T}
+                return $f(Random.default_rng(), T, c, cod, dom)
+            end
+            function Base.$f(
+                    rng::AbstractRNG,
+                    c::SectorRange,
+                    cod::Tuple{},
+                    dom::$axs_type
+                )
+                return $f(rng, Float64, c, cod, dom)
+            end
+            function Base.$f(c::SectorRange, cod::Tuple{}, dom::$axs_type)
+                return $f(Random.default_rng(), Float64, c, cod, dom)
             end
         end
     end
-    for (f, fmap) in ((:zeros, :zeros_map), (:ones, :ones_map))
+    for f in (:zeros, :ones)
+        fmap = Symbol(f, :_map)
         @eval begin
             function Base.$f(
-                    ::Type{T}, c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-                    domain::Tuple{Vararg{GradedOneTo}} = ()
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::$axs_type,
+                    dom::$axs_type
                 ) where {T}
-                return TensorAlgebra.$fmap(T, codomain, (domain..., to_gradedrange(c)))
+                return TA.$fmap(
+                    T,
+                    map(TA.to_range, cod),
+                    (map(TA.to_range, dom)..., to_gradedrange(c))
+                )
+            end
+            function Base.$f(c::SectorRange, cod::$axs_type, dom::$axs_type)
+                return $f(Float64, c, cod, dom)
             end
             function Base.$f(
-                    c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-                    domain::Tuple{Vararg{GradedOneTo}} = ()
-                )
-                return Base.$f(Float64, c, codomain, domain)
+                    ::Type{T},
+                    c::SectorRange,
+                    cod::$axs_type,
+                    ::Tuple{}
+                ) where {T}
+                return TA.$fmap(T, map(TA.to_range, cod), (to_gradedrange(c),))
+            end
+            function Base.$f(c::SectorRange, cod::$axs_type, dom::Tuple{})
+                return $f(Float64, c, cod, dom)
+            end
+            function Base.$f(::Type{T}, c::SectorRange, cod::$axs_type) where {T}
+                return $f(T, c, cod, ())
+            end
+            Base.$f(c::SectorRange, cod::$axs_type) = $f(c, cod, ())
+            function Base.$f(
+                    ::Type{T},
+                    c::SectorRange,
+                    ::Tuple{},
+                    dom::$axs_type
+                ) where {T}
+                return TA.$fmap(T, (), (map(TA.to_range, dom)..., to_gradedrange(c)))
+            end
+            function Base.$f(c::SectorRange, cod::Tuple{}, dom::$axs_type)
+                return $f(Float64, c, cod, dom)
             end
         end
     end
-    # `fill` takes the fill value first (matching `Base.fill(v, axes)`), so it does not fit the
-    # eltype/rng-leading forms above.
-    @eval function Base.fill(
-            value, c::$S, codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-            domain::Tuple{Vararg{GradedOneTo}} = ()
-        )
-        return TensorAlgebra.fill_map(value, codomain, (domain..., to_gradedrange(c)))
+    @eval begin
+        function Base.fill(value, c::SectorRange, cod::$axs_type, dom::$axs_type)
+            return TA.fill_map(
+                value,
+                map(TA.to_range, cod),
+                (map(TA.to_range, dom)..., to_gradedrange(c))
+            )
+        end
+        function Base.fill(value, c::SectorRange, cod::$axs_type, ::Tuple{})
+            return TA.fill_map(value, map(TA.to_range, cod), (to_gradedrange(c),))
+        end
+        Base.fill(value, c::SectorRange, cod::$axs_type) = fill(value, c, cod, ())
+        function Base.fill(value, c::SectorRange, ::Tuple{}, dom::$axs_type)
+            return TA.fill_map(value, (), (map(TA.to_range, dom)..., to_gradedrange(c)))
+        end
     end
 end
+# Flux-only forms: no physical axes, just the flux leg. Independent of `axis_type`, so defined
+# outside the `axis_type` loop. `f(flux, ())` and `f(flux)` are shorthands for `f(flux, (), ())`,
+# mirroring how the codomain-only and empty-domain forms collapse. These dispatch on `SectorRange`
+# and so take precedence over `Base.rand`/`zeros`/`fill` on a plain range, returning a graded
+# array carrying the flux rather than a plain array over that range.
+for f in (:rand, :randn)
+    fmap = Symbol(f, :_map)
+    @eval begin
+        function Base.$f(
+                rng::AbstractRNG, ::Type{T}, c::SectorRange, ::Tuple{}, ::Tuple{}
+            ) where {T}
+            return TA.$fmap(rng, T, (), (to_gradedrange(c),))
+        end
+        function Base.$f(::Type{T}, c::SectorRange, cod::Tuple{}, dom::Tuple{}) where {T}
+            return $f(Random.default_rng(), T, c, cod, dom)
+        end
+        function Base.$f(rng::AbstractRNG, c::SectorRange, cod::Tuple{}, dom::Tuple{})
+            return $f(rng, Float64, c, cod, dom)
+        end
+        function Base.$f(c::SectorRange, cod::Tuple{}, dom::Tuple{})
+            return $f(Random.default_rng(), Float64, c, cod, dom)
+        end
+        function Base.$f(
+                rng::AbstractRNG,
+                ::Type{T},
+                c::SectorRange,
+                dom::Tuple{}
+            ) where {T}
+            return $f(rng, T, c, (), dom)
+        end
+        function Base.$f(::Type{T}, c::SectorRange, dom::Tuple{}) where {T}
+            return $f(T, c, (), dom)
+        end
+        function Base.$f(rng::AbstractRNG, c::SectorRange, dom::Tuple{})
+            return $f(rng, c, (), dom)
+        end
+        Base.$f(c::SectorRange, dom::Tuple{}) = $f(c, (), dom)
+        function Base.$f(rng::AbstractRNG, ::Type{T}, c::SectorRange) where {T}
+            return $f(rng, T, c, ())
+        end
+        function Base.$f(::Type{T}, c::SectorRange) where {T}
+            return $f(T, c, ())
+        end
+        Base.$f(rng::AbstractRNG, c::SectorRange) = $f(rng, c, ())
+        Base.$f(c::SectorRange) = $f(c, ())
+    end
+end
+for f in (:zeros, :ones)
+    fmap = Symbol(f, :_map)
+    @eval begin
+        function Base.$f(::Type{T}, c::SectorRange, ::Tuple{}, ::Tuple{}) where {T}
+            return TA.$fmap(T, (), (to_gradedrange(c),))
+        end
+        function Base.$f(c::SectorRange, cod::Tuple{}, dom::Tuple{})
+            return $f(Float64, c, cod, dom)
+        end
+        function Base.$f(::Type{T}, c::SectorRange, dom::Tuple{}) where {T}
+            return $f(T, c, (), dom)
+        end
+        Base.$f(c::SectorRange, dom::Tuple{}) = $f(Float64, c, (), dom)
+        function Base.$f(::Type{T}, c::SectorRange) where {T}
+            return $f(T, c, ())
+        end
+        Base.$f(c::SectorRange) = $f(c, ())
+    end
+end
+@eval begin
+    function Base.fill(value, c::SectorRange, ::Tuple{}, ::Tuple{})
+        return TA.fill_map(value, (), (to_gradedrange(c),))
+    end
+    Base.fill(value, c::SectorRange, dom::Tuple{}) = fill(value, c, (), dom)
+    Base.fill(value, c::SectorRange) = fill(value, c, ())
+end
+
+"""
+    zeros([T=Float64,] axs::GradedOneTo...)
+    zeros([T=Float64,] (codomain...)[, (domain...)])
+    zeros([T=Float64,] flux, (codomain...)[, (domain...)])
+
+Construct an `AbelianGradedArray{T}` over the given graded axes with every symmetry-allowed
+(zero-flux) block allocated and filled with zeros. Each axis may be a `GradedOneTo` or a vector
+of `sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map,
+storing the domain axes dual; a leading `flux` sector appends a multiplicity-1 leg carrying it,
+so the physical axes fuse to that total charge.
+"""
+Base.zeros(::Type{T}, ::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+
+"""
+    ones([T=Float64,] axs::GradedOneTo...)
+    ones([T=Float64,] (codomain...)[, (domain...)])
+    ones([T=Float64,] flux, (codomain...)[, (domain...)])
+
+Like [`zeros`](@ref) for `AbelianGradedArray`, but filling every symmetry-allowed block with ones.
+"""
+Base.ones(::Type{T}, ::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+
+"""
+    fill(v, axs::GradedOneTo...)
+    fill(v, (codomain...)[, (domain...)])
+    fill(v, flux, (codomain...)[, (domain...)])
+
+Like [`zeros`](@ref) for `AbelianGradedArray`, but filling every symmetry-allowed block with `v`
+(the element type is taken from `v`).
+"""
+Base.fill(::Any, ::Tuple{GradedOneTo, Vararg{GradedOneTo}})
 
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
 # stored diagonal block is itself diagonal. Bypasses the generic scalar-indexing path.
@@ -553,8 +911,8 @@ end
 
 # Orthogonal projection of a dense source into the symmetry-allowed subspace.
 # Magnitude-blind: forbidden-block entries of `src` are dropped without inspection.
-# The `TensorAlgebra.project` wrapper verifies the discarded weight is small.
-function TensorAlgebra.projectto!(dest::AbelianGradedArray, src::AbstractArray)
+# The `TA.project` wrapper verifies the discarded weight is small.
+function TA.projectto!(dest::AbelianGradedArray, src::AbstractArray)
     # Reshape `src` to `size(dest)` (a no-op when the ranks already match), so a lower-rank
     # `src` may omit trailing length-1 axes (e.g. an auxiliary flux-canceling leg); a genuine
     # shape mismatch errors rather than reinterpreting the data.
@@ -580,39 +938,39 @@ function bend_domain!(a::AbelianGradedArray, ::Val{K}) where {K}
     return a
 end
 
-function TensorAlgebra.unchecked_project(
+function TA.unchecked_project(
         raw, codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
     return unchecked_project_graded(raw, codomain_axes, domain_axes)
 end
-function TensorAlgebra.unchecked_project(
+function TA.unchecked_project(
         raw, codomain_axes::Tuple{}, domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     )
     return unchecked_project_graded(raw, codomain_axes, domain_axes)
 end
 function unchecked_project_graded(raw, codomain_axes, domain_axes)
-    dest = TensorAlgebra.projectto!(
-        TensorAlgebra.allocate_project(raw, codomain_axes, domain_axes), raw
+    dest = TA.projectto!(
+        TA.allocate_project(raw, codomain_axes, domain_axes), raw
     )
     return bend_domain!(dest, Val(length(codomain_axes)))
 end
 
-function TensorAlgebra.unproject(a::AbelianGradedArray, ndims_codomain::Val)
+function TA.unproject(a::AbelianGradedArray, ndims_codomain::Val)
     return Array(bend_domain!(copy(a), ndims_codomain))
 end
 
 # `allocate_project` with graded axes routes both the codomain-led and the (empty-codomain)
 # domain-led cases to `allocate_project_graded`, taking the graded structure from whichever side
 # is non-empty, the same two-entry split `similar_map` uses.
-function TensorAlgebra.allocate_project(
+function TA.allocate_project(
         src::AbstractArray,
         codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
     return allocate_project_graded(src, codomain_axes, domain_axes)
 end
-function TensorAlgebra.allocate_project(
+function TA.allocate_project(
         src::AbstractArray,
         codomain_axes::Tuple{},
         domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
@@ -629,7 +987,7 @@ end
 function allocate_project_graded(src, codomain_axes, domain_axes)
     nphys = length(codomain_axes) + length(domain_axes)
     ndims(src) <= nphys &&
-        return TensorAlgebra.similar_map(src, codomain_axes, domain_axes)
+        return TA.similar_map(src, codomain_axes, domain_axes)
     ndims(src) == nphys + 1 || throw(
         ArgumentError(
             "`project`: expected at most one trailing auxiliary axis beyond the $nphys \
@@ -637,7 +995,7 @@ function allocate_project_graded(src, codomain_axes, domain_axes)
         )
     )
     aux = infer_aux_space(src, codomain_axes, domain_axes)
-    return TensorAlgebra.similar_map(src, codomain_axes, (domain_axes..., aux))
+    return TA.similar_map(src, codomain_axes, (domain_axes..., aux))
 end
 
 # The space of `src`'s trailing auxiliary axis, derived so the projected result is symmetry-
@@ -780,80 +1138,12 @@ function Base.show(io::IO, a::AbelianGradedArray)
     return nothing
 end
 
-# ---------------------------------------------------------------------------
-#  zeros / rand  (allowedblocks is defined in fusion.jl)
-# ---------------------------------------------------------------------------
-
-# A leading mandatory `GradedOneTo` on every vararg form (and `Tuple{GradedOneTo,
-# Vararg{GradedOneTo}}` on every tuple form) keeps these from matching the zero-argument
-# calls (`zeros()`, `ones()`, `fill(v)`, `zeros(T, ())`), which would pirate Base for calls
-# that involve no GradedArrays-owned type.
-
-"""
-    zeros(T, ax1::GradedOneTo, axs::GradedOneTo...)
-
-Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with zeros.
-"""
-function Base.zeros(
-        ::Type{T}, ax1::GradedOneTo{S}, axs::GradedOneTo{S}...
-    ) where {T, S <: SectorRange}
-    return zero!(AbelianGradedArray{T}(undef, ax1, axs...))
-end
-
-function Base.zeros(ax1::GradedOneTo, axs::GradedOneTo...)
-    return zeros(Float64, ax1, axs...)
-end
-
-function Base.zeros(::Type{T}, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
-    return zeros(T, axs...)
-end
-
-function Base.zeros(axs::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return zeros(Float64, axs...)
-end
-
-"""
-    ones(T, ax1::GradedOneTo, axs::GradedOneTo...)
-
-Create an `AbelianGradedArray{T}` with all allowed (zero-flux) blocks filled with ones.
-"""
-function Base.ones(
-        ::Type{T}, ax1::GradedOneTo{S}, axs::GradedOneTo{S}...
-    ) where {T, S <: SectorRange}
-    return fill!(AbelianGradedArray{T}(undef, ax1, axs...), one(T))
-end
-
-function Base.ones(ax1::GradedOneTo, axs::GradedOneTo...)
-    return ones(Float64, ax1, axs...)
-end
-
-function Base.ones(::Type{T}, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
-    return ones(T, axs...)
-end
-
-function Base.ones(axs::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return ones(Float64, axs...)
-end
-
-"""
-    fill(v, ax1::GradedOneTo, axs::GradedOneTo...)
-
-Create an `AbelianGradedArray{typeof(v)}` with all allowed (zero-flux) blocks filled with `v`.
-"""
-function Base.fill(v, ax1::GradedOneTo{S}, axs::GradedOneTo{S}...) where {S <: SectorRange}
-    return fill!(AbelianGradedArray{typeof(v)}(undef, ax1, axs...), v)
-end
-
-function Base.fill(v, axs::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return fill(v, axs...)
-end
-
 """
     getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
 
 Construct an `AbelianGradedArray` by projecting the dense data of `a` onto the
 symmetry-allowed blocks of the graded axes `(ax1, axs...)`, via
-`TensorAlgebra.project` (which errors if `a` has weight outside
+`TA.project` (which errors if `a` has weight outside
 the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a
 trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
 so index with `dual`/`conj` axes to set duality.
@@ -864,7 +1154,7 @@ function Base.getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
     # axes, so the surplus-axis derivation branch of `project` must not trigger, and a genuine
     # shape mismatch errors rather than reinterpreting the data.
     check_project_size(size(a), length.(dest_axes))
-    return TensorAlgebra.project(reshape(a, length.(dest_axes)), dest_axes)
+    return TA.project(reshape(a, length.(dest_axes)), dest_axes)
 end
 # Disambiguate the single-axis case for a concrete `Array`: `Base.getindex(::Array,
 # ::AbstractUnitRange{<:Integer})` and the projection method above are otherwise equally
@@ -877,10 +1167,10 @@ end
 #  matrix multiplication
 # ---------------------------------------------------------------------------
 
-# Matrix-matrix multiply via `TensorAlgebra.contract` (which matricizes internally). The
+# Matrix-matrix multiply via `TA.contract` (which matricizes internally). The
 # contracted label `2` pairs `a`'s column axis with `b`'s row axis; the explicit output
 # labels `(1, 3)` fix the result as `a`'s row axis (codomain) × `b`'s column axis (domain),
 # so `(a * b)[i, j] == sum_k a[i, k] * b[k, j]`.
 function Base.:*(a::AbelianGradedMatrix, b::AbelianGradedMatrix)
-    return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
+    return TA.contract((1, 3), a, (1, 2), b, (2, 3))
 end

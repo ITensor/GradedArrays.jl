@@ -37,9 +37,9 @@ using Test: @test, @test_throws, @testset
         @test sectoraxes(sa, 1) == U1(1)
         @test sectoraxes(sa, 2) == conj(U1(0))
         @test sectoraxes(sa, 3) == U1(-1)
-        @test isdual(sa, 1) == false
-        @test isdual(sa, 2) == true
-        @test isdual(sa, 3) == false
+        @test isdual(axes(sa, 1)) == false
+        @test isdual(axes(sa, 2)) == true
+        @test isdual(axes(sa, 3)) == false
     end
 
     @testset "Derived accessors — sectoraxes" begin

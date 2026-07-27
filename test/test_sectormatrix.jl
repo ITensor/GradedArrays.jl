@@ -107,8 +107,8 @@ using Test: @test, @test_throws, @testset
     @testset "isdual via axes" begin
         d = ones(2, 3)
         sm = SectorMatrix(U1(1), d)
-        @test isdual(sm, 1) == false
-        @test isdual(sm, 2) == true
+        @test isdual(axes(sm, 1)) == false
+        @test isdual(axes(sm, 2)) == true
     end
 
     @testset "sector_kron (SectorIdentity, data) → SectorMatrix" begin

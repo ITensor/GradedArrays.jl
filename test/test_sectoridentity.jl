@@ -63,8 +63,8 @@ using Test: @test, @test_throws, @testset
 
     @testset "isdual via axes" begin
         si = SectorIdentity{Float64}(U1(1))
-        @test isdual(si, 1) == false
-        @test isdual(si, 2) == true
+        @test isdual(axes(si, 1)) == false
+        @test isdual(axes(si, 2)) == true
     end
 
     @testset "tr — quantum dimension of the sector" begin
