@@ -7,7 +7,8 @@ using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored
-using TensorAlgebra: TensorAlgebra, fill_map, ones_map, rand_map, randn_map, zeros_map
+using TensorAlgebra: TensorAlgebra, fill_map, matricize, ones_map, rand_map, randn_map,
+    unmatricize, zeros_map
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -964,4 +965,67 @@ end
     c = fill(-1.0, 2, 2)[h, dual(h)]
     @test maximum(c) == -1.0
     @test maximum(c) == maximum(Array(c))
+end
+
+# The `FusedGradedMatrix asymmetric` testset above checks the adjoint on U1 with real blocks, which
+# only exercises the transpose half. The adjoint itself is symmetry-agnostic (it conjugate-transposes
+# each reduced block and swaps codomain/domain), so its structural properties are checked here across
+# abelian (U1), fermionic (`FermionParity`), and non-abelian (`SU2`) sectors with complex, non-square
+# blocks via direct construction (which, unlike the matricize path, accepts non-abelian sectors).
+@testset "FusedGradedMatrix adjoint (direct construction, complex; $name)" for (
+        name,
+        sectors,
+    ) in (
+        ("U1", [U1(0), U1(1)]),
+        ("FermionParity", [TKS.FermionParity(false), TKS.FermionParity(true)]),
+        ("SU2", [SU2(0), SU2(1 // 2)]),
+    )
+    m = FusedGradedMatrix(sectors, [randn(ComplexF64, 2, 3), randn(ComplexF64, 1, 2)])
+    mh = m'
+
+    # Adjoint swaps codomain/domain and dualizes the axes.
+    @test mh.codomain == m.domain
+    @test mh.domain == m.codomain
+    @test axes(mh) == (dual(axes(m, 2)), dual(axes(m, 1)))
+    @test size(mh) == (size(m, 2), size(m, 1))
+
+    # Each block is the conjugate-transpose of the original (no per-sector sign), and for this
+    # complex data conjugation genuinely differs from a plain transpose.
+    for c in keys(m.blocks)
+        @test mh.blocks[c] == m.blocks[c]'
+        @test mh.blocks[c] != transpose(m.blocks[c])
+    end
+
+    # Double adjoint is the identity.
+    mhh = mh'
+    @test axes(mhh) == axes(m)
+    @test all(c -> mhh.blocks[c] == m.blocks[c], keys(m.blocks))
+end
+
+# The adjoint also composes with the matricize/unmatricize round-trip. This path is abelian-only, so
+# it covers U1 and `FermionParity` (not the non-abelian `SU2` above).
+@testset "FusedGradedMatrix adjoint round-trip (matricized, complex; $name)" for (
+        name,
+        r1,
+        r2,
+    ) in (
+        ("U1", gradedrange([U1(0) => 2, U1(1) => 2]), gradedrange([U1(0) => 1, U1(1) => 2])),
+        (
+            "FermionParity",
+            gradedrange([TKS.FermionParity(false) => 2, TKS.FermionParity(true) => 2]),
+            gradedrange([TKS.FermionParity(false) => 1, TKS.FermionParity(true) => 2]),
+        ),
+    )
+    # Matricize a 3-leg array (codomain legs 1, 2; domain leg 3) into a `FusedGradedMatrix`.
+    a = randn(ComplexF64, r1, r2, dual(r1))
+    m = matricize(a, Val(2))
+    mh = m'
+
+    # Unmatricize the adjoint (norm-preserving), then re-matricize recovers its blocks.
+    back = unmatricize(mh, (r1,), (r1, r2))
+    @test LinearAlgebra.norm(back) ≈ LinearAlgebra.norm(a)
+    remat = matricize(back, Val(1))
+    for c in keys(mh.blocks)
+        @test remat.blocks[c] ≈ mh.blocks[c]
+    end
 end
