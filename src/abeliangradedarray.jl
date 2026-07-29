@@ -398,12 +398,6 @@ end
 # A leading graded axis on every tuple/vararg form keeps these from pirating Base's
 # zero-argument and `Integer`/`Dims` calls.
 
-# A map over `(cod, dom)` is stored flat with the domain axes dualized. `allocate_graded` is the
-# single point building the block-sparse representation, so it can be swapped in one place.
-function allocate_graded(::Type{T}, cod, dom) where {T}
-    return AbelianGradedArray{T}(undef, (cod..., conj.(dom)...))
-end
-
 # Two anchored `*_map` entries — codomain-led and empty-codomain domain-led — each forwarding to
 # the `*_graded` worker, mirroring the `unchecked_project` / `allocate_project` split below. A
 # fully empty `((), ())` matches neither.
@@ -953,10 +947,19 @@ function TA.unchecked_project(
     return unchecked_project_graded(raw, codomain_axes, domain_axes)
 end
 function unchecked_project_graded(raw, codomain_axes, domain_axes)
-    dest = TA.projectto!(
-        TA.allocate_project(raw, codomain_axes, domain_axes), raw
-    )
-    return bend_domain!(dest, Val(length(codomain_axes)))
+    @static if graded_backend == "fusion"
+        # Delegate the projection (aux-leg derivation and dense placement) to TensorKit over the
+        # equivalent `ElementarySpace`s, then wrap the resulting `TensorMap`.
+        t = TA.unchecked_project(
+            raw, map(ElementarySpace, codomain_axes), map(ElementarySpace, domain_axes)
+        )
+        return FusionArray(t)
+    else
+        dest = TA.projectto!(
+            TA.allocate_project(raw, codomain_axes, domain_axes), raw
+        )
+        return bend_domain!(dest, Val(length(codomain_axes)))
+    end
 end
 
 function TA.unproject(a::AbelianGradedArray, ndims_codomain::Val)

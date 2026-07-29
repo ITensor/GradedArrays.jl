@@ -27,6 +27,7 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
     blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
+using Preferences: @load_preference, @set_preferences!
 using Random: Random, AbstractRNG, rand!, randn!
 using SparseArraysBase: SparseArraysBase, AbstractSparseMatrix
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, FusionStyle, bipartition,
@@ -34,6 +35,18 @@ using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, FusionStyle, bipartitio
     matricize, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
+
+# The graded backend `allocate_graded` builds, chosen in one place via a compile-time preference.
+# Defaults to the block-sparse `AbelianGradedArray`; set to "fusion" (see `set_graded_backend!`) to
+# build the always-fused `FusionArray` everywhere. A `@load_preference` constant (baked in at
+# precompile), so `@static if graded_backend == …` keeps the backend branches type-stable with the
+# unused branch eliminated. Defined here, before the includes, so it is available to `@static` in any
+# included file. Temporary switch to develop `FusionArray` toward parity with `AbelianGradedArray`.
+const graded_backend = @load_preference("graded_backend", "abelian")
+graded_backend in ("abelian", "fusion") ||
+    error(
+    "graded_backend preference must be \"abelian\" or \"fusion\", got $(repr(graded_backend))"
+)
 
 include("kron.jl")
 include("blocksparseinterface.jl")
