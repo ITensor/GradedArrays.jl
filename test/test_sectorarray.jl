@@ -218,6 +218,20 @@ using Test: @test, @test_throws, @testset
         TensorAlgebra.zero!(sa)
         @test all(iszero, data(sa))
     end
+
+    @testset "real / imag (data-wise, keeps sector)" begin
+        d = randn(ComplexF64, 2, 2)
+        sa = AbelianSectorArray((U1(1), dual(U1(1))), d)
+        ra = real(sa)
+        ia = imag(sa)
+        @test ra isa AbelianSectorArray
+        @test ia isa AbelianSectorArray
+        # The structural sector factor is left intact; only the reduced data takes real/imag parts.
+        @test sectoraxes(ra) == sectoraxes(sa)
+        @test data(ra) == real.(d)
+        @test data(ia) == imag.(d)
+        @test data(ra) + im * data(ia) ≈ d
+    end
 end
 
 @testset "AbelianSectorDelta tr — canonical dual ordering" begin

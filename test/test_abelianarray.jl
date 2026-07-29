@@ -1029,3 +1029,46 @@ end
         @test remat.blocks[c] ≈ mh.blocks[c]
     end
 end
+
+@testset "real / imag on AbelianGradedArray" begin
+    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
+    g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
+    a = AbelianGradedArray(randn(ComplexF64, (g1, dual(g2))))
+
+    ra = real(a)
+    ia = imag(a)
+    @test ra isa AbelianGradedArray
+    @test eltype(ra) == Float64
+    # `real` / `imag` act element-wise on the data and keep the axes (unlike `conj`, which dualizes).
+    @test axes(ra) == axes(a)
+    @test axes(ia) == axes(a)
+    @test Array(ra) == real(Array(a))
+    @test Array(ia) == imag(Array(a))
+    @test Array(ra) + im * Array(ia) ≈ Array(a)
+    # A real-eltype array is returned unchanged (no copy).
+    @test real(ra) === ra
+end
+
+# `real` / `imag` conjugate-transpose nothing and touch no sector: they act element-wise on the
+# reduced block data across abelian (U1), fermionic (`FermionParity`), and non-abelian (`SU2`)
+# sectors, checked via direct construction with complex, non-square blocks.
+@testset "real / imag on FusedGradedMatrix (direct construction, complex; $name)" for (
+        name,
+        sectors,
+    ) in (
+        ("U1", [U1(0), U1(1)]),
+        ("FermionParity", [TKS.FermionParity(false), TKS.FermionParity(true)]),
+        ("SU2", [SU2(0), SU2(1 // 2)]),
+    )
+    m = FusedGradedMatrix(sectors, [randn(ComplexF64, 2, 3), randn(ComplexF64, 1, 2)])
+    rm = real(m)
+    imm = imag(m)
+    @test rm isa FusedGradedMatrix
+    @test eltype(rm) == Float64
+    @test axes(rm) == axes(m)
+    for c in keys(m.blocks)
+        @test rm.blocks[c] == real.(m.blocks[c])
+        @test imm.blocks[c] == imag.(m.blocks[c])
+        @test real.(m.blocks[c]) + im * imag.(m.blocks[c]) ≈ m.blocks[c]
+    end
+end

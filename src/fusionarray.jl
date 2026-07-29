@@ -150,13 +150,20 @@ for f! in (:rand!, :randn!)
 end
 
 # ============================  in-place primitives / algebra  ============================
-# The inherited `AbstractGradedArray` `zero!`/`scale!`/`norm` walk `eachblockstoredindex`, which
-# `FusionArray` does not implement, so forward to the matricized `FusedGradedMatrix`. `+`/`-` are
-# left to the `AbstractArray` broadcast machinery.
+# The inherited `AbstractGradedArray` `zero!`/`scale!`/`norm`/`real`/`imag` walk
+# `eachblockstoredindex`, which `FusionArray` does not implement, so forward to the matricized
+# `FusedGradedMatrix`. `+`/`-` are left to the `AbstractArray` broadcast machinery.
 
 TensorAlgebra.zero!(fa::FusionArray) = (zero!(matricize(fa)); fa)
 TensorAlgebra.scale!(fa::FusionArray, α::Number) = (scale!(matricize(fa), α); fa)
 LinearAlgebra.norm(fa::FusionArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
+
+function Base.real(fa::FusionArray)
+    return FusionArray(real(matricize(fa)), axes_codomain(fa), axes_domain(fa))
+end
+function Base.imag(fa::FusionArray)
+    return FusionArray(imag(matricize(fa)), axes_codomain(fa), axes_domain(fa))
+end
 
 function Base.:*(a::FusionArray, x::Number)
     return FusionArray(matricize(a) * x, axes_codomain(a), axes_domain(a))
