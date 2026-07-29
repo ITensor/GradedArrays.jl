@@ -1,6 +1,6 @@
 using GradedArrays: FusionArray, SU2, SectorRange, U1, dual, gradedrange, isdual
 using Random: randn!
-using TensorAlgebra: bipermutedims, contract, svd_compact
+using TensorAlgebra: bipermutedims, contract, matricize, svd_compact
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -62,6 +62,32 @@ end
         # The same restriction guards the `TensorMap`/`ElementarySpace` conversion.
         @test_throws ArgumentError TensorKit.ElementarySpace(unsorted)
         @test_throws ArgumentError TensorKit.ElementarySpace(unfused)
+    end
+
+    @testset "real / imag ($G)" for (G, i, j) in (
+            (
+                "U1",
+                gradedrange([U1(0) => 2, U1(1) => 1]),
+                gradedrange([U1(0) => 1, U1(1) => 2]),
+            ),
+            (
+                "SU2", gradedrange([SU2(0) => 1, SU2(1 // 2) => 1]),
+                gradedrange([SU2(0) => 1, SU2(1 // 2) => 1]),
+            ),
+        )
+        a = randn_fusionarray(ComplexF64, (i,), (j,))
+        ra = real(a)
+        ia = imag(a)
+        @test ra isa FusionArray
+        @test ia isa FusionArray
+        @test eltype(ra) == Float64
+        @test axes(ra) == axes(a)
+        # Forwarded to the matricized fused matrix, so real/imag act block-wise on the reduced data.
+        ma = matricize(a)
+        for c in keys(ma.blocks)
+            @test matricize(ra).blocks[c] == real.(ma.blocks[c])
+            @test matricize(ia).blocks[c] == imag.(ma.blocks[c])
+        end
     end
 
     @testset "contraction ($G)" for (G, i, j, k, l) in (

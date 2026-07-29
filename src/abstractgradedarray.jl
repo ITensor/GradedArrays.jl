@@ -268,6 +268,26 @@ end
 # which would keep the axes non-dual.
 Base.conj(a::AbstractGradedArray) = conj.(a)
 
+# `real`/`imag` act on the reduced data of each stored block, leaving the (real) structural sector
+# factor untouched (`f(I ⊗ A) = I ⊗ f(A)`). Unlike `conj` they are not semilinear, so they cannot go
+# through the linear-broadcast fold; each block delegates to the block-level `AbstractSectorArray`
+# method.
+function Base.real(a::AbstractGradedArray)
+    eltype(a) <: Real && return a
+    r = similar(a, real(eltype(a)))
+    for I in eachblockstoredindex(a)
+        copy!(view(r, I), real(view(a, I)))
+    end
+    return r
+end
+function Base.imag(a::AbstractGradedArray)
+    r = similar(a, real(eltype(a)))
+    for I in eachblockstoredindex(a)
+        copy!(view(r, I), imag(view(a, I)))
+    end
+    return r
+end
+
 # Block-aware random fills: dispatch to each stored block's `rand!`/`randn!`, bypassing the generic
 # `AbstractArray` fallbacks that go through (disallowed) scalar indexing. The 3-arg
 # `rand!(rng, a, sp)` form is what Random's `rand!` entry points ultimately call.

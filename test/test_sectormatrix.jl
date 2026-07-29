@@ -133,6 +133,25 @@ using Test: @test, @test_throws, @testset
         @test_throws ArgumentError sm .* sm
     end
 
+    @testset "real / imag (data-wise, keeps sector; $name)" for (name, s) in (
+            ("U1", U1(1)),
+            ("SU2", SU2(1 // 2)),
+        )
+        d = randn(ComplexF64, 2, 2)
+        sm = SectorMatrix(s, d)
+        rm = real(sm)
+        imm = imag(sm)
+        @test rm isa SectorMatrix
+        @test imm isa SectorMatrix
+        # The structural sector factor is left intact; only the reduced data takes real/imag parts.
+        @test sectoraxes(rm) == sectoraxes(sm)
+        @test sectoraxes(imm) == sectoraxes(sm)
+        @test data(rm) == real.(d)
+        @test data(imm) == imag.(d)
+        # `real(sm) + im * imag(sm)` reconstructs the data.
+        @test data(rm) + im * data(imm) ≈ d
+    end
+
     @testset "Undef constructor (Int dims)" begin
         sm = SectorMatrix{Float64}(undef, U1(0), 3, 4)
         @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
