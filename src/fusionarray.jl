@@ -216,19 +216,17 @@ function Base.similar(bc::BC.Broadcasted{<:FusionArrayStyle}, elt::Type)
 end
 
 # ============================  bipermutedimsopadd! (permute primitive)  ============================
-# `y = α * op.(permute(x, …)) + β * y`, delegated to the `TensorMap` `bipermutedimsopadd!` in
-# `TensorAlgebraTensorKitExt` (fusion-tree recombination plus braiding/fermion signs). The
-# twisted blocks are copied back into `y`.
+# `y = α * op.(permute(x, …)) + β * y`, delegated to the `AbstractTensorMap` `bipermutedimsopadd!`
+# (fusion-tree recombination plus braiding/fermion signs). Wrapping `y`/`x` as `FusionMap`s shares
+# their blocks, so TensorKit writes the result into `y` in place.
 
 function TensorAlgebra.bipermutedimsopadd!(
         y::FusionArray, op, x::FusionArray,
         perm_codomain, perm_domain, α::Number, β::Number
     )
-    ty = TK.TensorMap(y)
     TensorAlgebra.bipermutedimsopadd!(
-        ty, op, TK.TensorMap(x), perm_codomain, perm_domain, α, β
+        FusionMap(y), op, FusionMap(x), perm_codomain, perm_domain, α, β
     )
-    copy!(y, ty)
     return y
 end
 
@@ -246,14 +244,11 @@ function TensorAlgebra.bipermutedimsopadd!(
 end
 
 # ============================  fermionic twist  ============================
-# The contraction twist scales blocks by a per-fusion-tree fermion phase, so delegate to
-# `TK.twist!` on a `TensorMap` copy and copy the twisted blocks back. A zero-copy
-# `AbstractTensorMap` view over the `FusedGradedMatrix` would remove the copy.
+# The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
+# `FusionMap` shares its blocks, so `TK.twist!` scales them in place.
 function twist!(a::FusionArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    t = TK.TensorMap(a)
-    TK.twist!(t, dims)
-    copy!(a, t)
+    TK.twist!(FusionMap(a), dims)
     return a
 end
 

@@ -1,4 +1,6 @@
-using GradedArrays: FusionArray, SU2, SectorRange, U1, dual, gradedrange, isdual
+using GradedArrays:
+    FusedGradedMatrix, FusionArray, SU2, SectorRange, U1, Z2, dual, gradedrange, isdual
+using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: bipermutedims, contract, matricize, svd_compact
 using TensorKit: TensorKit, @tensor
@@ -131,6 +133,25 @@ end
         @test p isa FusionArray
         @test TensorKit.TensorMap(p) ≈
             TensorKit.permute(TensorKit.TensorMap(a), ((1, 3), (2,)))
+    end
+
+    @testset "bend of a Diagonal-blocked FusionArray" begin
+        # `Diagonal` blocks arise from factorization factors (e.g. the singular values of a gauge).
+        # A non-trivial bend reads them through the same path TensorKit uses for `DiagonalTensorMap`,
+        # so it must match the dense-blocked equivalent.
+        g = gradedrange([Z2(0) => 2, Z2(1) => 3])
+        d0, d1 = randn(2), randn(3)
+        diag = FusionArray(
+            FusedGradedMatrix([Z2(0), Z2(1)], [Diagonal(d0), Diagonal(d1)]), (g,), (g,)
+        )
+        dense = FusionArray(
+            FusedGradedMatrix([Z2(0), Z2(1)], [Matrix(Diagonal(d0)), Matrix(Diagonal(d1))]),
+            (g,), (g,)
+        )
+        p = bipermutedims(diag, (1, 2), ())
+        @test p isa FusionArray
+        @test TensorKit.TensorMap(p) ≈
+            TensorKit.permute(TensorKit.TensorMap(dense), ((1, 2), ()))
     end
 
     @testset "factorization (svd_compact)" begin

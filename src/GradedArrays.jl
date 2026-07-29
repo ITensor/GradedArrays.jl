@@ -80,5 +80,6 @@ include("cat.jl")
 include("matrixalgebrakit.jl")
 
 include("fusionarray.jl")
+include("fusionmap.jl")
 
 end
