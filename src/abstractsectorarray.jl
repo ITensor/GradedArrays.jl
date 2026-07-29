@@ -157,8 +157,8 @@ Base.conj(a::AbstractSectorArray) = conj.(a)
 # (`f(I ⊗ A) = I ⊗ f(A)` for the real identity/ones structural factor). Defined directly on the
 # data rather than through the conjugating broadcast because, unlike `conj`, they are not semilinear
 # and cannot go through the linear-broadcast fold.
-Base.real(a::AbstractSectorArray) = sector_kron(sector(a), real.(data(a)))
-Base.imag(a::AbstractSectorArray) = sector_kron(sector(a), imag.(data(a)))
+Base.real(a::AbstractSectorArray) = sector_kron(sector(a), real(data(a)))
+Base.imag(a::AbstractSectorArray) = sector_kron(sector(a), imag(data(a)))
 
 # ========================  display  ========================
 
