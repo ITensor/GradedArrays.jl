@@ -134,8 +134,19 @@ function FusionArray{T}(
     return FusionArray(m, axes_codomain, axes_domain)
 end
 
+# A `FusionArray` source always reproduces a `FusionArray`, independent of the `graded_backend`
+# preference (so `FusionArray` stays self-consistent even when it is not the default backend). The
+# graded axes make these more specific than the backend-routing `similar_map` in `abeliangradedarray.jl`.
 function TensorAlgebra.similar_map(
-        ::FusionArray, ::Type{T}, axes_codomain::Tuple, axes_domain::Tuple
+        ::FusionArray, ::Type{T},
+        axes_codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+        axes_domain::Tuple{Vararg{GradedOneTo}}
+    ) where {T}
+    return FusionArray{T}(undef, axes_codomain, axes_domain)
+end
+function TensorAlgebra.similar_map(
+        ::FusionArray, ::Type{T},
+        axes_codomain::Tuple{}, axes_domain::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     ) where {T}
     return FusionArray{T}(undef, axes_codomain, axes_domain)
 end
@@ -157,6 +168,15 @@ end
 TensorAlgebra.zero!(fa::FusionArray) = (zero!(matricize(fa)); fa)
 TensorAlgebra.scale!(fa::FusionArray, α::Number) = (scale!(matricize(fa), α); fa)
 LinearAlgebra.norm(fa::FusionArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
+Base.fill!(fa::FusionArray, v) = (fill!(matricize(fa), v); fa)
+
+# Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
+# because the generic `AbstractGradedArray` `similar` takes flat axes and cannot recover the
+# codomain/domain split a `FusionArray` needs; `copy` must preserve it (e.g. `one!!(copy(A), …)`
+# relies on the copy keeping `A`'s split so the identity fill lands in the stored matrix).
+function Base.copy(fa::FusionArray)
+    return FusionArray(copy(matricize(fa)), axes_codomain(fa), axes_domain(fa))
+end
 
 function Base.real(fa::FusionArray)
     return FusionArray(real(matricize(fa)), axes_codomain(fa), axes_domain(fa))
@@ -210,6 +230,19 @@ function TensorAlgebra.bipermutedimsopadd!(
     )
     copy!(y, ty)
     return y
+end
+
+# A `FusedGradedMatrix` source (e.g. a matricized factorization output permuted into a `FusionArray`
+# destination) is wrapped zero-copy as a one-codomain/one-domain `FusionArray` — its stored matrix is
+# already the `FusionArray` matricized form — and forwarded to the method above. Without this the
+# generic `AbstractGradedArray` permute-add would block-index the `FusionArray` destination, which it
+# does not support.
+function TensorAlgebra.bipermutedimsopadd!(
+        y::FusionArray, op, x::FusedGradedMatrix,
+        perm_codomain, perm_domain, α::Number, β::Number
+    )
+    x_fa = FusionArray(x, (axes(x, 1),), (dual(axes(x, 2)),))
+    return TensorAlgebra.bipermutedimsopadd!(y, op, x_fa, perm_codomain, perm_domain, α, β)
 end
 
 # ============================  fermionic twist  ============================
@@ -287,6 +320,29 @@ function TensorAlgebra.unmatricizeperm!(
     # TODO: Switch to `Base.permutedims!` once it is defined to route through `bipermutedimsopadd!`.
     bipermutedims!(a_dest, tmp, perm_codomain, perm_domain)
     return a_dest
+end
+
+# ============================  project (dense -> symmetric)  ============================
+# The dense-to-symmetric projection for the `FusionArray` backend is delegated to TensorKit in the
+# shared `unchecked_project_graded` worker (`abeliangradedarray.jl`): it projects over the equivalent
+# `ElementarySpace`s and wraps the resulting `TensorMap` with `FusionArray(t)`. `unproject` below is
+# the dense inverse used by `TA.project`'s verification.
+
+# Dense form. The matricized `FusionArray` does not implement `eachblockstoredindex` (the generic
+# `AbstractGradedArray` dense path), so materialize through the `TensorMap`, whose `convert(Array, …)`
+# lays out `(codomain…, domain…)` in the dualized-domain convention `axes(fa)` reports.
+Base.Array(fa::FusionArray) = convert(Array, TK.TensorMap(fa))
+
+# `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification. The dense form
+# already carries the array's own codomain/domain split, so the requested split `Val{K}` must match
+# `fa`'s codomain length; the `TensorMap` conversion then undoes the domain-leg bend.
+function TensorAlgebra.unproject(fa::FusionArray, ::Val{K}) where {K}
+    K == ndims_codomain(fa) || throw(
+        ArgumentError(
+            "`unproject` codomain split $K does not match the FusionArray codomain $(ndims_codomain(fa))"
+        )
+    )
+    return Array(fa)
 end
 
 # ============================  show  ============================

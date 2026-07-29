@@ -198,9 +198,7 @@ function TensorAlgebra.unmatricize(
     )
     K = length(codomain_axes)
     N = K + length(domain_axes)
-    # The domain axes arrive codomain-facing (un-dualized); dualize them into the stored
-    # convention with `conj` as they are flattened into the destination axes.
-    a = similar(m, (codomain_axes..., conj.(domain_axes)...))
+    a = TA.similar_map(m, codomain_axes, domain_axes)
     return TensorAlgebra.unmatricizeperm!(
         SectorFusion(), a, m, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
     )

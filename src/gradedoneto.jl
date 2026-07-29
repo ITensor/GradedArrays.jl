@@ -294,10 +294,17 @@ for S in (:(TKS.Sector), :SectorRange)
     @eval function TensorAlgebra.to_range(
             space::AbstractVector{<:Pair{K, <:Integer}}
         ) where {K <: $S}
-        return if SymmetryStyle(K) === AbelianStyle()
-            gradedrange(space)
+        # Under the FusionArray backend, non-abelian sectors also build a `GradedOneTo` (FusionArray
+        # represents them via its coupled `FusedGradedMatrix`); otherwise they have no block-sparse
+        # array representation and fall back to a native TensorKit `GradedSpace`.
+        @static if graded_backend == "fusion"
+            return gradedrange(space)
         else
-            to_tensorkit_space(space)
+            return if SymmetryStyle(K) === AbelianStyle()
+                gradedrange(space)
+            else
+                to_tensorkit_space(space)
+            end
         end
     end
 end

@@ -303,3 +303,54 @@ function Random.randn!(rng::AbstractRNG, a::AbstractGradedArray)
     end
     return a
 end
+
+# ---------------------------------------------------------------------------
+#  Graded backend selection
+# ---------------------------------------------------------------------------
+# Backend infrastructure shared by every concrete graded array, so it lives here rather than in a
+# concrete-type file: `allocate_graded` and the `similar_map` router pick the backend type, and
+# `set_graded_backend!` persists the choice. The `graded_backend` constant is defined in
+# `GradedArrays.jl` before the includes so `@static if graded_backend == …` resolves in every file.
+
+# Persist the backend preference; takes effect after restarting Julia (the choice is baked in at
+# precompile time).
+function set_graded_backend!(backend::AbstractString)
+    backend in ("abelian", "fusion") ||
+        throw(
+        ArgumentError(
+            "graded backend must be \"abelian\" or \"fusion\", got $(repr(backend))"
+        )
+    )
+    @set_preferences!("graded_backend" => backend)
+    @info "graded backend set to $(repr(backend)). Restart Julia for it to take effect."
+    return nothing
+end
+
+# `allocate_graded` is the single point building the graded representation from a `(cod, dom)` split,
+# so the backend is chosen in one place, and the split-aware `similar_map` routes through it too. The
+# `@static if` on the compile-time `graded_backend` constant compiles just one branch into the body,
+# so this (and its callers) stay type-stable.
+function allocate_graded(::Type{T}, cod, dom) where {T}
+    @static if graded_backend == "fusion"
+        return FusionArray{T}(undef, cod, dom)
+    else
+        return AbelianGradedArray{T}(undef, (cod..., conj.(dom)...))
+    end
+end
+
+# The split-aware `similar_map` (used by `project` and by contraction/factorization result
+# allocation) routes through `allocate_graded` so it picks the same backend. Two anchored entries,
+# codomain-led and empty-codomain domain-led; a fully empty `((), ())` matches neither and falls back
+# to the flat `similar` (rank-0).
+function TA.similar_map(
+        prototype, ::Type{T},
+        cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
+    ) where {T}
+    return allocate_graded(T, cod, dom)
+end
+function TA.similar_map(
+        prototype, ::Type{T},
+        cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+    ) where {T}
+    return allocate_graded(T, cod, dom)
+end
