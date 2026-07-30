@@ -5,6 +5,12 @@ using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray, Fib,
 using TensorKitSectors: TensorKitSectors as TKS, FermionNumber, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 
+# `FusionArray` prints its own codomain/domain display header rather than the flat
+# `AbelianGradedArray{...}` summary, so the `AbelianGradedArray`-format assertions below are gated to
+# the abelian backend (a `FusionArray` display-format test is a deferred follow-up, tracked in the
+# parity plan).
+const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
+
 @testset "show SymmetrySector" begin
     q1 = U1(1)
     @test sprint(show, q1) == "U1(1)"
@@ -122,20 +128,22 @@ end
 
 @testset "compact type summary in display header" begin
     g = gradedrange([U1(0) => 2, U1(1) => 2])
-    s = sprint(show, MIME("text/plain"), zeros(Float64, g, dual(g)))
-    @test occursin("AbelianGradedMatrix{Float64, …, Matrix{Float64}}", s)
-    @test !occursin("SectorRange", s)
-    @test !occursin("GradedArrays.", s)
+    if !FUSION_BACKEND
+        s = sprint(show, MIME("text/plain"), zeros(Float64, g, dual(g)))
+        @test occursin("AbelianGradedMatrix{Float64, …, Matrix{Float64}}", s)
+        @test !occursin("SectorRange", s)
+        @test !occursin("GradedArrays.", s)
 
-    gf = gradedrange([FermionNumber(0) => 1, FermionNumber(1) => 2])
-    sf = sprint(show, MIME("text/plain"), zeros(ComplexF64, gf, dual(gf)))
-    @test occursin("AbelianGradedMatrix{ComplexF64, …, Matrix{ComplexF64}}", sf)
-    @test !occursin("ProductSector", sf)
-    @test !occursin("Irrep", sf)
+        gf = gradedrange([FermionNumber(0) => 1, FermionNumber(1) => 2])
+        sf = sprint(show, MIME("text/plain"), zeros(ComplexF64, gf, dual(gf)))
+        @test occursin("AbelianGradedMatrix{ComplexF64, …, Matrix{ComplexF64}}", sf)
+        @test !occursin("ProductSector", sf)
+        @test !occursin("Irrep", sf)
 
-    # Higher-order arrays keep the order `N` explicit in the header.
-    s3 = sprint(show, MIME("text/plain"), zeros(Float32, g, dual(g), g))
-    @test occursin("AbelianGradedArray{Float32, …, 3, Array{Float32, 3}}", s3)
+        # Higher-order arrays keep the order `N` explicit in the header.
+        s3 = sprint(show, MIME("text/plain"), zeros(Float32, g, dual(g), g))
+        @test occursin("AbelianGradedArray{Float32, …, 3, Array{Float32, 3}}", s3)
+    end
 
     m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(3, 3)])
     @test occursin(
@@ -146,11 +154,13 @@ end
 
 @testset "compact axis lines in array display" begin
     g = gradedrange([U1(0) => 2, U1(1) => 2])
-    s = sprint(show, MIME("text/plain"), zeros(Float64, g, dual(g)))
-    # The `Dim` lines drop the `gradedrange(...)` wrapper and mark a dual axis with a suffix.
-    @test occursin("Dim 1: [U1(0) => 2, U1(1) => 2]\n", s)
-    @test occursin("Dim 2: [U1(0) => 2, U1(1) => 2] (dual)", s)
-    @test !occursin("gradedrange(", s)
+    if !FUSION_BACKEND
+        s = sprint(show, MIME("text/plain"), zeros(Float64, g, dual(g)))
+        # The `Dim` lines drop the `gradedrange(...)` wrapper and mark a dual axis with a suffix.
+        @test occursin("Dim 1: [U1(0) => 2, U1(1) => 2]\n", s)
+        @test occursin("Dim 2: [U1(0) => 2, U1(1) => 2] (dual)", s)
+        @test !occursin("gradedrange(", s)
+    end
 
     # The axis's own show is unchanged and still round-trips through the constructor.
     @test sprint(show, g) == "gradedrange([U1(0) => 2, U1(1) => 2])"
@@ -158,22 +168,26 @@ end
 end
 
 @testset "AbelianGradedArray text/plain display" begin
-    g = gradedrange([U1(0) => 2, U1(1) => 2])
-    a = zeros(Float64, g, dual(g))
-    a[Block(1, 1)] = [1.0 2.0; 3.0 4.0]
-    a[Block(2, 2)] = [5.0 6.0; 7.0 8.0]
+    # Flat `AbelianGradedArray` block display; the fusion backend prints its own codomain/domain
+    # layout instead (a `FusionArray` display test is a deferred follow-up, tracked in the plan).
+    if !FUSION_BACKEND
+        g = gradedrange([U1(0) => 2, U1(1) => 2])
+        a = zeros(Float64, g, dual(g))
+        a[Block(1, 1)] = [1.0 2.0; 3.0 4.0]
+        a[Block(2, 2)] = [5.0 6.0; 7.0 8.0]
 
-    s = sprint(show, MIME("text/plain"), a)
-    @test occursin("AbelianGradedMatrix", s)
-    # Unstored blocks show as dots
-    @test occursin("⋅", s)
-    # Block separators
-    @test occursin("│", s)
-    @test occursin("─", s)
-    @test occursin("┼", s)
-    # Stored values are present
-    @test occursin("1.0", s)
-    @test occursin("8.0", s)
+        s = sprint(show, MIME("text/plain"), a)
+        @test occursin("AbelianGradedMatrix", s)
+        # Unstored blocks show as dots
+        @test occursin("⋅", s)
+        # Block separators
+        @test occursin("│", s)
+        @test occursin("─", s)
+        @test occursin("┼", s)
+        # Stored values are present
+        @test occursin("1.0", s)
+        @test occursin("8.0", s)
+    end
 end
 
 @testset "FusedGradedMatrix text/plain display" begin

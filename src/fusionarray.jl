@@ -113,6 +113,32 @@ function Base.copyto!(dest::FusionArray, src::FusionArray)
     return dest
 end
 
+# ============================  ==  ============================
+# Compare the shared array contents, not the internal matricization: a `FusionArray` is an array
+# whose `axes` are the flat external legs, so two with equal `axes` are equal iff their data matches.
+# Rematricize `b` to `a`'s codomain/domain split, then compare coupled blocks (unlike a `TensorMap`,
+# whose split is part of its identity). This also avoids Base's element-wise fallback, which would
+# index forbidden blocks.
+function Base.:(==)(a::FusionArray, b::FusionArray)
+    axes(a) == axes(b) || return false
+    return matricize(a) == matricize(b, Val(ndims_codomain(a)))
+end
+
+# ============================  dot  ============================
+# Sum the coupled-block inner products of the (norm-preserving) matricized forms, rather than the
+# `AbstractGradedArray` fallback that iterates `eachblockstoredindex` (not defined for `FusionArray`)
+# and scalar-indexes. `b` is rematricized to `a`'s split so the coupled blocks line up.
+function LinearAlgebra.dot(a::FusionArray, b::FusionArray)
+    axes(a) == axes(b) ||
+        throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
+    ma = matricize(a)
+    mb = matricize(b, Val(ndims_codomain(a)))
+    init = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
+    return sum(keys(ma.blocks); init) do c
+        return LinearAlgebra.dot(ma.blocks[c], mb.blocks[c])
+    end
+end
+
 # ============================  permutedims  ============================
 # Route through `permutedimsopadd!` (which forwards to the `FusionArray` `bipermutedimsopadd!`), so
 # the fermion braiding/bend signs are applied by TensorKit. Without this, Base's generic
