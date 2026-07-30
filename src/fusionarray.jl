@@ -53,6 +53,88 @@ ndims_domain(fa::FusionArray) = length(axes_domain(fa))
 # matrix directly (see `matricize(::FusionArrayFusionStyle, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
 
+# ============================  block indexing (unique fusion)  ============================
+# A `Block` picks a per-leg block position on each axis (positional, not sector-keyed). For unique
+# fusion those positional sectors name the one codomain/domain fusion-tree pair, whose reduced block
+# is a strided sub-region of the fused coupled matrix — exactly what `FusionMap`'s `subblock` exposes.
+# The returned `AbelianSectorArray` shares that strided data, so element get/set writes back in place.
+# Guarded to unique fusion: for non-abelian the external leg sectors under-determine the block (they
+# fix neither the internal fusion sectors nor the vertex multiplicities), so `Block` cannot name it.
+
+# The uncoupled sector of a leg as its fusion tree carries it: dualized on a dual axis (the dual flag
+# is tracked separately on the tree), matching TensorKit's external-sector indexing convention.
+_uncoupled_sector(r::SectorRange) = isdual(r) ? TKS.dual(label(r)) : label(r)
+
+function view_fusion(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
+    require_unique_fusion(a)
+    bk = Int.(Tuple(I))
+    sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
+    blockdata = FusionMap(a)[map(_uncoupled_sector, sects)]
+    return AbelianSectorArray(sects, blockdata)
+end
+
+Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = view_fusion(a, I)
+# Disambiguate the N=1 case against the `Vararg{Block{1}, N}` method, as `AbelianGradedArray` does.
+Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = view_fusion(a, I)
+
+# A `FusionArray` block is the same unique-fusion `AbelianSectorArray` the abelian backend returns.
+# TODO: derive the block data type from the `FusedGradedMatrix` block type (its `D`) rather than
+# hardcoding `Array{T, N}`, so non-`Array` storage (GPU, etc.) is preserved — e.g. via
+# `Base.promote_op` on `view(A, ::Block)` (the actual returned block type). Also only well-defined
+# for unique fusion (blocks are `AbelianSectorArray` only then); tie it to that guard.
+function blocktype(::Type{<:FusionArray{T, S, N}}) where {T, S, N}
+    return AbelianSectorArray{T, S, N, Array{T, N}}
+end
+blocktype(a::FusionArray) = blocktype(typeof(a))
+
+# ============================  similar  ============================
+# `similar` must build a `FusionArray`, not route through the `AbstractGradedArray` `similar` that
+# allocates an `AbelianGradedArray`. Without explicit axes, preserve the prototype's own
+# codomain/domain split (like `copy`); with explicit flat axes the split is unrecoverable (see the
+# `copy` note), so put all axes in the codomain, matching the broadcast `similar`.
+function Base.similar(a::FusionArray, ::Type{T}) where {T}
+    return FusionArray(similar(matricize(a), T), axes_codomain(a), axes_domain(a))
+end
+function Base.similar(
+        ::FusionArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+    ) where {T, S}
+    return FusionArray{T}(undef, axes, ())
+end
+
+# ============================  copyto!  ============================
+# Block-wise copy between `FusionArray`s (e.g. a factorization's `copy_input`). The generic
+# `AbstractArray` `copyto!` scalar-indexes, which errors on forbidden (symmetry-disallowed) blocks;
+# copy the shared coupled-sector matrices directly instead. Requires the same coupled structure,
+# which a `similar`-allocated destination has.
+function Base.copyto!(dest::FusionArray, src::FusionArray)
+    for (c, b) in pairs(matricize(src).blocks)
+        copyto!(matricize(dest).blocks[c], b)
+    end
+    return dest
+end
+
+# ============================  permutedims  ============================
+# Route through `permutedimsopadd!` (which forwards to the `FusionArray` `bipermutedimsopadd!`), so
+# the fermion braiding/bend signs are applied by TensorKit. Without this, Base's generic
+# `permutedims` allocates via `similar` and scalar-permutes the data, dropping the sign.
+function Base.permutedims(a::FusionArray{<:Any, <:Any, N}, perm) where {N}
+    dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
+    return permutedims!(similar(a, dest_axes), a, perm)
+end
+function Base.permutedims!(
+        y::FusionArray{<:Any, <:Any, N}, x::FusionArray{<:Any, <:Any, N}, perm
+    ) where {N}
+    TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
+    return y
+end
+
+# ============================  matrix product  ============================
+# Matrix-matrix product as a contraction over the shared leg, mirroring `AbelianGradedMatrix`. The
+# generic `LinearAlgebra` matmul scalar-indexes, which errors on forbidden blocks.
+function Base.:*(a::FusionArray{<:Any, <:Any, 2}, b::FusionArray{<:Any, <:Any, 2})
+    return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
+end
+
 # ============================  TensorMap conversion  ============================
 
 """
@@ -169,6 +251,7 @@ TensorAlgebra.zero!(fa::FusionArray) = (zero!(matricize(fa)); fa)
 TensorAlgebra.scale!(fa::FusionArray, α::Number) = (scale!(matricize(fa), α); fa)
 LinearAlgebra.norm(fa::FusionArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
 Base.fill!(fa::FusionArray, v) = (fill!(matricize(fa), v); fa)
+Base.iszero(fa::FusionArray) = iszero(matricize(fa))
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
 # because the generic `AbstractGradedArray` `similar` takes flat axes and cannot recover the

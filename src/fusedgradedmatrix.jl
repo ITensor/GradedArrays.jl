@@ -330,6 +330,7 @@ end
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
+Base.iszero(A::FusedGradedMatrix) = all(iszero, values(A.blocks))
 
 # ========================  similar  ========================
 
