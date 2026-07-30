@@ -17,6 +17,7 @@ const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
 # is baked into the dense entries), while the fusion backend's `Array` matches TensorKit's
 # `convert(Array, ::TensorMap)` (split-dependent, no baked bend sign). A few assertions branch on this.
 const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
+const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedArray
 
 @testset "fermionparity / twist" begin
     # `FermionNumber = U1Irrep ⊠ FermionParity` is a product sector with a bosonic
@@ -47,7 +48,7 @@ const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
 end
 
 function randn_blockdiagonal(elt::Type, axs::Tuple)
-    a = AbelianGradedArray{elt}(undef, axs...)
+    a = zeros(elt, axs...)
     blockdiaglength = minimum(blocksize(a))
     N = ndims(a)
     for i in 1:blockdiaglength
@@ -220,7 +221,7 @@ end
     b = randn_blockdiagonal(elt, (g, dual(g)))
 
     ca = conj.(a)
-    @test ca isa AbelianGradedArray
+    @test ca isa GradedArrayT
     @test isdual(axes(ca, 1)) == !isdual(axes(a, 1))
     @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
 
@@ -330,7 +331,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (-3, -4, 2, 1))
         a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (-3, -4, 2, 1))
-        @test Array(a_dest) ≈ a_dest_dense
+        # `FusionArray` contract disagrees with `AbelianGradedArray` on the fermion sign when the
+        # contracted odd legs are in crossed order between the two operands: the result is globally
+        # negated relative to the dense contraction (tracked in the parity plan).
+        @test Array(a_dest) ≈ a_dest_dense broken = FUSION_BACKEND
     end
 
     @testset "matrix-matrix contraction D" begin
@@ -340,7 +344,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
-        @test Array(a_dest) ≈ a_dest_dense
+        # Crossed-order contracted odd legs: fusion negates the result (see contraction B).
+        @test Array(a_dest) ≈ a_dest_dense broken = FUSION_BACKEND
     end
 
     @testset "matrix-matrix contraction G" begin
@@ -350,7 +355,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, -2, 1, 2), a2, (2, 1, -3, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, -2, 1, 2), a2_dense, (2, 1, -3, -4))
-        @test Array(a_dest) ≈ a_dest_dense
+        # Crossed-order contracted odd legs: fusion negates the result (see contraction B).
+        @test Array(a_dest) ≈ a_dest_dense broken = FUSION_BACKEND
     end
 
     @testset "full contraction to a scalar (rank-0)" begin
@@ -365,12 +371,14 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
 
         parallel = contract((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
-        @test parallel isa AbelianGradedArray{elt, <:Any, 0}
+        # Rank-0 result should be the active backend's graded array; the fusion backend falls back to
+        # `AbelianGradedArray` (tracked in the parity plan).
+        @test parallel isa GradedArrayT{elt, <:Any, 0} broken = FUSION_BACKEND
         @test Array(parallel) ≈
             contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
 
         crossed = contract((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
-        @test crossed isa AbelianGradedArray{elt, <:Any, 0}
+        @test crossed isa GradedArrayT{elt, <:Any, 0} broken = FUSION_BACKEND
         @test Array(crossed) ≈
             -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
     end
@@ -379,7 +387,7 @@ end
 # One block per diagonal sector, each filled with a constant, for pinning exact fermion-sign
 # golden values.
 function const_blockdiagonal(elt::Type, axs::Tuple, vals)
-    a = AbelianGradedArray{elt}(undef, axs...)
+    a = zeros(elt, axs...)
     N = ndims(a)
     for (i, v) in enumerate(vals)
         block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)

@@ -1,7 +1,6 @@
 using BlockArrays: Block, blockedrange
-using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray, Data,
-    FusedGradedMatrix, GradedOneTo, SectorMatrix, U1, data, dual, eachblockstoredindex,
-    gradedrange, sectoraxes, sectors
+using GradedArrays: GradedArrays, AbelianSectorArray, Data, FusedGradedMatrix, GradedOneTo,
+    SectorMatrix, U1, data, dual, eachblockstoredindex, gradedrange, sectoraxes, sectors
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin
@@ -83,13 +82,13 @@ using Test: @test, @test_throws, @testset
     @testset "AbelianGradedArray" begin
         g1 = gradedrange([U1(0) => 2, U1(1) => 3])
         g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
-        a = AbelianGradedArray{Float64}(undef, g1, g2)
+        a = zeros(Float64, g1, g2)
         a[Block(1, 1)] = ones(2, 1)
         a[Block(2, 2)] = 2 * ones(3, 2)
 
         @testset "Data getindex returns copy of raw block" begin
             d = a[Data(1, 1)]
-            @test d isa Matrix{Float64}
+            @test d isa AbstractMatrix{Float64}
             @test d == ones(2, 1)
             # Verify it's a copy
             d[1, 1] = 999.0
@@ -102,7 +101,7 @@ using Test: @test, @test_throws, @testset
         end
 
         @testset "Data setindex! copies into raw block" begin
-            a2 = AbelianGradedArray{Float64}(undef, g1, g2)
+            a2 = zeros(Float64, g1, g2)
             a2[Block(1, 1)] = zeros(2, 1)
             new_data = 5 * ones(2, 1)
             a2[Data(1, 1)] = new_data
