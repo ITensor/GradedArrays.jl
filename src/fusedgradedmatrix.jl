@@ -330,6 +330,14 @@ end
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
+Base.iszero(A::FusedGradedMatrix) = all(iszero, values(A.blocks))
+
+# Compare coupled-sector blocks directly instead of falling back to element-wise iteration (which
+# would index forbidden blocks). Equal axes guarantee the same stored (allowed) sectors.
+function Base.:(==)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+    axes(A) == axes(B) || return false
+    return all(A.blocks[c] == B.blocks[c] for c in keys(A.blocks))
+end
 
 # ========================  similar  ========================
 

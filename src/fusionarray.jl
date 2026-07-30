@@ -53,6 +53,122 @@ ndims_domain(fa::FusionArray) = length(axes_domain(fa))
 # matrix directly (see `matricize(::FusionArrayFusionStyle, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
 
+# ============================  block indexing (unique fusion)  ============================
+# Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
+# block. The returned `AbelianSectorArray` is a view into the block's strided data, so get/set writes
+# back in place.
+
+function viewblock(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
+    require_unique_fusion(a)
+    bk = Int.(Tuple(I))
+    sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
+    # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
+    blockdata = FusionMap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
+    return AbelianSectorArray(sects, blockdata)
+end
+
+Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
+# Disambiguate the N=1 case against the `Vararg{Block{1}, N}` method, as `AbelianGradedArray` does.
+Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
+
+# A `FusionArray` block is the same unique-fusion `AbelianSectorArray` the abelian backend returns.
+# TODO: derive the block data type from the `FusedGradedMatrix` block type (its `D`) rather than
+# hardcoding `Array{T, N}`, so non-`Array` storage (GPU, etc.) is preserved — e.g. via
+# `Base.promote_op` on `view(A, ::Block)` (the actual returned block type). Also only well-defined
+# for unique fusion (blocks are `AbelianSectorArray` only then); tie it to that guard.
+function blocktype(::Type{<:FusionArray{T, S, N}}) where {T, S, N}
+    return AbelianSectorArray{T, S, N, Array{T, N}}
+end
+blocktype(a::FusionArray) = blocktype(typeof(a))
+
+# ============================  similar  ============================
+# `similar` must build a `FusionArray`, not route through the `AbstractGradedArray` `similar` that
+# allocates an `AbelianGradedArray`. Without explicit axes, preserve the prototype's own
+# codomain/domain split (like `copy`); with explicit flat axes the split is unrecoverable (see the
+# `copy` note), so put all axes in the codomain, matching the broadcast `similar`.
+function Base.similar(a::FusionArray, ::Type{T}) where {T}
+    return FusionArray(similar(matricize(a), T), axes_codomain(a), axes_domain(a))
+end
+function Base.similar(
+        a::FusionArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+    ) where {T, S}
+    return TensorAlgebra.similar_map(a, T, axes, ())
+end
+
+# ============================  copyto!  ============================
+# Copy `src` into `dest` as an identity leg permutation into `dest`'s own codomain/domain split, so
+# `bipermutedims!` bends `src` when the two splits differ and validates the external axes. The generic
+# `AbstractArray` `copyto!` scalar-indexes, which errors on forbidden (symmetry-disallowed) blocks.
+# `Base.copy!` rides on this: it checks `axes` equality and forwards here.
+function Base.copyto!(dest::FusionArray, src::FusionArray)
+    bipermutedims!(
+        dest, src,
+        ntuple(identity, Val(ndims_codomain(dest))),
+        ntuple(i -> ndims_codomain(dest) + i, Val(ndims_domain(dest)))
+    )
+    return dest
+end
+
+# ============================  ==  ============================
+# Compare the shared array contents, not the internal matricization: a `FusionArray` is an array
+# whose `axes` are the flat external legs, so two with equal `axes` are equal iff their data matches.
+# Rematricize `b` to `a`'s codomain/domain split, then compare coupled blocks (unlike a `TensorMap`,
+# whose split is part of its identity). This also avoids Base's element-wise fallback, which would
+# index forbidden blocks.
+function Base.:(==)(a::FusionArray, b::FusionArray)
+    axes(a) == axes(b) || return false
+    return matricize(a) == matricize(b, Val(ndims_codomain(a)))
+end
+
+# ============================  dot  ============================
+# Sum the coupled-block inner products of the (norm-preserving) matricized forms, rather than the
+# `AbstractGradedArray` fallback that iterates `eachblockstoredindex` (not defined for `FusionArray`)
+# and scalar-indexes. `b` is rematricized to `a`'s split so the coupled blocks line up.
+function LinearAlgebra.dot(a::FusionArray, b::FusionArray)
+    axes(a) == axes(b) ||
+        throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
+    ma = matricize(a)
+    mb = matricize(b, Val(ndims_codomain(a)))
+    init = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
+    return sum(keys(ma.blocks); init) do c
+        return LinearAlgebra.dot(ma.blocks[c], mb.blocks[c])
+    end
+end
+
+# ============================  permutedims  ============================
+# Route through `permutedimsopadd!` (which forwards to the `FusionArray` `bipermutedimsopadd!`), so
+# the fermion braiding/bend signs are applied by TensorKit. Without this, Base's generic
+# `permutedims` allocates via `similar` and scalar-permutes the data, dropping the sign.
+function Base.permutedims(a::FusionArray{<:Any, <:Any, N}, perm) where {N}
+    dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
+    return permutedims!(similar(a, dest_axes), a, perm)
+end
+function Base.permutedims!(
+        y::FusionArray{<:Any, <:Any, N}, x::FusionArray{<:Any, <:Any, N}, perm
+    ) where {N}
+    TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
+    return y
+end
+
+# ============================  matrix product  ============================
+# Matrix-matrix product as a contraction over the shared leg, mirroring `AbelianGradedMatrix`. The
+# generic `LinearAlgebra` matmul scalar-indexes, which errors on forbidden blocks.
+function Base.:*(a::FusionArray{<:Any, <:Any, 2}, b::FusionArray{<:Any, <:Any, 2})
+    return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
+end
+
+# ============================  bare-matrix factorizations  ============================
+# Route the plain matrix forms (`MAK.svd_compact(m)`, etc.) through the matricizing `TensorAlgebra`
+# factorizations, identical to the `AbelianGradedMatrix` methods in `matrixalgebrakit.jl` (which
+# also documents the shared name list). Defined here because `FusionArray` is not yet defined at
+# that include point. Avoids MatrixAlgebraKit's native path, which scalar-indexes and hits a
+# forbidden block.
+for f in BARE_MATRIX_FACTORIZATIONS
+    @eval function MAK.$f(m::FusionArray{<:Any, <:Any, 2}; kwargs...)
+        return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
+    end
+end
+
 # ============================  TensorMap conversion  ============================
 
 """
@@ -169,6 +285,7 @@ TensorAlgebra.zero!(fa::FusionArray) = (zero!(matricize(fa)); fa)
 TensorAlgebra.scale!(fa::FusionArray, α::Number) = (scale!(matricize(fa), α); fa)
 LinearAlgebra.norm(fa::FusionArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
 Base.fill!(fa::FusionArray, v) = (fill!(matricize(fa), v); fa)
+Base.iszero(fa::FusionArray) = iszero(matricize(fa))
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
 # because the generic `AbstractGradedArray` `similar` takes flat axes and cannot recover the

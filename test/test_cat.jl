@@ -3,6 +3,12 @@ using GradedArrays:
 using TensorAlgebra: TensorAlgebra, cat_axes, cat_similar, cat_style
 using Test: @test, @test_broken, @test_throws, @testset
 
+# Concatenation produces a block-appended (mortar) result axis, in which a sector can repeat: an
+# unfused axis. `FusionArray` axes are always fused-and-sorted, so allocating/populating a
+# concatenated `FusionArray` is a deferred feature (tracked in the parity plan); the array-level cat
+# tests below are gated off on the fusion backend until then. The axis-level tests run on both.
+const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
+
 @testset "cat / directsum" begin
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(1) => 2])
@@ -32,44 +38,60 @@ using Test: @test, @test_broken, @test_throws, @testset
     end
 
     @testset "cat_similar allocates a graded array with concat axes" begin
-        a1 = randn(g1, g1)
-        a2 = randn(g2, g2)
-        ax = cat_axes(Val((1, 2)), a1, a2)
-        d = cat_similar(cat_style(Val((1, 2)), a1, a2), Float64, ax, a1, a2)
-        @test d isa AbstractGradedArray
-        @test eltype(d) == Float64
-        @test axes(d) == (mortar_axis([g1, g2]), mortar_axis([g1, g2]))
+        if FUSION_BACKEND
+            @test_broken false  # concatenated (mortar) result axis is unfused, unsupported here
+        else
+            a1 = randn(g1, g1)
+            a2 = randn(g2, g2)
+            ax = cat_axes(Val((1, 2)), a1, a2)
+            d = cat_similar(cat_style(Val((1, 2)), a1, a2), Float64, ax, a1, a2)
+            @test d isa AbstractGradedArray
+            @test eltype(d) == Float64
+            @test axes(d) == (mortar_axis([g1, g2]), mortar_axis([g1, g2]))
+        end
     end
 
     @testset "cat data placement" begin
-        a1 = randn(g1, g1)
-        a2 = randn(g2, g2)
-        @test let r = TensorAlgebra.concatenate((1, 2), a1, a2)
-            axes(r) == (mortar_axis([g1, g2]), mortar_axis([g1, g2])) &&
-                Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
-        end
+        if FUSION_BACKEND
+            @test_broken false  # concatenated (mortar) result axis is unfused, unsupported here
+        else
+            a1 = randn(g1, g1)
+            a2 = randn(g2, g2)
+            @test let r = TensorAlgebra.concatenate((1, 2), a1, a2)
+                axes(r) == (mortar_axis([g1, g2]), mortar_axis([g1, g2])) &&
+                    Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
+            end
 
-        b1 = randn(g1, g1)
-        b2 = randn(g2, g1)
-        @test let r = TensorAlgebra.concatenate(1, b1, b2)
-            axes(r) == (mortar_axis([g1, g2]), g1) &&
-                Array(r) == cat(Array(b1), Array(b2); dims = 1)
+            b1 = randn(g1, g1)
+            b2 = randn(g2, g1)
+            @test let r = TensorAlgebra.concatenate(1, b1, b2)
+                axes(r) == (mortar_axis([g1, g2]), g1) &&
+                    Array(r) == cat(Array(b1), Array(b2); dims = 1)
+            end
         end
     end
 
     @testset "directsum defaults to cat" begin
-        a1 = randn(g1, g1)
-        a2 = randn(g2, g2)
-        @test let r = TensorAlgebra.directsum((1, 2), a1, a2)
-            Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
+        if FUSION_BACKEND
+            @test_broken false  # concatenated (mortar) result axis is unfused, unsupported here
+        else
+            a1 = randn(g1, g1)
+            a2 = randn(g2, g2)
+            @test let r = TensorAlgebra.directsum((1, 2), a1, a2)
+                Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
+            end
         end
     end
 
     @testset "Base.cat routes through concatenate" begin
-        a1 = randn(g1, g1)
-        a2 = randn(g2, g2)
-        @test let r = cat(a1, a2; dims = (1, 2))
-            Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
+        if FUSION_BACKEND
+            @test_broken false  # concatenated (mortar) result axis is unfused, unsupported here
+        else
+            a1 = randn(g1, g1)
+            a2 = randn(g2, g2)
+            @test let r = cat(a1, a2; dims = (1, 2))
+                Array(r) == cat(Array(a1), Array(a2); dims = (1, 2))
+            end
         end
     end
 end

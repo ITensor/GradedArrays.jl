@@ -1,11 +1,17 @@
 import MatrixAlgebraKit as MAK
-using GradedArrays: AbelianGradedMatrix, FusedGradedMatrix, FusedGradedVector,
-    GradedBlockAlgorithm, U1, Z2, dual, gradedrange
+using GradedArrays: GradedArrays, AbelianGradedArray, AbelianGradedMatrix,
+    FusedGradedMatrix, FusedGradedVector, FusionArray, GradedBlockAlgorithm, U1, Z2, dual,
+    gradedrange
+
+# The graded array type the active backend allocates, for asserting that operations stay in the
+# graded representation. Both backends are cross-checked through the Preferences switch.
+const GradedArrayT =
+    GradedArrays.graded_backend == "fusion" ? FusionArray : AbelianGradedArray
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
 using StableRNGs: StableRNG
-using TensorAlgebra: TensorAlgebra
+using TensorAlgebra: TensorAlgebra, matricize
 using Test: @test, @testset
 
 # ---------------------------------------------------------------------------
@@ -417,7 +423,7 @@ end
         a = randn(rng, Float64, (g, dual(g)))
         b = randn(rng, Float64, (g, dual(h)))
         c = a * b
-        @test c isa AbelianGradedMatrix
+        @test c isa GradedArrayT{<:Any, <:Any, 2}
         # `(a * b)[i, j] == sum_k a[i, k] * b[k, j]`.
         @test Array(c) ≈ Array(a) * Array(b)
         # Result axes: codomain from `a`, domain from `b`.
@@ -481,7 +487,7 @@ end
 
         @testset "svd_compact" begin
             U, S, Vᴴ = MAK.svd_compact(m_rect)
-            @test all(x -> x isa AbelianGradedMatrix, (U, S, Vᴴ))
+            @test all(x -> x isa GradedArrayT{<:Any, <:Any, 2}, (U, S, Vᴴ))
             @test axes(U, 1) == axes(m_rect, 1)
             @test axes(Vᴴ, 2) == axes(m_rect, 2)
             @test U * S * Vᴴ ≈ m_rect
@@ -490,12 +496,14 @@ end
 
         @testset "svd_full" begin
             U, S, Vᴴ = MAK.svd_full(m_rect)
-            @test all(x -> x isa AbelianGradedMatrix, (U, S, Vᴴ))
+            @test all(x -> x isa GradedArrayT{<:Any, <:Any, 2}, (U, S, Vᴴ))
             @test Array(U) * Array(S) * Array(Vᴴ) ≈ Array(m_rect)
         end
 
         @testset "svd_vals" begin
-            @test fgv_approx(MAK.svd_vals(m_rect), MAK.svd_vals(FusedGradedMatrix(m_rect)))
+            @test fgv_approx(
+                MAK.svd_vals(m_rect), MAK.svd_vals(matricize(m_rect, Val(1)))
+            )
         end
 
         @testset "qr_compact / qr_full" begin
@@ -515,7 +523,9 @@ end
         @testset "eig_full / eig_vals" begin
             D, V = MAK.eig_full(m_sq)
             @test Array(m_sq) * Array(V) ≈ Array(V) * Array(D)
-            @test fgv_approx(MAK.eig_vals(m_sq), MAK.eig_vals(FusedGradedMatrix(m_sq)))
+            @test fgv_approx(
+                MAK.eig_vals(m_sq), MAK.eig_vals(matricize(m_sq, Val(1)))
+            )
         end
 
         @testset "eigh_full / eigh_vals" begin
@@ -523,7 +533,7 @@ end
             @test Array(m_herm) ≈ Array(V) * Array(D) * Array(V)'
             @test fgv_approx(
                 MAK.eigh_vals(m_herm),
-                MAK.eigh_vals(FusedGradedMatrix(m_herm))
+                MAK.eigh_vals(matricize(m_herm, Val(1)))
             )
         end
 
