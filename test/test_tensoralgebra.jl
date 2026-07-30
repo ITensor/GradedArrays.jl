@@ -142,17 +142,17 @@ end
     # Sectors should be sorted and unique after merge
     @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]
     @test datalengths(axes(a_merged, 1)) == [1, 5]
-    @test sectors(axes(a_merged, 2)) == [U1(-1), U1(0)]
-    @test datalengths(axes(a_merged, 2)) == [2, 1]
+    @test sectors(axes(a_merged, 2)) == [U1(0), U1(-1)]
+    @test datalengths(axes(a_merged, 2)) == [1, 2]
 
     # The merged U1(1) block should stack the two source blocks (2×2 + 3×2 → 5×2)
-    merged_block = a_merged[Block(2, 1)]
+    merged_block = a_merged[Block(2, 2)]
     @test size(merged_block) == (5, 2)
     @test data(merged_block)[1:2, :] ≈ ones(2, 2)
     @test data(merged_block)[3:5, :] ≈ 2 * ones(3, 2)
 
-    # U1(0) block should be empty (no stored data)
-    empty_block = a_merged[Block(1, 2)]
+    # U1(0) × U1(0) block should be empty (no stored data)
+    empty_block = a_merged[Block(1, 1)]
     @test size(empty_block) == (1, 1)
     @test all(iszero, data(empty_block))
 end

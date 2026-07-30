@@ -57,9 +57,9 @@ using TestExtras: @constinferred
             sectorproduct(TrivialSector(), TrivialSector())
 
         @test sectorproduct(U1(0)) < sectorproduct((U1(1)))
-        @test sectorproduct(U1(0), U1(2)) < sectorproduct((U1(1)), U1(0))
+        @test sectorproduct(U1(0), U1(2)) > sectorproduct((U1(1)), U1(0))
         @test sectorproduct(U1(0)) < sectorproduct(U1(0), U1(1))
-        @test sectorproduct(U1(0)) > sectorproduct(U1(0), U1(-1))
+        @test sectorproduct(U1(0)) < sectorproduct(U1(0), U1(-1))
     end
 
     @testset "Quantum dimension and GradedOneTo" begin

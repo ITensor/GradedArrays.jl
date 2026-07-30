@@ -13,8 +13,8 @@ end
 # A TensorKit `GradedSpace` holds each sector once, in sorted order. GradedArrays' fused-and-sorted
 # ranges satisfy this, so a range that is unfused (a sector repeats) or unsorted cannot be converted
 # yet. This restriction (and the initial `FusionArray` form) will be lifted once the unfused/unsorted
-# case applies an implicit basis change. NB: the sort order is GradedArrays' `SectorRange` order,
-# which for U1 differs from TensorKit's; aligning the two is a separate follow-up.
+# case applies an implicit basis change. The sort order is GradedArrays' `SectorRange` order, which
+# matches TensorKit's for every sector, so a sorted range maps to a `GradedSpace` with no reordering.
 function check_fused_sorted(g::GradedOneTo)
     secs = sectors(g)
     allunique(secs) ||
@@ -31,8 +31,7 @@ function TK.ElementarySpace(g::GradedOneTo)
     return isdual(g) ? dual(sp) : sp
 end
 
-# TensorKit orders sectors by its own convention (e.g. U1 by `|charge|` then sign), which differs
-# from the `SectorRange` order a `GradedOneTo` uses (U1 numerically), so re-sort the pairs.
+# Sort the pairs into `SectorRange` order.
 function GradedOneTo(V::ElementarySpace)
     V0 = TK.isdual(V) ? TK.dual(V) : V
     ps = sort([c => TK.dim(V0, c) for c in TK.sectors(V0)]; by = p -> SectorRange(first(p)))
