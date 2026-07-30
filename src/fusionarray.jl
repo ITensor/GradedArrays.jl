@@ -173,10 +173,6 @@ for f in BARE_MATRIX_FACTORIZATIONS
     end
 end
 
-# View a matrix `FusionArray` as its square matricized `FusedGradedMatrix` (row = leg 1, col = leg
-# 2), mirroring `FusedGradedMatrix(::AbelianGradedMatrix)`.
-FusedGradedMatrix(m::FusionArray{<:Any, <:Any, 2}) = TensorAlgebra.matricize(m, Val(1))
-
 # ============================  TensorMap conversion  ============================
 
 """
