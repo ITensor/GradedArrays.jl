@@ -135,6 +135,22 @@ function Base.:*(a::FusionArray{<:Any, <:Any, 2}, b::FusionArray{<:Any, <:Any, 2
     return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
 end
 
+# ============================  bare-matrix factorizations  ============================
+# Route the plain matrix forms (`MAK.svd_compact(m)`, etc.) through the matricizing `TensorAlgebra`
+# factorizations, identical to the `AbelianGradedMatrix` methods in `matrixalgebrakit.jl` (which
+# also documents the shared name list). Defined here because `FusionArray` is not yet defined at
+# that include point. Avoids MatrixAlgebraKit's native path, which scalar-indexes and hits a
+# forbidden block.
+for f in BARE_MATRIX_FACTORIZATIONS
+    @eval function MAK.$f(m::FusionArray{<:Any, <:Any, 2}; kwargs...)
+        return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
+    end
+end
+
+# View a matrix `FusionArray` as its square matricized `FusedGradedMatrix` (row = leg 1, col = leg
+# 2), mirroring `FusedGradedMatrix(::AbelianGradedMatrix)`.
+FusedGradedMatrix(m::FusionArray{<:Any, <:Any, 2}) = TensorAlgebra.matricize(m, Val(1))
+
 # ============================  TensorMap conversion  ============================
 
 """
