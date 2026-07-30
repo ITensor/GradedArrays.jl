@@ -120,7 +120,7 @@ end
         )
         gf = gradedrange(
             [
-                U1(-3) => 2, U1(-2) => 2, U1(-1) => 5, U1(0) => 3, U1(1) => 4, U1(2) => 4,
+                U1(0) => 3, U1(1) => 4, U1(-1) => 5, U1(2) => 4, U1(-2) => 2, U1(-3) => 2,
             ]
         )
         @test (@constinferred unmerged_tensor_product(g1, g2)) == gt
@@ -141,7 +141,7 @@ end
         )
         gfd1 = gradedrange(
             [
-                U1(-3) => 4, U1(-2) => 2, U1(-1) => 4, U1(0) => 5, U1(1) => 3, U1(2) => 2,
+                U1(0) => 5, U1(1) => 3, U1(-1) => 4, U1(2) => 2, U1(-2) => 2, U1(-3) => 4,
             ]
         )
         @test (@constinferred unmerged_tensor_product(dual(g1), g2)) == gtd1
@@ -162,7 +162,7 @@ end
         )
         gfd2 = gradedrange(
             [
-                U1(-2) => 2, U1(-1) => 3, U1(0) => 5, U1(1) => 4, U1(2) => 2, U1(3) => 4,
+                U1(0) => 5, U1(1) => 4, U1(-1) => 3, U1(2) => 2, U1(-2) => 2, U1(3) => 4,
             ]
         )
         @test (@constinferred unmerged_tensor_product(g1, dual(g2))) == gtd2
@@ -183,7 +183,7 @@ end
         )
         gfd = gradedrange(
             [
-                U1(-2) => 4, U1(-1) => 4, U1(0) => 3, U1(1) => 5, U1(2) => 2, U1(3) => 2,
+                U1(0) => 3, U1(1) => 5, U1(-1) => 4, U1(2) => 2, U1(-2) => 4, U1(3) => 2,
             ]
         )
         @test (@constinferred unmerged_tensor_product(dual(g1), dual(g2))) == gtd

@@ -45,7 +45,7 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
 
         @test U1(0) == TrivialSector()
         @test TrivialSector() == U1(0)
-        @test U1(-1) < TrivialSector()
+        @test TrivialSector() < U1(-1)
         @test TrivialSector() < U1(1)
         @test U1(Int8(1)) < U1(Int32(2))
     end

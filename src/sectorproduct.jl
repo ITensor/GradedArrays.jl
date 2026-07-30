@@ -125,23 +125,24 @@ end
 Base.:(==)(A::SectorProduct, B::TKS.Sector) = A == SectorProduct(B)
 Base.:(==)(A::TKS.Sector, B::SectorProduct) = SectorProduct(A) == B
 
+# Order product sectors the way TensorKit orders `ProductSector`s: by total degree first, then
+# lexicographically, not the plain lexicographic order a tuple comparison gives. This keeps a
+# `SectorProduct` axis sorted the same way its TensorKit `GradedSpace` is. Compare the canonicalized
+# arguments as a TensorKit `ProductSector` (canonicalize aligns the argument shapes, so both sides
+# build the same `ProductSector` type).
+_tks_productsector(args::Tuple) = TKS.ProductSector(args)
+_tks_productsector(args::NamedTuple) = TKS.ProductSector(values(args))
 function Base.isless(s1::SectorProduct, s2::SectorProduct)
     isempty(arguments(s1)) && isempty(arguments(s2)) && return false
     isempty(arguments(s1)) && return one(s2) < s2
     isempty(arguments(s2)) && return s1 < one(s1)
     s1′, s2′ = arguments_canonicalize(s1, s2)
-    return arguments(s1′) < arguments(s2′)
+    return isless(_tks_productsector(arguments(s1′)), _tks_productsector(arguments(s2′)))
 end
 Base.isless(s1::SectorProduct, s2::TKS.Sector) = s1 < SectorProduct(s2)
 Base.isless(s1::TKS.Sector, s2::SectorProduct) = SectorProduct(s1) < s2
 
-function Base.isless(s1::SectorProductRange, s2::SectorProductRange)
-    isempty(arguments(s1)) && isempty(arguments(s2)) && return false
-    isempty(arguments(s1)) && return trivial(s2) < s2
-    isempty(arguments(s2)) && return s1 < trivial(s1)
-    s1′, s2′ = arguments_canonicalize(s1, s2)
-    return arguments(s1′) < arguments(s2′)
-end
+Base.isless(s1::SectorProductRange, s2::SectorProductRange) = isless(label(s1), label(s2))
 
 function Base.show(io::IO, r::SectorProductRange)
     (length(arguments(r)) < 2) && print(io, "sector")
