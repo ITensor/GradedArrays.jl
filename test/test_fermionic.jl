@@ -7,13 +7,15 @@ using Random: randn!
 using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, project,
     unmatricize, unmatricizeperm!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @test_broken, @test_throws, @testset
+using Test: @test, @test_throws, @testset
 
 const fP0 = SectorRange(TKS.FermionParity(false))  # even parity
 const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
 
-# `broken =` guard for the handful of behaviors not yet at parity on the fusion backend (tracked in
-# the parity plan).
+# The two backends use different (both correct) `Array` conventions for tensors with domain legs:
+# AGA's `Array` is split-independent (the fully-bent-to-codomain form, so the fermion domain-bend sign
+# is baked into the dense entries), while the fusion backend's `Array` matches TensorKit's
+# `convert(Array, ::TensorMap)` (split-dependent, no baked bend sign). A few assertions branch on this.
 const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
 
 @testset "fermionparity / twist" begin
@@ -396,12 +398,15 @@ end
     @test Array(matricize(a, Val(1))) ≈ [1 0; 0 2]
     # Bending both odd legs into the domain reverses them: the (odd,odd) entry is negated.
     @test vec(Array(matricize(a, Val(0)))) ≈ [1, -2, 0, 0]
-    # unmatricize inverts the bend; with the check above this pins both directions. The fusion
-    # backend does not yet round-trip the all-to-domain (`Val(0)`) bend: `matricize` applies the
-    # reversal sign (checked above) but the `unmatricize`/dense path does not restore it, the
-    # unresolved bend-sign convention (tracked in the parity plan).
-    @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ Array(a) broken =
-        FUSION_BACKEND
+    # unmatricize inverts the bend; with the check above this pins both directions. AGA's
+    # split-independent `Array` reproduces the dense form from any split, so the all-to-domain
+    # (`Val(0)`) round-trip returns `Array(a)`. The fusion backend's split-dependent `Array` instead
+    # reflects the all-domain split, where bending both odd legs down flips the both-odd entry.
+    if FUSION_BACKEND
+        @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ [1 0; 0 -2]
+    else
+        @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ Array(a)
+    end
 end
 
 @testset "project bends the operator domain; unproject inverts it" begin
@@ -411,10 +416,10 @@ end
     A[2, 2, 2, 2] = 1
     a = project(A, (r, r), (r, r))
     @test map(isdual, GradedArrays.axes(a)) == (false, false, true, true)
-    # AGA bakes the both-odd domain-bend sign into the dense view; the fusion backend follows the
-    # TensorKit convention where the dense `Array` of a tensor with domain legs does not (the
-    # unresolved bend-sign convention, tracked in the parity plan). `unproject` still round-trips.
-    @test Array(a)[2, 2, 2, 2] ≈ -1 broken = FUSION_BACKEND
+    # AGA's split-independent `Array` bends the odd in-legs up and bakes in the fermion sign (-1);
+    # the fusion backend's split-dependent `Array` follows TensorKit and keeps +1. `unproject`
+    # recovers `A` on both backends (checked next).
+    @test Array(a)[2, 2, 2, 2] ≈ (FUSION_BACKEND ? 1 : -1)
     @test unproject(a, Val(2)) ≈ A
     # A state (empty domain) has no domain to bend, so `unproject` is the plain conversion.
     v = zeros(Float64, 2, 2)
