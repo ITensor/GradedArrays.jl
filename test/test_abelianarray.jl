@@ -119,6 +119,19 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         @test blockstoredlength(a3) == length(collect(eachblockstoredindex(a3)))
     end
 
+    @testset "scalar getindex/setindex! (backend-routed)" begin
+        # Scalar indexing is the abelian block-indexing path (guarded by `require_unique_fusion`) and
+        # goes through `blocks`; exercise it on the active backend's array.
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        a = zeros(g, dual(g))
+        @test a isa GradedArrayT
+        a[1, 1] = 5.0
+        @test a[1, 1] == 5.0
+        @test a[2, 1] == 0.0  # same allowed block, untouched
+        @test a[1, 3] == 0.0  # symmetry-forbidden position reads as a structural zero
+        @test_throws ErrorException (a[1, 3] = 1.0)
+    end
+
     @testset "isstored(a, ::Block)" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         a[Block(1, 1)] = ones(2, 1)

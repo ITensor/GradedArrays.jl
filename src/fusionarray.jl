@@ -93,8 +93,8 @@ end
 # `FusedGradedMatrixBlocks` / `AbelianBlocks`. `blockstoredlength`, `isstored(a, ::Block)`, and scalar
 # `getindex`/`setindex!` all derive from this generically. A stored entry shares data via `viewblock`;
 # an unstored entry is a symmetry-forbidden block and errors.
-struct FusionArrayBlocks{T, N, A <: FusionArray{T, <:Any, N}} <:
-    SparseArraysBase.AbstractSparseArray{AbelianSectorArray, N}
+struct FusionArrayBlocks{T, S, N, A <: FusionArray{T, S, N}} <:
+    AbstractSparseArray{AbelianSectorArray{T, S, N}, N}
     parent::A
 end
 BlockArrays.blocks(a::FusionArray) = FusionArrayBlocks(a)
@@ -107,31 +107,29 @@ function SparseArraysBase.storedvalues(b::FusionArrayBlocks)
     return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
 end
 function SparseArraysBase.isstored(
-        b::FusionArrayBlocks{T, N},
-        I::Vararg{Int, N}
-    ) where {T, N}
+        b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
+    ) where {N}
     return Block(I...) in eachblockstoredindex(b.parent)
 end
 function SparseArraysBase.getstoredindex(
-        b::FusionArrayBlocks{T, N},
-        I::Vararg{Int, N}
-    ) where {T, N}
+        b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
+    ) where {N}
     return view(b.parent, Block(I...))
 end
 function SparseArraysBase.setstoredindex!(
-        b::FusionArrayBlocks{T, N}, value, I::Vararg{Int, N}
-    ) where {T, N}
+        b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
+    ) where {N}
     copyto!(view(b.parent, Block(I...)), value)
     return b
 end
 function SparseArraysBase.getunstoredindex(
-        b::FusionArrayBlocks{T, N}, I::Vararg{Int, N}
-    ) where {T, N}
+        b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
+    ) where {N}
     return error("Block $(I) is not stored.")
 end
 function SparseArraysBase.setunstoredindex!(
-        b::FusionArrayBlocks{T, N}, value, I::Vararg{Int, N}
-    ) where {T, N}
+        b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
+    ) where {N}
     return error("Block $(I) is not stored.")
 end
 

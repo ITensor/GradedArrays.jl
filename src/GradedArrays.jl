@@ -29,7 +29,7 @@ using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalu
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Preferences: @load_preference, @set_preferences!
 using Random: Random, AbstractRNG, rand!, randn!
-using SparseArraysBase: SparseArraysBase, AbstractSparseMatrix
+using SparseArraysBase: SparseArraysBase, AbstractSparseArray, AbstractSparseMatrix
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, FusionStyle, bipartition,
     bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear, isdual,
     matricize, permutedimsadd!, scale!, unmatricize, zero!
