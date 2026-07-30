@@ -497,16 +497,24 @@ end
 # lays out `(codomain…, domain…)` in the dualized-domain convention `axes(fa)` reports.
 Base.Array(fa::FusionArray) = convert(Array, TK.TensorMap(fa))
 
-# `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification. The dense form
-# already carries the array's own codomain/domain split, so the requested split `Val{K}` must match
-# `fa`'s codomain length; the `TensorMap` conversion then undoes the domain-leg bend.
+# `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification, and the dense
+# form at an arbitrary codomain split `Val{K}` used to compare tensors across backends (which agree
+# only at a common split). When `K` is the array's own split the `TensorMap` conversion undoes the
+# domain-leg bend directly; otherwise bend the legs to a `K`-codomain split first, mirroring
+# `AbelianGradedArray`'s split-independent dense form. The bend carries the fermion signs.
 function TensorAlgebra.unproject(fa::FusionArray, ::Val{K}) where {K}
-    K == ndims_codomain(fa) || throw(
+    N = ndims(fa)
+    0 <= K <= N ||
+        throw(
         ArgumentError(
-            "`unproject` codomain split $K does not match the FusionArray codomain $(ndims_codomain(fa))"
+            "`unproject` codomain split $K is out of range for a $N-index array"
         )
     )
-    return Array(fa)
+    K == ndims_codomain(fa) && return Array(fa)
+    fa_bent = TensorAlgebra.bipermutedims(
+        fa, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
+    )
+    return Array(fa_bent)
 end
 
 # ============================  show  ============================

@@ -331,10 +331,10 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (1, 2, -1, -2), a2, (-3, -4, 2, 1))
         a_dest_dense, _ = contract(a1_dense, (1, 2, -1, -2), a2_dense, (-3, -4, 2, 1))
-        # `FusionArray` contract disagrees with `AbelianGradedArray` on the fermion sign when the
-        # contracted odd legs are in crossed order between the two operands: the result is globally
-        # negated relative to the dense contraction (tracked in the parity plan).
-        @test Array(a_dest) ≈ a_dest_dense broken = FUSION_BACKEND
+        # The crossed contracted odd legs give the graded result a fermion sign that lines up with the
+        # naive dense contraction only at a common codomain split, so compare through `unproject` to the
+        # all-codomain split (identical on both backends).
+        @test unproject(a_dest, Val(4)) ≈ a_dest_dense
     end
 
     @testset "matrix-matrix contraction D" begin
@@ -344,8 +344,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, 1, 2, -2), a2, (2, -3, 1, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, 1, 2, -2), a2_dense, (2, -3, 1, -4))
-        # Crossed-order contracted odd legs: fusion negates the result (see contraction B).
-        @test Array(a_dest) ≈ a_dest_dense broken = FUSION_BACKEND
+        # Crossed-order contracted odd legs: compare at the all-codomain split (see contraction B).
+        @test unproject(a_dest, Val(4)) ≈ a_dest_dense
     end
 
     @testset "matrix-matrix contraction G" begin
@@ -355,8 +355,8 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
         a_dest, _ = contract(a1, (-1, -2, 1, 2), a2, (2, 1, -3, -4))
         a_dest_dense, _ = contract(a1_dense, (-1, -2, 1, 2), a2_dense, (2, 1, -3, -4))
-        # Crossed-order contracted odd legs: fusion negates the result (see contraction B).
-        @test Array(a_dest) ≈ a_dest_dense broken = FUSION_BACKEND
+        # Crossed-order contracted odd legs: compare at the all-codomain split (see contraction B).
+        @test unproject(a_dest, Val(4)) ≈ a_dest_dense
     end
 
     @testset "full contraction to a scalar (rank-0)" begin
