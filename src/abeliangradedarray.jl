@@ -139,7 +139,7 @@ is a fresh zero block. Being an `AbstractSparseArray` means generic `zero!`, `ma
 offset range-assignment used by the concatenation machinery visit only the stored blocks.
 """
 struct AbelianBlocks{T, N, A <: AbelianGradedArray{T, <:Any, N}} <:
-    SparseArraysBase.AbstractSparseArray{AbelianSectorArray, N}
+    AbstractSparseArray{AbelianSectorArray, N}
     parent::A
 end
 

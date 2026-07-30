@@ -15,9 +15,8 @@ using Test: @test, @test_broken, @test_throws, @testset
 # Operations that allocate a graded result (`contract`, plain `unmatricize`, broadcasting, backend
 # constructors) route through the selected backend, so assertions on those results check the active
 # backend's type.
-const GradedArrayT =
-    GradedArrays.graded_backend == "fusion" ? GradedArrays.FusionArray :
-    AbelianGradedArray
+const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
+const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedArray
 
 @testset "AbelianSectorArray linear broadcasting" begin
     s = AbelianSectorArray(
@@ -99,14 +98,14 @@ end
 @testset "AbelianGradedArray permutedims" begin
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
-    a = AbelianGradedArray{Float64}(undef, g1, g2)
+    a = zeros(Float64, g1, g2)
 
     # Set allowed block (2,2): U1(1) × U1(-1) = 0
     block_data = randn!(Matrix{Float64}(undef, 3, 2))
     a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_data)
 
     ap = permutedims(a, (2, 1))
-    @test ap isa AbelianGradedArray
+    @test ap isa GradedArrayT
     @test axes(ap, 1) == g2
     @test axes(ap, 2) == g1
 
@@ -310,8 +309,10 @@ end
 
 @testset "Off-diagonal block setindex! errors" begin
     ax = gradedrange([U1(0) => 2, U1(1) => 3])
-    a = AbelianGradedArray{Float64}(undef, ax, dual(ax))
-    @test_throws ErrorException (
+    a = zeros(Float64, ax, dual(ax))
+    # Both backends reject a forbidden off-diagonal block; the exception type differs
+    # (`AbelianGradedArray` throws `ErrorException`, `FusionArray` a TensorKit `SectorMismatch`).
+    @test_throws Exception (
         a[Block(1, 2)] =
             AbelianSectorArray((U1(0), dual(U1(1))), randn!(Matrix{Float64}(undef, 2, 3)))
     )
@@ -319,8 +320,8 @@ end
 
 @testset "contract 2D AbelianGradedArray (matrix-matrix)" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
-    a = AbelianGradedArray{Float64}(undef, g, dual(g))
-    b = AbelianGradedArray{Float64}(undef, g, dual(g))
+    a = zeros(Float64, g, dual(g))
+    b = zeros(Float64, g, dual(g))
 
     a_11 = randn!(Matrix{Float64}(undef, 2, 2))
     a_22 = randn!(Matrix{Float64}(undef, 3, 3))
@@ -349,9 +350,10 @@ end
     b = randn(elt, (dual(g), g))
 
     result = contract((), a, (1, 2), b, (1, 2))
-    # A rank-0 contraction result is allocated as an `AbelianGradedArray` on both backends (the
-    # fusion backend does not yet produce rank-0 `FusionArray`s, tracked in the parity plan).
-    @test result isa AbelianGradedArray{elt, <:Any, 0}
+    # A rank-0 contraction result should be the active backend's graded array. The fusion backend does
+    # not yet produce rank-0 `FusionArray`s (it falls back to `AbelianGradedArray`), tracked in the
+    # parity plan.
+    @test result isa GradedArrayT{elt, <:Any, 0} broken = FUSION_BACKEND
     @test ndims(result) == 0
     @test sectortype(result) === U1
     @test result[] ≈ sum(Array(a) .* Array(b))
@@ -424,7 +426,7 @@ end
 
 @testset "scale! with β=0 zeros uninitialized blocks" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
-    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    a = zeros(Float64, g, dual(g))
     TensorAlgebra.scale!(a, false)
     @test all(iszero, data(a[Block(1, 1)]))
     @test all(iszero, data(a[Block(2, 2)]))
@@ -488,10 +490,11 @@ end
             ]
         ),
     )
-    # `conj` here is a property of the backend-independent `FusedGradedMatrix`, so source the oracle
-    # from an explicit `AbelianGradedArray`: `conj` of the two backends' arrays matricizes to
-    # isomorphic but differently-labeled `FusedGradedMatrix`es (dual flag on positive sectors vs
-    # negated sectors, the AGA-vs-TensorKit labeling convention, tracked in the parity plan).
+    # `conj` here is a property of the backend-independent `FusedGradedMatrix`; the array is only a
+    # vehicle to build one. Both the matrix and its oracle go through the `FusedGradedMatrix`
+    # constructor so they share its dual-flag labeling of conjugated sectors. `conj ∘ matricize` and
+    # `matricize ∘ conj` currently label dualized sectors differently (tracked in the parity plan), so
+    # mixing construction paths here would not line up.
     a = randn!(AbelianGradedArray{ComplexF64}(undef, g, dual(g)))
     m = FusedGradedMatrix(a)
     ref = FusedGradedMatrix(conj(a))  # oracle: conj on the unfused array, then matricize
@@ -594,17 +597,17 @@ end
 
 @testset "contract rejects mismatched contracted-axis duality (bosonic)" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
-    a = AbelianGradedArray{Float64}(undef, g, dual(g))
+    a = zeros(Float64, g, dual(g))
     randn!(a)
 
     # The contracted leg of `a` is `dual(g)`; here `b`'s contracted leg is also
     # `dual(g)`, which is neither the canonical dual pairing nor (for bosonic
     # U1) an accepted same-`isdual` pair, so the contraction is rejected.
-    b = AbelianGradedArray{Float64}(undef, dual(g), dual(g))
+    b = zeros(Float64, dual(g), dual(g))
     @test_throws ArgumentError contract(a, (1, -1), b, (-1, 2))
 
     # Sanity: the canonically dual-paired contraction is accepted.
-    b_ok = AbelianGradedArray{Float64}(undef, g, dual(g))
+    b_ok = zeros(Float64, g, dual(g))
     randn!(b_ok)
     result, = contract(a, (1, -1), b_ok, (-1, 2))
     @test result isa GradedArrayT
