@@ -81,6 +81,60 @@ function blocktype(::Type{<:FusionArray{T, S, N}}) where {T, S, N}
 end
 blocktype(a::FusionArray) = blocktype(typeof(a))
 
+# ============================  block storage interface (unique fusion)  ============================
+# Unique fusion only: the symmetry-allowed blocks, computed from the axes since a `FusionArray` holds
+# the coupled matrix, not per-block data.
+function eachblockstoredindex(a::FusionArray)
+    require_unique_fusion(a)
+    return allowedblocks(axes(a))
+end
+
+# Sparse view of the stored (symmetry-allowed) external blocks, the N-dim analog of
+# `FusedGradedMatrixBlocks` / `AbelianBlocks`. `blockstoredlength`, `isstored(a, ::Block)`, and scalar
+# `getindex`/`setindex!` all derive from this generically. A stored entry shares data via `viewblock`;
+# an unstored entry is a symmetry-forbidden block and errors.
+struct FusionArrayBlocks{T, N, A <: FusionArray{T, <:Any, N}} <:
+    SparseArraysBase.AbstractSparseArray{AbelianSectorArray, N}
+    parent::A
+end
+BlockArrays.blocks(a::FusionArray) = FusionArrayBlocks(a)
+Base.size(b::FusionArrayBlocks) = Tuple(blocklength.(axes(b.parent)))
+
+function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
+    return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
+end
+function SparseArraysBase.storedvalues(b::FusionArrayBlocks)
+    return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
+end
+function SparseArraysBase.isstored(
+        b::FusionArrayBlocks{T, N},
+        I::Vararg{Int, N}
+    ) where {T, N}
+    return Block(I...) in eachblockstoredindex(b.parent)
+end
+function SparseArraysBase.getstoredindex(
+        b::FusionArrayBlocks{T, N},
+        I::Vararg{Int, N}
+    ) where {T, N}
+    return view(b.parent, Block(I...))
+end
+function SparseArraysBase.setstoredindex!(
+        b::FusionArrayBlocks{T, N}, value, I::Vararg{Int, N}
+    ) where {T, N}
+    copyto!(view(b.parent, Block(I...)), value)
+    return b
+end
+function SparseArraysBase.getunstoredindex(
+        b::FusionArrayBlocks{T, N}, I::Vararg{Int, N}
+    ) where {T, N}
+    return error("Block $(I) is not stored.")
+end
+function SparseArraysBase.setunstoredindex!(
+        b::FusionArrayBlocks{T, N}, value, I::Vararg{Int, N}
+    ) where {T, N}
+    return error("Block $(I) is not stored.")
+end
+
 # ============================  similar  ============================
 # `similar` must build a `FusionArray`, not route through the `AbstractGradedArray` `similar` that
 # allocates an `AbelianGradedArray`. Without explicit axes, preserve the prototype's own

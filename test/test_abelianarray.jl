@@ -101,6 +101,24 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         @test length(stored) == 2
     end
 
+    @testset "block storage interface (backend-routed)" begin
+        # Exercises the active backend's array (FusionArray on the fusion backend): the stored blocks
+        # are the symmetry-allowed external blocks, and `isstored` / `blockstoredlength` derive from
+        # them through `blocks`.
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        a = randn(g, dual(g))
+        @test a isa GradedArrayT
+        @test issetequal(eachblockstoredindex(a), GradedArrays.allowedblocks(axes(a)))
+        @test blockstoredlength(a) == length(collect(eachblockstoredindex(a)))
+        @test isstored(a, Block(1, 1))
+        @test !isstored(a, Block(1, 2))  # symmetry-forbidden
+
+        # A multi-leg array: several external blocks fuse to the same coupled sector.
+        a3 = zeros(g, g, dual(g))
+        @test issetequal(eachblockstoredindex(a3), GradedArrays.allowedblocks(axes(a3)))
+        @test blockstoredlength(a3) == length(collect(eachblockstoredindex(a3)))
+    end
+
     @testset "isstored(a, ::Block)" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         a[Block(1, 1)] = ones(2, 1)
@@ -666,9 +684,7 @@ end
     t = TensorAlgebra.project(reshape(Splus, 2, 2, 1), (g,), (g,))
     @test t isa GradedArrayT
     @test size(t) == (2, 2, 1)
-    # `AbelianGradedArray` stores only the one allowed block; the fusion backend counts external
-    # block-tiles, so this many-to-one count differs there (tracked in the parity plan).
-    @test blockstoredlength(t) == 1 broken = FUSION_BACKEND
+    @test blockstoredlength(t) == 1
     @test Array(t)[:, :, 1] == Splus
 
     # A neutral operator still gets an aux, but a trivial one (dummy bond).
