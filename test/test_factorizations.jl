@@ -11,7 +11,7 @@ using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
 using StableRNGs: StableRNG
-using TensorAlgebra: TensorAlgebra
+using TensorAlgebra: TensorAlgebra, matricize
 using Test: @test, @testset
 
 # ---------------------------------------------------------------------------
@@ -502,7 +502,7 @@ end
 
         @testset "svd_vals" begin
             @test fgv_approx(
-                MAK.svd_vals(m_rect), MAK.svd_vals(TensorAlgebra.matricize(m_rect, Val(1)))
+                MAK.svd_vals(m_rect), MAK.svd_vals(matricize(m_rect, Val(1)))
             )
         end
 
@@ -524,7 +524,7 @@ end
             D, V = MAK.eig_full(m_sq)
             @test Array(m_sq) * Array(V) ≈ Array(V) * Array(D)
             @test fgv_approx(
-                MAK.eig_vals(m_sq), MAK.eig_vals(TensorAlgebra.matricize(m_sq, Val(1)))
+                MAK.eig_vals(m_sq), MAK.eig_vals(matricize(m_sq, Val(1)))
             )
         end
 
@@ -533,7 +533,7 @@ end
             @test Array(m_herm) ≈ Array(V) * Array(D) * Array(V)'
             @test fgv_approx(
                 MAK.eigh_vals(m_herm),
-                MAK.eigh_vals(TensorAlgebra.matricize(m_herm, Val(1)))
+                MAK.eigh_vals(matricize(m_herm, Val(1)))
             )
         end
 

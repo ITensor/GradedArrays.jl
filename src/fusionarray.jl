@@ -54,28 +54,22 @@ ndims_domain(fa::FusionArray) = length(axes_domain(fa))
 TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
 
 # ============================  block indexing (unique fusion)  ============================
-# A `Block` picks a per-leg block position on each axis (positional, not sector-keyed). For unique
-# fusion those positional sectors name the one codomain/domain fusion-tree pair, whose reduced block
-# is a strided sub-region of the fused coupled matrix — exactly what `FusionMap`'s `subblock` exposes.
-# The returned `AbelianSectorArray` shares that strided data, so element get/set writes back in place.
-# Guarded to unique fusion: for non-abelian the external leg sectors under-determine the block (they
-# fix neither the internal fusion sectors nor the vertex multiplicities), so `Block` cannot name it.
+# Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
+# block. The returned `AbelianSectorArray` is a view into the block's strided data, so get/set writes
+# back in place.
 
-# The uncoupled sector of a leg as its fusion tree carries it: dualized on a dual axis (the dual flag
-# is tracked separately on the tree), matching TensorKit's external-sector indexing convention.
-_uncoupled_sector(r::SectorRange) = isdual(r) ? TKS.dual(label(r)) : label(r)
-
-function view_fusion(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
+function viewblock(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
     require_unique_fusion(a)
     bk = Int.(Tuple(I))
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
-    blockdata = FusionMap(a)[map(_uncoupled_sector, sects)]
+    # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
+    blockdata = FusionMap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
     return AbelianSectorArray(sects, blockdata)
 end
 
-Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = view_fusion(a, I)
+Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
 # Disambiguate the N=1 case against the `Vararg{Block{1}, N}` method, as `AbelianGradedArray` does.
-Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = view_fusion(a, I)
+Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 
 # A `FusionArray` block is the same unique-fusion `AbelianSectorArray` the abelian backend returns.
 # TODO: derive the block data type from the `FusedGradedMatrix` block type (its `D`) rather than
@@ -96,20 +90,22 @@ function Base.similar(a::FusionArray, ::Type{T}) where {T}
     return FusionArray(similar(matricize(a), T), axes_codomain(a), axes_domain(a))
 end
 function Base.similar(
-        ::FusionArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+        a::FusionArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
     ) where {T, S}
-    return FusionArray{T}(undef, axes, ())
+    return TensorAlgebra.similar_map(a, T, axes, ())
 end
 
 # ============================  copyto!  ============================
-# Block-wise copy between `FusionArray`s (e.g. a factorization's `copy_input`). The generic
-# `AbstractArray` `copyto!` scalar-indexes, which errors on forbidden (symmetry-disallowed) blocks;
-# copy the shared coupled-sector matrices directly instead. Requires the same coupled structure,
-# which a `similar`-allocated destination has.
+# Copy `src` into `dest` as an identity leg permutation into `dest`'s own codomain/domain split, so
+# `bipermutedims!` bends `src` when the two splits differ and validates the external axes. The generic
+# `AbstractArray` `copyto!` scalar-indexes, which errors on forbidden (symmetry-disallowed) blocks.
+# `Base.copy!` rides on this: it checks `axes` equality and forwards here.
 function Base.copyto!(dest::FusionArray, src::FusionArray)
-    for (c, b) in pairs(matricize(src).blocks)
-        copyto!(matricize(dest).blocks[c], b)
-    end
+    bipermutedims!(
+        dest, src,
+        ntuple(identity, Val(ndims_codomain(dest))),
+        ntuple(i -> ndims_codomain(dest) + i, Val(ndims_domain(dest)))
+    )
     return dest
 end
 
