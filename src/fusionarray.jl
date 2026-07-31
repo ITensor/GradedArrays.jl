@@ -63,7 +63,7 @@ function viewblock(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
     bk = Int.(Tuple(I))
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
     # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
-    blockdata = FusionMap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
+    blockdata = tensormap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
     return AbelianSectorArray(sects, blockdata)
 end
 
@@ -76,7 +76,7 @@ Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 # that block; the generic block path indexes `FusionMap` by external sectors, of which a rank-0 array
 # has none. Defined on the concrete type to take precedence over the `Vararg` block methods, which
 # also match a no-argument call at N=0.
-Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(FusionMap(a))
+Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(tensormap(a))
 function Base.setindex!(a::FusionArray{<:Any, <:Any, 0}, value)
     only(values(matricize(a).blocks))[begin] = value
     return a
@@ -436,7 +436,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain, α::Number, β::Number
     )
     TensorAlgebra.bipermutedimsopadd!(
-        FusionMap(y), op, FusionMap(x), perm_codomain, perm_domain, α, β
+        tensormap(y), op, tensormap(x), perm_codomain, perm_domain, α, β
     )
     return y
 end
@@ -459,7 +459,7 @@ end
 # `FusionMap` shares its blocks, so `TK.twist!` scales them in place.
 function twist!(a::FusionArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    TK.twist!(FusionMap(a), dims)
+    TK.twist!(tensormap(a), dims)
     return a
 end
 
@@ -539,7 +539,7 @@ end
 # forbidden regions and handles a lower-rank `src` reshaped into a flux-canceling aux leg. The generic
 # `AbstractArray` `projectto!` would scalar-`copyto!` and error mid-write on a forbidden block.
 function TensorAlgebra.projectto!(dest::FusionArray, src::AbstractArray)
-    TensorAlgebra.projectto!(FusionMap(dest), src)
+    TensorAlgebra.projectto!(tensormap(dest), src)
     return dest
 end
 

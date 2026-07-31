@@ -117,3 +117,11 @@ function FusionArray(fm::FusionMap)
     axes_domain = map(GradedOneTo, Tuple(TK.domain(fm)))
     return FusionArray(matricize(fm), axes_codomain, axes_domain)
 end
+
+# ============================  functional conversion seam  ============================
+# `tensormap` / `fusionarray` are the type-agnostic seam callers use in place of the concrete
+# `FusionMap` / `FusionArray` constructors, so the TensorKit-view type can change without touching
+# every call site. `tensormap` is the zero-copy `FusionMap` view; `fusionarray` reconstructs a
+# `FusionArray` from any `AbstractTensorMap` (zero-copy for a `FusionMap`, copying otherwise).
+tensormap(a::FusionArray) = FusionMap(a)
+fusionarray(t::TK.AbstractTensorMap) = FusionArray(t)
