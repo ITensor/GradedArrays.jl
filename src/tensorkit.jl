@@ -16,13 +16,10 @@ end
 # seams block-permute the dense data into this form at the TensorKit boundary.
 is_fused_sorted(g::GradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
 
-# Throwing wrapper: `ElementarySpace` demands a fused-sorted range, so reject anything else with a
-# message that says which invariant broke.
+# Throwing wrapper: `ElementarySpace` demands a fused-sorted range.
 function check_fused_sorted(g::GradedOneTo)
-    is_fused_sorted(g) && return g
-    allunique(sectors(g)) ||
-        throw(ArgumentError("axis sectors must be fused (each sector appears once)"))
-    throw(ArgumentError("axis sectors must be sorted"))
+    is_fused_sorted(g) || throw(ArgumentError("axis sectors must be fused and sorted"))
+    return g
 end
 
 # `GradedOneTo` <-> `ElementarySpace` converters. `sectors` gives the non-dual sector labels

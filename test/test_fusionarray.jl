@@ -1,3 +1,4 @@
+using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusionArray, SU2, SectorRange, U1, Z2,
     dual, gradedrange, isdual, ndims_codomain, ndims_domain
 using LinearAlgebra: Diagonal
@@ -125,6 +126,30 @@ end
         # Dense round-trip through the reorder in and out. Non-abelian recoupling adds float round-off,
         # so compare with `≈`.
         @test Array(a) ≈ raw
+    end
+
+    @testset "viewblock on unfused/unsorted axes" begin
+        # A repeated sector on a leg means positional blocks are no longer 1-1 with the merged backing;
+        # `viewblock` must return each positional block's own slice.
+        g1 = gradedrange([U1(0) => 1, U1(1) => 1, U1(0) => 2])   # U1(0) repeated
+        g2 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 1])   # U1(1) repeated, out of order
+        a = randn_fusionarray((g1,), (g2,))
+        dense = Array(a)
+        elranges(g) = (
+            c = cumsum(collect(blocklengths(g)));
+            [(c[k] - blocklengths(g)[k] + 1):c[k] for k in eachindex(c)]
+        )
+        r1, r2 = elranges(g1), elranges(g2)
+        for B in GradedArrays.eachblockstoredindex(a)
+            i, j = Int.(Tuple(B))
+            # Each stored block is the dense sub-block at its positional (i, j) location.
+            @test Array(GradedArrays.viewblock(a, B)) ≈ dense[r1[i], r2[j]]
+        end
+        # The view shares storage, so writes land in the backing.
+        B = first(GradedArrays.eachblockstoredindex(a))
+        i, j = Int.(Tuple(B))
+        GradedArrays.viewblock(a, B)[1, 1] = 42.0
+        @test Array(a)[r1[i][1], r2[j][1]] == 42.0
     end
 
     @testset "real / imag ($G)" for (G, i, j) in (
