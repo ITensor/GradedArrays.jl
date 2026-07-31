@@ -11,8 +11,9 @@ using TensorKit: TensorKit as TK
     FusionArray{T,S,N} <: AbstractGradedArray{T,S,N}
 
 Always-fused symmetric array: an `N`-dimensional graded array with a codomain/domain split,
-backed by a matricized [`FusedGradedMatrix`](@ref). The external axes are `GradedOneTo` and,
-in this initial form, are required to be fused and sorted (each sector once).
+backed by a matricized [`FusedGradedMatrix`](@ref). The external axes are `GradedOneTo` and may be
+unfused or unsorted (a sector repeated, or out of `SectorRange` order); the `matricized` backing is
+always over the fused-sorted coupled space, and the per-leg sort permutation relates the two.
 """
 struct FusionArray{
         T, S, N, M <: FusedGradedMatrix{T, S}, NC, ND,
@@ -26,10 +27,6 @@ struct FusionArray{
             axes_codomain::NTuple{NC, GradedOneTo{S}},
             axes_domain::NTuple{ND, GradedOneTo{S}}
         ) where {T, S, NC, ND}
-        # In this initial form the external axes must be fused and sorted (each sector once);
-        # see `check_fused_sorted`.
-        foreach(check_fused_sorted, axes_codomain)
-        foreach(check_fused_sorted, axes_domain)
         return new{T, S, NC + ND, typeof(matricized), NC, ND}(
             matricized, axes_codomain, axes_domain
         )
@@ -52,6 +49,28 @@ ndims_domain(fa::FusionArray) = length(axes_domain(fa))
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
 # matrix directly (see `matricize(::FusionArrayFusionStyle, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
+
+# ============================  external-axis sort permutation  ============================
+# A `FusionArray` may carry unfused / unsorted external axes (a sector repeated, or out of
+# `SectorRange` order), while the `matricized` backing is always over the fused-sorted coupled space.
+# The per-leg sort permutation is what relates them: it reorders a leg's blocks into sorted order so
+# the dense layout matches the fused-sorted `GradedSpace` TensorKit needs. Every TensorKit-boundary
+# op routes through these helpers, recomputed on demand from the stored axes (cheap: a `sortperm` over
+# each axis's sectors, identity when the axis is already fused-sorted). If profiling shows the recompute
+# matters, cache the permutation / sorted axes as a field (see the parity plan).
+is_fused_sorted(g::GradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
+
+# Element-index permutation reordering `g`'s blocks into sorted `SectorRange` order (identity when `g`
+# is already sorted). Applied to the dense data so equal sectors become contiguous, which is all
+# TensorKit's fused `GradedSpace` needs (the merge is then implicit in dense contiguity).
+function axis_fused_sortperm(g::GradedOneTo)
+    bl = collect(blocklengths(g))
+    starts = cumsum(bl) .- bl .+ 1
+    return reduce(
+        vcat, (starts[b]:(starts[b] + bl[b] - 1) for b in sortperm(sectors(g)));
+        init = Int[]
+    )
+end
 
 # ============================  block indexing (unique fusion)  ============================
 # Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
@@ -279,10 +298,19 @@ spaces from the per-leg axes and copying each coupled-sector block.
 """
 function TK.TensorMap(fa::FusionArray)
     # Derive the space type from the sector type (not a leg) so the rank-0 case, with no legs, still
-    # resolves the trivial `one(Sp)` codomain/domain.
+    # resolves the trivial `one(Sp)` codomain/domain. The `matricized` backing is over the fused-sorted
+    # coupled space, so build each leg's space from `sectormergesort` of the (possibly unsorted) stored
+    # axis; the `TensorMap` is the fused-sorted TensorKit view, and the stored-axis order is reapplied
+    # only when going back to a dense array (`Array`).
     Sp = typeof(ElementarySpace(trivial_gradedrange(sectortype(fa))))
-    codsp = mapreduce(ElementarySpace, TK.:⊗, axes_codomain(fa); init = one(Sp))
-    domsp = mapreduce(ElementarySpace, TK.:⊗, axes_domain(fa); init = one(Sp))
+    codsp = mapreduce(
+        ElementarySpace ∘ sectormergesort,
+        TK.:⊗,
+        axes_codomain(fa);
+        init = one(Sp)
+    )
+    domsp =
+        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_domain(fa); init = one(Sp))
     return copy!(TK.TensorMap{eltype(fa)}(undef, codsp, domsp), fa)
 end
 
@@ -567,8 +595,17 @@ end
 
 # Dense form. The matricized `FusionArray` does not implement `eachblockstoredindex` (the generic
 # `AbstractGradedArray` dense path), so materialize through the `TensorMap`, whose `convert(Array, …)`
-# lays out `(codomain…, domain…)` in the dualized-domain convention `axes(fa)` reports.
-Base.Array(fa::FusionArray) = convert(Array, TK.TensorMap(fa))
+# lays out `(codomain…, domain…)` in the dualized-domain convention `axes(fa)` reports. The `TensorMap`
+# is fused-sorted per leg, so if a stored axis is unfused/unsorted, scatter each leg back to the stored
+# block order with the inverse of its sort permutation.
+function Base.Array(fa::FusionArray{<:Any, <:Any, N}) where {N}
+    dense = convert(Array, TK.TensorMap(fa))
+    all(is_fused_sorted, (axes_codomain(fa)..., axes_domain(fa)...)) && return dense
+    invperms = ntuple(
+        d -> invperm(axis_fused_sortperm(axes(fa)[d])), Val(N)
+    )
+    return dense[invperms...]
+end
 # Rank-0: TensorKit's `convert(Array, ::rank-0 TensorMap)` hits a VectorInterface `add!` gap for some
 # eltypes (e.g. `Float32`), so build the 0-dim array from the scalar directly.
 Base.Array(fa::FusionArray{<:Any, <:Any, 0}) = fill(fa[])

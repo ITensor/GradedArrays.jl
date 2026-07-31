@@ -55,13 +55,16 @@ end
         @test TensorKit.TensorMap(b) ≈ t
     end
 
-    @testset "external axes must be fused and sorted" begin
+    @testset "external axes may be unfused or unsorted" begin
         ok = gradedrange([U1(0) => 2, U1(1) => 1])
         unsorted = gradedrange([U1(1) => 1, U1(0) => 2])
         unfused = gradedrange([U1(0) => 2, U1(1) => 1, U1(0) => 1])
-        @test_throws ArgumentError FusionArray{Float64}(undef, (unsorted,), (ok,))
-        @test_throws ArgumentError FusionArray{Float64}(undef, (ok,), (unfused,))
-        # The same restriction guards the `TensorMap`/`ElementarySpace` conversion.
+        # The array carries unfused / unsorted external axes; the `matricized` backing stays
+        # fused-sorted, so the per-leg sort permutation relates the two.
+        @test FusionArray{Float64}(undef, (unsorted,), (ok,)) isa FusionArray
+        @test FusionArray{Float64}(undef, (ok,), (unfused,)) isa FusionArray
+        # The `TensorMap` / `ElementarySpace` conversion stays strict: it expects a fused-sorted range
+        # (callers normalize with `sectormergesort` at the boundary).
         @test_throws ArgumentError TensorKit.ElementarySpace(unsorted)
         @test_throws ArgumentError TensorKit.ElementarySpace(unfused)
     end
