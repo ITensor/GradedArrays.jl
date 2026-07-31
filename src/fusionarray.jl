@@ -71,6 +71,17 @@ Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, 
 # Disambiguate the N=1 case against the `Vararg{Block{1}, N}` method, as `AbelianGradedArray` does.
 Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 
+# Rank-0 (scalar) access: a rank-0 `FusionArray` (e.g. a full contraction to a scalar) holds one
+# trivial-sector value in its 1×1 matricized block. Read it as a TensorKit scalar and write it into
+# that block; the generic block path indexes `FusionMap` by external sectors, of which a rank-0 array
+# has none. Defined on the concrete type to take precedence over the `Vararg` block methods, which
+# also match a no-argument call at N=0.
+Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(FusionMap(a))
+function Base.setindex!(a::FusionArray{<:Any, <:Any, 0}, value)
+    only(values(matricize(a).blocks))[begin] = value
+    return a
+end
+
 # A `FusionArray` block is the same unique-fusion `AbelianSectorArray` the abelian backend returns.
 # TODO: derive the block data type from the `FusedGradedMatrix` block type (its `D`) rather than
 # hardcoding `Array{T, N}`, so non-`Array` storage (GPU, etc.) is preserved — e.g. via
@@ -209,6 +220,27 @@ function Base.:*(a::FusionArray{<:Any, <:Any, 2}, b::FusionArray{<:Any, <:Any, 2
     return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
 end
 
+# ============================  adjoint  ============================
+# `adjoint` is a matrix operation, so restrict it to a genuine `(1, 1)` split (one codomain and one
+# domain leg). A `FusedGradedMatrix` already adjoints block-wise (swapping its codomain/domain), so
+# the `FusionArray` adjoint just swaps the per-leg axis tuples to match, staying `(1, 1)`. Other splits
+# are not matrices: their dense form is split-dependent, so `Array(a')` would not be `adjoint(Array(a))`
+# and the Gram product would not typecheck. This is a working matrix `adjoint` where
+# `AbelianGradedArray` has none.
+function Base.adjoint(fa::FusionArray{<:Any, <:Any, 2, <:Any, 1, 1})
+    return FusionArray(adjoint(matricize(fa)), axes_domain(fa), axes_codomain(fa))
+end
+
+# A 2-index `FusionArray` with any other split is not a matrix. It already errors through the generic
+# `AbstractGradedArray` fallback rather than building a broken lazy `Adjoint`, but give a clearer
+# message naming the `(1, 1)` requirement.
+function Base.adjoint(fa::FusionArray{<:Any, <:Any, 2})
+    return error(
+        "`adjoint` of a `FusionArray` requires a (1, 1) codomain/domain split; this matrix has \
+        split ($(ndims_codomain(fa)), $(ndims_domain(fa))). Bend it to a matrix first."
+    )
+end
+
 # ============================  bare-matrix factorizations  ============================
 # Route the plain matrix forms (`MAK.svd_compact(m)`, etc.) through the matricizing `TensorAlgebra`
 # factorizations, identical to the `AbelianGradedMatrix` methods in `matrixalgebrakit.jl` (which
@@ -230,7 +262,9 @@ Convert a `FusionArray` to a `TK.TensorMap`, building the codomain/domain produc
 spaces from the per-leg axes and copying each coupled-sector block.
 """
 function TK.TensorMap(fa::FusionArray)
-    Sp = typeof(ElementarySpace(first(axes(fa))))
+    # Derive the space type from the sector type (not a leg) so the rank-0 case, with no legs, still
+    # resolves the trivial `one(Sp)` codomain/domain.
+    Sp = typeof(ElementarySpace(trivial_gradedrange(sectortype(fa))))
     codsp = mapreduce(ElementarySpace, TK.:⊗, axes_codomain(fa); init = one(Sp))
     domsp = mapreduce(ElementarySpace, TK.:⊗, axes_domain(fa); init = one(Sp))
     return copy!(TK.TensorMap{eltype(fa)}(undef, codsp, domsp), fa)
@@ -287,14 +321,22 @@ end
 # ============================  construction from axes  ============================
 
 # Axes are given codomain-facing (un-dualized), the same convention they are stored in,
-# matching `similar_map`/`unmatricize`.
+# matching `similar_map`/`unmatricize`. The sector type is read from the axes, so at least one leg
+# must be present; the rank-0 (both-empty) case takes `S` explicitly through the method below.
 function FusionArray{T}(
         ::UndefInitializer, axes_codomain::Tuple, axes_domain::Tuple
     ) where {T}
-    # Fuse each side's per-leg axes into its coupled `GradedOneTo` (through the GradedArrays
-    # interface, which uses the TensorKitSectors fusion rules), seeding empty groups with the
-    # trivial sector. `FusedGradedMatrix{T}(undef, …)` then allocates the reduced blocks.
     S = sectortype(first((axes_codomain..., axes_domain...)))
+    return FusionArray{T, S}(undef, axes_codomain, axes_domain)
+end
+
+# Fuse each side's per-leg axes into its coupled `GradedOneTo` (through the GradedArrays interface,
+# which uses the TensorKitSectors fusion rules), seeding empty groups with the trivial sector.
+# `FusedGradedMatrix{T}(undef, …)` then allocates the reduced blocks. With `S` given as a type
+# parameter this also covers rank-0: both groups fuse to the trivial sector, giving a 1×1 scalar.
+function FusionArray{T, S}(
+        ::UndefInitializer, axes_codomain::Tuple, axes_domain::Tuple
+    ) where {T, S}
     init = trivial_gradedrange(S)
     coupled_codomain = reduce(tensor_product, axes_codomain; init)
     coupled_domain = reduce(tensor_product, axes_domain; init)
@@ -492,10 +534,22 @@ end
 # `ElementarySpace`s and wraps the resulting `TensorMap` with `FusionArray(t)`. `unproject` below is
 # the dense inverse used by `TA.project`'s verification.
 
+# In-place projection into a preallocated destination: view `dest` as a `FusionMap` (sharing its
+# blocks) and project the dense `src` straight into those blocks through TensorKit, which drops the
+# forbidden regions and handles a lower-rank `src` reshaped into a flux-canceling aux leg. The generic
+# `AbstractArray` `projectto!` would scalar-`copyto!` and error mid-write on a forbidden block.
+function TensorAlgebra.projectto!(dest::FusionArray, src::AbstractArray)
+    TensorAlgebra.projectto!(FusionMap(dest), src)
+    return dest
+end
+
 # Dense form. The matricized `FusionArray` does not implement `eachblockstoredindex` (the generic
 # `AbstractGradedArray` dense path), so materialize through the `TensorMap`, whose `convert(Array, …)`
 # lays out `(codomain…, domain…)` in the dualized-domain convention `axes(fa)` reports.
 Base.Array(fa::FusionArray) = convert(Array, TK.TensorMap(fa))
+# Rank-0: TensorKit's `convert(Array, ::rank-0 TensorMap)` hits a VectorInterface `add!` gap for some
+# eltypes (e.g. `Float32`), so build the 0-dim array from the scalar directly.
+Base.Array(fa::FusionArray{<:Any, <:Any, 0}) = fill(fa[])
 
 # `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification, and the dense
 # form at an arbitrary codomain split `Val{K}` used to compare tensors across backends (which agree

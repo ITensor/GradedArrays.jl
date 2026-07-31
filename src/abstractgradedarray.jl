@@ -338,10 +338,18 @@ function allocate_graded(::Type{T}, cod, dom) where {T}
     end
 end
 
+# Rank-0 form: the empty axes carry no sector type, so it is passed explicitly.
+function allocate_graded(::Type{T}, ::Type{S}, cod::Tuple{}, dom::Tuple{}) where {T, S}
+    @static if graded_backend == "fusion"
+        return FusionArray{T, S}(undef, cod, dom)
+    else
+        return AbelianGradedArray{T, S, 0, Array{T, 0}}(undef, ())
+    end
+end
+
 # The split-aware `similar_map` (used by `project` and by contraction/factorization result
-# allocation) routes through `allocate_graded` so it picks the same backend. Two anchored entries,
-# codomain-led and empty-codomain domain-led; a fully empty `((), ())` matches neither and falls back
-# to the flat `similar` (rank-0).
+# allocation) routes through `allocate_graded` so it picks the same backend. Three anchored entries:
+# codomain-led, empty-codomain domain-led, and the fully empty `((), ())` rank-0 case.
 function TA.similar_map(
         prototype, ::Type{T},
         cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
@@ -353,4 +361,12 @@ function TA.similar_map(
         cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     ) where {T}
     return allocate_graded(T, cod, dom)
+end
+# Rank-0: the sector type cannot be read from the empty axes, so take it from the graded prototype.
+# Anchored on `AbstractGradedArray` so a plain dense contract-to-scalar (a non-graded prototype) still
+# falls through to the generic dense `similar_map`.
+function TA.similar_map(
+        prototype::AbstractGradedArray, ::Type{T}, cod::Tuple{}, dom::Tuple{}
+    ) where {T}
+    return allocate_graded(T, sectortype(prototype), cod, dom)
 end

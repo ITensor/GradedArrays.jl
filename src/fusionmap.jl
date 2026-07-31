@@ -99,7 +99,9 @@ end
 View a `FusionArray` as an `AbstractTensorMap`, sharing its matricized blocks (zero-copy).
 """
 function FusionMap(fa::FusionArray)
-    Sp = typeof(ElementarySpace(first(axes(fa))))
+    # Derive the space type from the sector type (not a leg) so the rank-0 case, with no legs, still
+    # resolves the trivial `one(Sp)` codomain/domain.
+    Sp = typeof(ElementarySpace(trivial_gradedrange(sectortype(fa))))
     codomain = mapreduce(ElementarySpace, TK.:⊗, axes_codomain(fa); init = one(Sp))
     domain = mapreduce(ElementarySpace, TK.:⊗, axes_domain(fa); init = one(Sp))
     return FusionMap(matricize(fa), codomain ← domain)
