@@ -7,8 +7,7 @@ using Test: @test, @testset
 
 # `FusionArray` prints its own codomain/domain display header rather than the flat
 # `AbelianGradedArray{...}` summary, so the `AbelianGradedArray`-format assertions below are gated to
-# the abelian backend (a `FusionArray` display-format test is a deferred follow-up, tracked in the
-# parity plan).
+# the abelian backend; the fusion format is checked in "FusionArray text/plain display".
 const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
 
 @testset "show SymmetrySector" begin
@@ -169,7 +168,7 @@ end
 
 @testset "AbelianGradedArray text/plain display" begin
     # Flat `AbelianGradedArray` block display; the fusion backend prints its own codomain/domain
-    # layout instead (a `FusionArray` display test is a deferred follow-up, tracked in the plan).
+    # layout instead (checked in "FusionArray text/plain display" below).
     if !FUSION_BACKEND
         g = gradedrange([U1(0) => 2, U1(1) => 2])
         a = zeros(Float64, g, dual(g))
@@ -187,6 +186,30 @@ end
         # Stored values are present
         @test occursin("1.0", s)
         @test occursin("8.0", s)
+    end
+end
+
+@testset "FusionArray text/plain display" begin
+    # The fusion backend prints a codomain/domain header, one axis line per leg, then the matricized
+    # `FusedGradedMatrix`. Only exercised on the fusion backend, where the graded constructors build a
+    # `FusionArray`.
+    if FUSION_BACKEND
+        g = gradedrange([U1(0) => 2, U1(1) => 2])
+        a = zeros(Float64, (g,), (g,))
+        a[1, 1] = 1.0
+
+        s = sprint(show, MIME("text/plain"), a)
+        @test occursin("FusionArray (codomain 1, domain 1)", s)
+        @test occursin("Codomain Dim 1: gradedrange([U1(0) => 2, U1(1) => 2])", s)
+        @test occursin("Domain Dim 1: gradedrange([U1(0) => 2, U1(1) => 2])", s)
+        # The matricized `FusedGradedMatrix` is shown below the header.
+        @test occursin("FusedGradedMatrix", s)
+        @test occursin("⋅", s)   # unstored blocks show as dots
+        @test occursin("┼", s)   # block separators
+        @test occursin("1.0", s) # stored value
+
+        # The compact one-line `show` is the summary header.
+        @test sprint(show, a) == "4×4 FusionArray (codomain 1, domain 1)"
     end
 end
 

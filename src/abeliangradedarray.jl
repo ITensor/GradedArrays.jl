@@ -953,7 +953,7 @@ function unchecked_project_graded(raw, codomain_axes, domain_axes)
         t = TA.unchecked_project(
             raw, map(ElementarySpace, codomain_axes), map(ElementarySpace, domain_axes)
         )
-        return FusionArray(t)
+        return fusionarray(t)
     else
         dest = TA.projectto!(
             TA.allocate_project(raw, codomain_axes, domain_axes), raw

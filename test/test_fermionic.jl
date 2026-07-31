@@ -371,14 +371,13 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
 
         parallel = contract((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
-        # Rank-0 result should be the active backend's graded array; the fusion backend falls back to
-        # `AbelianGradedArray` (tracked in the parity plan).
-        @test parallel isa GradedArrayT{elt, <:Any, 0} broken = FUSION_BACKEND
+        # Rank-0 result is the active backend's graded array.
+        @test parallel isa GradedArrayT{elt, <:Any, 0}
         @test Array(parallel) ≈
             contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
 
         crossed = contract((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
-        @test crossed isa GradedArrayT{elt, <:Any, 0} broken = FUSION_BACKEND
+        @test crossed isa GradedArrayT{elt, <:Any, 0}
         @test Array(crossed) ≈
             -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
     end

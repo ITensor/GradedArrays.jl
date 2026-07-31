@@ -350,10 +350,8 @@ end
     b = randn(elt, (dual(g), g))
 
     result = contract((), a, (1, 2), b, (1, 2))
-    # A rank-0 contraction result should be the active backend's graded array. The fusion backend does
-    # not yet produce rank-0 `FusionArray`s (it falls back to `AbelianGradedArray`), tracked in the
-    # parity plan.
-    @test result isa GradedArrayT{elt, <:Any, 0} broken = FUSION_BACKEND
+    # A rank-0 contraction result is the active backend's graded array.
+    @test result isa GradedArrayT{elt, <:Any, 0}
     @test ndims(result) == 0
     @test sectortype(result) === U1
     @test result[] ≈ sum(Array(a) .* Array(b))
@@ -377,8 +375,9 @@ end
     @test size(m) == (1, 1)
     @test data(m[Block(1, 1)]) == fill(4.0, 1, 1)
 
+    # `unmatricize` allocates the active backend's rank-0 graded array, like the higher-rank path.
     back = unmatricize(GradedArrays.SectorFusion(), m, (), ())
-    @test back isa AbelianGradedArray{Float64, <:Any, 0}
+    @test back isa GradedArrayT{Float64, <:Any, 0}
     @test back[] == 4.0
 end
 
@@ -575,24 +574,27 @@ end
     @test A ≈ U * S * Vᴴ
 end
 
-@testset "TA.gram_eigh_full_with_pinv on AbelianGradedMatrix (axes_Y regression)" begin
+@testset "TA.gram_eigh_full_with_pinv (axes_Y regression)" begin
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
-    B = AbelianGradedArray{Float64}(undef, s, dual(s))
-    randn!(B)
-    # PSD by construction. Build `A = B * B'` block-wise via `contract` so we stay on the graded
-    # matmul path; the natural `B * B'` form errors (see below).
+    B = randn(Float64, (s,), (s,))
+    # PSD by construction. Build `A = B * B'` block-wise via `contract` with an explicit `conj`, which
+    # works on both backends (the natural `B * B'` form needs an adjoint `AbelianGradedArray` lacks).
     A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
-    # `*` on two `AbelianGradedMatrix` works, but the adjoint forms (`B * B'`, `X * X'` below)
-    # error: an `AbelianGradedMatrix` has no block-aware `adjoint`, so `B'` throws rather than
-    # silently falling through to LinearAlgebra's scalar-indexing path.
-    @test_throws ErrorException B * B'
     X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
     # X · conj(X) ≈ A on the rank subspace.
     @test A ≈ contract((:a, :b), X, (:a, :r), conj(X), (:b, :r))
-    @test_throws ErrorException X * X'
     # Y is a left inverse of X on the rank subspace.
     YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
     @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))
+    # On the fusion backend the `(1, 1)` adjoint works, so the natural `B * B'` / `X * X'` Gram forms
+    # recover `A` directly. `AbelianGradedArray` has no block-aware adjoint, so they throw there.
+    if FUSION_BACKEND
+        @test B * B' ≈ A
+        @test X * X' ≈ A
+    else
+        @test_throws ErrorException B * B'
+        @test_throws ErrorException X * X'
+    end
 end
 
 @testset "contract rejects mismatched contracted-axis duality (bosonic)" begin

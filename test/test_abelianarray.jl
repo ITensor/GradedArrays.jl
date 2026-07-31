@@ -659,26 +659,20 @@ end
 
 @testset "projectto! (in-place into a preallocated destination)" begin
     # `projectto!` writes the allowed blocks of a dense source into a preallocated destination,
-    # dropping the forbidden off-diagonal regions. Not yet supported on the fusion backend: it falls
-    # back to scalar `copyto!`, which errors (mid-write) on a forbidden block, so the whole block is
-    # marked broken there to track it (tracked in the parity plan).
-    if FUSION_BACKEND
-        @test_broken false
-    else
-        g = gradedrange([U1(0) => 2, U1(1) => 3])
-        src = randn(5, 5)
-        dest = zeros(Float64, g, dual(g))
-        @test TensorAlgebra.projectto!(dest, src) === dest
-        @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
-        @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
+    # dropping the forbidden off-diagonal regions.
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    src = randn(5, 5)
+    dest = zeros(Float64, g, dual(g))
+    @test TensorAlgebra.projectto!(dest, src) === dest
+    @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
+    @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
 
-        # A lower-rank `src` is reshaped up before projecting into the flux-canceling aux leg.
-        site = gradedrange([U1(0) => 1, U1(1) => 1])
-        aux = gradedrange([U1(0) => 1])
-        state = zeros(Float64, site, aux)
-        @test TensorAlgebra.projectto!(state, [1.0, 0.0]) === state
-        @test Array(state) == reshape([1.0, 0.0], 2, 1)
-    end
+    # A lower-rank `src` is reshaped up before projecting into the flux-canceling aux leg.
+    site = gradedrange([U1(0) => 1, U1(1) => 1])
+    aux = gradedrange([U1(0) => 1])
+    state = zeros(Float64, site, aux)
+    @test TensorAlgebra.projectto!(state, [1.0, 0.0]) === state
+    @test Array(state) == reshape([1.0, 0.0], 2, 1)
 end
 
 @testset "project with a derived auxiliary leg" begin
@@ -947,8 +941,8 @@ end
 
     # Indexing a dense array with graded ranges projects it onto the allowed blocks and
     # checks the discarded weight. A source already in the allowed subspace round-trips.
-    # `projectto!` into a preallocated destination is `AbelianGradedArray`-only (see the parity plan),
-    # so build the allowed-subspace source through it, then project the dense result on the backend.
+    # Build the allowed-subspace source through an `AbelianGradedArray` (a backend-independent way to
+    # get a dense projected array), then project that dense result on the active backend.
     ref = AbelianGradedArray{Float64}(undef, g, dual(g))
     TensorAlgebra.projectto!(ref, randn(5, 5))
     src = Array(ref)
@@ -1019,6 +1013,23 @@ end
     c = fill(-1.0, 2, 2)[h, dual(h)]
     @test maximum(c) == -1.0
     @test maximum(c) == maximum(Array(c))
+end
+
+# A graded matrix adjoint: the fusion backend conjugate-transposes a genuine (1, 1)-split matrix
+# through its matricized `FusedGradedMatrix`, where `AbelianGradedArray` has no adjoint at all.
+@testset "graded matrix adjoint (backend-routed)" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    # `AbelianGradedArray` has no block-aware adjoint at any split, and a non-(1, 1)-split
+    # `FusionArray` is not a matrix, so adjoint is unavailable there too.
+    @test_throws ErrorException randn(g, dual(g))'
+    if FUSION_BACKEND
+        a = randn((g,), (g,))
+        @test a' isa GradedArrayT
+        @test (a')' == a                     # double adjoint is the identity
+        @test Array(a') ≈ adjoint(Array(a))  # dense form is the plain conjugate transpose
+        h = a * a'                           # Gram product is Hermitian
+        @test h == h'
+    end
 end
 
 # The `FusedGradedMatrix asymmetric` testset above checks the adjoint on U1 with real blocks, which
