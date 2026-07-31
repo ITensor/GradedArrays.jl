@@ -1,8 +1,8 @@
-using GradedArrays: FusedGradedMatrix, FusionArray, SU2, SectorRange, U1, Z2, dual,
-    gradedrange, isdual, ndims_codomain, ndims_domain
+using GradedArrays: GradedArrays, FusedGradedMatrix, FusionArray, SU2, SectorRange, U1, Z2,
+    dual, gradedrange, isdual, ndims_codomain, ndims_domain
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: bipermutedims, contract, matricize, svd_compact
+using TensorAlgebra: TensorAlgebra, bipermutedims, contract, matricize, svd_compact
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -67,6 +67,64 @@ end
         # (callers normalize with `sectormergesort` at the boundary).
         @test_throws ArgumentError TensorKit.ElementarySpace(unsorted)
         @test_throws ArgumentError TensorKit.ElementarySpace(unfused)
+    end
+
+    # `project` routes through the selected backend, so it only builds a `FusionArray` when the fusion
+    # backend is active; the reorder-in path exercised here lives in that branch.
+    GradedArrays.graded_backend == "fusion" &&
+        @testset "unfused/unsorted project round-trip ($name)" for (name, T, cod, dom) in (
+            (
+                "U1 unsorted codomain", Float64,
+                (gradedrange([U1(1) => 1, U1(0) => 2]),),
+                (gradedrange([U1(0) => 2, U1(1) => 1]),),
+            ),
+            (
+                "U1 unfused codomain", Float64,
+                (gradedrange([U1(0) => 2, U1(1) => 1, U1(0) => 1]),),
+                (gradedrange([U1(0) => 1, U1(1) => 2]),),
+            ),
+            (
+                "U1 unfused both, complex", ComplexF64,
+                (gradedrange([U1(0) => 1, U1(1) => 1, U1(0) => 1]),),
+                (gradedrange([U1(1) => 1, U1(0) => 2]),),
+            ),
+            (
+                "SU2 unsorted", Float64,
+                (gradedrange([SU2(1 // 2) => 1, SU2(0) => 2]),),
+                (gradedrange([SU2(0) => 1, SU2(1 // 2) => 1]),),
+            ),
+            (
+                "fermion unfused", Float64,
+                (gradedrange([fP0 => 1, fP1 => 1, fP0 => 1]),),
+                (gradedrange([fP0 => 2, fP1 => 1]),),
+            ),
+            (
+                "U1 multi-leg unfused", Float64,
+                (
+                    gradedrange([U1(0) => 1, U1(1) => 1]),
+                    gradedrange([U1(1) => 1, U1(0) => 1, U1(1) => 1]),
+                ),
+                (gradedrange([U1(0) => 1, U1(1) => 1]),),
+            ),
+        )
+        all_axes = (cod..., dom...)
+        # A dense source exactly in the allowed subspace over the (unfused/unsorted) axes: `project`
+        # reorders it into fused-sorted order (block permutation) and `Array` scatters back.
+        raw = Array(
+            TensorAlgebra.unchecked_project(
+                randn(T, map(length, all_axes)...),
+                cod,
+                dom
+            )
+        )
+        @test !iszero(raw)
+        a = TensorAlgebra.project(raw, cod, dom)
+        @test a isa FusionArray
+        # The requested (unfused/unsorted) axes are carried, not the fused-sorted backing order.
+        @test axes(a) == (cod..., map(dual, dom)...)
+        # Dense round-trip through the reorder in and out. Non-abelian recoupling adds float round-off,
+        # so compare with `≈`.
+        @test Array(a) ≈ raw
     end
 
     @testset "real / imag ($G)" for (G, i, j) in (
