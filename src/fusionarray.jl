@@ -241,6 +241,22 @@ function Base.adjoint(fa::FusionArray{<:Any, <:Any, 2})
     )
 end
 
+# ============================  conj  ============================
+# Conjugate while keeping the codomain/domain split, unlike the `AbstractGradedArray` `conj.(a)`
+# broadcast, which materializes into a fresh array and so lands at the all-codomain split. Fill a
+# same-split destination (per-leg axes dualized) with a single `op = conj` permute-add over the
+# identity biperm, so the TensorKit-backed transform folds in the leg-reversal fermion sign and the
+# non-abelian recoupling that a bare block conjugation would drop.
+function Base.conj(fa::FusionArray{<:Any, <:Any, <:Any, <:Any, NC, ND}) where {NC, ND}
+    dest = TensorAlgebra.similar_map(
+        fa, map(dual, axes_codomain(fa)), map(dual, axes_domain(fa))
+    )
+    TensorAlgebra.bipermutedimsopadd!(
+        dest, conj, fa, ntuple(identity, Val(NC)), ntuple(i -> NC + i, Val(ND)), true, false
+    )
+    return dest
+end
+
 # ============================  bare-matrix factorizations  ============================
 # Route the plain matrix forms (`MAK.svd_compact(m)`, etc.) through the matricizing `TensorAlgebra`
 # factorizations, identical to the `AbelianGradedMatrix` methods in `matrixalgebrakit.jl` (which
@@ -359,6 +375,12 @@ function TensorAlgebra.similar_map(
         axes_codomain::Tuple{}, axes_domain::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     ) where {T}
     return FusionArray{T}(undef, axes_codomain, axes_domain)
+end
+# Rank-0: the empty axes carry no sector type, so read it from the `FusionArray` prototype.
+function TensorAlgebra.similar_map(
+        fa::FusionArray, ::Type{T}, axes_codomain::Tuple{}, axes_domain::Tuple{}
+    ) where {T}
+    return FusionArray{T, sectortype(fa)}(undef, axes_codomain, axes_domain)
 end
 
 # Fill the reduced coupled-sector blocks in place, forwarding to the matricized `FusedGradedMatrix`

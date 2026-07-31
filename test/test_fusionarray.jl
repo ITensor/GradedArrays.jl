@@ -1,5 +1,5 @@
-using GradedArrays:
-    FusedGradedMatrix, FusionArray, SU2, SectorRange, U1, Z2, dual, gradedrange, isdual
+using GradedArrays: FusedGradedMatrix, FusionArray, SU2, SectorRange, U1, Z2, dual,
+    gradedrange, isdual, ndims_codomain, ndims_domain
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: bipermutedims, contract, matricize, svd_compact
@@ -90,6 +90,47 @@ end
             @test matricize(ra).blocks[c] == real.(ma.blocks[c])
             @test matricize(ia).blocks[c] == imag.(ma.blocks[c])
         end
+    end
+
+    @testset "conj (split-preserving) ($G)" for (G, cod, dom) in (
+            (
+                "U1 (1,1)",
+                (gradedrange([U1(0) => 2, U1(1) => 1]),),
+                (gradedrange([U1(0) => 1, U1(1) => 2]),),
+            ),
+            (
+                "SU2 (1,2)",
+                (gradedrange([SU2(0) => 1, SU2(1 // 2) => 2]),),
+                (
+                    gradedrange([SU2(0) => 2, SU2(1 // 2) => 1]),
+                    gradedrange([SU2(0) => 1, SU2(1 // 2) => 2]),
+                ),
+            ),
+            (
+                "fermion (2,1)",
+                (gradedrange([fP0 => 2, fP1 => 1]), gradedrange([fP0 => 1, fP1 => 2])),
+                (gradedrange([fP0 => 2, fP1 => 1]),),
+            ),
+        )
+        a = randn_fusionarray(ComplexF64, cod, dom)
+        c = conj(a)
+        @test c isa FusionArray
+        # Split preserved (unlike the `conj.(a)` broadcast, which materializes all-codomain), per-leg
+        # axes dualized.
+        @test (ndims_codomain(c), ndims_domain(c)) == (ndims_codomain(a), ndims_domain(a))
+        @test axes(c) == map(dual, axes(a))
+        # Same tensor as the broadcast conj and an involution, compared at a common split via `≈` (a
+        # non-abelian double conj picks up recoupling round-off, so `==` is too strict).
+        @test c ≈ conj.(a)
+        @test conj(c) ≈ a
+    end
+
+    @testset "conj of a rank-0 FusionArray" begin
+        a = randn!(FusionArray{ComplexF64, U1}(undef, (), ()))
+        c = conj(a)
+        @test c isa FusionArray
+        @test ndims(c) == 0
+        @test c[] ≈ conj(a[])
     end
 
     @testset "contraction ($G)" for (G, i, j, k, l) in (
