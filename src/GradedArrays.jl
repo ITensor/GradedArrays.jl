@@ -23,8 +23,8 @@ export dual, flip, gradedrange, isdual,
 # imports
 # -------
 using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, Block,
-    BlockIndexRange, BlockVector, BlockedOneTo, blockedrange, blocklasts, blocklength,
-    blocklengths, blocks, eachblockaxes1
+    BlockIndexRange, BlockVector, BlockedArray, BlockedOneTo, blockedrange, blocklasts,
+    blocklength, blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Preferences: @load_preference, @set_preferences!

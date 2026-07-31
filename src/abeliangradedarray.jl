@@ -950,13 +950,18 @@ function unchecked_project_graded(raw, codomain_axes, domain_axes)
     @static if graded_backend == "fusion"
         all_axes = (codomain_axes..., domain_axes...)
         if ndims(raw) == length(all_axes) && !all(is_fused_sorted, all_axes)
-            # Unfused / unsorted external axes: reorder the dense input per leg into sorted order so
-            # its layout matches the fused-sorted `GradedSpace` TensorKit needs (the merge is implicit
-            # in dense contiguity), project, then wrap carrying the original axes. `axes(result)` then
-            # reproduces the requested (unsorted) axes, matching `AbelianGradedArray`.
-            perms = ntuple(d -> axis_fused_sortperm(all_axes[d]), Val(length(all_axes)))
+            # Unfused / unsorted external axes: reorder the dense input's sector blocks per leg into
+            # sorted order (block permutation, so equal sectors become contiguous and the merge is
+            # implicit in dense contiguity; whole-block moves preserve the array type, e.g. GPU) so its
+            # layout matches the fused-sorted `GradedSpace` TensorKit needs, project, then wrap carrying
+            # the original axes. `axes(result)` reproduces the requested (unsorted) axes, matching
+            # `AbelianGradedArray`.
+            N = length(all_axes)
+            storedlengths = map(g -> Vector(blocklengths(g)), all_axes)
+            perms = ntuple(d -> sectorsortperm(all_axes[d]), Val(N))
+            sorted = parent(BlockedArray(raw, storedlengths...)[perms...])
             t = TA.unchecked_project(
-                raw[perms...],
+                sorted,
                 map(ElementarySpace ∘ sectormergesort, codomain_axes),
                 map(ElementarySpace ∘ sectormergesort, domain_axes)
             )

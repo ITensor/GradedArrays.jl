@@ -10,17 +10,19 @@ function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: TK.Sec
     return Vect[S](space)
 end
 
-# A TensorKit `GradedSpace` holds each sector once, in sorted order. GradedArrays' fused-and-sorted
-# ranges satisfy this, so a range that is unfused (a sector repeats) or unsorted cannot be converted
-# yet. This restriction (and the initial `FusionArray` form) will be lifted once the unfused/unsorted
-# case applies an implicit basis change. The sort order is GradedArrays' `SectorRange` order, which
-# matches TensorKit's for every sector, so a sorted range maps to a `GradedSpace` with no reordering.
+# A TensorKit `GradedSpace` holds each sector once, in sorted order: fused (no sector repeats) and
+# sorted in `SectorRange` order (which matches TensorKit's), so a fused-sorted range maps to a
+# `GradedSpace` with no reordering. `FusionArray` axes may be unfused/unsorted, and the `project` / `Array`
+# seams block-permute the dense data into this form at the TensorKit boundary.
+is_fused_sorted(g::GradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
+
+# Throwing wrapper: `ElementarySpace` demands a fused-sorted range, so reject anything else with a
+# message that says which invariant broke.
 function check_fused_sorted(g::GradedOneTo)
-    secs = sectors(g)
-    allunique(secs) ||
+    is_fused_sorted(g) && return g
+    allunique(sectors(g)) ||
         throw(ArgumentError("axis sectors must be fused (each sector appears once)"))
-    issorted(secs) || throw(ArgumentError("axis sectors must be sorted"))
-    return g
+    throw(ArgumentError("axis sectors must be sorted"))
 end
 
 # `GradedOneTo` <-> `ElementarySpace` converters. `sectors` gives the non-dual sector labels
