@@ -675,123 +675,101 @@ end
     @test Array(state) == reshape([1.0, 0.0], 2, 1)
 end
 
-@testset "project with a derived auxiliary leg" begin
+@testset "project is strict; project_aux derives an auxiliary leg" begin
     # spin-1/2 site: up = U1(1), down = U1(-1)
     g = gradedrange([U1(1) => 1, U1(-1) => 1])
     Splus = [0.0 1.0; 0.0 0.0]   # |down> -> |up>, flux +2
     Sminus = [0.0 0.0; 1.0 0.0]  # |up> -> |down>, flux -2
     Sz = [0.5 0.0; 0.0 -0.5]     # neutral
 
-    # The internal abelian fast path reads the net flux from the dominant entry.
+    # The abelian per-slice primitive reads the net flux from the dominant entry.
     @test GradedArrays.projected_charge(Splus, (g,), (g,)) == U1(2)
     @test GradedArrays.projected_charge(Sminus, (g,), (g,)) == U1(-2)
     @test GradedArrays.projected_charge(Sz, (g,), (g,)) == U1(0)
 
-    # With all axes given (`src` rank matches the physical axes), `project` is the plain
-    # projection into the allowed subspace.
+    # `project` projects into exactly the given axes; a trailing surplus axis is an error, not a
+    # silently derived aux. `project_aux` is the deriving entry point.
     @test TensorAlgebra.project(Sz, (g,), (g,)) isa GradedArrayT
+    @test_throws ArgumentError TensorAlgebra.project(reshape(Splus, 2, 2, 1), (g,), (g,))
 
-    # A trailing surplus axis in `src` (here the length-1 last axis of `(2,2,1)`, with only 2
-    # physical axes given) is the aux: `project` derives its space into a flux-canceling last
-    # domain axis, giving a valid zero-total-flux tensor whose squeezed data is the original
-    # operator. The result's shape matches `src`'s.
-    t = TensorAlgebra.project(reshape(Splus, 2, 2, 1), (g,), (g,))
+    # A physical-rank operator gets a length-1 aux carrying its single flux; a bare (unreshaped)
+    # operator is reshaped up to the same result. The result's shape matches the input.
+    t = TensorAlgebra.project_aux(reshape(Splus, 2, 2, 1), (g,), (g,))
     @test t isa GradedArrayT
     @test size(t) == (2, 2, 1)
     @test blockstoredlength(t) == 1
     @test Array(t)[:, :, 1] == Splus
+    @test Array(TensorAlgebra.project_aux(Splus, (g,), (g,))) == reshape(Splus, 2, 2, 1)
 
     # A neutral operator still gets an aux, but a trivial one (dummy bond).
-    tz = TensorAlgebra.project(reshape(Sz, 2, 2, 1), (g,), (g,))
-    @test size(tz) == (2, 2, 1)
-    @test Array(tz)[:, :, 1] == Sz
+    @test Array(TensorAlgebra.project_aux(reshape(Sz, 2, 2, 1), (g,), (g,)))[:, :, 1] == Sz
 
-    # Multi-slice / flat-state aux derivation is not yet implemented on the fusion backend, which
-    # routes `project` through TensorAlgebra's TensorMap path: its `infer_aux_space` requires the
-    # aux slices pre-sorted by canonical sector order rather than deriving that order itself
-    # (tracked in the parity plan). Runs fully on `AbelianGradedArray`.
+    # Abelian sectors derive one charge per slice, in slice order — a direct-sum MPO-virtual leg,
+    # including arbitrary order and mixed neutral/charged slices (works on both backends, where
+    # `project`'s old ndims form could not derive arbitrary order on the fusion backend).
+    stack = cat(reshape.((Splus, Sz, Sminus), 2, 2, 1)...; dims = 3)
+    ts = TensorAlgebra.project_aux(stack, (g,), (g,))
+    @test ts isa GradedArrayT
+    @test sectors(axes(ts, 3)) == [U1(2), U1(0), U1(-2)]
+    @test Array(ts) == stack
+
+    # Slice order is preserved, not canonicalized.
+    rev = cat(reshape(Sminus, 2, 2, 1), reshape(Splus, 2, 2, 1); dims = 3)
+    @test sectors(axes(TensorAlgebra.project_aux(rev, (g,), (g,)), 3)) == [U1(-2), U1(2)]
+
+    # Contiguous equal charges merge into one sector of that multiplicity, agreeing with passing
+    # the merged aux explicitly through plain `project`.
+    pp = cat(reshape.((Splus, Splus), 2, 2, 1)...; dims = 3)
+    tpp = TensorAlgebra.project_aux(pp, (g,), (g,))
+    @test blocklengths(axes(tpp, 3)) == [2]
+    @test Array(tpp) == pp
+    @test axes(TensorAlgebra.project(pp, (g,), (g, gradedrange([U1(2) => 2])))) == axes(tpp)
+
+    # Non-contiguous repeats stay separate sectors, so slice order is always preserved.
+    repeats = cat(reshape.((Splus, Sz, Splus), 2, 2, 1)...; dims = 3)
+    trep = TensorAlgebra.project_aux(repeats, (g,), (g,))
+    @test blocklengths(axes(trep, 3)) == [1, 1, 1]
+    @test Array(trep) == repeats
+
+    # More than one trailing surplus axis is a rank error, not a silent flattening.
+    @test_throws ArgumentError TensorAlgebra.project_aux(
+        reshape(stack, 2, 2, 3, 1),
+        (g,),
+        (g,)
+    )
+
+    # The flat two-argument (all-codomain / state) form appends the aux to an empty domain.
+    site = gradedrange([U1(0) => 1, U1(1) => 1])
+    @test Array(TensorAlgebra.project_aux([1.0 0.0; 0.0 1.0], (site,))) ==
+        [1.0 0.0; 0.0 1.0]
+
+    # `project_aux` verifies nothing is discarded; `unchecked_project_aux` silently drops it.
+    junk = copy(reshape(Splus, 2, 2, 1))
+    junk[2, 2, 1] = 0.3
+    @test_throws InexactError TensorAlgebra.project_aux(junk, (g,), (g,))
+    @test Array(TensorAlgebra.unchecked_project_aux(junk, (g,), (g,)))[:, :, 1] == Splus
+
+    # `tryproject` branches on whether the data is invariant in the given axes; fall back to
+    # `project_aux` to derive the flux-carrying leg.
+    v_inv, v_chg = [1.0, 0.0], [0.0, 1.0]
+    @test TensorAlgebra.tryproject(v_inv, (site,)) isa GradedArrayT
+    @test isnothing(TensorAlgebra.tryproject(v_chg, (site,)))
+    t_chg = @something TensorAlgebra.tryproject(v_chg, (site,)) TensorAlgebra.project_aux(
+        v_chg, (site,)
+    )
+    @test ndims(t_chg) == 2
+    @test Array(t_chg) == reshape(v_chg, 2, 1)
+
+    # Non-abelian: a spin-1 multiplet derives a single spin-1 aux, not per-slice charges (fusion
+    # backend only; the abelian backend cannot represent SU2 sectors).
     if FUSION_BACKEND
-        @test_broken false
-    else
-        # A multi-slice aux derives a direct sum, one charge per slice — the MPO-virtual-leg
-        # structure: each slice's flux is canceled by its own aux sector, so the whole tensor is
-        # invariant even though the slices carry different charges.
-        stack = cat(reshape(Splus, 2, 2, 1), reshape(Sminus, 2, 2, 1); dims = 3)
-        ts = TensorAlgebra.project(stack, (g,), (g,))
-        @test ts isa GradedArrayT
-        @test size(ts) == (2, 2, 2)
-        @test Array(ts)[:, :, 1] == Splus
-        @test Array(ts)[:, :, 2] == Sminus
-
-        # ... including a neutral slice mixed with a charged one.
-        tsz = TensorAlgebra.project(
-            cat(reshape(Sz, 2, 2, 1), reshape(Splus, 2, 2, 1); dims = 3), (g,), (g,)
-        )
-        @test Array(tsz)[:, :, 1] == Sz
-        @test Array(tsz)[:, :, 2] == Splus
-
-        # Contiguous equal charges merge into one sector of that multiplicity (matching the
-        # `TensorMap` backend's `s => m` behavior), and agree with passing the merged aux
-        # explicitly through the all-given form.
-        pp = cat(reshape.((Splus, Splus), 2, 2, 1)...; dims = 3)
-        tpp = TensorAlgebra.project(pp, (g,), (g,))
-        @test blocklengths(axes(tpp, 3)) == [2]
-        @test Array(tpp) == pp
-        tmerged = TensorAlgebra.project(pp, (g,), (g, gradedrange([U1(2) => 2])))
-        @test axes(tmerged) == axes(tpp)
-        @test Array(tmerged) == pp
-
-        # Non-contiguous repeats stay separate sectors (a `GradedOneTo` permits unmerged
-        # duplicates), so slice order is always preserved.
-        repeats = cat(reshape.((Splus, Sz, Splus), 2, 2, 1)...; dims = 3)
-        trep = TensorAlgebra.project(repeats, (g,), (g,))
-        @test size(trep) == (2, 2, 3)
-        @test blocklengths(axes(trep, 3)) == [1, 1, 1]
-        @test Array(trep) == repeats
-
-        # Only one trailing surplus axis is supported: more is an error, not a silent flattening.
-        @test_throws ArgumentError TensorAlgebra.project(
-            reshape(stack, 2, 2, 2, 1), (g,), (g,)
-        )
-
-        # A lower-rank `src` that omits explicitly-given trailing length-1 axes is the
-        # trailing-axes tolerance, not a surplus axis: it pads, it does not derive an extra leg.
-        # The domain aux is given codomain-facing (stored dualized), so `[U1(1)]` cancels the
-        # charge-1 component.
-        site = gradedrange([U1(0) => 1, U1(1) => 1])
-        saux = gradedrange([U1(1) => 1])
-        po = TensorAlgebra.project([0.0, 1.0], (site,), (saux,))
-        @test size(po) == (2, 1)
-        @test Array(po) == reshape([0.0, 1.0], 2, 1)
-
-        # The flat all-codomain (state) form also derives: a stack of basis states with different
-        # charges gets a multi-sector aux.
-        ps = TensorAlgebra.project([1.0 0.0; 0.0 1.0], (site,))
-        @test size(ps) == (2, 2)
-        @test Array(ps) == [1.0 0.0; 0.0 1.0]
-
-        # `project` verifies nothing was discarded after the derivation: a slice with weight
-        # outside its derived (dominant-entry) charge is rejected, where `unchecked_project`
-        # silently drops it.
-        junk = copy(reshape(Splus, 2, 2, 1))
-        junk[2, 2, 1] = 0.3
-        @test_throws InexactError TensorAlgebra.project(junk, (g,), (g,))
-        @test Array(TensorAlgebra.unchecked_project(junk, (g,), (g,)))[:, :, 1] == Splus
-
-        # `tryproject` is the nullable sibling of `project`: branch on whether the data is
-        # invariant in the given axes, falling back to deriving the flux-carrying aux.
-        v_inv, v_chg = [1.0, 0.0], [0.0, 1.0]
-        @test TensorAlgebra.tryproject(v_inv, (site,)) isa GradedArrayT
-        @test isnothing(TensorAlgebra.tryproject(v_chg, (site,)))
-        t_chg = @something TensorAlgebra.tryproject(v_chg, (site,)) TensorAlgebra.project(
-            reshape(v_chg, 2, 1), (site,)
-        )
-        @test ndims(t_chg) == 2
-        @test Array(t_chg) == reshape(v_chg, 2, 1)
-        t_inv = @something TensorAlgebra.tryproject(v_inv, (site,)) TensorAlgebra.project(
-            reshape(v_inv, 2, 1), (site,)
-        )
-        @test ndims(t_inv) == 1
+        gs = gradedrange([SU2(1 // 2) => 1])
+        auxs = gradedrange([SU2(1) => 1])
+        dense = Array(TensorAlgebra.unchecked_project(randn(2, 2, 3), (gs,), (gs, auxs)))
+        tm = TensorAlgebra.project_aux(dense, (gs,), (gs,))
+        @test blocklength(axes(tm, 3)) == 1
+        @test sectors(axes(tm, 3)) == [SU2(1)]
+        @test Array(tm) ≈ dense
     end
 end
 
