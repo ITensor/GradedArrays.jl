@@ -55,24 +55,31 @@ TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
 # block. The returned `AbelianSectorArray` is a view into the block's strided data, so get/set writes
 # back in place.
 
-function viewblock(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
+function viewblock(
+        a::FusionArray{T, S, N, <:Any, NC, ND},
+        I::Block{N}
+    ) where {T, S, N, NC, ND}
     require_unique_fusion(a)
     bk = Int.(Tuple(I))
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
+    # The block carries the array's own codomain/domain split (the first `NC` legs are codomain).
+    delta = AbelianSectorDelta{T, S, N, NC, ND}(
+        ntuple(i -> sects[i], Val(NC)), ntuple(i -> sects[NC + i], Val(ND))
+    )
     # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
     blockdata = tensormap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
     # Fused-sorted axes have one block per sector, so the merged block is the whole block. Only an
     # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
     # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
     # to its `Block[subrange]` in the fused-sorted merged axis.
-    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(blockdata, sects)
+    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(blockdata, delta)
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
             invblockmergeperm(g, sectorsortperm(g), sectormergesort(g))[bk[d]].indices
         )
     end
-    return AbelianSectorArray(view(blockdata, ranges...), sects)
+    return AbelianSectorArray(view(blockdata, ranges...), delta)
 end
 
 Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
@@ -95,8 +102,8 @@ end
 # hardcoding `Array{T, N}`, so non-`Array` storage (GPU, etc.) is preserved — e.g. via
 # `Base.promote_op` on `view(A, ::Block)` (the actual returned block type). Also only well-defined
 # for unique fusion (blocks are `AbelianSectorArray` only then); tie it to that guard.
-function blocktype(::Type{<:FusionArray{T, S, N}}) where {T, S, N}
-    return AbelianSectorArray{T, S, N, Array{T, N}}
+function blocktype(::Type{<:FusionArray{T, S, N, <:Any, NC, ND}}) where {T, S, N, NC, ND}
+    return AbelianSectorArray{T, S, N, Array{T, N}, NC, ND}
 end
 blocktype(a::FusionArray) = blocktype(typeof(a))
 

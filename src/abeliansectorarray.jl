@@ -1,68 +1,96 @@
 """
-    AbelianSectorArray{T,S,N,A} <: AbstractSectorArray{T, S, N}
+    AbelianSectorArray{T,S,N,A,NC,ND} <: AbstractSectorArray{T, S, N}
 
-Unfused N-D data tensor for abelian symmetries. Stores one `SectorRange` per axis,
-plus a dense data array. Implements the Wigner-Eckart decomposition:
-the full tensor is the Kronecker product of an [`AbelianSectorDelta`](@ref) (structural)
-with the data array (reduced matrix elements).
+Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus an
+[`AbelianSectorDelta`](@ref) carrying one `SectorRange` per axis with a codomain/domain split
+(`NC` codomain legs, `ND` domain legs, `NC + ND == N`). Implements the Wigner-Eckart
+decomposition: the full tensor is the Kronecker product of the structural delta with the data
+array (reduced matrix elements). The all-codomain case (`NC == N`) is the block an
+`AbelianGradedArray` yields.
 """
-struct AbelianSectorArray{T, S <: SectorRange, N, A <: AbstractArray{T, N}} <:
+struct AbelianSectorArray{T, S <: SectorRange, N, A <: AbstractArray{T, N}, NC, ND} <:
     AbstractSectorArray{T, S, N}
     data::A
-    sectors::NTuple{N, S}
+    delta::AbelianSectorDelta{T, S, N, NC, ND}
 end
 
 # Constructors
 
-# Fully-parameterized undef constructor: accepts SectorOneTo axes.
+# Fully-parameterized undef constructor: accepts SectorOneTo axes, splitting them into the
+# first `NC` codomain legs and remaining `ND` domain legs.
+function AbelianSectorArray{T, S, N, A, NC, ND}(
+        ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
+    ) where {T, S <: SectorRange, N, A <: AbstractArray{T, N}, NC, ND}
+    sects = sector.(axs)
+    delta = AbelianSectorDelta{T, S, N, NC, ND}(
+        ntuple(i -> sects[i], Val(NC)), ntuple(i -> sects[NC + i], Val(ND))
+    )
+    return AbelianSectorArray{T, S, N, A, NC, ND}(similar(A, data.(axs)), delta)
+end
+# Omitting the split defaults to all-codomain (`NC == N`, `ND == 0`).
 function AbelianSectorArray{T, S, N, A}(
         ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
     ) where {T, S <: SectorRange, N, A <: AbstractArray{T, N}}
-    sects = sector.(axs)
-    return AbelianSectorArray{T, S, N, A}(similar(A, data.(axs)), sects)
+    return AbelianSectorArray{T, S, N, A, N, 0}(undef, axs)
 end
 
-# Convenience: infer A = Array{T,N} and S from the axes. Requires at least one axis: the
-# sector type of a rank-0 array cannot be inferred from empty axes, so a rank-0 array is
-# built through the fully-parameterized constructor with an explicit `S`.
+# Convenience: infer A = Array{T,N} and S from the axes, all-codomain. Requires at least one
+# axis: the sector type of a rank-0 array cannot be inferred from empty axes, so a rank-0 array
+# is built through the fully-parameterized constructor with an explicit `S`.
 function AbelianSectorArray{T}(
         ::UndefInitializer, axs::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
     N = length(axs)
-    return AbelianSectorArray{T, sectortype(eltype(axs)), N, Array{T, N}}(undef, axs)
+    return AbelianSectorArray{T, sectortype(eltype(axs)), N, Array{T, N}, N, 0}(undef, axs)
 end
 
-# Construct from AbelianSectorDelta (inverse of sector/data decomposition). Take `S` from
-# the delta's type rather than inferring it from `delta.sectors`, which is empty (and so
-# carries no `S`) for a rank-0 array.
+# Construct from a flat sector tuple (all-codomain), the `AbelianGradedArray` block default.
 function AbelianSectorArray(
-        data::AbstractArray{T, N},
-        delta::AbelianSectorDelta{<:Any, S, N}
-    ) where {T, S, N}
-    return AbelianSectorArray{T, S, N, typeof(data)}(data, delta.sectors)
+        data::AbstractArray{T, N}, sectors::NTuple{N, S}
+    ) where {T, S <: SectorRange, N}
+    return AbelianSectorArray(data, AbelianSectorDelta{T, S, N, N, 0}(sectors, ()))
 end
+# Typed flat-tuple constructor: split the flat sectors at `NC` (covers rank-0, whose empty
+# tuple carries no `S`, through the type parameter).
+function AbelianSectorArray{T, S, N, A, NC, ND}(
+        data::A, sectors::NTuple{N, S}
+    ) where {T, S <: SectorRange, N, A <: AbstractArray{T, N}, NC, ND}
+    delta = AbelianSectorDelta{T, S, N, NC, ND}(
+        ntuple(i -> sectors[i], Val(NC)), ntuple(i -> sectors[NC + i], Val(ND))
+    )
+    return AbelianSectorArray{T, S, N, A, NC, ND}(data, delta)
+end
+# Omitting the split defaults to all-codomain.
 function AbelianSectorArray{T, S, N, A}(
-        data::A,
-        delta::AbelianSectorDelta{<:Any, S, N}
+        data::A, sectors::NTuple{N, S}
     ) where {T, S <: SectorRange, N, A <: AbstractArray{T, N}}
-    return AbelianSectorArray{T, S, N, A}(data, delta.sectors)
+    return AbelianSectorArray{T, S, N, A, N, 0}(data, sectors)
+end
+
+# Construct from an AbelianSectorDelta whose eltype differs from the data (e.g. `real`/`imag`
+# or `convert` changing the eltype); the split is preserved. The eltype-matching case hits the
+# default constructor, which stores the delta directly so the Kronecker round-trip is `===`.
+function AbelianSectorArray(
+        data::AbstractArray{T, N}, delta::AbelianSectorDelta{<:Any, S, N, NC, ND}
+    ) where {T, S, N, NC, ND}
+    return AbelianSectorArray{T, S, N, typeof(data), NC, ND}(
+        data,
+        AbelianSectorDelta{T, S, N, NC, ND}(delta.sectors_codomain, delta.sectors_domain)
+    )
 end
 
 const AbelianSectorVector{T, S <: SectorRange, A <: AbstractVector{T}} =
-    AbelianSectorArray{T, S, 1, A}
+    AbelianSectorArray{T, S, 1, A, NC, ND} where {NC, ND}
 const AbelianSectorMatrix{T, S <: SectorRange, A <: AbstractMatrix{T}} =
-    AbelianSectorArray{T, S, 2, A}
+    AbelianSectorArray{T, S, 2, A, NC, ND} where {NC, ND}
 
 # Accessors
 
-# Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data.
-# Pass `N`/`S` explicitly so the structural factor of a rank-0 array (empty `sectors`,
-# which carry no `S`) still resolves its sector type.
-function sector(sa::AbelianSectorArray{T, S, N, A}) where {T, S, N, A}
-    return AbelianSectorDelta{T, S, N}(sa.sectors)
-end
+# Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data. `sector` returns the
+# stored delta directly, so `sector_kron(sector(a), data(a)) === a`.
+sector(sa::AbelianSectorArray) = sa.delta
 
-datatype(::Type{AbelianSectorArray{T, S, N, A}}) where {T, S, N, A} = A
+datatype(::Type{<:AbelianSectorArray{T, S, N, A, NC, ND}}) where {T, S, N, A, NC, ND} = A
 
 Base.copy(A::AbelianSectorArray) = AbelianSectorArray(copy(data(A)), sector(A))
 
@@ -77,11 +105,18 @@ function Base.similar(
 end
 
 function Base.convert(
-        ::Type{AbelianSectorArray{T₁, S, N, A}},
-        x::AbelianSectorArray{T₂, S, N, B}
-    )::AbelianSectorArray{T₁, S, N, A} where {T₁, T₂, S, N, A, B}
+        ::Type{AbelianSectorArray{T₁, S, N, A, NC, ND}},
+        x::AbelianSectorArray{T₂, S, N, B, NC, ND}
+    )::AbelianSectorArray{T₁, S, N, A, NC, ND} where {T₁, T₂, S, N, A, B, NC, ND}
     A === B && return x
-    return AbelianSectorArray{T₁, S, N, A}(convert(A, data(x)), sector(x))
+    return AbelianSectorArray(convert(A, data(x)), sector(x))
+end
+# Omitting the split takes it from the source, so a `convert` never silently changes the split.
+function Base.convert(
+        ::Type{AbelianSectorArray{T₁, S, N, A}},
+        x::AbelianSectorArray{T₂, S, N, B, NC, ND}
+    ) where {T₁, T₂, S, N, A, B, NC, ND}
+    return convert(AbelianSectorArray{T₁, S, N, A, NC, ND}, x)
 end
 
 # ========================  permutedims  ========================
