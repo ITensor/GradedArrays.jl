@@ -91,7 +91,7 @@ end
 end
 
 @testset "FusedGradedMatrix show uses compact sector format" begin
-    m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(3, 3)])
+    m = FusedGradedMatrix([ones(2, 2), ones(3, 3)], [U1(0), U1(1)])
     s = sprint(show, MIME("text/plain"), m)
     @test occursin("U1", s)
     @test !occursin("Irrep", s)
@@ -144,7 +144,7 @@ end
         @test occursin("AbelianGradedArray{Float32, …, 3, Array{Float32, 3}}", s3)
     end
 
-    m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(3, 3)])
+    m = FusedGradedMatrix([ones(2, 2), ones(3, 3)], [U1(0), U1(1)])
     @test occursin(
         "FusedGradedMatrix{Float64, …, Matrix{Float64}}",
         sprint(show, MIME("text/plain"), m)
@@ -214,7 +214,7 @@ end
 end
 
 @testset "FusedGradedMatrix text/plain display" begin
-    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 6.0; 7.0 8.0]])
+    m = FusedGradedMatrix([[1.0 2.0; 3.0 4.0], [5.0 6.0; 7.0 8.0]], [U1(0), U1(1)])
 
     s = sprint(show, MIME("text/plain"), m)
     @test occursin("FusedGradedMatrix", s)
