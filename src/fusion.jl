@@ -186,7 +186,7 @@ function TensorAlgebra.unmatricize(
         data.(codomain_axes),
         data.(domain_axes)
     )
-    return AbelianSectorArray(msectors, mdata)
+    return AbelianSectorArray(mdata, msectors)
 end
 
 # ========================  SectorFusion FusedGradedMatrix unmatricize  ========================

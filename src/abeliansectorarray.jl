@@ -8,8 +8,8 @@ with the data array (reduced matrix elements).
 """
 struct AbelianSectorArray{T, S <: SectorRange, N, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, S, N}
-    sectors::NTuple{N, S}
     data::A
+    sectors::NTuple{N, S}
 end
 
 # Constructors
@@ -19,7 +19,7 @@ function AbelianSectorArray{T, S, N, A}(
         ::UndefInitializer, axs::NTuple{N, SectorOneTo{S}}
     ) where {T, S <: SectorRange, N, A <: AbstractArray{T, N}}
     sects = sector.(axs)
-    return AbelianSectorArray{T, S, N, A}(sects, similar(A, data.(axs)))
+    return AbelianSectorArray{T, S, N, A}(similar(A, data.(axs)), sects)
 end
 
 # Convenience: infer A = Array{T,N} and S from the axes. Requires at least one axis: the
@@ -36,16 +36,16 @@ end
 # the delta's type rather than inferring it from `delta.sectors`, which is empty (and so
 # carries no `S`) for a rank-0 array.
 function AbelianSectorArray(
-        delta::AbelianSectorDelta{<:Any, S, N},
-        data::AbstractArray{T, N}
+        data::AbstractArray{T, N},
+        delta::AbelianSectorDelta{<:Any, S, N}
     ) where {T, S, N}
-    return AbelianSectorArray{T, S, N, typeof(data)}(delta.sectors, data)
+    return AbelianSectorArray{T, S, N, typeof(data)}(data, delta.sectors)
 end
 function AbelianSectorArray{T, S, N, A}(
-        delta::AbelianSectorDelta{<:Any, S, N},
-        data::A
+        data::A,
+        delta::AbelianSectorDelta{<:Any, S, N}
     ) where {T, S <: SectorRange, N, A <: AbstractArray{T, N}}
-    return AbelianSectorArray{T, S, N, A}(delta.sectors, data)
+    return AbelianSectorArray{T, S, N, A}(data, delta.sectors)
 end
 
 const AbelianSectorVector{T, S <: SectorRange, A <: AbstractVector{T}} =
@@ -64,7 +64,7 @@ end
 
 datatype(::Type{AbelianSectorArray{T, S, N, A}}) where {T, S, N, A} = A
 
-Base.copy(A::AbelianSectorArray) = AbelianSectorArray(sector(A), copy(data(A)))
+Base.copy(A::AbelianSectorArray) = AbelianSectorArray(copy(data(A)), sector(A))
 
 # similar for AbelianSectorArray with SectorOneTo axes.
 # Delegates to similar on the data array for the data dimensions.
@@ -81,14 +81,14 @@ function Base.convert(
         x::AbelianSectorArray{T₂, S, N, B}
     )::AbelianSectorArray{T₁, S, N, A} where {T₁, T₂, S, N, A, B}
     A === B && return x
-    return AbelianSectorArray{T₁, S, N, A}(sector(x), convert(A, data(x)))
+    return AbelianSectorArray{T₁, S, N, A}(convert(A, data(x)), sector(x))
 end
 
 # ========================  permutedims  ========================
 
 function Base.permutedims(x::AbelianSectorArray, perm)
     new_sector = permutedims(sector(x), perm)
-    y = AbelianSectorArray(new_sector, similar(data(x), size(x)[collect(perm)]))
+    y = AbelianSectorArray(similar(data(x), size(x)[collect(perm)]), new_sector)
     return permutedims!(y, x, perm)
 end
 function Base.permutedims!(y::AbelianSectorArray, x::AbelianSectorArray, perm)
@@ -136,5 +136,5 @@ function sector_kron(
         s::AbelianSectorDelta{<:Any, <:Any, N},
         data::AbstractArray{<:Any, N}
     ) where {N}
-    return AbelianSectorArray(s, data)
+    return AbelianSectorArray(data, s)
 end

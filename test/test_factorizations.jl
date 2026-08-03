@@ -372,7 +372,8 @@ end
             # so a tolerance between the two scales removes U1(1) from the bond
             # entirely (not just shrinks it).
             A = FusedGradedMatrix(
-                [U1(0), U1(1)], [Matrix(1.0I, 2, 2), 1.0e-3 * Matrix(1.0I, 2, 2)]
+                [Matrix(1.0I, 2, 2), 1.0e-3 * Matrix(1.0I, 2, 2)],
+                [U1(0), U1(1)]
             )
             U, S, Vᴴ, ε = MAK.svd_trunc(A; trunc = trunctol(; atol = 1.0e-2))
             @test collect(keys(U.blocks)) == [U1(0)]
@@ -435,11 +436,11 @@ end
         rng = StableRNG(1234)
         dims = [3, 4, 2]
         Sblocks = [Diagonal(randn(rng, n)) for n in dims]
-        S = FusedGradedMatrix(sectors_u1, Sblocks)
+        S = FusedGradedMatrix(Sblocks, sectors_u1)
 
         # `lmul!(S, C)`: `C <- S * C` block-wise, `S` square (diagonal, as singular values).
         Cblocks = [randn(rng, dims[i], d) for (i, d) in enumerate([2, 3, 5])]
-        C = FusedGradedMatrix(sectors_u1, copy.(Cblocks))
+        C = FusedGradedMatrix(copy.(Cblocks), sectors_u1)
         @test lmul!(S, C) === C
         for (i, s) in enumerate(sectors_u1)
             @test C.blocks[s] ≈ Sblocks[i] * Cblocks[i]
@@ -447,7 +448,7 @@ end
 
         # `rmul!(A, S)`: `A <- A * S` block-wise.
         Ablocks = [randn(rng, d, dims[i]) for (i, d) in enumerate([2, 3, 5])]
-        A = FusedGradedMatrix(sectors_u1, copy.(Ablocks))
+        A = FusedGradedMatrix(copy.(Ablocks), sectors_u1)
         @test rmul!(A, S) === A
         for (i, s) in enumerate(sectors_u1)
             @test A.blocks[s] ≈ Ablocks[i] * Sblocks[i]

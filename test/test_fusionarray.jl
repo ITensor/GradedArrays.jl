@@ -269,10 +269,10 @@ end
         g = gradedrange([Z2(0) => 2, Z2(1) => 3])
         d0, d1 = randn(2), randn(3)
         diag = FusionArray(
-            FusedGradedMatrix([Z2(0), Z2(1)], [Diagonal(d0), Diagonal(d1)]), (g,), (g,)
+            FusedGradedMatrix([Diagonal(d0), Diagonal(d1)], [Z2(0), Z2(1)]), (g,), (g,)
         )
         dense = FusionArray(
-            FusedGradedMatrix([Z2(0), Z2(1)], [Matrix(Diagonal(d0)), Matrix(Diagonal(d1))]),
+            FusedGradedMatrix([Matrix(Diagonal(d0)), Matrix(Diagonal(d1))], [Z2(0), Z2(1)]),
             (g,), (g,)
         )
         p = bipermutedims(diag, (1, 2), ())

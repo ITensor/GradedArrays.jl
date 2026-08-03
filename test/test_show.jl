@@ -105,7 +105,7 @@ end
 end
 
 @testset "AbelianSectorArray display shows Kronecker structure" begin
-    sa = AbelianSectorArray((U1(0), dual(U1(1))), [1.0 2.0; 3.0 4.0])
+    sa = AbelianSectorArray([1.0 2.0; 3.0 4.0], (U1(0), dual(U1(1))))
     s = sprint(show, sa)
     @test occursin("⊗", s)
 
@@ -115,7 +115,7 @@ end
 end
 
 @testset "SectorMatrix display shows Kronecker structure" begin
-    sm = SectorMatrix(U1(1), [1.0 2.0; 3.0 4.0])
+    sm = SectorMatrix([1.0 2.0; 3.0 4.0], U1(1))
     s = sprint(show, sm)
     @test occursin("⊗", s)
 

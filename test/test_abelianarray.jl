@@ -85,7 +85,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
     @testset "AbelianSectorArray block setindex!" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         # Block (1,1): 2×1
-        sa = AbelianSectorArray((U1(0), U1(0)), reshape([5.0, 7.0], 2, 1))
+        sa = AbelianSectorArray(reshape([5.0, 7.0], 2, 1), (U1(0), U1(0)))
         a[Block(1, 1)] = sa
         @test data(a[Block(1, 1)]) == reshape([5.0, 7.0], 2, 1)
     end
@@ -137,19 +137,19 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         a[Block(1, 1)] = ones(2, 1)
         @test isstored(a, Block(1, 1))
         @test !isstored(a, Block(2, 1))  # symmetry-forbidden block
-        m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), 2 * ones(3, 3)])
+        m = FusedGradedMatrix([ones(2, 2), 2 * ones(3, 3)], [U1(0), U1(1)])
         @test isstored(m, Block(1, 1))
         @test !isstored(m, Block(1, 2))  # off-diagonal in sector space
         @test !isstored(m, Block(3, 1))  # out of range
     end
 
     @testset "blocks accessor (fused)" begin
-        m = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), 2 * ones(3, 3)])
+        m = FusedGradedMatrix([ones(2, 2), 2 * ones(3, 3)], [U1(0), U1(1)])
         b = BlockArrays.blocks(m)
         @test size(b) == (2, 2)
         @test data(b[1, 1]) ≈ ones(2, 2)     # stored diagonal block, shares data
         @test_throws ErrorException b[1, 2]  # off-diagonal is symmetry-forbidden
-        v = FusedGradedVector([U1(0), U1(1)], [ones(2), 2 * ones(3)])
+        v = FusedGradedVector([ones(2), 2 * ones(3)], [U1(0), U1(1)])
         bv = BlockArrays.blocks(v)
         @test size(bv) == (2,)
         @test data(bv[2]) ≈ 2 * ones(3)
@@ -182,7 +182,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
     @testset "Scalar indexing requires unique fusion" begin
         # The fused representation can hold non-abelian sectors, where scalar indexing is
         # not well defined; it must error rather than read/write past the reduced block data.
-        m = FusedGradedMatrix([SU2(0), SU2(1 // 2)], [ones(1, 1), ones(1, 1)])
+        m = FusedGradedMatrix([ones(1, 1), ones(1, 1)], [SU2(0), SU2(1 // 2)])
         @test_throws ErrorException m[1, 1]
         @test_throws ErrorException (m[1, 1] = 1.0)
     end
@@ -283,7 +283,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         # FusedGradedMatrix blocks store multiplicity data (without quantum dim).
         su2_sectors = [SU2(1 // 2), SU2(1)]
         blocks_su2 = [[1.0 2.0; 3.0 4.0], ones(3, 3)]
-        m = FusedGradedMatrix(su2_sectors, blocks_su2)
+        m = FusedGradedMatrix(blocks_su2, su2_sectors)
         # size = sum(quantum_dim * multiplicity) per side = 2*2 + 3*3 = 13
         @test size(m) == (13, 13)
 
@@ -310,8 +310,8 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
     @testset "blocks accessor" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = AbelianGradedArray{Float64}(undef, g, dual(g))
-        a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), ones(2, 2))
-        a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), 2 * ones(3, 3))
+        a[Block(1, 1)] = AbelianSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+        a[Block(2, 2)] = AbelianSectorArray(2 * ones(3, 3), (U1(1), dual(U1(1))))
 
         b = BlockArrays.blocks(a)
         @test size(b) == (2, 2)
@@ -325,14 +325,14 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         @test_throws ErrorException b[1, 2]
 
         # Writing through blocks
-        b[1, 1] = AbelianSectorArray((U1(0), dual(U1(0))), 5 * ones(2, 2))
+        b[1, 1] = AbelianSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
         @test data(a[Block(1, 1)]) ≈ 5 * ones(2, 2)
     end
 
     @testset "fill! and zero!" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = AbelianGradedArray{Float64}(undef, g, dual(g))
-        a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), ones(2, 2))
+        a[Block(1, 1)] = AbelianSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
 
         # fill!(a, 0) zeros stored blocks in place
         fill!(a, 0)
@@ -344,7 +344,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         @test all(==(1.0), a.blockdata[(1, 1)])
 
         # zero! zeros stored blocks in place (blocks stay allocated)
-        a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), ones(2, 2))
+        a[Block(1, 1)] = AbelianSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
         TensorAlgebra.zero!(a)
         @test !isempty(a.blockdata)
         @test all(iszero, a.blockdata[(1, 1)])
@@ -352,7 +352,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
 end
 
 @testset "FusedGradedMatrix sectors/blocks constructor" begin
-    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], ones(3, 3)])
+    m = FusedGradedMatrix([[1.0 2.0; 3.0 4.0], ones(3, 3)], [U1(0), U1(1)])
     @test m isa FusedGradedMatrix{Float64}
     @test data(m[Block(1, 1)]) == [1.0 2.0; 3.0 4.0]
     @test data(m[Block(2, 2)]) == ones(3, 3)
@@ -361,8 +361,8 @@ end
     # dimension `2j + 1`, so `Block(k, k)` has size
     # `(sectorlength × datalength)^2`.
     m_su2 = FusedGradedMatrix(
-        [SU2(0), SU2(1 // 2), SU2(1)],
-        [[1.0;;], [1.0 2.0; 3.0 4.0], Matrix{Float64}(LinearAlgebra.I, 3, 3)]
+        [[1.0;;], [1.0 2.0; 3.0 4.0], Matrix{Float64}(LinearAlgebra.I, 3, 3)],
+        [SU2(0), SU2(1 // 2), SU2(1)]
     )
     @test m_su2 isa FusedGradedMatrix{Float64, SU2, Matrix{Float64}}
     @test collect(keys(m_su2.blocks)) == [SU2(0), SU2(1 // 2), SU2(1)]
@@ -374,24 +374,24 @@ end
 
 @testset "FusedGradedMatrix * FusedGradedMatrix" begin
     @testset "U1 (abelian)" begin
-        a = FusedGradedMatrix([U1(0), U1(1)], [[2.0;;], [1.0 2.0; 3.0 4.0]])
-        b = FusedGradedMatrix([U1(0), U1(1)], [[3.0;;], [0.0 1.0; 1.0 0.0]])
+        a = FusedGradedMatrix([[2.0;;], [1.0 2.0; 3.0 4.0]], [U1(0), U1(1)])
+        b = FusedGradedMatrix([[3.0;;], [0.0 1.0; 1.0 0.0]], [U1(0), U1(1)])
         c = a * b
         @test collect(keys(c.blocks)) == [U1(0), U1(1)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
     @testset "SU2 (non-abelian)" begin
-        a = FusedGradedMatrix([SU2(0), SU2(1 // 2)], [[2.0;;], [1.0 2.0; 3.0 4.0]])
-        b = FusedGradedMatrix([SU2(0), SU2(1 // 2)], [[3.0;;], [0.0 1.0; 1.0 0.0]])
+        a = FusedGradedMatrix([[2.0;;], [1.0 2.0; 3.0 4.0]], [SU2(0), SU2(1 // 2)])
+        b = FusedGradedMatrix([[3.0;;], [0.0 1.0; 1.0 0.0]], [SU2(0), SU2(1 // 2)])
         c = a * b
         @test collect(keys(c.blocks)) == [SU2(0), SU2(1 // 2)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
     @testset "mismatched sectors throws" begin
-        a = FusedGradedMatrix([U1(0), U1(1)], [[2.0;;], [1.0 2.0; 3.0 4.0]])
-        b = FusedGradedMatrix([U1(0)], [[3.0;;]])
+        a = FusedGradedMatrix([[2.0;;], [1.0 2.0; 3.0 4.0]], [U1(0), U1(1)])
+        b = FusedGradedMatrix([[3.0;;]], [U1(0)])
         @test_throws DimensionMismatch a * b
     end
 end
@@ -439,7 +439,7 @@ end
         [U1(1), U1(2)],
         [ones(3, 3), 2 * ones(4, 4)]
     )
-    m = FusedGradedMatrix(cod, dom, blks)
+    m = FusedGradedMatrix(blks, cod, dom)
 
     @test m isa FusedGradedMatrix{Float64, U1, Matrix{Float64}}
     @test size(m) == (9, 12)            # 2+3+4 = 9, 3+4+5 = 12
@@ -469,12 +469,12 @@ end
     cod_A = Dictionary{U1, Int}([U1(0), U1(1)], [2, 3])
     dom_A = Dictionary{U1, Int}([U1(1), U1(2)], [3, 4])
     blks_A = Dictionary{U1, Matrix{Float64}}([U1(1)], [ones(3, 3)])
-    A = FusedGradedMatrix(cod_A, dom_A, blks_A)
+    A = FusedGradedMatrix(blks_A, cod_A, dom_A)
 
     cod_B = Dictionary{U1, Int}([U1(1), U1(2)], [3, 4])
     dom_B = Dictionary{U1, Int}([U1(0), U1(1)], [2, 3])
     blks_B = Dictionary{U1, Matrix{Float64}}([U1(1)], [2 * ones(3, 3)])
-    B = FusedGradedMatrix(cod_B, dom_B, blks_B)
+    B = FusedGradedMatrix(blks_B, cod_B, dom_B)
 
     C = A * B
     @test sectors(axes(C, 1)) == [U1(0), U1(1)]
@@ -494,14 +494,14 @@ end
 
     # Missing an allowed block (U1(0)) should error.
     blks_missing = Dictionary{U1, Matrix{Float64}}([U1(1)], [ones(3, 5)])
-    @test_throws ArgumentError FusedGradedMatrix(cod, dom, blks_missing)
+    @test_throws ArgumentError FusedGradedMatrix(blks_missing, cod, dom)
 
     # All allowed blocks present → ok.
     blks_full = Dictionary{U1, Matrix{Float64}}(
         [U1(0), U1(1)],
         [ones(2, 4), ones(3, 5)]
     )
-    m = FusedGradedMatrix(cod, dom, blks_full)
+    m = FusedGradedMatrix(blks_full, cod, dom)
     @test collect(keys(m.blocks)) == [U1(0), U1(1)]
 
     # Sectors with zero size on either side are not "allowed" — no block needed.
@@ -624,14 +624,14 @@ end
 
     # Block-diagonal with each stored block diagonal.
     a = zeros(Float64, g, dual(g))
-    a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 0.0; 0.0 2.0])
-    a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), [3.0 0.0; 0.0 4.0])
+    a[Block(1, 1)] = AbelianSectorArray([1.0 0.0; 0.0 2.0], (U1(0), dual(U1(0))))
+    a[Block(2, 2)] = AbelianSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
     @test LinearAlgebra.isdiag(a)
 
     # A non-diagonal stored block breaks it.
     b = zeros(Float64, g, dual(g))
-    b[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), [1.0 5.0; 0.0 2.0])
-    b[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), [3.0 0.0; 0.0 4.0])
+    b[Block(1, 1)] = AbelianSectorArray([1.0 5.0; 0.0 2.0], (U1(0), dual(U1(0))))
+    b[Block(2, 2)] = AbelianSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
     @test !LinearAlgebra.isdiag(b)
 end
 
@@ -1023,7 +1023,7 @@ end
         ("FermionParity", [TKS.FermionParity(false), TKS.FermionParity(true)]),
         ("SU2", [SU2(0), SU2(1 // 2)]),
     )
-    m = FusedGradedMatrix(sectors, [randn(ComplexF64, 2, 3), randn(ComplexF64, 1, 2)])
+    m = FusedGradedMatrix([randn(ComplexF64, 2, 3), randn(ComplexF64, 1, 2)], sectors)
     mh = m'
 
     # Adjoint swaps codomain/domain and dualizes the axes.
@@ -1103,7 +1103,7 @@ end
         ("FermionParity", [TKS.FermionParity(false), TKS.FermionParity(true)]),
         ("SU2", [SU2(0), SU2(1 // 2)]),
     )
-    m = FusedGradedMatrix(sectors, [randn(ComplexF64, 2, 3), randn(ComplexF64, 1, 2)])
+    m = FusedGradedMatrix([randn(ComplexF64, 2, 3), randn(ComplexF64, 1, 2)], sectors)
     rm = real(m)
     imm = imag(m)
     @test rm isa FusedGradedMatrix

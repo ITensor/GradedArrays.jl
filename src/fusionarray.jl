@@ -65,14 +65,14 @@ function viewblock(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
     # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
     # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
     # to its `Block[subrange]` in the fused-sorted merged axis.
-    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(sects, blockdata)
+    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(blockdata, sects)
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
             invblockmergeperm(g, sectorsortperm(g), sectormergesort(g))[bk[d]].indices
         )
     end
-    return AbelianSectorArray(sects, view(blockdata, ranges...))
+    return AbelianSectorArray(view(blockdata, ranges...), sects)
 end
 
 Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
