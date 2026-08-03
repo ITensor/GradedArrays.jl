@@ -1,8 +1,9 @@
-# Abelian graded concatenation, plugged into the `TensorAlgebra` concatenation hooks. The result is
-# concat-order: sectors of the arguments are kept in order and block-appended, never merged or
-# sorted. This is only correct for `AbelianGradedArray`. Fused graded arrays (`GradedStyle`)
-# direct-sum onto a merged, rotated basis and need a different implementation, so they are
-# deliberately not handled here.
+# Graded concatenation, plugged into the `TensorAlgebra` concatenation hooks. The result axis is
+# concat-order (`cat_axis` / `mortar_axis`): the arguments' sectors are kept in order and
+# block-appended, never merged or sorted, so a sector can repeat (an unfused axis). Both backends
+# place whole symmetry-allowed blocks through the sparse block containers; on the fusion backend the
+# unfused result axis is carried by the `FusionArray` while its blocks scatter into the fused-sorted
+# backing (via `viewblock`).
 
 using BlockArrays: blocks
 using TensorAlgebra: concatenate!
@@ -15,19 +16,19 @@ end
 
 # Override the broadcast-based default: the arguments have different sizes, so allocate from the
 # concatenated graded axes directly.
-function TensorAlgebra.cat_similar(::AbelianGradedStyle, ::Type{T}, ax, args...) where {T}
+function TensorAlgebra.cat_similar(::AbstractGradedStyle, ::Type{T}, ax, args...) where {T}
     return similar(first(args), T, ax)
 end
 
 # Place whole blocks (no scalar indexing) with the inner `concatenate!` on the block containers. That
 # works because `AbelianBlocks` is an `AbstractSparseArray`, so the placement visits only the stored
 # (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions.
-function TensorAlgebra.concatenate!(dest::AbelianGradedArray, dims, args...)
+function TensorAlgebra.concatenate!(dest::AbstractGradedArray, dims, args...)
     concatenate!(blocks(dest), dims, blocks.(args)...)
     return dest
 end
 
 # Route `Base.cat` through the same machinery so it uses the graded destination and placement.
-function Base._cat(dims, as::AbelianGradedArray...)
+function Base._cat(dims, as::AbstractGradedArray...)
     return TensorAlgebra.concatenate(dims, as...)
 end

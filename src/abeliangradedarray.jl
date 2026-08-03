@@ -948,6 +948,25 @@ function TA.unchecked_project(
 end
 function unchecked_project_graded(raw, codomain_axes, domain_axes)
     @static if graded_backend == "fusion"
+        all_axes = (codomain_axes..., domain_axes...)
+        if ndims(raw) == length(all_axes) && !all(is_fused_sorted, all_axes)
+            # Unfused / unsorted external axes: reorder the dense input's sector blocks per leg into
+            # sorted order (block permutation, so equal sectors become contiguous and the merge is
+            # implicit in dense contiguity; whole-block moves preserve the array type, e.g. GPU) so its
+            # layout matches the fused-sorted `GradedSpace` TensorKit needs, project, then wrap carrying
+            # the original axes. `axes(result)` reproduces the requested (unsorted) axes, matching
+            # `AbelianGradedArray`.
+            N = length(all_axes)
+            storedlengths = map(g -> Vector(blocklengths(g)), all_axes)
+            perms = ntuple(d -> sectorsortperm(all_axes[d]), Val(N))
+            sorted = parent(BlockedArray(raw, storedlengths...)[perms...])
+            t = TA.unchecked_project(
+                sorted,
+                map(ElementarySpace ∘ sectormergesort, codomain_axes),
+                map(ElementarySpace ∘ sectormergesort, domain_axes)
+            )
+            return FusionArray(matricize(fusionarray(t)), codomain_axes, domain_axes)
+        end
         # Delegate the projection (aux-leg derivation and dense placement) to TensorKit over the
         # equivalent `ElementarySpace`s, then wrap the resulting `TensorMap`.
         t = TA.unchecked_project(
