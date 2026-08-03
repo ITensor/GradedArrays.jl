@@ -985,51 +985,42 @@ function TA.unproject(a::AbelianGradedArray, ndims_codomain::Val)
     return Array(bend_domain!(copy(a), ndims_codomain))
 end
 
-# `allocate_project` with graded axes routes both the codomain-led and the (empty-codomain)
-# domain-led cases to `allocate_project_graded`, taking the graded structure from whichever side
-# is non-empty, the same two-entry split `similar_map` uses.
-function TA.allocate_project(
-        src::AbstractArray,
-        codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
+# `infer_aux_space` is the only projection hook a graded backend adds beyond `similar_map`:
+# `project_aux` derives the auxiliary axis through it, then projects into the full axes. Plain
+# `project` needs no graded `allocate_project` override, since the generic strict allocation routes
+# through the graded `similar_map`. Both the codomain-led and the (empty-codomain) domain-led cases
+# route to `infer_aux_space_graded`.
+function TA.infer_aux_space(
+        raw, codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
-    return allocate_project_graded(src, codomain_axes, domain_axes)
+    return infer_aux_space_graded(raw, codomain_axes, domain_axes)
 end
-function TA.allocate_project(
-        src::AbstractArray,
-        codomain_axes::Tuple{},
-        domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+function TA.infer_aux_space(
+        raw, codomain_axes::Tuple{}, domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     )
-    return allocate_project_graded(src, codomain_axes, domain_axes)
+    return infer_aux_space_graded(raw, codomain_axes, domain_axes)
 end
 
-# The destination allocation, and where a trailing surplus axis in `src` gets its space derived.
-# With no surplus this is plain `similar_map`; a single trailing surplus axis is an auxiliary leg
-# appended as the last domain axis, its space derived (see `infer_aux_space`) so the result is
-# symmetry-allowed. The trailing position matches how `stack` lays out an operator multiplet and
-# the Julia convention that trailing length-1 axes are implicit. For the matricized result `X` the
-# Gram matrix `X * X'` contracts the aux away (for a spin multiplet, `X * X' = S·S`, the Casimir).
-function allocate_project_graded(src, codomain_axes, domain_axes)
-    nphys = length(codomain_axes) + length(domain_axes)
-    ndims(src) <= nphys &&
-        return TA.similar_map(src, codomain_axes, domain_axes)
-    ndims(src) == nphys + 1 || throw(
-        ArgumentError(
-            "`project`: expected at most one trailing auxiliary axis beyond the $nphys \
-            given axes, got a rank-$(ndims(src)) input"
-        )
+# Abelian sectors derive one charge per slice, preserving slice order (a direct-sum aux, e.g.
+# `[S⁺, Sᶻ, S⁻]` gives `[U1(2), U1(0), U1(-2)]`). A non-abelian multiplet is a single irrep
+# spanning the whole slice axis, which the per-slice reading cannot express, so it is derived
+# through the `TensorMap` path over the equivalent `ElementarySpace`s and converted back.
+function infer_aux_space_graded(raw, codomain_axes, domain_axes)
+    if SymmetryStyle(first((codomain_axes..., domain_axes...))) isa AbelianStyle
+        return infer_aux_space_abelian(raw, codomain_axes, domain_axes)
+    end
+    aux = TA.infer_aux_space(
+        raw, map(ElementarySpace, codomain_axes), map(ElementarySpace, domain_axes)
     )
-    aux = infer_aux_space(src, codomain_axes, domain_axes)
-    return TA.similar_map(src, codomain_axes, (domain_axes..., aux))
+    return GradedOneTo(aux)
 end
 
-# The space of `src`'s trailing auxiliary axis, derived so the projected result is symmetry-
-# allowed. Abelian sectors are one-dimensional, so each length-1 slice along the aux axis carries
-# a single charge (`projected_charge`); contiguous equal charges merge into one sector of that
-# multiplicity (matching the `TensorMap` backend), while non-contiguous repeats stay separate to
-# preserve slice order. A multi-slice aux comes out as a direct sum (e.g. stacking `[S⁺, S⁻]`
-# gives `[U1(2), U1(-2)]`, an MPO-virtual-leg structure).
-function infer_aux_space(src::AbstractArray, codomain_axes, domain_axes)
+# Abelian sectors are one-dimensional, so each length-1 slice along the aux axis carries a single
+# charge (`projected_charge`); contiguous equal charges merge into one sector of that multiplicity
+# (matching the `TensorMap` backend), while non-contiguous repeats stay separate to preserve slice
+# order.
+function infer_aux_space_abelian(src::AbstractArray, codomain_axes, domain_axes)
     aux_dim = length(codomain_axes) + length(domain_axes) + 1
     qs = map(eachslice(src; dims = aux_dim)) do slice
         return projected_charge(slice, codomain_axes, domain_axes)
@@ -1049,8 +1040,8 @@ end
 # holding that entry over the stored axes (domain dualized to match `zeros_map`/`similar_map`)
 # and fuse that block's per-axis sectors, each with its axis's arrow applied (the same fusion
 # `allowedblocks` is built on, so the charge lines up with which blocks `project` keeps). This is
-# the abelian per-slice primitive `infer_aux_space` builds the aux space from; the general
-# (possibly multi-sector) derivation lives in the `TensorMap` backend.
+# the abelian per-slice primitive `infer_aux_space_abelian` builds the aux space from; the
+# non-abelian derivation lives in the `TensorMap` backend.
 function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
     stored = (codomain_axes..., conj.(domain_axes)...)
     src = reshape(src, length.(stored))
