@@ -174,6 +174,6 @@ end
     # corrupting the result, matching `TensorOperations`.
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     b = zeros(Float64, g, g)
-    b[Block(1, 1)] = AbelianSectorArray((U1(0), U1(0)), randn(Float64, 1, 1))
+    b[Block(1, 1)] = AbelianSectorArray(randn(Float64, 1, 1), (U1(0), U1(0)))
     @test_throws ArgumentError TensorAlgebra.permutedims!(b, b, (2, 1))
 end

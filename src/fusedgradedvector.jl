@@ -18,8 +18,8 @@ The stored `SectorRange` is always non-dual (codomain convention).
 """
 struct SectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, S, 1}
-    sector::S
     data::D
+    sector::S
 end
 
 # ---- undef constructors ----
@@ -28,7 +28,7 @@ end
 function SectorVector{T, S, D}(
         ::UndefInitializer, sector::S, r::AbstractUnitRange
     ) where {T, S <: SectorRange, D <: AbstractVector{T}}
-    return SectorVector{T, S, D}(sector, similar(D, (r,)))
+    return SectorVector{T, S, D}(similar(D, (r,)), sector)
 end
 
 # Convenience: default D = Vector{T}.
@@ -54,12 +54,12 @@ sector(sv::SectorVector) = SectorOnesVector{eltype(sv)}(sv.sector)
 
 datatype(::Type{SectorVector{T, S, D}}) where {T, S, D} = D
 
-Base.copy(sv::SectorVector) = SectorVector(sv.sector, copy(data(sv)))
+Base.copy(sv::SectorVector) = SectorVector(copy(data(sv)), sv.sector)
 
 function Base.similar(sv::SectorVector{<:Any, S, <:Any}, ::Type{T}) where {T, S}
     new_data = similar(data(sv), T)
     D = typeof(new_data)
-    return SectorVector{T, S, D}(sv.sector, new_data)
+    return SectorVector{T, S, D}(new_data, sv.sector)
 end
 
 # ---- display ----
@@ -95,15 +95,15 @@ a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`).
 
 Fields:
 
-  - `axis::Dictionary{S,Int}` — axis layout, mapping each sector to its block
-    size. Keys are sorted and unique. Stored non-dual (codomain convention).
   - `blocks::Dictionary{S,D}` — stored data blocks, keyed by sector. Keys match
     `keys(axis)` exactly and `length(blocks[s]) == axis[s]`.
+  - `axis::Dictionary{S,Int}` — axis layout, mapping each sector to its block
+    size. Keys are sorted and unique. Stored non-dual (codomain convention).
 """
 struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
     AbstractGradedArray{T, S, 1}
-    axis::Dictionary{S, Int}
     blocks::Dictionary{S, D}
+    axis::Dictionary{S, Int}
 
     # Undef constructor
     function FusedGradedVector{T, S, D}(
@@ -113,12 +113,12 @@ struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
 
         blocks = dictionary(s => similar(D, (Base.OneTo(axis[s]),)) for s in keys(axis))
 
-        return new{T, S, D}(axis, blocks)
+        return new{T, S, D}(blocks, axis)
     end
 
     # Data constructor
     function FusedGradedVector{T, S, D}(
-            axis::Dictionary{S, Int}, blocks::Dictionary{S, D}
+            blocks::Dictionary{S, D}, axis::Dictionary{S, Int}
         ) where {T, S <: SectorRange, D <: AbstractVector{T}}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
 
@@ -128,25 +128,25 @@ struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
                 throw(DimensionMismatch("invalid block for sector $s"))
         end
 
-        return new{T, S, D}(axis, blocks)
+        return new{T, S, D}(blocks, axis)
     end
 end
 
 function FusedGradedVector(
-        axis::Dictionary{S, Int}, blocks::Dictionary{S, D}
+        blocks::Dictionary{S, D}, axis::Dictionary{S, Int}
     ) where {S <: SectorRange, D <: AbstractVector}
-    return FusedGradedVector{eltype(D), S, D}(axis, blocks)
+    return FusedGradedVector{eltype(D), S, D}(blocks, axis)
 end
 
 """
-    FusedGradedVector(sectors::Vector{S}, blocks::Vector{D})
+    FusedGradedVector(blocks::Vector{D}, sectors::Vector{S})
 
 Build a `FusedGradedVector` whose `axis` and `blocks` carry the same sector
 list. `axis[sectors[i]]` is `length(blocks[i])`.
 """
 function FusedGradedVector(
-        sectors::AbstractVector,
-        blocks::AbstractVector{D}
+        blocks::AbstractVector{D},
+        sectors::AbstractVector
     ) where {D <: AbstractVector}
     length(sectors) == length(blocks) ||
         throw(ArgumentError("sectors and blocks must have the same length"))
@@ -158,7 +158,7 @@ function FusedGradedVector(
     S = eltype(rs)
     ax = Dictionary{S, Int}(rs, [length(b) for b in blocks])
     blks = Dictionary{S, D}(rs, collect(blocks))
-    return FusedGradedVector(ax, blks)
+    return FusedGradedVector(blks, ax)
 end
 
 function FusedGradedVector{T}(
@@ -244,7 +244,7 @@ end
 # dispatches to the storage backend's `map` (e.g. GPU kernel for `CuVector` blocks).
 function Base.map(f, v::FusedGradedVector)
     blocks = dictionary(s => map(f, b) for (s, b) in pairs(v.blocks))
-    return FusedGradedVector(v.axis, blocks)
+    return FusedGradedVector(blocks, v.axis)
 end
 
 # ========================  Block indexing (primitive)  ========================
@@ -255,7 +255,7 @@ function Base.view(v::FusedGradedVector, I::Block{1})
         i in 1:length(v.axis) || throw(BoundsError(v, I))
     end
     s = gettokenvalue(keys(v.axis), i)
-    return SectorVector(s, v.blocks[s])
+    return SectorVector(v.blocks[s], s)
 end
 
 # ========================  eachblockstoredindex  ========================
@@ -268,7 +268,7 @@ end
 
 function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
     new_blocks = map(b -> similar(b, T), v.blocks)
-    return FusedGradedVector(v.axis, new_blocks)
+    return FusedGradedVector(new_blocks, v.axis)
 end
 function Base.similar(v::FusedGradedVector, axis::Dictionary{S, Int}) where {S}
     return typeof(v)(undef, axis)
@@ -331,7 +331,7 @@ end
 # ========================  copy  ========================
 
 function Base.copy(v::FusedGradedVector)
-    return FusedGradedVector(copy(v.axis), map(copy, v.blocks))
+    return FusedGradedVector(map(copy, v.blocks), copy(v.axis))
 end
 
 # ========================  FusedGradedVecOrMat  ========================

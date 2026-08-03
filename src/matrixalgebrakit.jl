@@ -28,8 +28,8 @@ for f in [
 
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
         return FusedGradedMatrix(
-            A.codomain, A.domain,
-            map(Base.Fix1(MAK.copy_input, MAK.$f), A.blocks)
+            map(Base.Fix1(MAK.copy_input, MAK.$f), A.blocks),
+            A.codomain, A.domain
         )
     end
 end
@@ -183,7 +183,7 @@ function similar_diagonal(A::FusedGradedMatrix, ::Type{T}, V) where {T}
     blocks = map(V) do d
         return Diagonal(similar(Vector{T}, d))
     end
-    return FusedGradedMatrix(V, V, blocks)
+    return FusedGradedMatrix(blocks, V, V)
 end
 
 # Singular value decomposition
@@ -384,7 +384,7 @@ end
 function MAK.diagview(m::FusedGradedMatrix)
     diag_blocks = map(MAK.diagview, m.blocks)
     diag_axis = map(length, diag_blocks)
-    return FusedGradedVector(diag_axis, diag_blocks)
+    return FusedGradedVector(diag_blocks, diag_axis)
 end
 
 # Inverse of `diagview`: wrap a FusedGradedVector as a block-diagonal FusedGradedMatrix
@@ -394,7 +394,7 @@ end
 # falling through to LinearAlgebra's scalar-indexing `Diagonal*Matrix` impl.
 function MAK.diagonal(v::FusedGradedVector)
     diag_blocks = map(Diagonal, v.blocks)
-    return FusedGradedMatrix(v.axis, v.axis, diag_blocks)
+    return FusedGradedMatrix(diag_blocks, v.axis, v.axis)
 end
 
 # `pow_diag_safe!` for a block-diagonal graded matrix: clamp-power each reduced diagonal
@@ -574,14 +574,14 @@ function MAK.truncate(
     U_blks = Dictionary{eltype(sectors_kept), eltype(typeof(U.blocks))}(
         sectors_kept, U_blocks_all[keep]
     )
-    Ũ = FusedGradedMatrix(U_cod, U_dom, U_blks)
+    Ũ = FusedGradedMatrix(U_blks, U_cod, U_dom)
 
     # S: both sides are the bond (shrunk).
     S_side = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
     S_blks = Dictionary{eltype(sectors_kept), eltype(typeof(S.blocks))}(
         sectors_kept, S_blocks_all[keep]
     )
-    S̃ = FusedGradedMatrix(S_side, S_side, S_blks)
+    S̃ = FusedGradedMatrix(S_blks, S_side, S_side)
 
     # Vᴴ: rows = bond (shrunk), cols = input domain (full).
     Vᴴ_cod = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
@@ -589,7 +589,7 @@ function MAK.truncate(
     Vᴴ_blks = Dictionary{eltype(sectors_kept), eltype(typeof(Vᴴ.blocks))}(
         sectors_kept, Vᴴ_blocks_all[keep]
     )
-    Ṽᴴ = FusedGradedMatrix(Vᴴ_cod, Vᴴ_dom, Vᴴ_blks)
+    Ṽᴴ = FusedGradedMatrix(Vᴴ_blks, Vᴴ_cod, Vᴴ_dom)
 
     return (Ũ, S̃, Ṽᴴ), inds
 end
@@ -606,8 +606,8 @@ for f! in (:eigh_trunc!, :eig_trunc!)
         D_blocks =
             [Diagonal(MAK.diagview(D.blocks[s])[inds[i]]) for (i, s) in enumerate(sectors)]
         V_blocks = [V.blocks[s][:, inds[i]] for (i, s) in enumerate(sectors)]
-        D̃ = FusedGradedMatrix(sectors, D_blocks)
-        Ṽ = FusedGradedMatrix(sectors, V_blocks)
+        D̃ = FusedGradedMatrix(D_blocks, sectors)
+        Ṽ = FusedGradedMatrix(V_blocks, sectors)
         return (D̃, Ṽ), inds
     end
 end

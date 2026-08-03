@@ -19,14 +19,8 @@ const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
 const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedArray
 
 @testset "AbelianSectorArray linear broadcasting" begin
-    s = AbelianSectorArray(
-        (U1(0), dual(U1(0))),
-        randn!(Matrix{ComplexF64}(undef, 2, 2))
-    )
-    t = AbelianSectorArray(
-        (U1(0), dual(U1(0))),
-        randn!(Matrix{ComplexF64}(undef, 2, 2))
-    )
+    s = AbelianSectorArray(randn!(Matrix{ComplexF64}(undef, 2, 2)), (U1(0), dual(U1(0))))
+    t = AbelianSectorArray(randn!(Matrix{ComplexF64}(undef, 2, 2)), (U1(0), dual(U1(0))))
     @test s isa AbelianSectorArray
     @test t isa AbelianSectorArray
 
@@ -56,10 +50,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
 end
 
 @testset "AbelianSectorArray scalar multiplication materializes on broadcast" begin
-    s = AbelianSectorArray(
-        (U1(0), dual(U1(0))),
-        randn!(Matrix{Float64}(undef, 2, 2))
-    )
+    s = AbelianSectorArray(randn!(Matrix{Float64}(undef, 2, 2)), (U1(0), dual(U1(0))))
 
     materialized = 2 .* s
     @test materialized isa AbelianSectorArray
@@ -76,7 +67,7 @@ end
 
 @testset "AbelianSectorArray permutedims (bosonic)" begin
     data = randn!(Matrix{Float64}(undef, 3, 2))
-    s = AbelianSectorArray((U1(0), dual(U1(1))), data)
+    s = AbelianSectorArray(data, (U1(0), dual(U1(1))))
     sp = permutedims(s, (2, 1))
     @test sp isa AbelianSectorArray
     @test sectoraxes(sp, 1) == dual(U1(1))
@@ -86,7 +77,7 @@ end
 
 @testset "AbelianSectorArray permutedims (3D bosonic)" begin
     data = randn!(Array{Float64}(undef, 2, 3, 4))
-    s = AbelianSectorArray((U1(0), U1(1), U1(2)), data)
+    s = AbelianSectorArray(data, (U1(0), U1(1), U1(2)))
     sp = permutedims(s, (3, 1, 2))
     @test sp isa AbelianSectorArray
     @test sectoraxes(sp, 1) == U1(2)
@@ -102,7 +93,7 @@ end
 
     # Set allowed block (2,2): U1(1) × U1(-1) = 0
     block_data = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_data)
+    a[Block(2, 2)] = AbelianSectorArray(block_data, (U1(1), U1(-1)))
 
     ap = permutedims(a, (2, 1))
     @test ap isa GradedArrayT
@@ -123,8 +114,8 @@ end
     # Use allowed block (2,2): U1(1) × U1(-1) = 0
     block_a = randn!(Matrix{Float64}(undef, 3, 2))
     block_b = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_a)
-    b[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_b)
+    a[Block(2, 2)] = AbelianSectorArray(block_a, (U1(1), U1(-1)))
+    b[Block(2, 2)] = AbelianSectorArray(block_b, (U1(1), U1(-1)))
 
     α = 2.0
     β = -3.0
@@ -143,8 +134,8 @@ end
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
     a = fill!(AbelianGradedArray{Float64}(undef, g1, g2), 0.0)
 
-    a[Block(1, 2)] = AbelianSectorArray((U1(1), U1(-1)), ones(2, 2))
-    a[Block(3, 2)] = AbelianSectorArray((U1(1), U1(-1)), 2 * ones(3, 2))
+    a[Block(1, 2)] = AbelianSectorArray(ones(2, 2), (U1(1), U1(-1)))
+    a[Block(3, 2)] = AbelianSectorArray(2 * ones(3, 2), (U1(1), U1(-1)))
 
     a_merged = sectormergesort(a)
 
@@ -173,8 +164,8 @@ end
 
     block_11 = randn!(Matrix{Float64}(undef, 2, 1))
     block_22 = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(1, 1)] = AbelianSectorArray((U1(0), U1(0)), block_11)
-    a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_22)
+    a[Block(1, 1)] = AbelianSectorArray(block_11, (U1(0), U1(0)))
+    a[Block(2, 2)] = AbelianSectorArray(block_22, (U1(1), U1(-1)))
 
     fsm = matricizeperm(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
@@ -198,8 +189,8 @@ end
 
     block_11 = randn!(Matrix{Float64}(undef, 2, 1))
     block_22 = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(1, 1)] = AbelianSectorArray((U1(0), U1(0)), block_11)
-    a[Block(2, 2)] = AbelianSectorArray((U1(1), U1(-1)), block_22)
+    a[Block(1, 1)] = AbelianSectorArray(block_11, (U1(0), U1(0)))
+    a[Block(2, 2)] = AbelianSectorArray(block_22, (U1(1), U1(-1)))
 
     fsm = matricizeperm(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
@@ -214,12 +205,10 @@ end
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     a = zeros(Float64, g, g, dual(g), dual(g))
 
-    a[Block(1, 1, 1, 1)] = AbelianSectorArray(
-        (U1(0), U1(0), dual(U1(0)), dual(U1(0))), ones(1, 1, 1, 1)
-    )
-    a[Block(2, 2, 2, 2)] = AbelianSectorArray(
-        (U1(1), U1(1), dual(U1(1)), dual(U1(1))), 2 * ones(1, 1, 1, 1)
-    )
+    a[Block(1, 1, 1, 1)] =
+        AbelianSectorArray(ones(1, 1, 1, 1), (U1(0), U1(0), dual(U1(0)), dual(U1(0))))
+    a[Block(2, 2, 2, 2)] =
+        AbelianSectorArray(2 * ones(1, 1, 1, 1), (U1(1), U1(1), dual(U1(1)), dual(U1(1))))
 
     fsm = matricizeperm(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
@@ -280,8 +269,8 @@ end
     a = AbelianGradedArray{Float64}(undef, row_ax, dual(row_ax))
     block_11 = randn!(Matrix{Float64}(undef, 2, 2))
     block_22 = randn!(Matrix{Float64}(undef, 3, 3))
-    a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), block_11)
-    a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), block_22)
+    a[Block(1, 1)] = AbelianSectorArray(block_11, (U1(0), dual(U1(0))))
+    a[Block(2, 2)] = AbelianSectorArray(block_22, (U1(1), dual(U1(1))))
 
     fsm = FusedGradedMatrix(a)
     @test data(fsm[Block(1, 1)]) ≈ block_11
@@ -290,8 +279,8 @@ end
     # Unsorted axes still rejected (they violate the sorted-keys invariant).
     nonsorted_ax = gradedrange([U1(1) => 3, U1(0) => 2])
     a_nonsorted = AbelianGradedArray{Float64}(undef, nonsorted_ax, dual(nonsorted_ax))
-    a_nonsorted[Block(1, 1)] = AbelianSectorArray((U1(1), dual(U1(1))), block_22)
-    a_nonsorted[Block(2, 2)] = AbelianSectorArray((U1(0), dual(U1(0))), block_11)
+    a_nonsorted[Block(1, 1)] = AbelianSectorArray(block_22, (U1(1), dual(U1(1))))
+    a_nonsorted[Block(2, 2)] = AbelianSectorArray(block_11, (U1(0), dual(U1(0))))
     @test_throws ArgumentError FusedGradedMatrix(a_nonsorted)
 
     # Asymmetric axes (codomain and dual(domain) sector sets differ) are
@@ -314,7 +303,7 @@ end
     # (`AbelianGradedArray` throws `ErrorException`, `FusionArray` a TensorKit `SectorMismatch`).
     @test_throws Exception (
         a[Block(1, 2)] =
-            AbelianSectorArray((U1(0), dual(U1(1))), randn!(Matrix{Float64}(undef, 2, 3)))
+            AbelianSectorArray(randn!(Matrix{Float64}(undef, 2, 3)), (U1(0), dual(U1(1))))
     )
 end
 
@@ -325,13 +314,13 @@ end
 
     a_11 = randn!(Matrix{Float64}(undef, 2, 2))
     a_22 = randn!(Matrix{Float64}(undef, 3, 3))
-    a[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), a_11)
-    a[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), a_22)
+    a[Block(1, 1)] = AbelianSectorArray(a_11, (U1(0), dual(U1(0))))
+    a[Block(2, 2)] = AbelianSectorArray(a_22, (U1(1), dual(U1(1))))
 
     b_11 = randn!(Matrix{Float64}(undef, 2, 2))
     b_22 = randn!(Matrix{Float64}(undef, 3, 3))
-    b[Block(1, 1)] = AbelianSectorArray((U1(0), dual(U1(0))), b_11)
-    b[Block(2, 2)] = AbelianSectorArray((U1(1), dual(U1(1))), b_22)
+    b[Block(1, 1)] = AbelianSectorArray(b_11, (U1(0), dual(U1(0))))
+    b[Block(2, 2)] = AbelianSectorArray(b_22, (U1(1), dual(U1(1))))
 
     result, dimnames = contract(a, (1, -1), b, (-1, 2))
     @test result isa GradedArrayT{Float64, <:Any, 2}
@@ -389,8 +378,8 @@ end
 
     data_3d = randn!(Array{Float64}(undef, 2, 3, 4))
     s = AbelianSectorArray(
-        (sector(codomain_ax), sector(domain_ax1), sector(domain_ax2)),
-        data_3d
+        data_3d,
+        (sector(codomain_ax), sector(domain_ax1), sector(domain_ax2))
     )
 
     # Matricize with 1 codomain leg
@@ -447,21 +436,21 @@ end
 end
 
 @testset "FusedGradedMatrix block-wise arithmetic" begin
-    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
+    m = FusedGradedMatrix([[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]], [U1(0), U1(1)])
 
     m2 = 3 * m
     @test data(m2[Block(1, 1)]) == [3.0 6.0; 9.0 12.0]
     @test data(m2[Block(2, 2)]) == [15.0 0.0; 0.0 18.0]
 
-    n = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(2, 2)])
+    n = FusedGradedMatrix([ones(2, 2), ones(2, 2)], [U1(0), U1(1)])
     s = m + n
     @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
     @test data(s[Block(2, 2)]) == [6.0 1.0; 1.0 7.0]
 end
 
 @testset "FusedGradedMatrix linear broadcasting" begin
-    m = FusedGradedMatrix([U1(0), U1(1)], [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
-    n = FusedGradedMatrix([U1(0), U1(1)], [ones(2, 2), ones(2, 2)])
+    m = FusedGradedMatrix([[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]], [U1(0), U1(1)])
+    n = FusedGradedMatrix([ones(2, 2), ones(2, 2)], [U1(0), U1(1)])
 
     s = m .+ n
     @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
@@ -553,7 +542,8 @@ end
     # to the sector's quantum dimension, so materializing repeats each reduced value over the
     # irrep (`SU2(j)` has quantum dimension `2j + 1`: 1, 2, 3 here).
     v = FusedGradedVector(
-        [SU2(0), SU2(1 // 2), SU2(1)], [Float64[10.0], Float64[20.0], Float64[30.0]]
+        [Float64[10.0], Float64[20.0], Float64[30.0]],
+        [SU2(0), SU2(1 // 2), SU2(1)]
     )
     @test sector(view(v, Block(2))) isa SectorOnesVector
     @test Array(sector(view(v, Block(2)))) == ones(2)

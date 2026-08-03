@@ -12,8 +12,8 @@ The stored `SectorRange` is always non-dual (codomain convention).
 """
 struct SectorMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
     AbstractSectorArray{T, S, 2}
-    sector::S
     data::D
+    sector::S
 end
 
 # ---- undef constructors ----
@@ -22,7 +22,7 @@ end
 function SectorMatrix{T, S, D}(
         ::UndefInitializer, sector::S, r1::AbstractUnitRange, r2::AbstractUnitRange
     ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
-    return SectorMatrix{T, S, D}(sector, similar(D, (r1, r2)))
+    return SectorMatrix{T, S, D}(similar(D, (r1, r2)), sector)
 end
 
 # Convenience: default D = Matrix{T}.
@@ -48,22 +48,22 @@ sector(sm::SectorMatrix) = SectorIdentity{eltype(sm)}(sm.sector)
 
 datatype(::Type{SectorMatrix{T, S, D}}) where {T, S, D} = D
 
-Base.copy(sm::SectorMatrix) = SectorMatrix(sm.sector, copy(data(sm)))
+Base.copy(sm::SectorMatrix) = SectorMatrix(copy(data(sm)), sm.sector)
 
 function Base.convert(
         ::Type{SectorMatrix{T₁, S, D}},
         x::SectorMatrix{T₂, S, E}
     )::SectorMatrix{T₁, S, D} where {T₁, T₂, S, D, E}
     D === E && return x
-    return SectorMatrix{T₁, S, D}(x.sector, convert(D, data(x)))
+    return SectorMatrix{T₁, S, D}(convert(D, data(x)), x.sector)
 end
 
 function Base.similar(sm::SectorMatrix{<:Any, S, <:Any}, ::Type{T}) where {T, S}
     new_data = similar(data(sm), T)
     D = typeof(new_data)
-    return SectorMatrix{T, S, D}(sm.sector, new_data)
+    return SectorMatrix{T, S, D}(new_data, sm.sector)
 end
 
 function sector_kron(s::SectorIdentity, data::AbstractMatrix)
-    return SectorMatrix(s.sector, data)
+    return SectorMatrix(data, s.sector)
 end

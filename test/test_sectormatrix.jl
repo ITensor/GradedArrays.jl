@@ -11,7 +11,7 @@ using Test: @test, @test_throws, @testset
 @testset "SectorMatrix" begin
     @testset "Construction from SectorRange + data" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(U1(1), d)
+        sm = SectorMatrix(d, U1(1))
         @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
         @test eltype(sm) == Float64
         @test sectoraxes(sm, 1) == U1(1)
@@ -19,14 +19,14 @@ using Test: @test, @test_throws, @testset
 
     @testset "data and dataaxes" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(U1(0), d)
+        sm = SectorMatrix(d, U1(0))
         @test data(sm) === d
         @test dataaxes(sm) == axes(d)
     end
 
     @testset "sectoraxes" begin
         d = ones(2, 3)
-        sm = SectorMatrix(U1(1), d)
+        sm = SectorMatrix(d, U1(1))
         @test sectoraxes(sm) == (U1(1), conj(U1(1)))
         @test sectoraxes(sm, 1) == U1(1)
         @test sectoraxes(sm, 2) == conj(U1(1))
@@ -34,7 +34,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "sector returns SectorIdentity" begin
         d = ones(2, 3)
-        sm = SectorMatrix(U1(1), d)
+        sm = SectorMatrix(d, U1(1))
         si = sector(sm)
         @test si isa SectorIdentity{Float64, U1}
     end
@@ -47,7 +47,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "axes returns SectorOneTo (U1, dim=1)" begin
         d = ones(3, 4)
-        sm = SectorMatrix(U1(1), d)
+        sm = SectorMatrix(d, U1(1))
         a1, a2 = axes(sm)
         @test a1 isa SectorOneTo
         @test a2 isa SectorOneTo
@@ -60,7 +60,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "axes returns SectorOneTo (SU2 j=1/2, dim=2)" begin
         d = ones(2, 3)
-        sm = SectorMatrix(SU2(1 // 2), d)
+        sm = SectorMatrix(d, SU2(1 // 2))
         a1, a2 = axes(sm)
         @test length(a1) == 4
         @test length(a2) == 6
@@ -70,7 +70,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "size, getindex, setindex!" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(U1(0), d)
+        sm = SectorMatrix(d, U1(0))
         @test size(sm) == (2, 2)
         @test sm[1, 1] == 1.0
         @test sm[2, 1] == 3.0
@@ -80,7 +80,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "copy" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(U1(0), d)
+        sm = SectorMatrix(d, U1(0))
         sm2 = copy(sm)
         @test sectoraxes(sm2) == sectoraxes(sm)
         @test data(sm2) ≈ data(sm)
@@ -90,14 +90,14 @@ using Test: @test, @test_throws, @testset
 
     @testset "fill!" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(U1(0), d)
+        sm = SectorMatrix(d, U1(0))
         fill!(sm, 0.0)
         @test all(iszero, data(sm))
     end
 
     @testset "convert" begin
         d = [1 2; 3 4]
-        sm = SectorMatrix(U1(0), d)
+        sm = SectorMatrix(d, U1(0))
         T = SectorMatrix{Float64, U1, Matrix{Float64}}
         sm2 = convert(T, sm)
         @test eltype(sm2) == Float64
@@ -106,7 +106,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "isdual via axes" begin
         d = ones(2, 3)
-        sm = SectorMatrix(U1(1), d)
+        sm = SectorMatrix(d, U1(1))
         @test isdual(axes(sm, 1)) == false
         @test isdual(axes(sm, 2)) == true
     end
@@ -121,7 +121,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "broadcasting (data-wise, keeps sector)" begin
-        sm = SectorMatrix(U1(0), [1.0 2.0; 3.0 4.0])
+        sm = SectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
         r = 2.0 .* sm
         @test r isa SectorMatrix
         @test sectoraxes(r) == sectoraxes(sm)
@@ -138,7 +138,7 @@ using Test: @test, @test_throws, @testset
             ("SU2", SU2(1 // 2)),
         )
         d = randn(ComplexF64, 2, 2)
-        sm = SectorMatrix(s, d)
+        sm = SectorMatrix(d, s)
         rm = real(sm)
         imm = imag(sm)
         @test rm isa SectorMatrix
@@ -176,8 +176,8 @@ using Test: @test, @test_throws, @testset
 
     @testset "tr — sector quantum dimension times reduced-data trace" begin
         d = [1.0 2.0; 3.0 4.0]
-        @test tr(SectorMatrix(U1(0), d)) == tr(d)         # dim 1
-        @test tr(SectorMatrix(SU2(1 // 2), d)) == 2 * tr(d)  # dim 2
+        @test tr(SectorMatrix(d, U1(0))) == tr(d)         # dim 1
+        @test tr(SectorMatrix(d, SU2(1 // 2))) == 2 * tr(d)  # dim 2
     end
 
     @testset "dot, norm, and dense Array factorize through the structural factor" for s in
@@ -215,7 +215,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "scalar indexing requires unique fusion" begin
-        ab = SectorMatrix(U1(0), [1.0 2.0; 3.0 4.0])
+        ab = SectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
         @test ab[1, 1] == 1.0
         na = SectorMatrix{Float64}(undef, SU2(1), 2, 3)
         @test_throws ErrorException na[1, 1]
@@ -235,7 +235,7 @@ using Test: @test, @test_throws, @testset
         d = copy(data(a))
         @test MAK.project_hermitian!(a) === a
         @test data(a) ≈ (d + d') / 2
-        @test Array(a) ≈ (Array(SectorMatrix(s, d)) + Array(SectorMatrix(s, d))') / 2
+        @test Array(a) ≈ (Array(SectorMatrix(d, s)) + Array(SectorMatrix(d, s))') / 2
 
         b = randn!(rng, SectorMatrix{Float64}(undef, s, 3, 3))
         d2 = copy(data(b))
