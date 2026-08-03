@@ -582,14 +582,12 @@ function TensorAlgebra.projectto!(dest::FusionArray, src::AbstractArray)
     return dest
 end
 
-# Dense form. The matricized `FusionArray` does not implement `eachblockstoredindex` (the generic
-# `AbstractGradedArray` dense path), so materialize through the `TensorMap`, whose `convert(Array, …)`
-# lays out `(codomain…, domain…)` in the dualized-domain convention `axes(fa)` reports. The `TensorMap`
-# is fused-sorted per leg, so if a stored axis is unfused/unsorted, scatter each leg's sector blocks back
-# to the stored order: `dense` has each leg's equal sectors contiguous, so overlay the stored block sizes
-# in sorted order and inverse-permute those blocks. Whole-block moves preserve the array type (e.g. GPU).
+# Dense form. The matricized backing has no `eachblockstoredindex` (the generic dense path), so
+# materialize through the zero-copy `FusionMap` view. The view is fused-sorted per leg, so for an
+# unfused/unsorted stored axis, move each leg's sector blocks back to the stored order (whole-block
+# moves preserve the array type, e.g. GPU).
 function Base.Array(fa::FusionArray{<:Any, <:Any, N}) where {N}
-    dense = convert(Array, TK.TensorMap(fa))
+    dense = convert(Array, tensormap(fa))
     all(is_fused_sorted, axes(fa)) && return dense
     sortedlengths = map(g -> Vector(blocklengths(g))[sortperm(sectors(g))], axes(fa))
     invperms = ntuple(d -> Block.(invperm(sortperm(sectors(axes(fa)[d])))), Val(N))
