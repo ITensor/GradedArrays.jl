@@ -61,9 +61,11 @@ function viewblock(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N}
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
     # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
     blockdata = tensormap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
-    # An unfused axis stores a repeated sector's positional blocks as one merged block, so slice each leg
-    # to this positional block's subrange within its merged sector (identity when the sector is unique):
-    # `invblockmergeperm` maps a fine block to its `Block[subrange]` in the fused-sorted merged axis.
+    # Fused-sorted axes have one block per sector, so the merged block is the whole block. Only an
+    # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
+    # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
+    # to its `Block[subrange]` in the fused-sorted merged axis.
+    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(sects, blockdata)
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
