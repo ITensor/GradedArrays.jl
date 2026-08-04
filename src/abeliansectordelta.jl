@@ -18,6 +18,14 @@ struct AbelianSectorDelta{T, S <: SectorRange, N, NC, ND} <: AbstractSectorDelta
     end
 end
 
+# `T` explicit, everything else inferred from the two tuples. Unlike the data-carrying array (whose
+# `T` comes from the data), the delta's `T` is independent of the sectors, so it must be given.
+function AbelianSectorDelta{T}(
+        sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
+    ) where {T, S <: SectorRange, NC, ND}
+    return AbelianSectorDelta{T, S, NC + ND, NC, ND}(sectors_codomain, sectors_domain)
+end
+
 # `N` explicit, `NC`/`ND` inferred from the two tuples, so the all-codomain conveniences below spell
 # only the split-free prefix.
 function AbelianSectorDelta{T, S, N}(
@@ -30,8 +38,7 @@ end
 # least one sector: the sector type of a rank-0 delta cannot be inferred from an empty tuple,
 # so a rank-0 delta is built through the fully-parameterized constructor with an explicit `S`.
 function AbelianSectorDelta{T}(sectors::Tuple{SectorRange, Vararg{SectorRange}}) where {T}
-    N = length(sectors)
-    return AbelianSectorDelta{T, eltype(sectors), N}(sectors, ())
+    return AbelianSectorDelta{T}(sectors, ())
 end
 # All-codomain delta from a flat tuple with `S`/`N` given (covers the rank-0 case, whose empty
 # tuple carries no `S`).
