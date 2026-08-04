@@ -35,6 +35,18 @@ function AbelianSectorArray(
     )
 end
 
+# `S` explicit, `A`/`NC`/`ND` inferred: lets a construction that already knows `T`/`S`/`N` skip the
+# derivable parameters, and covers the rank-0 case (empty tuples carry no `S`) that the parameterless
+# primary cannot infer. Used by `conj`.
+function AbelianSectorArray{T, S, N}(
+        data::AbstractArray{T, N},
+        sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
+    ) where {T, S <: SectorRange, N, NC, ND}
+    return AbelianSectorArray{T, S, N, typeof(data), NC, ND}(
+        data, sectors_codomain, sectors_domain
+    )
+end
+
 # All-codomain shorthand from a flat sector tuple: the block an `AbelianGradedArray` yields, and
 # what `fa[Block]` returns when there is no domain leg. Flat always means all-codomain.
 function AbelianSectorArray(
@@ -128,9 +140,8 @@ end
 # leg-reversal sign rides `bipermutedimsopadd!` (folded in by `fermion_permutation_phase`), which a
 # bare data `conj` would drop.
 function Base.conj(a::AbelianSectorArray{T, S, N, <:Any, NC, ND}) where {T, S, N, NC, ND}
-    dest_data = similar(data(a))
-    dest = AbelianSectorArray{T, S, N, typeof(dest_data), NC, ND}(
-        dest_data, map(dual, a.sectors_codomain), map(dual, a.sectors_domain)
+    dest = AbelianSectorArray{T, S, N}(
+        similar(data(a)), map(dual, a.sectors_codomain), map(dual, a.sectors_domain)
     )
     TensorAlgebra.bipermutedimsopadd!(
         dest, conj, a, ntuple(identity, Val(NC)), ntuple(i -> NC + i, Val(ND)), true, false
