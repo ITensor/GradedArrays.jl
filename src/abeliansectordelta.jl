@@ -1,5 +1,5 @@
 """
-    AbelianSectorDelta{T,S<:SectorRange,N,NC,ND} <: AbstractSectorDelta{T, S, N}
+    AbelianSectorDelta{T,S<:SectorRange,N,NC,ND} <: AbstractSectorDelta{T,S,N}
 
 Unfused N-D structural tensor for abelian symmetries. Stores one `SectorRange` per axis,
 split into `NC` codomain legs and `ND` domain legs (`NC + ND == N`); the all-codomain case

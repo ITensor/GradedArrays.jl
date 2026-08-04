@@ -9,7 +9,7 @@ using Test: @test, @test_throws, @testset
     @testset "Construction from SectorRange tuples" begin
         data = [1.0 2.0; 3.0 4.0]
         sa = AbelianSectorArray(data, (U1(1), conj(U1(-1))))
-        @test sa isa AbelianSectorArray{Float64, U1, 2, Matrix{Float64}}
+        @test sa isa AbelianSectorArray{Float64, U1, 2, <:Any, <:Any, Matrix{Float64}}
         @test sa isa AbstractArray{Float64, 2}
     end
 
@@ -67,7 +67,7 @@ using Test: @test, @test_throws, @testset
     @testset "rank-0 (scalar) array" begin
         # A rank-0 array has an empty `sectors` tuple, so `sector` and the delta/data
         # constructor take the sector type from the type rather than inferring it.
-        sa = AbelianSectorArray{Float64, U1, 0, Array{Float64, 0}, 0, 0}(fill(2.0), (), ())
+        sa = AbelianSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(fill(2.0), (), ())
         @test ndims(sa) == 0
         @test sectortype(sa) === U1
         @test sa[] == 2.0
@@ -77,7 +77,8 @@ using Test: @test, @test_throws, @testset
         @test sectortype(sd) === U1
 
         rebuilt = AbelianSectorArray(fill(5.0), sd)
-        @test rebuilt isa AbelianSectorArray{Float64, U1, 0, Array{Float64, 0}}
+        @test rebuilt isa
+            AbelianSectorArray{Float64, U1, 0, <:Any, <:Any, Array{Float64, 0}}
         @test rebuilt[] == 5.0
 
         # The convenience constructors infer `S` from the axes/sectors, which is
@@ -114,7 +115,7 @@ using Test: @test, @test_throws, @testset
     @testset "convert" begin
         data = [1 2; 3 4]
         sa = AbelianSectorArray(data, (U1(0), U1(1)))
-        T = AbelianSectorArray{Float64, U1, 2, Matrix{Float64}, 2, 0}
+        T = AbelianSectorArray{Float64, U1, 2, 2, 0, Matrix{Float64}}
         sa2 = convert(T, sa)
         @test eltype(sa2) == Float64
         @test sa2[1, 1] === 1.0

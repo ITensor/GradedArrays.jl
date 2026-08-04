@@ -82,7 +82,7 @@ Base.axes(a::AbelianGradedArray) = a.axes
 function blocktype(
         ::Type{<:AbelianGradedArray{T, S, N, D}}
     ) where {T, S, N, D}
-    return AbelianSectorArray{T, S, N, D, N, 0}
+    return AbelianSectorArray{T, S, N, N, 0, D}
 end
 blocktype(a::AbelianGradedArray) = blocktype(typeof(a))
 
