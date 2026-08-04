@@ -117,15 +117,13 @@ end
 
 # ========================  permutedims  ========================
 
-# Permuting can mix codomain and domain legs, so the result is all-codomain. The permuted sector
-# labels are computed here for the destination; the fermion sign from the permutation is applied to
-# the reduced data by `permutedimsopadd!`, not to the structural factor (which is `one(T)` at its
-# single allowed entry and cannot carry a sign).
+# Permuting can mix codomain and domain legs, so the result is all-codomain. The permuted axes carry
+# both the new sector labels and the destination data shape; the fermion sign from the permutation is
+# applied to the reduced data by `permutedimsopadd!`, not to the structural factor (which is `one(T)`
+# at its single allowed entry and cannot carry a sign).
 function Base.permutedims(x::AbelianSectorArray, perm)
-    sects = sectoraxes(x)
-    new_sectors = ntuple(n -> sects[perm[n]], Val(ndims(x)))
-    y = AbelianSectorArray(similar(data(x), size(x)[collect(perm)]), new_sectors, ())
-    return permutedims!(y, x, perm)
+    new_axes = ntuple(n -> axes(x, perm[n]), Val(ndims(x)))
+    return permutedims!(similar(x, new_axes), x, perm)
 end
 function Base.permutedims!(y::AbelianSectorArray, x::AbelianSectorArray, perm)
     TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
