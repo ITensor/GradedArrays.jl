@@ -1,5 +1,5 @@
 """
-    SectorIdentity{T,S<:SectorRange} <: AbstractSectorDelta{T, S, 2}
+    SectorIdentity{T,S<:SectorRange} <: AbstractSectorDelta{T,S,2}
 
 Fused 2D structural factor for a single coupled sector. By Schur's lemma, the
 structural part of each block in the fused (matricized) basis is the identity

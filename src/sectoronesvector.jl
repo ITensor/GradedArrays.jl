@@ -1,5 +1,5 @@
 """
-    SectorOnesVector{T,S<:SectorRange} <: AbstractSectorDelta{T, S, 1}
+    SectorOnesVector{T,S<:SectorRange} <: AbstractSectorDelta{T,S,1}
 
 Fused 1-D structural factor for a single coupled sector: the all-ones vector whose length is the
 sector's quantum dimension. It is the diagonal of the [`SectorIdentity`](@ref) that a

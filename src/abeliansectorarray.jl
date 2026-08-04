@@ -1,5 +1,5 @@
 """
-    AbelianSectorArray{T,S,N,A,NC,ND} <: AbstractSectorArray{T, S, N}
+    AbelianSectorArray{T,S,N,NC,ND,A} <: AbstractSectorArray{T,S,N}
 
 Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus one `SectorRange`
 per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
@@ -7,17 +7,17 @@ Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker pro
 structural [`AbelianSectorDelta`](@ref) (`sector`) with the data array (reduced matrix elements).
 The all-codomain case (`NC == N`) is the block an `AbelianGradedArray` yields.
 """
-struct AbelianSectorArray{T, S <: SectorRange, N, A <: AbstractArray{T, N}, NC, ND} <:
+struct AbelianSectorArray{T, S <: SectorRange, N, NC, ND, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, S, N}
     data::A
     sectors_codomain::NTuple{NC, S}
     sectors_domain::NTuple{ND, S}
-    function AbelianSectorArray{T, S, N, A, NC, ND}(
+    function AbelianSectorArray{T, S, N, NC, ND, A}(
             data::A, sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
-        ) where {T, S <: SectorRange, N, A <: AbstractArray{T, N}, NC, ND}
+        ) where {T, S <: SectorRange, N, NC, ND, A <: AbstractArray{T, N}}
         NC + ND == N ||
             throw(ArgumentError("codomain ($NC) + domain ($ND) legs must equal N ($N)"))
-        return new{T, S, N, A, NC, ND}(data, sectors_codomain, sectors_domain)
+        return new{T, S, N, NC, ND, A}(data, sectors_codomain, sectors_domain)
     end
 end
 
@@ -30,7 +30,7 @@ function AbelianSectorArray(
         data::AbstractArray{T, N},
         sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
     ) where {T, S <: SectorRange, N, NC, ND}
-    return AbelianSectorArray{T, S, N, typeof(data), NC, ND}(
+    return AbelianSectorArray{T, S, N, NC, ND, typeof(data)}(
         data, sectors_codomain, sectors_domain
     )
 end
@@ -42,7 +42,7 @@ function AbelianSectorArray{T, S, N}(
         data::AbstractArray{T, N},
         sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
     ) where {T, S <: SectorRange, N, NC, ND}
-    return AbelianSectorArray{T, S, N, typeof(data), NC, ND}(
+    return AbelianSectorArray{T, S, N, NC, ND, typeof(data)}(
         data, sectors_codomain, sectors_domain
     )
 end
@@ -61,7 +61,7 @@ end
 function AbelianSectorArray(
         data::AbstractArray{T}, delta::AbelianSectorDelta{<:Any, S, N, NC, ND}
     ) where {T, S, N, NC, ND}
-    return AbelianSectorArray{T, S, N, typeof(data), NC, ND}(
+    return AbelianSectorArray{T, S, N, NC, ND, typeof(data)}(
         data, delta.sectors_codomain, delta.sectors_domain
     )
 end
@@ -73,25 +73,25 @@ function AbelianSectorArray{T}(
     ) where {T}
     N = length(axs)
     S = sectortype(eltype(axs))
-    return AbelianSectorArray{T, S, N, Array{T, N}, N, 0}(
+    return AbelianSectorArray{T, S, N, N, 0, Array{T, N}}(
         similar(Array{T, N}, data.(axs)), sector.(axs), ()
     )
 end
 
-const AbelianSectorVector{T, S <: SectorRange, A <: AbstractVector{T}} =
-    AbelianSectorArray{T, S, 1, A, NC, ND} where {NC, ND}
-const AbelianSectorMatrix{T, S <: SectorRange, A <: AbstractMatrix{T}} =
-    AbelianSectorArray{T, S, 2, A, NC, ND} where {NC, ND}
+const AbelianSectorVector{T, S <: SectorRange, NC, ND, A <: AbstractVector{T}} =
+    AbelianSectorArray{T, S, 1, NC, ND, A}
+const AbelianSectorMatrix{T, S <: SectorRange, NC, ND, A <: AbstractMatrix{T}} =
+    AbelianSectorArray{T, S, 2, NC, ND, A}
 
 # Accessors
 
 # Kronecker factor decomposition: AbelianSectorArray = sector ⊗ data. `sector` wraps the stored
 # codomain/domain sector tuples in a delta, so `sector_kron(sector(a), data(a)) === a`.
-function sector(sa::AbelianSectorArray{T, S, N, A, NC, ND}) where {T, S, N, A, NC, ND}
+function sector(sa::AbelianSectorArray{T, S, N, NC, ND, A}) where {T, S, N, NC, ND, A}
     return AbelianSectorDelta{T, S, N, NC, ND}(sa.sectors_codomain, sa.sectors_domain)
 end
 
-datatype(::Type{<:AbelianSectorArray{T, S, N, A, NC, ND}}) where {T, S, N, A, NC, ND} = A
+datatype(::Type{<:AbelianSectorArray{T, S, N, NC, ND, A}}) where {T, S, N, NC, ND, A} = A
 
 function Base.copy(a::AbelianSectorArray)
     return AbelianSectorArray(copy(data(a)), a.sectors_codomain, a.sectors_domain)
@@ -108,9 +108,9 @@ function Base.similar(
 end
 
 function Base.convert(
-        ::Type{AbelianSectorArray{T₁, S, N, A, NC, ND}},
-        x::AbelianSectorArray{T₂, S, N, B, NC, ND}
-    )::AbelianSectorArray{T₁, S, N, A, NC, ND} where {T₁, T₂, S, N, A, B, NC, ND}
+        ::Type{AbelianSectorArray{T₁, S, N, NC, ND, A}},
+        x::AbelianSectorArray{T₂, S, N, NC, ND, B}
+    )::AbelianSectorArray{T₁, S, N, NC, ND, A} where {T₁, T₂, S, N, NC, ND, A, B}
     A === B && return x
     return AbelianSectorArray(convert(A, data(x)), sector(x))
 end
@@ -137,7 +137,7 @@ end
 # dualized is filled by a single `op = conj` permute-add over the identity biperm; the fermionic
 # leg-reversal sign rides `bipermutedimsopadd!` (folded in by `fermion_permutation_phase`), which a
 # bare data `conj` would drop.
-function Base.conj(a::AbelianSectorArray{T, S, N, <:Any, NC, ND}) where {T, S, N, NC, ND}
+function Base.conj(a::AbelianSectorArray{T, S, N, NC, ND}) where {T, S, N, NC, ND}
     dest = AbelianSectorArray{T, S, N}(
         similar(data(a)), map(dual, a.sectors_codomain), map(dual, a.sectors_domain)
     )

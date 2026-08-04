@@ -8,15 +8,16 @@ using Random: Random, AbstractRNG
 using TensorKit: TensorKit as TK
 
 """
-    FusionArray{T,S,N} <: AbstractGradedArray{T,S,N}
+    FusionArray{T,S,N,NC,ND,M} <: AbstractGradedArray{T,S,N}
 
-Always-fused symmetric array: an `N`-dimensional graded array with a codomain/domain split,
-backed by a matricized [`FusedGradedMatrix`](@ref). The external axes are `GradedOneTo` and may be
-unfused or unsorted (a sector repeated, or out of `SectorRange` order); the `matricized` backing is
-always over the fused-sorted coupled space, and the per-leg sort permutation relates the two.
+Always-fused symmetric array: an `N`-dimensional graded array split into `NC` codomain and `ND`
+domain legs (`NC + ND == N`), backed by a matricized [`FusedGradedMatrix`](@ref). The external axes
+are `GradedOneTo` and may be unfused or unsorted (a sector repeated, or out of `SectorRange` order);
+the `matricized` backing is always over the fused-sorted coupled space, and the per-leg sort
+permutation relates the two.
 """
 struct FusionArray{
-        T, S, N, M <: FusedGradedMatrix{T, S}, NC, ND,
+        T, S, N, NC, ND, M <: FusedGradedMatrix{T, S},
     } <: AbstractGradedArray{T, S, N}
     matricized::M
     axes_codomain::NTuple{NC, GradedOneTo{S}}
@@ -27,7 +28,7 @@ struct FusionArray{
             axes_codomain::NTuple{NC, GradedOneTo{S}},
             axes_domain::NTuple{ND, GradedOneTo{S}}
         ) where {T, S, NC, ND}
-        return new{T, S, NC + ND, typeof(matricized), NC, ND}(
+        return new{T, S, NC + ND, NC, ND, typeof(matricized)}(
             matricized, axes_codomain, axes_domain
         )
     end
@@ -50,13 +51,19 @@ ndims_domain(fa::FusionArray) = length(axes_domain(fa))
 # matrix directly (see `matricize(::FusionArrayFusionStyle, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
 
+# Rank aliases (any codomain/domain split), mirroring `AbelianSectorVector`/`AbelianSectorMatrix`.
+const FusionVector{T, S, NC, ND, M <: FusedGradedMatrix{T, S}} =
+    FusionArray{T, S, 1, NC, ND, M}
+const FusionMatrix{T, S, NC, ND, M <: FusedGradedMatrix{T, S}} =
+    FusionArray{T, S, 2, NC, ND, M}
+
 # ============================  block indexing (unique fusion)  ============================
 # Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
 # block. The returned `AbelianSectorArray` is a view into the block's strided data, so get/set writes
 # back in place.
 
 function viewblock(
-        a::FusionArray{T, S, N, <:Any, NC, ND},
+        a::FusionArray{T, S, N, NC, ND},
         I::Block{N}
     ) where {T, S, N, NC, ND}
     require_unique_fusion(a)
@@ -103,8 +110,8 @@ end
 # hardcoding `Array{T, N}`, so non-`Array` storage (GPU, etc.) is preserved — e.g. via
 # `Base.promote_op` on `view(A, ::Block)` (the actual returned block type). Also only well-defined
 # for unique fusion (blocks are `AbelianSectorArray` only then); tie it to that guard.
-function blocktype(::Type{<:FusionArray{T, S, N, <:Any, NC, ND}}) where {T, S, N, NC, ND}
-    return AbelianSectorArray{T, S, N, Array{T, N}, NC, ND}
+function blocktype(::Type{<:FusionArray{T, S, N, NC, ND}}) where {T, S, N, NC, ND}
+    return AbelianSectorArray{T, S, N, NC, ND, Array{T, N}}
 end
 blocktype(a::FusionArray) = blocktype(typeof(a))
 
@@ -232,7 +239,7 @@ end
 # ============================  matrix product  ============================
 # Matrix-matrix product as a contraction over the shared leg, mirroring `AbelianGradedMatrix`. The
 # generic `LinearAlgebra` matmul scalar-indexes, which errors on forbidden blocks.
-function Base.:*(a::FusionArray{<:Any, <:Any, 2}, b::FusionArray{<:Any, <:Any, 2})
+function Base.:*(a::FusionMatrix, b::FusionMatrix)
     return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
 end
 
@@ -243,14 +250,14 @@ end
 # are not matrices: their dense form is split-dependent, so `Array(a')` would not be `adjoint(Array(a))`
 # and the Gram product would not typecheck. This is a working matrix `adjoint` where
 # `AbelianGradedArray` has none.
-function Base.adjoint(fa::FusionArray{<:Any, <:Any, 2, <:Any, 1, 1})
+function Base.adjoint(fa::FusionArray{<:Any, <:Any, 2, 1, 1})
     return FusionArray(adjoint(matricize(fa)), axes_domain(fa), axes_codomain(fa))
 end
 
 # A 2-index `FusionArray` with any other split is not a matrix. It already errors through the generic
 # `AbstractGradedArray` fallback rather than building a broken lazy `Adjoint`, but give a clearer
 # message naming the `(1, 1)` requirement.
-function Base.adjoint(fa::FusionArray{<:Any, <:Any, 2})
+function Base.adjoint(fa::FusionMatrix)
     return error(
         "`adjoint` of a `FusionArray` requires a (1, 1) codomain/domain split; this matrix has \
         split ($(ndims_codomain(fa)), $(ndims_domain(fa))). Bend it to a matrix first."
@@ -263,7 +270,7 @@ end
 # same-split destination (per-leg axes dualized) with a single `op = conj` permute-add over the
 # identity biperm, so the TensorKit-backed transform folds in the leg-reversal fermion sign and the
 # non-abelian recoupling that a bare block conjugation would drop.
-function Base.conj(fa::FusionArray{<:Any, <:Any, <:Any, <:Any, NC, ND}) where {NC, ND}
+function Base.conj(fa::FusionArray{<:Any, <:Any, <:Any, NC, ND}) where {NC, ND}
     dest = TensorAlgebra.similar_map(
         fa, map(dual, axes_codomain(fa)), map(dual, axes_domain(fa))
     )
@@ -280,7 +287,7 @@ end
 # that include point. Avoids MatrixAlgebraKit's native path, which scalar-indexes and hits a
 # forbidden block.
 for f in BARE_MATRIX_FACTORIZATIONS
-    @eval function MAK.$f(m::FusionArray{<:Any, <:Any, 2}; kwargs...)
+    @eval function MAK.$f(m::FusionMatrix; kwargs...)
         return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
     end
 end
