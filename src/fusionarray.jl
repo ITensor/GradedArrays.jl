@@ -62,24 +62,25 @@ function viewblock(
     require_unique_fusion(a)
     bk = Int.(Tuple(I))
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
-    # The block carries the array's own codomain/domain split (the first `NC` legs are codomain).
-    delta = AbelianSectorDelta{T, S, N, NC, ND}(
-        ntuple(i -> sects[i], Val(NC)), ntuple(i -> sects[NC + i], Val(ND))
-    )
+    # The block carries the array's own codomain/domain split. The codomain legs are stored as-is;
+    # the domain legs are stored codomain-facing (un-dualed), taken from `axes_domain(a)` rather than
+    # the dualized `axes(a)`, matching the block type's storage convention (its `axes` re-dualizes).
+    cod = ntuple(i -> sects[i], Val(NC))
+    dom = ntuple(j -> eachsectoraxis(axes_domain(a)[j])[bk[NC + j]], Val(ND))
     # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
     blockdata = tensormap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
     # Fused-sorted axes have one block per sector, so the merged block is the whole block. Only an
     # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
     # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
     # to its `Block[subrange]` in the fused-sorted merged axis.
-    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(blockdata, delta)
+    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(blockdata, cod, dom)
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
             invblockmergeperm(g, sectorsortperm(g), sectormergesort(g))[bk[d]].indices
         )
     end
-    return AbelianSectorArray(view(blockdata, ranges...), delta)
+    return AbelianSectorArray(view(blockdata, ranges...), cod, dom)
 end
 
 Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)

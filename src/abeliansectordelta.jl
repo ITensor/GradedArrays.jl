@@ -42,10 +42,10 @@ Base.@propagate_inbounds function Base.getindex(
     return one(T)
 end
 
-# The stored codomain/domain split is not yet reflected in `axes`, which stays the flat
-# combined leg tuple so `sectoraxes`/`axes` of the sector array are unchanged (the BiTuple
-# axes representation is a separate follow-up).
-Base.axes(A::AbelianSectorDelta) = (A.sectors_codomain..., A.sectors_domain...)
+# The domain sectors are stored codomain-facing (un-dualed), matching how `FusionArray` stores its
+# `axes_domain`; `axes` dualizes them so a domain leg reads as a dual external axis. Still a flat
+# combined tuple for now (the BiTuple axes representation is a separate follow-up).
+Base.axes(A::AbelianSectorDelta) = (A.sectors_codomain..., map(dual, A.sectors_domain)...)
 
 # Structural inner product: an abelian delta has a single allowed (unique-fusion) unit entry.
 function LinearAlgebra.dot(a::AbelianSectorDelta, b::AbelianSectorDelta)
@@ -61,14 +61,6 @@ end
 # ========================  Accessors  ========================
 
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
-
-# ========================  permutedims  ========================
-
-# Permuting can mix codomain and domain legs, so the result collapses to an all-codomain delta.
-function Base.permutedims(x::AbelianSectorDelta, perm)
-    new_sectors = ntuple(n -> axes(x)[perm[n]], Val(ndims(x)))
-    return AbelianSectorDelta{eltype(x)}(new_sectors)
-end
 
 # ========================  adjoint / broadcasting  ========================
 

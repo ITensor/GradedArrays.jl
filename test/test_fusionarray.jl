@@ -209,6 +209,16 @@ end
         # non-abelian double conj picks up recoupling round-off, so `==` is too strict).
         @test c ≈ conj.(a)
         @test conj(c) ≈ a
+
+        # The abelian block type carries the split too, so extracting a block commutes with conj
+        # (matching TensorKit): `conj(a[I])` equals `conj(a)[I]`, split and axes preserved. The SU2
+        # blocks take a separate non-abelian conj path, so skip them here.
+        if !startswith(G, "SU2")
+            for I in GradedArrays.eachblockstoredindex(a)
+                @test Array(conj(a[I])) ≈ Array(c[I])
+                @test axes(conj(a[I])) == axes(c[I])
+            end
+        end
     end
 
     @testset "conj of a rank-0 FusionArray" begin
