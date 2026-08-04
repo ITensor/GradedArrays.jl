@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, AbelianSectorArray, AbelianSectorDelta,
     AbelianSectorMatrix, AbelianSectorVector, SU2, SectorOneTo, SectorRange, U1, data, dual,
-    isdual, sector, sectoraxes, sectortype
+    isdual, sector, sector_kron, sectoraxes, sectortype
 using LinearAlgebra: tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -67,7 +67,7 @@ using Test: @test, @test_throws, @testset
     @testset "rank-0 (scalar) array" begin
         # A rank-0 array has an empty `sectors` tuple, so `sector` and the delta/data
         # constructor take the sector type from the type rather than inferring it.
-        sa = AbelianSectorArray{Float64, U1, 0, Array{Float64, 0}}(fill(2.0), ())
+        sa = AbelianSectorArray{Float64, U1, 0, Array{Float64, 0}, 0, 0}(fill(2.0), (), ())
         @test ndims(sa) == 0
         @test sectortype(sa) === U1
         @test sa[] == 2.0
@@ -114,7 +114,7 @@ using Test: @test, @test_throws, @testset
     @testset "convert" begin
         data = [1 2; 3 4]
         sa = AbelianSectorArray(data, (U1(0), U1(1)))
-        T = AbelianSectorArray{Float64, U1, 2, Matrix{Float64}}
+        T = AbelianSectorArray{Float64, U1, 2, Matrix{Float64}, 2, 0}
         sa2 = convert(T, sa)
         @test eltype(sa2) == Float64
         @test sa2[1, 1] === 1.0
@@ -227,6 +227,25 @@ using Test: @test, @test_throws, @testset
         @test sectoraxes(ra) == sectoraxes(sa)
         @test data(ra) == real.(d)
         @test data(ia) == imag.(d)
+        @test data(ra) + im * data(ia) ≈ d
+    end
+
+    @testset "split block: round-trip, real/imag, eltype independence" begin
+        d = randn(ComplexF64, 2, 3)
+        sa = AbelianSectorArray(d, (U1(1),), (U1(1),))   # a genuine (1, 1) split
+        sd = sector(sa)
+        @test (length(sd.sectors_codomain), length(sd.sectors_domain)) == (1, 1)
+        # The domain leg is stored codomain-facing but reads as dual externally.
+        @test sectoraxes(sa) == (U1(1), dual(U1(1)))
+        # Exact structural round-trip keeps the split (and the data object).
+        @test sector_kron(sector(sa), data(sa)) === sa
+        # real/imag keep the split and are eltype-independent: the delta's `T` need not track the data's.
+        ra = real(sa)
+        ia = imag(sa)
+        @test (length(sector(ra).sectors_codomain), length(sector(ra).sectors_domain)) ==
+            (1, 1)
+        @test eltype(ra) == Float64
+        @test sectoraxes(ra) == sectoraxes(sa)
         @test data(ra) + im * data(ia) ≈ d
     end
 end

@@ -162,16 +162,22 @@ function TensorAlgebra.bipermutedimsopadd!(
         α::Number, β::Number
     )
     check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
-    # The inner call conjugates the data when `op === conj`, and `check_input` requires `y` to
-    # carry the dualized axes, so the conjugation rides this single fused permute-add pass
-    # rather than materializing a conjugated copy of `x`. The `op`-aware
-    # `fermion_permutation_phase` folds in the leg-reversal fermion sign that a bare data
-    # `conj` would drop.
-    phase = fermion_permutation_phase(
-        op,
-        sector(x),
-        invperm((perm_codomain..., perm_domain...))
-    )
+    perm = (perm_codomain..., perm_domain...)
+    sx = sector(x)
+    # Fermion signs go on the reduced data (the delta is `one(T)`). `fermion_permutation_phase`
+    # (op-aware) gives the braiding sign, plus the ket->bra leg reversal for `op === conj`. The two
+    # `fermion_bend_phase` factors reconcile the splits (unbend the source's domain legs, rebend the
+    # destination's) and are `1` for all-codomain blocks, leaving the `AbelianGradedArray` path
+    # (always all-codomain, bends baked into the dense entries) unaffected.
+    ndims_domain_src = ndims_domain(sx)
+    ndims_domain_dest = ndims_domain(sector(y))
+    src_domain_legs = ntuple(i -> ndims_codomain(sx) + i, ndims_domain_src)
+    dest_domain_legs =
+        ntuple(i -> perm[ndims(x) - ndims_domain_dest + i], ndims_domain_dest)
+    phase =
+        fermion_permutation_phase(op, sx, invperm(perm)) *
+        fermion_bend_phase(sx, src_domain_legs) *
+        fermion_bend_phase(sx, dest_domain_legs)
     bipermutedimsopadd!(
         data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
     )

@@ -1,18 +1,54 @@
 """
-    AbelianSectorDelta{T,S<:SectorRange,N} <: AbstractSectorDelta{T, S, N}
+    AbelianSectorDelta{T,S<:SectorRange,N,NC,ND} <: AbstractSectorDelta{T, S, N}
 
-Unfused N-D structural tensor for abelian symmetries. Stores one `SectorRange` per axis.
-For abelian symmetries, every element equals `one(T)` (the Kronecker delta selection rule).
+Unfused N-D structural tensor for abelian symmetries. Stores one `SectorRange` per axis,
+split into `NC` codomain legs and `ND` domain legs (`NC + ND == N`); the all-codomain case
+(`NC == N`) is the block an `AbelianGradedArray` yields. For abelian symmetries, every element
+equals `one(T)` (the Kronecker delta selection rule).
 """
-struct AbelianSectorDelta{T, S <: SectorRange, N} <: AbstractSectorDelta{T, S, N}
-    sectors::NTuple{N, S}
+struct AbelianSectorDelta{T, S <: SectorRange, N, NC, ND} <: AbstractSectorDelta{T, S, N}
+    sectors_codomain::NTuple{NC, S}
+    sectors_domain::NTuple{ND, S}
+    function AbelianSectorDelta{T, S, N, NC, ND}(
+            sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
+        ) where {T, S <: SectorRange, N, NC, ND}
+        NC + ND == N ||
+            throw(ArgumentError("codomain ($NC) + domain ($ND) legs must equal N ($N)"))
+        return new{T, S, N, NC, ND}(sectors_codomain, sectors_domain)
+    end
 end
-# Convenience: infer N and S from the sectors. Requires at least one sector: the sector
-# type of a rank-0 delta cannot be inferred from an empty tuple, so a rank-0 delta is built
-# through the fully-parameterized constructor with an explicit `S`.
+
+# `T` explicit, everything else inferred from the two tuples. Unlike the data-carrying array (whose
+# `T` comes from the data), the delta's `T` is independent of the sectors, so it must be given.
+function AbelianSectorDelta{T}(
+        sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
+    ) where {T, S <: SectorRange, NC, ND}
+    return AbelianSectorDelta{T, S, NC + ND, NC, ND}(sectors_codomain, sectors_domain)
+end
+
+# `N` explicit, `NC`/`ND` inferred from the two tuples, so the all-codomain conveniences below spell
+# only the split-free prefix.
+function AbelianSectorDelta{T, S, N}(
+        sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
+    ) where {T, S <: SectorRange, N, NC, ND}
+    return AbelianSectorDelta{T, S, N, NC, ND}(sectors_codomain, sectors_domain)
+end
+
+# Convenience: all-codomain delta, inferring N and S from a flat sector tuple. Requires at
+# least one sector: the sector type of a rank-0 delta cannot be inferred from an empty tuple,
+# so a rank-0 delta is built through the fully-parameterized constructor with an explicit `S`.
 function AbelianSectorDelta{T}(sectors::Tuple{SectorRange, Vararg{SectorRange}}) where {T}
-    return AbelianSectorDelta{T, eltype(sectors), length(sectors)}(sectors)
+    return AbelianSectorDelta{T}(sectors, ())
 end
+# All-codomain delta from a flat tuple with `S`/`N` given (covers the rank-0 case, whose empty
+# tuple carries no `S`).
+function AbelianSectorDelta{T, S, N}(sectors::NTuple{N, S}) where {T, S <: SectorRange, N}
+    return AbelianSectorDelta{T, S, N}(sectors, ())
+end
+
+# Codomain/domain leg counts, used by the bend-phase bookkeeping in `bipermutedimsopadd!`.
+ndims_codomain(d::AbelianSectorDelta) = length(d.sectors_codomain)
+ndims_domain(d::AbelianSectorDelta) = length(d.sectors_domain)
 
 # ========================  AbstractArray interface  ========================
 
@@ -25,7 +61,10 @@ Base.@propagate_inbounds function Base.getindex(
     return one(T)
 end
 
-Base.axes(A::AbelianSectorDelta) = A.sectors
+# The domain sectors are stored codomain-facing (un-dualed), matching how `FusionArray` stores its
+# `axes_domain`; `axes` dualizes them so a domain leg reads as a dual external axis. Still a flat
+# combined tuple for now (the BiTuple axes representation is a separate follow-up).
+Base.axes(A::AbelianSectorDelta) = (A.sectors_codomain..., map(dual, A.sectors_domain)...)
 
 # Structural inner product: an abelian delta has a single allowed (unique-fusion) unit entry.
 function LinearAlgebra.dot(a::AbelianSectorDelta, b::AbelianSectorDelta)
@@ -41,34 +80,3 @@ end
 # ========================  Accessors  ========================
 
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
-
-# ========================  permutedims  ========================
-
-function Base.permutedims(x::AbelianSectorDelta, perm)
-    new_sectors = ntuple(n -> x.sectors[perm[n]], Val(ndims(x)))
-    return AbelianSectorDelta{eltype(x)}(new_sectors)
-end
-
-# ========================  adjoint / broadcasting  ========================
-
-function Base.copy(A::Adjoint{T, <:AbelianSectorDelta{T, <:Any, 2}}) where {T}
-    return AbelianSectorDelta{T}(reverse(dual.(axes(adjoint(A)))))
-end
-function LinearAlgebra.adjoint!(
-        A::AbelianSectorDelta{T, <:Any, 2}, B::AbelianSectorDelta{T, <:Any, 2}
-    ) where {T}
-    reverse(dual.(axes(B))) == axes(A) || throw(DimensionMismatch())
-    return A
-end
-
-# ========================  multiplication  ========================
-
-function Base.:(*)(
-        a::AbelianSectorDelta{T₁, <:Any, 2},
-        b::AbelianSectorDelta{T₂, <:Any, 2}
-    ) where {T₁, T₂}
-    axes(a, 2) == dual(axes(b, 1)) ||
-        throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
-    T = Base.promote_type(T₁, T₂)
-    return AbelianSectorDelta{T}((axes(a, 1), axes(b, 2)))
-end

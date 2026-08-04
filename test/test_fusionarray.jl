@@ -1,6 +1,7 @@
 using BlockArrays: Block, blocklengths
-using GradedArrays: GradedArrays, FusedGradedMatrix, FusionArray, SU2, SectorRange, U1, Z2,
-    dual, gradedrange, isdual, ndims_codomain, ndims_domain
+using GradedArrays: GradedArrays, AbelianSectorArray, FusedGradedMatrix, FusionArray, SU2,
+    SectorRange, U1, Z2, data, dual, gradedrange, isdual, ndims_codomain, ndims_domain,
+    sector
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, bipermutedims, contract, matricize, svd_compact
@@ -209,6 +210,51 @@ end
         # non-abelian double conj picks up recoupling round-off, so `==` is too strict).
         @test c ≈ conj.(a)
         @test conj(c) ≈ a
+
+        # The abelian block type carries the split too, so extracting a block commutes with conj
+        # (matching TensorKit): `conj(a[I])` equals `conj(a)[I]`, split and axes preserved. The SU2
+        # blocks take a separate non-abelian conj path, so skip them here.
+        if !startswith(G, "SU2")
+            for I in GradedArrays.eachblockstoredindex(a)
+                @test Array(conj(a[I])) ≈ Array(c[I])
+                @test axes(conj(a[I])) == axes(c[I])
+            end
+        end
+    end
+
+    @testset "block biperm matches parent bipermutedims (fermion split)" begin
+        # A block-level `bipermutedimsopadd!` on a split block must carry the same fermion sign
+        # (permutation braiding plus the codomain/domain bends) that TensorKit applies when the whole
+        # `FusionArray` is bipermuted. Compare each stored block against the corresponding block of
+        # the parent `bipermutedims`, across biperms that move legs across the codomain/domain split.
+        fax =
+            () -> gradedrange([TKS.FermionParity(false) => 1, TKS.FermionParity(true) => 2])
+        for (cod, dom, pc, pd) in (
+                ((fax(), fax()), (fax(),), (3, 1), (2,)),
+                ((fax(), fax()), (fax(),), (2,), (3, 1)),
+                ((fax(), fax()), (fax(),), (), (1, 2, 3)),
+                ((fax(), fax()), (fax(), fax()), (1, 4, 2), (3,)),
+            )
+            fa = randn_fusionarray(ComplexF64, cod, dom)
+            perm = (pc..., pd...)
+            fp = bipermutedims(fa, pc, pd)
+            for I in GradedArrays.eachblockstoredindex(fa)
+                Ip = Block(ntuple(d -> Int(Tuple(I)[perm[d]]), ndims(fa))...)
+                gt = fp[Ip]
+                dest = AbelianSectorArray(similar(data(gt)), sector(gt))
+                TensorAlgebra.bipermutedimsopadd!(
+                    dest,
+                    identity,
+                    fa[I],
+                    pc,
+                    pd,
+                    true,
+                    false
+                )
+                @test Array(dest) ≈ Array(gt)
+                @test axes(dest) == axes(gt)
+            end
+        end
     end
 
     @testset "conj of a rank-0 FusionArray" begin
