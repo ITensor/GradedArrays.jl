@@ -1,6 +1,7 @@
 using BlockArrays: Block, blockedrange
-using GradedArrays: GradedArrays, AbelianSectorArray, Data, FusedGradedMatrix, GradedOneTo,
-    SectorMatrix, U1, data, dual, eachblockstoredindex, gradedrange, sectoraxes, sectors
+using GradedArrays: GradedArrays, Data, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
+    U1, UniqueSectorArray, data, dual, eachblockstoredindex, gradedrange, sectoraxes,
+    sectors
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin
@@ -43,10 +44,10 @@ using Test: @test, @test_throws, @testset
             @test_throws ErrorException (m[Data(1, 2)] = ones(2, 5))
         end
 
-        @testset "Block setindex! with SectorMatrix" begin
+        @testset "Block setindex! with FusedSectorMatrix" begin
             sectors2 = [U1(0), U1(1)]
             m4 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
-            sm = SectorMatrix(7 * ones(2, 3), U1(0))
+            sm = FusedSectorMatrix(7 * ones(2, 3), U1(0))
             m4[Block(1, 1)] = sm
             @test m4.blocks[U1(0)] == 7 * ones(2, 3)
         end
@@ -54,14 +55,14 @@ using Test: @test, @test_throws, @testset
         @testset "Block setindex! verifies sector" begin
             sectors2 = [U1(0), U1(1)]
             m5 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
-            sm_wrong = SectorMatrix(ones(2, 3), U1(2))
+            sm_wrong = FusedSectorMatrix(ones(2, 3), U1(2))
             @test_throws DimensionMismatch (m5[Block(1, 1)] = sm_wrong)
         end
 
         @testset "Block setindex! off-diagonal errors" begin
             sectors2 = [U1(0), U1(1)]
             m6 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
-            sm = SectorMatrix(ones(2, 3), U1(0))
+            sm = FusedSectorMatrix(ones(2, 3), U1(0))
             @test_throws Exception (m6[Block(1, 2)] = sm)
         end
 

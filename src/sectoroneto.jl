@@ -46,9 +46,10 @@ Base.first(::SectorOneTo) = 1
 Base.last(r::SectorOneTo) = length(r)
 Base.length(r::SectorOneTo) = sectorlength(r) * datalength(r)
 
-# sectortype, SymmetryStyle
+# sectortype, FusionStyle
 sectortype(::Type{SectorOneTo{S}}) where {S} = S
-SymmetryStyle(::Type{<:SectorOneTo{S}}) where {S} = SymmetryStyle(S)
+TKS.FusionStyle(r::SectorOneTo) = TKS.FusionStyle(typeof(r))
+TKS.FusionStyle(::Type{<:SectorOneTo{S}}) where {S} = TKS.FusionStyle(S)
 
 # dual, flip, flip_dual
 TensorAlgebra.dual(r::SectorOneTo) = SectorOneTo(dual(sector(r)), datalength(r))
@@ -81,16 +82,16 @@ end
 
 function tensor_product(r1::SectorOneTo, r2::SectorOneTo)
     return tensor_product(
-        combine_styles(SymmetryStyle(r1), SymmetryStyle(r2)), r1, r2
+        TKS.FusionStyle(r1) & TKS.FusionStyle(r2), r1, r2
     )
 end
 
-function tensor_product(::AbelianStyle, r1::SectorOneTo, r2::SectorOneTo)
+function tensor_product(::TKS.UniqueFusion, r1::SectorOneTo, r2::SectorOneTo)
     s = tensor_product(sector(flip_dual(r1)), sector(flip_dual(r2)))
     return SectorOneTo(s, datalength(r1) * datalength(r2))
 end
 
-function tensor_product(::NotAbelianStyle, r1::SectorOneTo, r2::SectorOneTo)
+function tensor_product(::TKS.MultipleFusion, r1::SectorOneTo, r2::SectorOneTo)
     g = tensor_product(sector(flip_dual(r1)), sector(flip_dual(r2)))
     d₁ = datalength(r1)
     d₂ = datalength(r2)

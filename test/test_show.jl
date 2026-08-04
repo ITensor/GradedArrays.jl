@@ -1,7 +1,7 @@
 using BlockArrays: Block
-using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray, Fib,
-    FusedGradedMatrix, GradedOneTo, Ising, O2, SU2, SectorMatrix, SectorOneTo, SectorRange,
-    TrivialSector, U1, Z, dual, gradedrange, ×
+using GradedArrays: GradedArrays, AbelianGradedArray, Fib, FusedGradedMatrix,
+    FusedSectorMatrix, GradedOneTo, Ising, O2, SU2, SectorOneTo, SectorRange, TrivialSector,
+    U1, UniqueSectorArray, Z, dual, gradedrange, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionNumber, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 
@@ -104,24 +104,24 @@ end
     @test !occursin("Irrep", s)
 end
 
-@testset "AbelianSectorArray display shows Kronecker structure" begin
-    sa = AbelianSectorArray([1.0 2.0; 3.0 4.0], (U1(0), dual(U1(1))))
+@testset "UniqueSectorArray display shows Kronecker structure" begin
+    sa = UniqueSectorArray([1.0 2.0; 3.0 4.0], (U1(0), dual(U1(1))))
     s = sprint(show, sa)
     @test occursin("⊗", s)
 
     s_plain = sprint(show, MIME("text/plain"), sa)
     @test occursin("⊗", s_plain)
-    @test occursin("AbelianSectorMatrix", s_plain)
+    @test occursin("UniqueSectorMatrix", s_plain)
 end
 
-@testset "SectorMatrix display shows Kronecker structure" begin
-    sm = SectorMatrix([1.0 2.0; 3.0 4.0], U1(1))
+@testset "FusedSectorMatrix display shows Kronecker structure" begin
+    sm = FusedSectorMatrix([1.0 2.0; 3.0 4.0], U1(1))
     s = sprint(show, sm)
     @test occursin("⊗", s)
 
     s_plain = sprint(show, MIME("text/plain"), sm)
     @test occursin("⊗", s_plain)
-    @test occursin("SectorMatrix", s_plain)
+    @test occursin("FusedSectorMatrix", s_plain)
     @test occursin("U1(1)", s_plain)
 end
 

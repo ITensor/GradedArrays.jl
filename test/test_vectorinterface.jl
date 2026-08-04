@@ -1,6 +1,6 @@
 using BlockArrays: Block
-using GradedArrays: AbelianSectorArray, FusedGradedMatrix, FusedGradedVector, SU2,
-    SectorMatrix, SectorVector, U1, data, gradedrange
+using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix,
+    FusedSectorVector, SU2, U1, UniqueSectorArray, data, gradedrange
 using LinearAlgebra: dot, norm
 using Random: randn!
 using TensorAlgebra: TensorAlgebra
@@ -110,10 +110,13 @@ end
 
 @testset "VectorInterface on sector arrays ($(typeof(a0).name.name))" for (a0, b0) in (
         let s = SU2(1)
-            (SectorMatrix{Float64}(undef, s, 2, 3), SectorMatrix{Float64}(undef, s, 2, 3))
+            (
+                FusedSectorMatrix{Float64}(undef, s, 2, 3),
+                FusedSectorMatrix{Float64}(undef, s, 2, 3),
+            )
         end,
         let s = SU2(1)
-            (SectorVector{Float64}(undef, s, 4), SectorVector{Float64}(undef, s, 4))
+            (FusedSectorVector{Float64}(undef, s, 4), FusedSectorVector{Float64}(undef, s, 4))
         end,
     )
     randn!(a0)
@@ -174,6 +177,6 @@ end
     # corrupting the result, matching `TensorOperations`.
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     b = zeros(Float64, g, g)
-    b[Block(1, 1)] = AbelianSectorArray(randn(Float64, 1, 1), (U1(0), U1(0)))
+    b[Block(1, 1)] = UniqueSectorArray(randn(Float64, 1, 1), (U1(0), U1(0)))
     @test_throws ArgumentError TensorAlgebra.permutedims!(b, b, (2, 1))
 end

@@ -68,7 +68,7 @@ end
 #  Block indexing interface
 #
 #  Concrete subtypes must implement:
-#    view(a::ConcreteType, ::Block{N})  → sector-wrapped view (e.g. SectorMatrix)
+#    view(a::ConcreteType, ::Block{N})  → sector-wrapped view (e.g. FusedSectorMatrix)
 #
 #  Everything else is derived here.
 # ---------------------------------------------------------------------------

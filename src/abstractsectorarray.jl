@@ -4,8 +4,8 @@
 Abstract supertype for data tensors labeled by sector information.
 Concrete subtypes:
 
-  - [`AbelianSectorArray`](@ref): unfused N-D abelian data tensor (one sector per axis)
-  - [`SectorMatrix`](@ref): fused 2D data matrix (one coupled sector label)
+  - [`UniqueSectorArray`](@ref): unfused N-D abelian data tensor (one sector per axis)
+  - [`FusedSectorMatrix`](@ref): fused 2D data matrix (one coupled sector label)
 """
 abstract type AbstractSectorArray{T, S, N} <: AbstractArray{T, N} end
 

@@ -157,25 +157,12 @@ for trait in (
     @eval TKS.$trait(::Type{SectorRange{I}}) where {I} = TKS.$trait(I)
 end
 
-abstract type SymmetryStyle end
-
-struct AbelianStyle <: SymmetryStyle end
-struct NotAbelianStyle <: SymmetryStyle end
-
-SymmetryStyle(x) = SymmetryStyle(typeof(x))
-
-# default SymmetryStyle to AbelianStyle
-# allows for abelian-like slicing style for GradedOneTo: assume length(::label) = 1
-# and preserve labels in any slicing operation
-SymmetryStyle(T::Type) = AbelianStyle()
-function SymmetryStyle(::Type{T}) where {T <: TKS.Sector}
-    return TKS.FusionStyle(T) === TKS.UniqueFusion() ? AbelianStyle() : NotAbelianStyle()
-end
-SymmetryStyle(::Type{SectorRange{I}}) where {I} = SymmetryStyle(I)
-SymmetryStyle(G::Type{<:AbstractUnitRange}) = SymmetryStyle(sectortype(G))
-
-combine_styles(::AbelianStyle, ::AbelianStyle) = AbelianStyle()
-combine_styles(::SymmetryStyle, ::SymmetryStyle) = NotAbelianStyle()
+# `FusionStyle` (from TensorKitSectors) is the symmetry-style trait used throughout:
+# `UniqueFusion()` selects the fast unique-fusion path, and a `MultipleFusion` subtype
+# selects the general path. Fermions stay `UniqueFusion` here because their signs live in
+# the reduced data, so we key off fusion style rather than braiding style. It is defined
+# for `Sector`s upstream and extended above to `SectorRange` (and to the graded range types
+# in their own files); combine two styles with `&`.
 
 function fusion_rule(r1::SectorRange, r2::SectorRange)
     r1′ = flip_dual(r1)

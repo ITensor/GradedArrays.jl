@@ -7,7 +7,7 @@
 # `AbelianBlocks`. A stored entry is `view(parent, Block(I)...)` (shares data); an unstored entry
 # is a symmetry-forbidden block and errors.
 struct FusedGradedMatrixBlocks{T, S, D, A <: FusedGradedMatrix{T, S, D}} <:
-    AbstractSparseMatrix{SectorMatrix{T, S, D}}
+    AbstractSparseMatrix{FusedSectorMatrix{T, S, D}}
     parent::A
 end
 BlockArrays.blocks(m::FusedGradedMatrix) = FusedGradedMatrixBlocks(m)
@@ -59,7 +59,7 @@ end
 # A `FusedGradedVector` allocates one block per axis sector, so its blocks are dense: the view is
 # a plain `AbstractVector` of block views (sharing data), with no forbidden entries.
 struct FusedGradedVectorBlocks{T, S, D, A <: FusedGradedVector{T, S, D}} <:
-    AbstractVector{SectorVector{T, S, D}}
+    AbstractVector{FusedSectorVector{T, S, D}}
     parent::A
 end
 BlockArrays.blocks(v::FusedGradedVector) = FusedGradedVectorBlocks(v)

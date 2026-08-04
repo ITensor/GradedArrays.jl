@@ -1,8 +1,8 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: AbelianGradedArray, AbelianSectorArray, AbelianSectorDelta,
-    SectorProduct, SectorRange, U1, dual, eachblockstoredindex, eachsectoraxis, flip,
-    gradedrange, isdual, sectoraxes, sectors
+using GradedArrays: AbelianGradedArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
+    UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
+    isdual, sectoraxes, sectors
 using Random: randn!
 using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, project,
     unmatricize, unmatricizeperm!, unproject
@@ -55,7 +55,7 @@ function randn_blockdiagonal(elt::Type, axs::Tuple)
         block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
         block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
         block_data = randn!(Array{elt}(undef, block_dims...))
-        a[Block(ntuple(Returns(i), N)...)] = AbelianSectorArray(block_data, block_sectors)
+        a[Block(ntuple(Returns(i), N)...)] = UniqueSectorArray(block_data, block_sectors)
     end
     return a
 end
@@ -96,49 +96,49 @@ end
     # Bosonic (U1): always +1 regardless of permutation
     u0 = SectorRange(TKS.U1Irrep(0))
     u1 = SectorRange(TKS.U1Irrep(1))
-    d_bos = AbelianSectorDelta{Float64}((u0, u1))
+    d_bos = UniqueSectorDelta{Float64}((u0, u1))
     @test fpp(d_bos, (2, 1)) == 1
     @test fpp(d_bos, (1, 2)) == 1
 
     # Even parity only: always +1
-    d_even = AbelianSectorDelta{Float64}((fP0, fP0))
+    d_even = UniqueSectorDelta{Float64}((fP0, fP0))
     @test fpp(d_even, (2, 1)) == 1
     @test fpp(d_even, (1, 2)) == 1
 
     # Two odd sectors: identity = +1, swap = -1
-    d_odd = AbelianSectorDelta{Float64}((fP1, fP1))
+    d_odd = UniqueSectorDelta{Float64}((fP1, fP1))
     @test fpp(d_odd, (1, 2)) == 1
     @test fpp(d_odd, (2, 1)) == -1
 
     # Mixed even/odd: swap gives +1 (only odd-odd pairs contribute)
-    d_mix = AbelianSectorDelta{Float64}((fP0, fP1))
+    d_mix = UniqueSectorDelta{Float64}((fP0, fP1))
     @test fpp(d_mix, (2, 1)) == 1
 
-    d_mix2 = AbelianSectorDelta{Float64}((fP1, fP0))
+    d_mix2 = UniqueSectorDelta{Float64}((fP1, fP0))
     @test fpp(d_mix2, (2, 1)) == 1
 
     # Three odd sectors
-    d3 = AbelianSectorDelta{Float64}((fP1, fP1, fP1))
+    d3 = UniqueSectorDelta{Float64}((fP1, fP1, fP1))
     @test fpp(d3, (1, 2, 3)) == 1
     @test fpp(d3, (2, 3, 1)) == 1
     @test fpp(d3, (2, 1, 3)) == -1
     @test fpp(d3, (3, 2, 1)) == -1
 end
 
-@testset "permutedims on fermionic AbelianSectorArray" begin
+@testset "permutedims on fermionic UniqueSectorArray" begin
     # Two odd sectors: swap picks up -1 phase
-    sa = AbelianSectorArray(fill(3.0, 1, 1), (fP1, fP1))
+    sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
     sp = permutedims(sa, (2, 1))
     @test sp[1, 1] ≈ -3.0
     @test sectoraxes(sp) == (fP1, fP1)
 
     # Two even sectors: swap gives no phase
-    sa_even = AbelianSectorArray(fill(3.0, 1, 1), (fP0, fP0))
+    sa_even = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0))
     sp_even = permutedims(sa_even, (2, 1))
     @test sp_even[1, 1] ≈ 3.0
 
     # Mixed (even, odd): swap gives no phase
-    sa_mix = AbelianSectorArray(fill(3.0, 1, 1), (fP0, fP1))
+    sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
     sp_mix = permutedims(sa_mix, (2, 1))
     @test sp_mix[1, 1] ≈ 3.0
     @test sectoraxes(sp_mix) == (fP1, fP0)
@@ -147,42 +147,42 @@ end
     @test permutedims(permutedims(sa, (2, 1)), (2, 1))[1, 1] ≈ sa[1, 1]
 
     # Three-index: cyclic permutation of 3 odd sectors → even crossings → +1
-    sa3 = AbelianSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1))
+    sa3 = UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1))
     @test permutedims(sa3, (2, 3, 1))[1, 1, 1] ≈ 2.0
     @test permutedims(sa3, (3, 2, 1))[1, 1, 1] ≈ -2.0
     @test permutedims(sa3, (2, 1, 3))[1, 1, 1] ≈ -2.0
 
     # Two odd sectors with non-unit data: verify value propagates
-    sa_val = AbelianSectorArray(fill(7.5, 1, 1), (fP1, fP1))
+    sa_val = UniqueSectorArray(fill(7.5, 1, 1), (fP1, fP1))
     @test permutedims(sa_val, (2, 1))[1, 1] ≈ -7.5
 
     # No phase for bosonic (U1) sectors even though same permutation
     u1 = SectorRange(TKS.U1Irrep(1))
-    sa_u1 = AbelianSectorArray(fill(3.0, 1, 1), (u1, u1))
+    sa_u1 = UniqueSectorArray(fill(3.0, 1, 1), (u1, u1))
     sp_u1 = permutedims(sa_u1, (2, 1))
     @test sp_u1[1, 1] ≈ 3.0
 end
 
-@testset "conj on fermionic AbelianSectorArray" begin
+@testset "conj on fermionic UniqueSectorArray" begin
     # Two odd sectors: reversing 2 odd legs is one odd-odd inversion → -1 phase
-    sa = AbelianSectorArray(fill(3.0, 1, 1), (fP1, fP1))
+    sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
     sc = conj(sa)
     @test sc[1, 1] ≈ -3.0
     @test sectoraxes(sc) == (dual(fP1), dual(fP1))
 
     # Two even sectors: no phase, data just conjugated
-    @test conj(AbelianSectorArray(fill(3.0, 1, 1), (fP0, fP0)))[1, 1] ≈ 3.0
+    @test conj(UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0)))[1, 1] ≈ 3.0
 
     # Mixed (even, odd): single odd leg → no odd-odd inversion → no phase
-    sa_mix = AbelianSectorArray(fill(3.0, 1, 1), (fP0, fP1))
+    sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
     @test conj(sa_mix)[1, 1] ≈ 3.0
     @test sectoraxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
 
     # Three odd sectors: reverse(1,2,3) has 3 odd-odd inversions → odd → -1 phase
-    @test conj(AbelianSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1)))[1, 1, 1] ≈ -2.0
+    @test conj(UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1)))[1, 1, 1] ≈ -2.0
 
     # Complex data: conjugates the data *and* applies the fermionic phase
-    sa_c = AbelianSectorArray(fill(1.0 + 2.0im, 1, 1), (fP1, fP1))
+    sa_c = UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (fP1, fP1))
     @test conj(sa_c)[1, 1] ≈ -(1.0 - 2.0im)
 
     # Involution: conj ∘ conj recovers data and sectors (phase squares to 1)
@@ -191,13 +191,13 @@ end
     @test conj(conj(sa_c))[1, 1] ≈ sa_c[1, 1]
 
     # Mutation safety: conj must not scale the parent block in place
-    sa_mut = AbelianSectorArray(fill(5.0, 1, 1), (fP1, fP1))
+    sa_mut = UniqueSectorArray(fill(5.0, 1, 1), (fP1, fP1))
     conj(sa_mut)
     @test sa_mut[1, 1] ≈ 5.0
 
     # Bosonic (U1) sectors: no fermionic phase, just data conj
     u1 = SectorRange(TKS.U1Irrep(1))
-    @test conj(AbelianSectorArray(fill(1.0 + 2.0im, 1, 1), (u1, u1)))[1, 1] ≈ 1.0 - 2.0im
+    @test conj(UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (u1, u1)))[1, 1] ≈ 1.0 - 2.0im
 end
 
 # `conj` is routed through `conj.`, so a direct `conj.(a) == conj(a)` check is vacuous. The
@@ -205,8 +205,8 @@ end
 # these tests cover what broadcasting adds: composing conj in larger expressions, the graded
 # block loop, axis dualization, and the involution.
 @testset "conj broadcast composes linearly (sector)" begin
-    sa = AbelianSectorArray(fill(1.0 + 2.0im, 1, 1), (fP1, fP1))
-    sb = AbelianSectorArray(fill(3.0 - 1.0im, 1, 1), (fP1, fP1))
+    sa = UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (fP1, fP1))
+    sb = UniqueSectorArray(fill(3.0 - 1.0im, 1, 1), (fP1, fP1))
     cs = conj.(sa) .- conj.(sb) ./ 2
     @test cs[1, 1] ≈ conj.(sa)[1, 1] - conj.(sb)[1, 1] / 2
     @test sectoraxes(cs) == sectoraxes(conj.(sa))
@@ -392,7 +392,7 @@ function const_blockdiagonal(elt::Type, axs::Tuple, vals)
         block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
         block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
         a[Block(ntuple(Returns(i), N)...)] =
-            AbelianSectorArray(fill(elt(v), block_dims...), block_sectors)
+            UniqueSectorArray(fill(elt(v), block_dims...), block_sectors)
     end
     return a
 end

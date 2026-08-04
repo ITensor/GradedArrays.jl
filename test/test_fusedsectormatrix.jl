@@ -1,5 +1,5 @@
-using GradedArrays: GradedArrays, AbelianSectorArray, SU2, SectorIdentity, SectorMatrix,
-    SectorOneTo, SectorRange, SectorVector, U1, data, dataaxes, dual, isdual, sector,
+using GradedArrays: GradedArrays, FusedSectorMatrix, FusedSectorVector, SU2, SectorIdentity,
+    SectorOneTo, SectorRange, U1, UniqueSectorArray, data, dataaxes, dual, isdual, sector,
     sector_kron, sectoraxes, sectortype
 using LinearAlgebra: dot, norm, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
@@ -8,25 +8,25 @@ using StableRNGs: StableRNG
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
-@testset "SectorMatrix" begin
+@testset "FusedSectorMatrix" begin
     @testset "Construction from SectorRange + data" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(d, U1(1))
-        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
+        sm = FusedSectorMatrix(d, U1(1))
+        @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test eltype(sm) == Float64
         @test sectoraxes(sm, 1) == U1(1)
     end
 
     @testset "data and dataaxes" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(d, U1(0))
+        sm = FusedSectorMatrix(d, U1(0))
         @test data(sm) === d
         @test dataaxes(sm) == axes(d)
     end
 
     @testset "sectoraxes" begin
         d = ones(2, 3)
-        sm = SectorMatrix(d, U1(1))
+        sm = FusedSectorMatrix(d, U1(1))
         @test sectoraxes(sm) == (U1(1), conj(U1(1)))
         @test sectoraxes(sm, 1) == U1(1)
         @test sectoraxes(sm, 2) == conj(U1(1))
@@ -34,20 +34,20 @@ using Test: @test, @test_throws, @testset
 
     @testset "sector returns SectorIdentity" begin
         d = ones(2, 3)
-        sm = SectorMatrix(d, U1(1))
+        sm = FusedSectorMatrix(d, U1(1))
         si = sector(sm)
         @test si isa SectorIdentity{Float64, U1}
     end
 
     @testset "sectortype and datatype" begin
-        T = SectorMatrix{Float64, U1, Matrix{Float64}}
+        T = FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test sectortype(T) == U1
         @test GradedArrays.datatype(T) == Matrix{Float64}
     end
 
     @testset "axes returns SectorOneTo (U1, dim=1)" begin
         d = ones(3, 4)
-        sm = SectorMatrix(d, U1(1))
+        sm = FusedSectorMatrix(d, U1(1))
         a1, a2 = axes(sm)
         @test a1 isa SectorOneTo
         @test a2 isa SectorOneTo
@@ -60,7 +60,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "axes returns SectorOneTo (SU2 j=1/2, dim=2)" begin
         d = ones(2, 3)
-        sm = SectorMatrix(d, SU2(1 // 2))
+        sm = FusedSectorMatrix(d, SU2(1 // 2))
         a1, a2 = axes(sm)
         @test length(a1) == 4
         @test length(a2) == 6
@@ -70,7 +70,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "size, getindex, setindex!" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(d, U1(0))
+        sm = FusedSectorMatrix(d, U1(0))
         @test size(sm) == (2, 2)
         @test sm[1, 1] == 1.0
         @test sm[2, 1] == 3.0
@@ -80,7 +80,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "copy" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(d, U1(0))
+        sm = FusedSectorMatrix(d, U1(0))
         sm2 = copy(sm)
         @test sectoraxes(sm2) == sectoraxes(sm)
         @test data(sm2) ≈ data(sm)
@@ -90,15 +90,15 @@ using Test: @test, @test_throws, @testset
 
     @testset "fill!" begin
         d = [1.0 2.0; 3.0 4.0]
-        sm = SectorMatrix(d, U1(0))
+        sm = FusedSectorMatrix(d, U1(0))
         fill!(sm, 0.0)
         @test all(iszero, data(sm))
     end
 
     @testset "convert" begin
         d = [1 2; 3 4]
-        sm = SectorMatrix(d, U1(0))
-        T = SectorMatrix{Float64, U1, Matrix{Float64}}
+        sm = FusedSectorMatrix(d, U1(0))
+        T = FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         sm2 = convert(T, sm)
         @test eltype(sm2) == Float64
         @test sm2[1, 1] === 1.0
@@ -106,28 +106,28 @@ using Test: @test, @test_throws, @testset
 
     @testset "isdual via axes" begin
         d = ones(2, 3)
-        sm = SectorMatrix(d, U1(1))
+        sm = FusedSectorMatrix(d, U1(1))
         @test isdual(axes(sm, 1)) == false
         @test isdual(axes(sm, 2)) == true
     end
 
-    @testset "sector_kron (SectorIdentity, data) → SectorMatrix" begin
+    @testset "sector_kron (SectorIdentity, data) → FusedSectorMatrix" begin
         si = SectorIdentity{Float64}(U1(1))
         d = [1.0 2.0; 3.0 4.0]
         sm = sector_kron(si, d)
-        @test sm isa SectorMatrix
+        @test sm isa FusedSectorMatrix
         @test sectoraxes(sm, 1) == U1(1)
         @test data(sm) === d
     end
 
     @testset "broadcasting (data-wise, keeps sector)" begin
-        sm = SectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
+        sm = FusedSectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
         r = 2.0 .* sm
-        @test r isa SectorMatrix
+        @test r isa FusedSectorMatrix
         @test sectoraxes(r) == sectoraxes(sm)
         @test data(r) == 2.0 .* data(sm)
         s = sm .+ sm
-        @test s isa SectorMatrix
+        @test s isa FusedSectorMatrix
         @test sectoraxes(s) == sectoraxes(sm)
         @test data(s) == 2.0 .* data(sm)
         @test_throws ArgumentError sm .* sm
@@ -138,11 +138,11 @@ using Test: @test, @test_throws, @testset
             ("SU2", SU2(1 // 2)),
         )
         d = randn(ComplexF64, 2, 2)
-        sm = SectorMatrix(d, s)
+        sm = FusedSectorMatrix(d, s)
         rm = real(sm)
         imm = imag(sm)
-        @test rm isa SectorMatrix
-        @test imm isa SectorMatrix
+        @test rm isa FusedSectorMatrix
+        @test imm isa FusedSectorMatrix
         # The structural sector factor is left intact; only the reduced data takes real/imag parts.
         @test sectoraxes(rm) == sectoraxes(sm)
         @test sectoraxes(imm) == sectoraxes(sm)
@@ -153,31 +153,31 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Undef constructor (Int dims)" begin
-        sm = SectorMatrix{Float64}(undef, U1(0), 3, 4)
-        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
+        sm = FusedSectorMatrix{Float64}(undef, U1(0), 3, 4)
+        @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (3, 4)
         @test sectoraxes(sm, 1) == U1(0)
     end
 
     @testset "Undef constructor (AbstractUnitRange dims)" begin
-        sm = SectorMatrix{Float64}(undef, U1(1), Base.OneTo(2), Base.OneTo(5))
-        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
+        sm = FusedSectorMatrix{Float64}(undef, U1(1), Base.OneTo(2), Base.OneTo(5))
+        @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (2, 5)
         @test sectoraxes(sm, 1) == U1(1)
     end
 
     @testset "Undef constructor (fully parameterized)" begin
-        sm = SectorMatrix{Float64, U1, Matrix{Float64}}(
+        sm = FusedSectorMatrix{Float64, U1, Matrix{Float64}}(
             undef, U1(0), Base.OneTo(3), Base.OneTo(4)
         )
-        @test sm isa SectorMatrix{Float64, U1, Matrix{Float64}}
+        @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (3, 4)
     end
 
     @testset "tr — sector quantum dimension times reduced-data trace" begin
         d = [1.0 2.0; 3.0 4.0]
-        @test tr(SectorMatrix(d, U1(0))) == tr(d)         # dim 1
-        @test tr(SectorMatrix(d, SU2(1 // 2))) == 2 * tr(d)  # dim 2
+        @test tr(FusedSectorMatrix(d, U1(0))) == tr(d)         # dim 1
+        @test tr(FusedSectorMatrix(d, SU2(1 // 2))) == 2 * tr(d)  # dim 2
     end
 
     @testset "dot, norm, and dense Array factorize through the structural factor" for s in
@@ -186,8 +186,8 @@ using Test: @test, @test_throws, @testset
             SU2(1 // 2),
             SU2(1),
         )
-        a = SectorMatrix{Float64}(undef, s, 2, 3)
-        b = SectorMatrix{Float64}(undef, s, 2, 3)
+        a = FusedSectorMatrix{Float64}(undef, s, 2, 3)
+        b = FusedSectorMatrix{Float64}(undef, s, 2, 3)
         randn!(a)
         randn!(b)
         # The inner product factorizes into the sector's quantum-dimension weight and the
@@ -198,8 +198,8 @@ using Test: @test, @test_throws, @testset
         # elementwise fallback would scalar-index past the reduced data).
         @test size(Array(a)) == size(a)
 
-        av = SectorVector{Float64}(undef, s, 4)
-        bv = SectorVector{Float64}(undef, s, 4)
+        av = FusedSectorVector{Float64}(undef, s, 4)
+        bv = FusedSectorVector{Float64}(undef, s, 4)
         randn!(av)
         randn!(bv)
         @test dot(av, bv) ≈ length(s) * dot(data(av), data(bv))
@@ -215,9 +215,9 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "scalar indexing requires unique fusion" begin
-        ab = SectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
+        ab = FusedSectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
         @test ab[1, 1] == 1.0
-        na = SectorMatrix{Float64}(undef, SU2(1), 2, 3)
+        na = FusedSectorMatrix{Float64}(undef, SU2(1), 2, 3)
         @test_throws ErrorException na[1, 1]
         @test_throws ErrorException (na[1, 1] = 0.0)
     end
@@ -231,13 +231,14 @@ using Test: @test, @test_throws, @testset
         )
         rng = StableRNG(1234)
 
-        a = randn!(rng, SectorMatrix{Float64}(undef, s, 3, 3))
+        a = randn!(rng, FusedSectorMatrix{Float64}(undef, s, 3, 3))
         d = copy(data(a))
         @test MAK.project_hermitian!(a) === a
         @test data(a) ≈ (d + d') / 2
-        @test Array(a) ≈ (Array(SectorMatrix(d, s)) + Array(SectorMatrix(d, s))') / 2
+        @test Array(a) ≈
+            (Array(FusedSectorMatrix(d, s)) + Array(FusedSectorMatrix(d, s))') / 2
 
-        b = randn!(rng, SectorMatrix{Float64}(undef, s, 3, 3))
+        b = randn!(rng, FusedSectorMatrix{Float64}(undef, s, 3, 3))
         d2 = copy(data(b))
         @test MAK.project_antihermitian!(b) === b
         @test data(b) ≈ (d2 - d2') / 2
