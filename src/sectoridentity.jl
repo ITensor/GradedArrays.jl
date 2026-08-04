@@ -13,6 +13,10 @@ function SectorIdentity{T}(s::S) where {T, S <: SectorRange}
     return SectorIdentity{T, S}(s)
 end
 
+# The fused structural factor is always a coupled-sector matrix: one codomain, one domain leg.
+ndims_codomain(::SectorIdentity) = 1
+ndims_domain(::SectorIdentity) = 1
+
 Base.@propagate_inbounds function Base.getindex(
         A::SectorIdentity{T}, i::Int, j::Int
     ) where {T}

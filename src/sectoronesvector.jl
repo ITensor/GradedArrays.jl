@@ -14,6 +14,10 @@ function SectorOnesVector{T}(s::S) where {T, S <: SectorRange}
     return SectorOnesVector{T, S}(s)
 end
 
+# A single non-dual leg: all codomain, no domain.
+ndims_codomain(::SectorOnesVector) = 1
+ndims_domain(::SectorOnesVector) = 0
+
 Base.@propagate_inbounds function Base.getindex(A::SectorOnesVector{T}, i::Int) where {T}
     @boundscheck checkbounds(A, i)
     return one(T)

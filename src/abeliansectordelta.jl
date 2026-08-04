@@ -18,18 +18,30 @@ struct AbelianSectorDelta{T, S <: SectorRange, N, NC, ND} <: AbstractSectorDelta
     end
 end
 
+# `N` explicit, `NC`/`ND` inferred from the two tuples, so the all-codomain conveniences below spell
+# only the split-free prefix.
+function AbelianSectorDelta{T, S, N}(
+        sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
+    ) where {T, S <: SectorRange, N, NC, ND}
+    return AbelianSectorDelta{T, S, N, NC, ND}(sectors_codomain, sectors_domain)
+end
+
 # Convenience: all-codomain delta, inferring N and S from a flat sector tuple. Requires at
 # least one sector: the sector type of a rank-0 delta cannot be inferred from an empty tuple,
 # so a rank-0 delta is built through the fully-parameterized constructor with an explicit `S`.
 function AbelianSectorDelta{T}(sectors::Tuple{SectorRange, Vararg{SectorRange}}) where {T}
     N = length(sectors)
-    return AbelianSectorDelta{T, eltype(sectors), N, N, 0}(sectors, ())
+    return AbelianSectorDelta{T, eltype(sectors), N}(sectors, ())
 end
 # All-codomain delta from a flat tuple with `S`/`N` given (covers the rank-0 case, whose empty
 # tuple carries no `S`).
 function AbelianSectorDelta{T, S, N}(sectors::NTuple{N, S}) where {T, S <: SectorRange, N}
-    return AbelianSectorDelta{T, S, N, N, 0}(sectors, ())
+    return AbelianSectorDelta{T, S, N}(sectors, ())
 end
+
+# Codomain/domain leg counts, used by the bend-phase bookkeeping in `bipermutedimsopadd!`.
+ndims_codomain(d::AbelianSectorDelta) = length(d.sectors_codomain)
+ndims_domain(d::AbelianSectorDelta) = length(d.sectors_domain)
 
 # ========================  AbstractArray interface  ========================
 
