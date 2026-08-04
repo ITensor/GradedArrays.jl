@@ -45,9 +45,10 @@ BlockArrays.blocklasts(g::GradedOneTo) = cumsum(blocklengths(g))
 BlockArrays.blocklength(g::GradedOneTo) = length(g.sectors)
 BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
 
-# sectortype, SymmetryStyle
+# sectortype, FusionStyle
 sectortype(::Type{GradedOneTo{S}}) where {S} = S
-SymmetryStyle(::Type{<:GradedOneTo{S}}) where {S} = SymmetryStyle(S)
+TKS.FusionStyle(g::GradedOneTo) = TKS.FusionStyle(typeof(g))
+TKS.FusionStyle(::Type{<:GradedOneTo{S}}) where {S} = TKS.FusionStyle(S)
 
 # blocklengths: total length of each block (length(sector) * multiplicity)
 function BlockArrays.blocklengths(g::GradedOneTo)
@@ -300,7 +301,7 @@ for S in (:(TKS.Sector), :SectorRange)
         @static if graded_backend == "fusion"
             return gradedrange(space)
         else
-            return if SymmetryStyle(K) === AbelianStyle()
+            return if TKS.FusionStyle(K) === TKS.UniqueFusion()
                 gradedrange(space)
             else
                 to_tensorkit_space(space)

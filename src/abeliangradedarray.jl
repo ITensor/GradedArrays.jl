@@ -9,7 +9,7 @@ A graded array that stores non-zero blocks in a dictionary keyed by block indice
 Each axis is a [`GradedOneTo`](@ref) carrying sectors, sector lengths, and a dual flag.
 
 Blocks are stored as plain dense arrays of type `D` (default `Array{T,N}`).
-Accessing a block via `a[Block(i,j)]` returns a [`AbelianSectorArray`](@ref) wrapping the data
+Accessing a block via `a[Block(i,j)]` returns a [`UniqueSectorArray`](@ref) wrapping the data
 with the appropriate sectors.
 """
 struct AbelianGradedArray{T, S <: SectorRange, N, D <: AbstractArray{T, N}} <:
@@ -82,15 +82,15 @@ Base.axes(a::AbelianGradedArray) = a.axes
 function blocktype(
         ::Type{<:AbelianGradedArray{T, S, N, D}}
     ) where {T, S, N, D}
-    return AbelianSectorArray{T, S, N, N, 0, D}
+    return UniqueSectorArray{T, S, N, N, 0, D}
 end
 blocktype(a::AbelianGradedArray) = blocktype(typeof(a))
 
 # ---------------------------------------------------------------------------
-#  view (primitive): returns AbelianSectorArray sharing data with blockdata
+#  view (primitive): returns UniqueSectorArray sharing data with blockdata
 # ---------------------------------------------------------------------------
 
-# Shared implementation: build the `AbelianSectorArray` view for a stored block.
+# Shared implementation: build the `UniqueSectorArray` view for a stored block.
 # Construct through `blocktype(a)` so the sector type `S` comes from the parent rather
 # than being inferred from `sects`, which is empty (and so carries no `S`) for a rank-0
 # array.
@@ -130,7 +130,7 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    AbelianBlocks{T,N,A<:AbelianGradedArray{T,<:Any,N}} <: AbstractSparseArray{AbelianSectorArray,N}
+    AbelianBlocks{T,N,A<:AbelianGradedArray{T,<:Any,N}} <: AbstractSparseArray{UniqueSectorArray,N}
 
 Lazy view of an `AbelianGradedArray`'s block storage as an `AbstractSparseArray` whose
 stored entries are the parent's allowed, allocated blocks. Following the BlockArrays
@@ -139,7 +139,7 @@ is a fresh zero block. Being an `AbstractSparseArray` means generic `zero!`, `ma
 offset range-assignment used by the concatenation machinery visit only the stored blocks.
 """
 struct AbelianBlocks{T, N, A <: AbelianGradedArray{T, <:Any, N}} <:
-    AbstractSparseArray{AbelianSectorArray, N}
+    AbstractSparseArray{UniqueSectorArray, N}
     parent::A
 end
 
@@ -1007,7 +1007,7 @@ end
 # spanning the whole slice axis, which the per-slice reading cannot express, so it is derived
 # through the `TensorMap` path over the equivalent `ElementarySpace`s and converted back.
 function infer_aux_space_graded(raw, codomain_axes, domain_axes)
-    if SymmetryStyle(first((codomain_axes..., domain_axes...))) isa AbelianStyle
+    if TKS.FusionStyle(first((codomain_axes..., domain_axes...))) isa TKS.UniqueFusion
         return infer_aux_space_abelian(raw, codomain_axes, domain_axes)
     end
     aux = TA.infer_aux_space(

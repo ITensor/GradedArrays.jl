@@ -1,6 +1,6 @@
 using BlockArrays: Block, blocklengths
-using GradedArrays: GradedArrays, AbelianSectorArray, FusedGradedMatrix, FusionArray, SU2,
-    SectorRange, U1, Z2, data, dual, gradedrange, isdual, ndims_codomain, ndims_domain,
+using GradedArrays: GradedArrays, FusedGradedMatrix, FusionArray, SU2, SectorRange, U1,
+    UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain, ndims_domain,
     sector
 using LinearAlgebra: Diagonal
 using Random: randn!
@@ -241,7 +241,7 @@ end
             for I in GradedArrays.eachblockstoredindex(fa)
                 Ip = Block(ntuple(d -> Int(Tuple(I)[perm[d]]), ndims(fa))...)
                 gt = fp[Ip]
-                dest = AbelianSectorArray(similar(data(gt)), sector(gt))
+                dest = UniqueSectorArray(similar(data(gt)), sector(gt))
                 TensorAlgebra.bipermutedimsopadd!(
                     dest,
                     identity,

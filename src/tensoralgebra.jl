@@ -188,7 +188,7 @@ end
 # one-dimensional, so the structural sector-delta factor is an identity selection).
 # Wrapping it as a `StridedView` of its data lets it flow through the generic strided
 # permute-add path when the other operand is a plain dense array.
-StridedViews.StridedView(a::AbelianSectorArray) = StridedViews.StridedView(data(a))
+StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a))
 
 function TensorAlgebra.bipermutedimsopadd!(
         y::AbstractGradedArray{<:Any, <:Any, N}, op, x::AbstractGradedArray{<:Any, <:Any, N},
@@ -232,11 +232,11 @@ end
 # Fermionic contractions need the second (right) factor's contracted legs twisted before
 # matricization, so the result does not depend on contraction order. This rides on
 # TensorAlgebra v0.10's per-position fusion styles: `default_contract_algorithm` puts
-# `TwistedSectorFusion` on the right factor only, and its `matricizeopperm` inserts the twist
+# `TwistedSectorMatricize` on the right factor only, and its `matricizeopperm` inserts the twist
 # between the permute and the matricize. The twist is a no-op for bosonic sectors.
 
 """
-    contraction_twist!(a::AbelianSectorArray, ndims_codomain::Int) -> a
+    contraction_twist!(a::UniqueSectorArray, ndims_codomain::Int) -> a
 
 Apply the twist convention for the supertrace formalism of fermionic contractions.
 This means that ``⟨i| ⋅ |j⟩ = δᵢⱼ``, and ``|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ``.
@@ -276,18 +276,22 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-# Twist only the right factor; the left factor and the output use plain `SectorFusion`.
+# Twist only the right factor; the left factor and the output use plain `SectorMatricize`.
 function TensorAlgebra.default_contract_algorithm(
         ::Type{<:AbstractGradedArray}, ::Type{<:AbstractGradedArray}
     )
-    return TensorAlgebra.Matricize(SectorFusion(), TwistedSectorFusion(), SectorFusion())
+    return TensorAlgebra.Matricize(
+        SectorMatricize(),
+        TwistedSectorMatricize(),
+        SectorMatricize()
+    )
 end
 
 function TensorAlgebra.matricizeopperm(
-        ::TwistedSectorFusion, op, a::AbstractArray,
+        ::TwistedSectorMatricize, op, a::AbstractArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     )
     a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
     contraction_twist!(a_perm, length(perm_codomain))
-    return matricize(SectorFusion(), a_perm, Val(length(perm_codomain)))
+    return matricize(SectorMatricize(), a_perm, Val(length(perm_codomain)))
 end

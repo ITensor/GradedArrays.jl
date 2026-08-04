@@ -1,14 +1,14 @@
-struct SectorFusion <: FusionStyle end
+struct SectorMatricize <: MatricizeStyle end
 
-# Fusion style for the right factor of a fermionic contraction: matricize as `SectorFusion`
+# Matricize style for the right factor of a fermionic contraction: matricize as `SectorMatricize`
 # after twisting the contracted legs (see `contraction_twist!`). A no-op twist for bosonic
-# sectors, so it matricizes identically to `SectorFusion` there.
-struct TwistedSectorFusion <: FusionStyle end
+# sectors, so it matricizes identically to `SectorMatricize` there.
+struct TwistedSectorMatricize <: MatricizeStyle end
 
-TensorAlgebra.FusionStyle(::Type{<:AbstractSectorDelta}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:AbstractSectorArray}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:AbstractGradedArray}) = SectorFusion()
-TensorAlgebra.FusionStyle(::Type{<:SectorOneTo}) = SectorFusion()
+TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorDelta}) = SectorMatricize()
+TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorArray}) = SectorMatricize()
+TensorAlgebra.MatricizeStyle(::Type{<:AbstractGradedArray}) = SectorMatricize()
+TensorAlgebra.MatricizeStyle(::Type{<:SectorOneTo}) = SectorMatricize()
 
 # ========================  trivial_gradedrange  ========================
 
@@ -39,10 +39,10 @@ function unmerged_matricize_axes(
     return ax_codomain, ax_domain
 end
 
-# ========================  AbelianSectorDelta matricize  ========================
+# ========================  UniqueSectorDelta matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbelianSectorDelta, ndims_codomain::Val{Ncodomain}
+        ::SectorMatricize, a::UniqueSectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
     ax_codomain = first(bipartition(axes(a), ndims_codomain))
     ax_codomain =
@@ -50,23 +50,23 @@ function TensorAlgebra.matricize(
     return SectorIdentity{eltype(a)}(ax_codomain)
 end
 
-# ========================  AbelianSectorArray matricize  ========================
+# ========================  UniqueSectorArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbelianSectorArray, ndims_codomain::Val{K}
+        ::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val{K}
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))
     adata_reshaped = matricize(data(a), Val(K))
     return sector_kron(asectors_reshaped, adata_reshaped)
 end
 
-# ========================  SectorFusion AbelianGradedArray matricize  ========================
+# ========================  SectorMatricize AbelianGradedArray matricize  ========================
 
 function TensorAlgebra.matricize(
-        ::SectorFusion, a::AbelianGradedArray{<:Any, <:Any, N}, ::Val{K}
+        ::SectorMatricize, a::AbelianGradedArray{<:Any, <:Any, N}, ::Val{K}
     ) where {N, K}
     return TensorAlgebra.matricizeopperm(
-        SectorFusion(), identity, a, ntuple(identity, Val(K)),
+        SectorMatricize(), identity, a, ntuple(identity, Val(K)),
         ntuple(i -> K + i, Val(N - K))
     )
 end
@@ -112,7 +112,7 @@ end
 # `op` transforms the fused axes (`conj` dualizes them), and each stored block is scattered
 # straight into its coupled-sector matrix slice, carrying `op` and the block's fermion sign.
 function TensorAlgebra.matricizeopperm(
-        ::SectorFusion, op, a::AbelianGradedArray{T, <:Any, N},
+        ::SectorMatricize, op, a::AbelianGradedArray{T, <:Any, N},
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     ) where {T, N}
     K = length(perm_codomain)
@@ -161,18 +161,18 @@ end
 # `unmatricize` receives the domain axes codomain-facing (un-dualized); a graded array stores
 # them dualized, so `conj` re-dualizes them before they are placed.
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::AbstractSectorDelta,
+        ::SectorMatricize, m::AbstractSectorDelta,
         codomain_axes::Tuple{Vararg{SectorRange}},
         domain_axes::Tuple{Vararg{SectorRange}}
     )
-    return AbelianSectorDelta{eltype(m)}((codomain_axes..., conj.(domain_axes)...))
+    return UniqueSectorDelta{eltype(m)}((codomain_axes..., conj.(domain_axes)...))
 end
 
-# Unmatricize a 2D sector array back to an N-D AbelianSectorArray. The
+# Unmatricize a 2D sector array back to an N-D UniqueSectorArray. The
 # codomain/domain axes must be SectorOneTo (carrying multiplicity info).
-# Works for both AbelianSectorMatrix and SectorMatrix.
+# Works for both UniqueSectorMatrix and FusedSectorMatrix.
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::AbstractSectorArray{<:Any, <:Any, 2},
+        ::SectorMatricize, m::AbstractSectorArray{<:Any, <:Any, 2},
         codomain_axes::Tuple{Vararg{SectorOneTo}},
         domain_axes::Tuple{Vararg{SectorOneTo}}
     )
@@ -186,13 +186,13 @@ function TensorAlgebra.unmatricize(
         data.(codomain_axes),
         data.(domain_axes)
     )
-    return AbelianSectorArray(mdata, msectors)
+    return UniqueSectorArray(mdata, msectors)
 end
 
-# ========================  SectorFusion FusedGradedMatrix unmatricize  ========================
+# ========================  SectorMatricize FusedGradedMatrix unmatricize  ========================
 
 function TensorAlgebra.unmatricize(
-        ::SectorFusion, m::FusedGradedMatrix,
+        ::SectorMatricize, m::FusedGradedMatrix,
         codomain_axes::Tuple{Vararg{GradedOneTo}},
         domain_axes::Tuple{Vararg{GradedOneTo}}
     )
@@ -200,7 +200,7 @@ function TensorAlgebra.unmatricize(
     N = K + length(domain_axes)
     a = TA.similar_map(m, codomain_axes, domain_axes)
     return TensorAlgebra.unmatricizeperm!(
-        SectorFusion(), a, m, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
+        SectorMatricize(), a, m, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
     )
 end
 
@@ -212,7 +212,7 @@ end
 # codomain/domain-order block shape, and permutes back to destination order, carrying the
 # block's fermion sign.
 function TensorAlgebra.unmatricizeperm!(
-        ::SectorFusion, a_dest::AbelianGradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
+        ::SectorMatricize, a_dest::AbelianGradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
     ) where {N}
     K = length(invperm_codomain)
@@ -247,7 +247,7 @@ function TensorAlgebra.unmatricizeperm!(
             ntuple(d -> eachsectoraxis(axes(a_dest)[cd_leg[d]])[dest_bk[cd_leg[d]]], Val(N))
         # The block's fermion sign takes `S` from the input: `cd_sects` is empty for a rank-0
         # destination (a full contraction to a scalar) and so carries no `S`.
-        cd_delta = AbelianSectorDelta{eltype(slice), S, N}(cd_sects)
+        cd_delta = UniqueSectorDelta{eltype(slice), S, N}(cd_sects)
         phase =
             fermion_permutation_phase(identity, cd_delta, invperm(perm_dest)) *
             fermion_bend_phase(cd_delta, ntuple(i -> K + i, Val(N - K)))
@@ -260,7 +260,7 @@ end
 
 function allowedblocks(axs::NTuple{N, GradedOneTo}) where {N}
     N == 0 && return Block{0, Int}[Block()]
-    @assert SymmetryStyle(sectortype(eltype(axs))) === AbelianStyle()
+    @assert TKS.FusionStyle(sectortype(eltype(axs))) === TKS.UniqueFusion()
     unfused = reduce(axs; init = trivial_gradedrange(axs)) do ax1, ax2
         return unmerged_tensor_product(ax1, ax2)
     end

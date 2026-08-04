@@ -1,26 +1,26 @@
-using GradedArrays: GradedArrays, AbelianSectorArray, AbelianSectorDelta,
-    AbelianSectorMatrix, AbelianSectorVector, SU2, SectorOneTo, SectorRange, U1, data, dual,
-    isdual, sector, sector_kron, sectoraxes, sectortype
+using GradedArrays: GradedArrays, SU2, SectorOneTo, SectorRange, U1, UniqueSectorArray,
+    UniqueSectorDelta, UniqueSectorMatrix, UniqueSectorVector, data, dual, isdual, sector,
+    sector_kron, sectoraxes, sectortype
 using LinearAlgebra: tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
-@testset "AbelianSectorArray" begin
+@testset "UniqueSectorArray" begin
     @testset "Construction from SectorRange tuples" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray(data, (U1(1), conj(U1(-1))))
-        @test sa isa AbelianSectorArray{Float64, U1, 2, <:Any, <:Any, Matrix{Float64}}
+        sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
+        @test sa isa UniqueSectorArray{Float64, U1, 2, <:Any, <:Any, Matrix{Float64}}
         @test sa isa AbstractArray{Float64, 2}
     end
 
     @testset "Construction with dual sectors" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray(data, (U1(1), conj(U1(-1))))
+        sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
         @test sectoraxes(sa) == (U1(1), conj(U1(-1)))
     end
 
     @testset "Undef constructor (SectorOneTo)" begin
-        sa = AbelianSectorArray{Float64}(
+        sa = UniqueSectorArray{Float64}(
             undef,
             (SectorOneTo(U1(0), 3), SectorOneTo(U1(1), 4))
         )
@@ -31,7 +31,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "Primitive accessors" begin
         data = ones(2, 3, 4)
-        sa = AbelianSectorArray(data, (U1(1), conj(U1(0)), U1(-1)))
+        sa = UniqueSectorArray(data, (U1(1), conj(U1(0)), U1(-1)))
 
         @test sectoraxes(sa) == (U1(1), conj(U1(0)), U1(-1))
         @test sectoraxes(sa, 1) == U1(1)
@@ -44,53 +44,53 @@ using Test: @test, @test_throws, @testset
 
     @testset "Derived accessors — sectoraxes" begin
         data = ones(2, 3)
-        sa = AbelianSectorArray(data, (U1(1), conj(U1(-1))))
+        sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
         @test sectoraxes(sa, 1) == U1(1)
         @test sectoraxes(sa, 2) == conj(U1(-1))
         @test sectoraxes(sa) == (U1(1), conj(U1(-1)))
     end
 
-    @testset "sector(::AbelianSectorArray) returns AbelianSectorDelta" begin
+    @testset "sector(::UniqueSectorArray) returns UniqueSectorDelta" begin
         data = ones(2, 3)
-        sa = AbelianSectorArray(data, (U1(1), conj(U1(-1))))
+        sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
         sd = sector(sa)
-        @test sd isa AbelianSectorDelta{Float64, U1, 2}
+        @test sd isa UniqueSectorDelta{Float64, U1, 2}
         @test axes(sd) == sectoraxes(sa)
     end
 
     @testset "sectortype" begin
         data = ones(2, 2)
-        sa = AbelianSectorArray(data, (U1(1), U1(0)))
+        sa = UniqueSectorArray(data, (U1(1), U1(0)))
         @test sectortype(typeof(sa)) == U1
     end
 
     @testset "rank-0 (scalar) array" begin
         # A rank-0 array has an empty `sectors` tuple, so `sector` and the delta/data
         # constructor take the sector type from the type rather than inferring it.
-        sa = AbelianSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(fill(2.0), (), ())
+        sa = UniqueSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(fill(2.0), (), ())
         @test ndims(sa) == 0
         @test sectortype(sa) === U1
         @test sa[] == 2.0
 
         sd = sector(sa)
-        @test sd isa AbelianSectorDelta{Float64, U1, 0}
+        @test sd isa UniqueSectorDelta{Float64, U1, 0}
         @test sectortype(sd) === U1
 
-        rebuilt = AbelianSectorArray(fill(5.0), sd)
+        rebuilt = UniqueSectorArray(fill(5.0), sd)
         @test rebuilt isa
-            AbelianSectorArray{Float64, U1, 0, <:Any, <:Any, Array{Float64, 0}}
+            UniqueSectorArray{Float64, U1, 0, <:Any, <:Any, Array{Float64, 0}}
         @test rebuilt[] == 5.0
 
         # The convenience constructors infer `S` from the axes/sectors, which is
         # impossible for an empty tuple, so they require at least one; a rank-0 value
         # uses the fully-parameterized form above.
-        @test_throws MethodError AbelianSectorArray{Float64}(undef, ())
-        @test_throws MethodError AbelianSectorDelta{Float64}(())
+        @test_throws MethodError UniqueSectorArray{Float64}(undef, ())
+        @test_throws MethodError UniqueSectorDelta{Float64}(())
     end
 
     @testset "AbstractArray interface — size, getindex, setindex!" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray(data, (U1(1), U1(0)))
+        sa = UniqueSectorArray(data, (U1(1), U1(0)))
         @test size(sa) == (2, 2)
         @test sa[1, 1] == 1.0
         @test sa[2, 1] == 3.0
@@ -103,7 +103,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "copy" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray(data, (U1(1), U1(0)))
+        sa = UniqueSectorArray(data, (U1(1), U1(0)))
         sa2 = copy(sa)
         @test sa2[1, 1] == sa[1, 1]
         @test sectoraxes(sa2) == sectoraxes(sa)
@@ -114,36 +114,36 @@ using Test: @test, @test_throws, @testset
 
     @testset "convert" begin
         data = [1 2; 3 4]
-        sa = AbelianSectorArray(data, (U1(0), U1(1)))
-        T = AbelianSectorArray{Float64, U1, 2, 2, 0, Matrix{Float64}}
+        sa = UniqueSectorArray(data, (U1(0), U1(1)))
+        T = UniqueSectorArray{Float64, U1, 2, 2, 0, Matrix{Float64}}
         sa2 = convert(T, sa)
         @test eltype(sa2) == Float64
         @test sa2[1, 1] === 1.0
     end
 
-    @testset "AbelianSectorMatrix alias" begin
+    @testset "UniqueSectorMatrix alias" begin
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray(data, (U1(1), U1(0)))
-        @test sa isa AbelianSectorMatrix
+        sa = UniqueSectorArray(data, (U1(1), U1(0)))
+        @test sa isa UniqueSectorMatrix
     end
 
-    @testset "AbelianSectorVector alias" begin
+    @testset "UniqueSectorVector alias" begin
         data = [1.0, 2.0, 3.0]
-        sa = AbelianSectorArray(data, (U1(1),))
-        @test sa isa AbelianSectorVector
+        sa = UniqueSectorArray(data, (U1(1),))
+        @test sa isa UniqueSectorVector
     end
 
-    @testset "1D AbelianSectorArray" begin
+    @testset "1D UniqueSectorArray" begin
         data = [1.0, 2.0, 3.0]
-        sa = AbelianSectorArray(data, (U1(1),))
+        sa = UniqueSectorArray(data, (U1(1),))
         @test size(sa) == (3,)
         @test sa[2] == 2.0
         @test ndims(sa) == 1
     end
 
-    @testset "3D AbelianSectorArray" begin
+    @testset "3D UniqueSectorArray" begin
         data = ones(2, 3, 4)
-        sa = AbelianSectorArray(data, (U1(1), conj(U1(0)), U1(-1)))
+        sa = UniqueSectorArray(data, (U1(1), conj(U1(0)), U1(-1)))
         @test size(sa) == (2, 3, 4)
         @test ndims(sa) == 3
         @test sa[1, 2, 3] == 1.0
@@ -151,7 +151,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "permutedims" begin
         data = [1.0 2.0 3.0; 4.0 5.0 6.0]
-        sa = AbelianSectorArray(data, (U1(1), conj(U1(0))))
+        sa = UniqueSectorArray(data, (U1(1), conj(U1(0))))
         sa_perm = permutedims(sa, (2, 1))
         @test size(sa_perm) == (3, 2)
         @test sectoraxes(sa_perm) == (conj(U1(0)), U1(1))
@@ -164,34 +164,34 @@ using Test: @test, @test_throws, @testset
         a_data = [1.0 2.0; 3.0 4.0]
         b_data = [5.0 6.0; 7.0 8.0]
         c_data = zeros(2, 2)
-        a = AbelianSectorArray(a_data, (U1(0), U1(1)))
-        b = AbelianSectorArray(b_data, (conj(U1(1)), U1(0)))
-        c = AbelianSectorArray(c_data, (U1(0), U1(0)))
+        a = UniqueSectorArray(a_data, (U1(0), U1(1)))
+        b = UniqueSectorArray(b_data, (conj(U1(1)), U1(0)))
+        c = UniqueSectorArray(c_data, (U1(0), U1(0)))
         mul!(c, a, b, 1.0, 0.0)
         @test data(c) ≈ a_data * b_data
     end
 
-    @testset "TensorAlgebra.add! (AbelianSectorArray to AbelianSectorArray)" begin
+    @testset "TensorAlgebra.add! (UniqueSectorArray to UniqueSectorArray)" begin
         using TensorAlgebra: TensorAlgebra
         data1 = [1.0 2.0; 3.0 4.0]
         data2 = [10.0 20.0; 30.0 40.0]
-        sa1 = AbelianSectorArray(data1, (U1(0), U1(1)))
-        sa2 = AbelianSectorArray(data2, (U1(0), U1(1)))
+        sa1 = UniqueSectorArray(data1, (U1(0), U1(1)))
+        sa2 = UniqueSectorArray(data2, (U1(0), U1(1)))
         TensorAlgebra.add!(sa1, sa2, 2.0, 1.0)
         @test data(sa1) ≈ [21.0 42.0; 63.0 84.0]
     end
 
-    @testset "TensorAlgebra.add! (AbelianSectorArray to plain Array)" begin
+    @testset "TensorAlgebra.add! (UniqueSectorArray to plain Array)" begin
         using TensorAlgebra: TensorAlgebra
         dest = zeros(2, 2)
         data = [1.0 2.0; 3.0 4.0]
-        sa = AbelianSectorArray(data, (U1(0), U1(1)))
+        sa = UniqueSectorArray(data, (U1(0), U1(1)))
         TensorAlgebra.add!(dest, sa, 3.0, 0.0)
         @test dest ≈ [3.0 6.0; 9.0 12.0]
     end
 
     @testset "fill! abelian" begin
-        sa = AbelianSectorArray([1.0 2.0; 3.0 4.0], (U1(0), dual(U1(0))))
+        sa = UniqueSectorArray([1.0 2.0; 3.0 4.0], (U1(0), dual(U1(0))))
         fill!(sa, 7.0)
         @test all(==(7.0), data(sa))
 
@@ -202,7 +202,7 @@ using Test: @test, @test_throws, @testset
     @testset "fill! non-abelian sets the reduced data" begin
         # `fill!` is a shorthand for setting the symmetry-allowed (reduced) values, like `rand!`, so
         # it fills the reduced data even for a non-abelian sector (it is not a dense-array fill).
-        sa = AbelianSectorArray(ones(2, 2), (SU2(1 // 2), dual(SU2(1 // 2))))
+        sa = UniqueSectorArray(ones(2, 2), (SU2(1 // 2), dual(SU2(1 // 2))))
         fill!(sa, 3.0)
         @test all(==(3.0), data(sa))
 
@@ -212,18 +212,18 @@ using Test: @test, @test_throws, @testset
 
     @testset "zero!" begin
         using TensorAlgebra: TensorAlgebra
-        sa = AbelianSectorArray([1.0 2.0; 3.0 4.0], (U1(0), dual(U1(0))))
+        sa = UniqueSectorArray([1.0 2.0; 3.0 4.0], (U1(0), dual(U1(0))))
         TensorAlgebra.zero!(sa)
         @test all(iszero, data(sa))
     end
 
     @testset "real / imag (data-wise, keeps sector)" begin
         d = randn(ComplexF64, 2, 2)
-        sa = AbelianSectorArray(d, (U1(1), dual(U1(1))))
+        sa = UniqueSectorArray(d, (U1(1), dual(U1(1))))
         ra = real(sa)
         ia = imag(sa)
-        @test ra isa AbelianSectorArray
-        @test ia isa AbelianSectorArray
+        @test ra isa UniqueSectorArray
+        @test ia isa UniqueSectorArray
         # The structural sector factor is left intact; only the reduced data takes real/imag parts.
         @test sectoraxes(ra) == sectoraxes(sa)
         @test data(ra) == real.(d)
@@ -233,7 +233,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "split block: round-trip, real/imag, eltype independence" begin
         d = randn(ComplexF64, 2, 3)
-        sa = AbelianSectorArray(d, (U1(1),), (U1(1),))   # a genuine (1, 1) split
+        sa = UniqueSectorArray(d, (U1(1),), (U1(1),))   # a genuine (1, 1) split
         sd = sector(sa)
         @test (length(sd.sectors_codomain), length(sd.sectors_domain)) == (1, 1)
         # The domain leg is stored codomain-facing but reads as dual externally.
@@ -251,12 +251,12 @@ using Test: @test, @test_throws, @testset
     end
 end
 
-@testset "AbelianSectorDelta tr — canonical dual ordering" begin
+@testset "UniqueSectorDelta tr — canonical dual ordering" begin
     # Canonical: non-dual first axis paired with its dual as the second.
-    @test tr(AbelianSectorDelta{Float64}((U1(1), dual(U1(1))))) == 1
-    @test tr(AbelianSectorDelta{Float64}((SU2(1 // 2), dual(SU2(1 // 2))))) == 2
+    @test tr(UniqueSectorDelta{Float64}((U1(1), dual(U1(1))))) == 1
+    @test tr(UniqueSectorDelta{Float64}((SU2(1 // 2), dual(SU2(1 // 2))))) == 2
     # Axes not mutually dual.
-    @test_throws ArgumentError tr(AbelianSectorDelta{Float64}((U1(1), U1(1))))
+    @test_throws ArgumentError tr(UniqueSectorDelta{Float64}((U1(1), U1(1))))
     # Mutually dual but dual-first (non-canonical).
-    @test_throws ArgumentError tr(AbelianSectorDelta{Float64}((dual(U1(1)), U1(1))))
+    @test_throws ArgumentError tr(UniqueSectorDelta{Float64}((dual(U1(1)), U1(1))))
 end

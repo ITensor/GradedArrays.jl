@@ -61,7 +61,7 @@ end
 # matricizes, fills the fused matrix with `MAK.one!`, and scatters it back into `a`.
 MAK.one!(a::AbelianGradedMatrix) = TensorAlgebra.one!(a, Val(1))
 
-# Projections on a fused block (`SectorMatrix`)
+# Projections on a fused block (`FusedSectorMatrix`)
 # ---------------------------------------------
 # The hermitian (antihermitian) projection of a fused block reduces to the same projection of
 # its reduced data: by Schur's lemma the block is `I ⊗ data(A)`, with the structural factor
@@ -78,16 +78,20 @@ end
 
 for f! in (:project_hermitian!, :project_antihermitian!)
     @eval function MAK.default_algorithm(
-            ::typeof(MAK.$f!), ::Type{<:SectorMatrix{<:Any, <:Any, D}}; kwargs...
+            ::typeof(MAK.$f!), ::Type{<:FusedSectorMatrix{<:Any, <:Any, D}}; kwargs...
         ) where {D}
         return SectorMatrixAlgorithm(MAK.default_algorithm(MAK.$f!, D; kwargs...))
     end
     @eval function MAK.initialize_output(
-            ::typeof(MAK.$f!), A::SectorMatrix, ::SectorMatrixAlgorithm
+            ::typeof(MAK.$f!), A::FusedSectorMatrix, ::SectorMatrixAlgorithm
         )
         return A
     end
-    @eval function MAK.$f!(A::SectorMatrix, out::SectorMatrix, alg::SectorMatrixAlgorithm)
+    @eval function MAK.$f!(
+            A::FusedSectorMatrix,
+            out::FusedSectorMatrix,
+            alg::SectorMatrixAlgorithm
+        )
         MAK.$f!(data(A), data(out), alg.alg)
         return out
     end
@@ -152,7 +156,7 @@ for f! in (
 end
 
 # Hermitian/antihermitian projection of a fused matrix is the per-block projection of each
-# stored block, reusing the `SectorMatrix` methods above. Both are pure in-place projections
+# stored block, reusing the `FusedSectorMatrix` methods above. Both are pure in-place projections
 # with the same block structure as the input, so they iterate the stored blocks directly.
 for f! in (:project_hermitian!, :project_antihermitian!)
     @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::GradedBlockAlgorithm)

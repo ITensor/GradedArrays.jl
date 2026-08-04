@@ -4,10 +4,10 @@ module GradedArrays
 # -------
 export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
 export SectorRange, SectorOneTo, GradedOneTo
-export AbstractSectorDelta, AbelianSectorDelta, SectorIdentity
+export AbstractSectorDelta, UniqueSectorDelta, SectorIdentity
 export AbstractSectorArray,
-    AbelianSectorArray, AbelianSectorVector, AbelianSectorMatrix,
-    SectorMatrix, SectorVector
+    UniqueSectorArray, UniqueSectorVector, UniqueSectorMatrix,
+    FusedSectorMatrix, FusedSectorVector
 export AbstractGradedArray, AbstractGradedMatrix
 export AbelianGradedArray, AbelianGradedVector, AbelianGradedMatrix
 export FusedGradedMatrix, FusedGradedVector
@@ -30,7 +30,7 @@ using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Preferences: @load_preference, @set_preferences!
 using Random: Random, AbstractRNG, rand!, randn!
 using SparseArraysBase: SparseArraysBase, AbstractSparseArray, AbstractSparseMatrix
-using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, FusionStyle, bipartition,
+using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, MatricizeStyle, bipartition,
     bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear, isdual,
     matricize, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
@@ -57,11 +57,11 @@ include("gradedoneto.jl")
 include("tensorkit.jl")
 include("abstractsectordelta.jl")
 include("abstractsectorarray.jl")
-include("abeliansectordelta.jl")
-include("abeliansectorarray.jl")
+include("uniquesectordelta.jl")
+include("uniquesectorarray.jl")
 include("sectoridentity.jl")
 include("sectoronesvector.jl")
-include("sectormatrix.jl")
+include("fusedsectormatrix.jl")
 include("abstractgradedarray.jl")
 include("abeliangradedarray.jl")
 

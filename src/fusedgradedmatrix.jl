@@ -205,7 +205,7 @@ function BlockArrays.blocklength(m::FusedGradedMatrix, dim::Integer)
 end
 
 function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
-    return SectorMatrix{T, S, D}
+    return FusedSectorMatrix{T, S, D}
 end
 blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 
@@ -231,7 +231,7 @@ function Base.view(m::FusedGradedMatrix, I::Block{2})
     s_dom = gettokenvalue(keys(m.domain), j)
     s_cod == s_dom ||
         error("Off-diagonal access not supported for block-sparse FusedGradedMatrix")
-    return SectorMatrix(m.blocks[s_cod], s_cod)
+    return FusedSectorMatrix(m.blocks[s_cod], s_cod)
 end
 
 # ========================  eachblockstoredindex  ========================

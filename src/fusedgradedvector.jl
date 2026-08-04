@@ -1,22 +1,22 @@
 # ===========================================================================
-#  SectorVector and FusedGradedVector
+#  FusedSectorVector and FusedGradedVector
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-#  SectorVector — single-sector tagged vector (one block of a FusedGradedVector)
+#  FusedSectorVector — single-sector tagged vector (one block of a FusedGradedVector)
 # ---------------------------------------------------------------------------
 
 """
-    SectorVector{T, S<:SectorRange, D<:AbstractVector{T}} <: AbstractSectorArray{T, S, 1}
+    FusedSectorVector{T, S<:SectorRange, D<:AbstractVector{T}} <: AbstractSectorArray{T, S, 1}
 
-A single sector with a data vector. Analogous to [`SectorMatrix`](@ref) but for 1-D data
+A single sector with a data vector. Analogous to [`FusedSectorMatrix`](@ref) but for 1-D data
 (eigenvalues, singular values, etc.). Each element is a symmetry scalar — there is no
 Wigner-Eckart structural factor; the sector label simply identifies which block the values
 belong to.
 
 The stored `SectorRange` is always non-dual (codomain convention).
 """
-struct SectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
+struct FusedSectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, S, 1}
     data::D
     sector::S
@@ -25,58 +25,58 @@ end
 # ---- undef constructors ----
 
 # Innermost: fully parameterized, takes an AbstractUnitRange data axis.
-function SectorVector{T, S, D}(
+function FusedSectorVector{T, S, D}(
         ::UndefInitializer, sector::S, r::AbstractUnitRange
     ) where {T, S <: SectorRange, D <: AbstractVector{T}}
-    return SectorVector{T, S, D}(similar(D, (r,)), sector)
+    return FusedSectorVector{T, S, D}(similar(D, (r,)), sector)
 end
 
 # Convenience: default D = Vector{T}.
-function SectorVector{T}(
+function FusedSectorVector{T}(
         ::UndefInitializer, sector::S, r::AbstractUnitRange
     ) where {T, S <: SectorRange}
-    return SectorVector{T, S, Vector{T}}(undef, sector, r)
+    return FusedSectorVector{T, S, Vector{T}}(undef, sector, r)
 end
 
 # Int convenience: maps to Base.OneTo.
-function SectorVector{T}(::UndefInitializer, sector::SectorRange, n::Int) where {T}
-    return SectorVector{T}(undef, sector, Base.OneTo(n))
+function FusedSectorVector{T}(::UndefInitializer, sector::SectorRange, n::Int) where {T}
+    return FusedSectorVector{T}(undef, sector, Base.OneTo(n))
 end
 
 # ---- accessors ----
 
 # Return the structural delta factor (`SectorOnesVector`, the diagonal of the block's
-# `SectorIdentity`), mirroring `sector(::SectorMatrix)`. The stored `SectorRange` is `sv.sector`.
+# `SectorIdentity`), mirroring `sector(::FusedSectorMatrix)`. The stored `SectorRange` is `sv.sector`.
 # sectoraxes, dataaxes, and axes are derived generically on AbstractSectorArray from sector and data;
-# a `SectorVector`'s single axis is thus a `SectorOneTo` carrying the sector (its `size` is the
+# a `FusedSectorVector`'s single axis is thus a `SectorOneTo` carrying the sector (its `size` is the
 # block's full graded length, not the reduced data length), matching the matrix blocks.
-sector(sv::SectorVector) = SectorOnesVector{eltype(sv)}(sv.sector)
+sector(sv::FusedSectorVector) = SectorOnesVector{eltype(sv)}(sv.sector)
 
-datatype(::Type{SectorVector{T, S, D}}) where {T, S, D} = D
+datatype(::Type{FusedSectorVector{T, S, D}}) where {T, S, D} = D
 
-Base.copy(sv::SectorVector) = SectorVector(copy(data(sv)), sv.sector)
+Base.copy(sv::FusedSectorVector) = FusedSectorVector(copy(data(sv)), sv.sector)
 
-function Base.similar(sv::SectorVector{<:Any, S, <:Any}, ::Type{T}) where {T, S}
+function Base.similar(sv::FusedSectorVector{<:Any, S, <:Any}, ::Type{T}) where {T, S}
     new_data = similar(data(sv), T)
     D = typeof(new_data)
-    return SectorVector{T, S, D}(new_data, sv.sector)
+    return FusedSectorVector{T, S, D}(new_data, sv.sector)
 end
 
 # ---- display ----
 
-function Base.print_array(io::IO, sv::SectorVector)
+function Base.print_array(io::IO, sv::FusedSectorVector)
     print(io, sv.sector, ": ")
     show(io, data(sv))
     return nothing
 end
 
-function Base.show(io::IO, sv::SectorVector)
+function Base.show(io::IO, sv::FusedSectorVector)
     print(io, sv.sector, ": ")
     show(io, data(sv))
     return nothing
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sv::SectorVector)
+function Base.show(io::IO, ::MIME"text/plain", sv::FusedSectorVector)
     summary(io, sv)
     println(io, ":")
     Base.print_array(io, sv)
@@ -216,7 +216,7 @@ end
 BlockArrays.blocklength(v::FusedGradedVector) = length(v.axis)
 
 function blocktype(::Type{<:FusedGradedVector{T, S, D}}) where {T, S, D}
-    return SectorVector{T, S, D}
+    return FusedSectorVector{T, S, D}
 end
 blocktype(v::FusedGradedVector) = blocktype(typeof(v))
 
@@ -255,7 +255,7 @@ function Base.view(v::FusedGradedVector, I::Block{1})
         i in 1:length(v.axis) || throw(BoundsError(v, I))
     end
     s = gettokenvalue(keys(v.axis), i)
-    return SectorVector(v.blocks[s], s)
+    return FusedSectorVector(v.blocks[s], s)
 end
 
 # ========================  eachblockstoredindex  ========================

@@ -1,8 +1,8 @@
 using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
-using GradedArrays: GradedArrays, AbelianGradedArray, AbelianSectorArray,
-    AbstractGradedArray, FusedGradedMatrix, FusedGradedVector, GradedOneTo, SU2,
-    SectorRange, U1, blockstoredlength, data, datalengths, dual, eachblockstoredindex,
+using GradedArrays: GradedArrays, AbelianGradedArray, AbstractGradedArray,
+    FusedGradedMatrix, FusedGradedVector, GradedOneTo, SU2, SectorRange, U1,
+    UniqueSectorArray, blockstoredlength, data, datalengths, dual, eachblockstoredindex,
     gradedrange, isdual, sectoraxes, sectors, sectortype, to_gradedrange
 using LinearAlgebra: LinearAlgebra
 using Random: Random
@@ -55,7 +55,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         a[Block(1, 1)] = data11
 
         blk = a[Block(1, 1)]
-        @test blk isa AbelianSectorArray
+        @test blk isa UniqueSectorArray
         @test data(blk) == data11
         @test sectoraxes(blk) == (U1(0), U1(0))
     end
@@ -78,14 +78,14 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         a[Block(1, 1)] = ones(2, 1)
         blk = a[Block(1, 1)]
-        @test blk isa AbelianSectorArray
+        @test blk isa UniqueSectorArray
         @test all(isone, data(blk))
     end
 
-    @testset "AbelianSectorArray block setindex!" begin
+    @testset "UniqueSectorArray block setindex!" begin
         a = AbelianGradedArray{Float64}(undef, g1, g2)
         # Block (1,1): 2×1
-        sa = AbelianSectorArray(reshape([5.0, 7.0], 2, 1), (U1(0), U1(0)))
+        sa = UniqueSectorArray(reshape([5.0, 7.0], 2, 1), (U1(0), U1(0)))
         a[Block(1, 1)] = sa
         @test data(a[Block(1, 1)]) == reshape([5.0, 7.0], 2, 1)
     end
@@ -219,9 +219,9 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         a[] = 3.5
         @test a[] == 3.5
 
-        # The block view shares data as a rank-0 `AbelianSectorArray`.
+        # The block view shares data as a rank-0 `UniqueSectorArray`.
         v = view(a, Block())
-        @test v isa AbelianSectorArray{Float64, <:Any, 0}
+        @test v isa UniqueSectorArray{Float64, <:Any, 0}
         @test v[] == 3.5
 
         # `similar` with empty axes builds a rank-0 graded array carrying the
@@ -310,29 +310,29 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
     @testset "blocks accessor" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = AbelianGradedArray{Float64}(undef, g, dual(g))
-        a[Block(1, 1)] = AbelianSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
-        a[Block(2, 2)] = AbelianSectorArray(2 * ones(3, 3), (U1(1), dual(U1(1))))
+        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+        a[Block(2, 2)] = UniqueSectorArray(2 * ones(3, 3), (U1(1), dual(U1(1))))
 
         b = BlockArrays.blocks(a)
         @test size(b) == (2, 2)
 
-        # Stored blocks return AbelianSectorArray
+        # Stored blocks return UniqueSectorArray
         b11 = b[1, 1]
-        @test b11 isa AbelianSectorArray
+        @test b11 isa UniqueSectorArray
         @test data(b11) ≈ ones(2, 2)
 
         # Unstored (symmetry-forbidden) blocks error rather than reading back as zero
         @test_throws ErrorException b[1, 2]
 
         # Writing through blocks
-        b[1, 1] = AbelianSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
+        b[1, 1] = UniqueSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
         @test data(a[Block(1, 1)]) ≈ 5 * ones(2, 2)
     end
 
     @testset "fill! and zero!" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = AbelianGradedArray{Float64}(undef, g, dual(g))
-        a[Block(1, 1)] = AbelianSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
 
         # fill!(a, 0) zeros stored blocks in place
         fill!(a, 0)
@@ -344,7 +344,7 @@ const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedAr
         @test all(==(1.0), a.blockdata[(1, 1)])
 
         # zero! zeros stored blocks in place (blocks stay allocated)
-        a[Block(1, 1)] = AbelianSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
         TensorAlgebra.zero!(a)
         @test !isempty(a.blockdata)
         @test all(iszero, a.blockdata[(1, 1)])
@@ -624,14 +624,14 @@ end
 
     # Block-diagonal with each stored block diagonal.
     a = zeros(Float64, g, dual(g))
-    a[Block(1, 1)] = AbelianSectorArray([1.0 0.0; 0.0 2.0], (U1(0), dual(U1(0))))
-    a[Block(2, 2)] = AbelianSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
+    a[Block(1, 1)] = UniqueSectorArray([1.0 0.0; 0.0 2.0], (U1(0), dual(U1(0))))
+    a[Block(2, 2)] = UniqueSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
     @test LinearAlgebra.isdiag(a)
 
     # A non-diagonal stored block breaks it.
     b = zeros(Float64, g, dual(g))
-    b[Block(1, 1)] = AbelianSectorArray([1.0 5.0; 0.0 2.0], (U1(0), dual(U1(0))))
-    b[Block(2, 2)] = AbelianSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
+    b[Block(1, 1)] = UniqueSectorArray([1.0 5.0; 0.0 2.0], (U1(0), dual(U1(0))))
+    b[Block(2, 2)] = UniqueSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
     @test !LinearAlgebra.isdiag(b)
 end
 

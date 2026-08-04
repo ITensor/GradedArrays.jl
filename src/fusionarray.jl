@@ -48,10 +48,10 @@ ndims_codomain(fa::FusionArray) = length(axes_codomain(fa))
 ndims_domain(fa::FusionArray) = length(axes_domain(fa))
 
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
-# matrix directly (see `matricize(::FusionArrayFusionStyle, …)` for re-splitting to another).
+# matrix directly (see `matricize(::FusionArrayMatricizeStyle, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
 
-# Rank aliases (any codomain/domain split), mirroring `AbelianSectorVector`/`AbelianSectorMatrix`.
+# Rank aliases (any codomain/domain split), mirroring `UniqueSectorVector`/`UniqueSectorMatrix`.
 const FusionVector{T, S, NC, ND, M <: FusedGradedMatrix{T, S}} =
     FusionArray{T, S, 1, NC, ND, M}
 const FusionMatrix{T, S, NC, ND, M <: FusedGradedMatrix{T, S}} =
@@ -59,7 +59,7 @@ const FusionMatrix{T, S, NC, ND, M <: FusedGradedMatrix{T, S}} =
 
 # ============================  block indexing (unique fusion)  ============================
 # Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
-# block. The returned `AbelianSectorArray` is a view into the block's strided data, so get/set writes
+# block. The returned `UniqueSectorArray` is a view into the block's strided data, so get/set writes
 # back in place.
 
 function viewblock(
@@ -80,14 +80,14 @@ function viewblock(
     # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
     # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
     # to its `Block[subrange]` in the fused-sorted merged axis.
-    all(is_fused_sorted, axes(a)) && return AbelianSectorArray(blockdata, cod, dom)
+    all(is_fused_sorted, axes(a)) && return UniqueSectorArray(blockdata, cod, dom)
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
             invblockmergeperm(g, sectorsortperm(g), sectormergesort(g))[bk[d]].indices
         )
     end
-    return AbelianSectorArray(view(blockdata, ranges...), cod, dom)
+    return UniqueSectorArray(view(blockdata, ranges...), cod, dom)
 end
 
 Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
@@ -105,13 +105,13 @@ function Base.setindex!(a::FusionArray{<:Any, <:Any, 0}, value)
     return a
 end
 
-# A `FusionArray` block is the same unique-fusion `AbelianSectorArray` the abelian backend returns.
+# A `FusionArray` block is the same unique-fusion `UniqueSectorArray` the abelian backend returns.
 # TODO: derive the block data type from the `FusedGradedMatrix` block type (its `D`) rather than
 # hardcoding `Array{T, N}`, so non-`Array` storage (GPU, etc.) is preserved — e.g. via
 # `Base.promote_op` on `view(A, ::Block)` (the actual returned block type). Also only well-defined
-# for unique fusion (blocks are `AbelianSectorArray` only then); tie it to that guard.
+# for unique fusion (blocks are `UniqueSectorArray` only then); tie it to that guard.
 function blocktype(::Type{<:FusionArray{T, S, N, NC, ND}}) where {T, S, N, NC, ND}
-    return AbelianSectorArray{T, S, N, NC, ND, Array{T, N}}
+    return UniqueSectorArray{T, S, N, NC, ND, Array{T, N}}
 end
 blocktype(a::FusionArray) = blocktype(typeof(a))
 
@@ -128,7 +128,7 @@ end
 # `getindex`/`setindex!` all derive from this generically. A stored entry shares data via `viewblock`;
 # an unstored entry is a symmetry-forbidden block and errors.
 struct FusionArrayBlocks{T, S, N, A <: FusionArray{T, S, N}} <:
-    AbstractSparseArray{AbelianSectorArray{T, S, N}, N}
+    AbstractSparseArray{UniqueSectorArray{T, S, N}, N}
     parent::A
 end
 BlockArrays.blocks(a::FusionArray) = FusionArrayBlocks(a)
@@ -522,9 +522,9 @@ end
 # `FusedGradedMatrix` already has `mul!` and block-wise factorizations, contraction and
 # factorizations ride the generic `TensorAlgebra` machinery with no high-level overloads.
 
-struct FusionArrayFusionStyle <: FusionStyle end
+struct FusionArrayMatricizeStyle <: MatricizeStyle end
 
-TensorAlgebra.FusionStyle(::Type{<:FusionArray}) = FusionArrayFusionStyle()
+TensorAlgebra.MatricizeStyle(::Type{<:FusionArray}) = FusionArrayMatricizeStyle()
 
 # When the requested split matches the stored split this is the stored matrix. Otherwise it is a
 # leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
@@ -533,7 +533,7 @@ TensorAlgebra.FusionStyle(::Type{<:FusionArray}) = FusionArrayFusionStyle()
 # `matricize`. This is what lets a contraction over a subset of legs matricize a factor whose
 # stored split differs.
 function TensorAlgebra.matricize(
-        ::FusionArrayFusionStyle,
+        ::FusionArrayMatricizeStyle,
         fa::FusionArray,
         ::Val{K}
     ) where {K}
@@ -549,22 +549,23 @@ function TensorAlgebra.matricize(
 end
 
 function TensorAlgebra.unmatricize(
-        ::FusionArrayFusionStyle, m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple
+        ::FusionArrayMatricizeStyle, m::FusedGradedMatrix, axes_codomain::Tuple,
+        axes_domain::Tuple
     )
     return FusionArray(m, axes_codomain, axes_domain)
 end
 
-# ============================  contraction (SectorFusion path)  ============================
+# ============================  contraction (SectorMatricize path)  ============================
 # Contraction dispatches through `default_contract_algorithm(::AbstractGradedArray, …)`, which
-# fixes the `SectorFusion`/`TwistedSectorFusion` styles, so a `FusionArray` contraction rides
-# that path rather than `FusionArrayFusionStyle`.
+# fixes the `SectorMatricize`/`TwistedSectorMatricize` styles, so a `FusionArray` contraction rides
+# that path rather than `FusionArrayMatricizeStyle`.
 
-function TensorAlgebra.matricize(::SectorFusion, fa::FusionArray, ndims_cod::Val)
-    return matricize(FusionArrayFusionStyle(), fa, ndims_cod)
+function TensorAlgebra.matricize(::SectorMatricize, fa::FusionArray, ndims_cod::Val)
+    return matricize(FusionArrayMatricizeStyle(), fa, ndims_cod)
 end
 
 function TensorAlgebra.unmatricizeperm!(
-        ::SectorFusion, a_dest::FusionArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
+        ::SectorMatricize, a_dest::FusionArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
     ) where {N}
     # Permute `a_dest` into the matricized leg order to get the matricized-order axes with correct

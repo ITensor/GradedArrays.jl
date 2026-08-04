@@ -4,7 +4,7 @@
 Abstract supertype for structural (Kronecker/identity) tensors associated to sector labels.
 Concrete subtypes:
 
-  - [`AbelianSectorDelta`](@ref): unfused N-D abelian structural tensor (product of Kronecker deltas)
+  - [`UniqueSectorDelta`](@ref): unfused N-D abelian structural tensor (product of Kronecker deltas)
   - [`SectorIdentity`](@ref): fused 2D structural factor (identity matrix per coupled sector)
 """
 abstract type AbstractSectorDelta{T, S, N} <: AbstractArray{T, N} end
