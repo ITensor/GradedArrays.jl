@@ -73,27 +73,3 @@ end
 # ========================  Accessors  ========================
 
 sectoraxes(x, d::Int) = sectoraxes(x)[d]
-
-# ========================  adjoint / broadcasting  ========================
-
-function Base.copy(A::Adjoint{T, <:AbelianSectorDelta{T, <:Any, 2}}) where {T}
-    return AbelianSectorDelta{T}(reverse(dual.(axes(adjoint(A)))))
-end
-function LinearAlgebra.adjoint!(
-        A::AbelianSectorDelta{T, <:Any, 2}, B::AbelianSectorDelta{T, <:Any, 2}
-    ) where {T}
-    reverse(dual.(axes(B))) == axes(A) || throw(DimensionMismatch())
-    return A
-end
-
-# ========================  multiplication  ========================
-
-function Base.:(*)(
-        a::AbelianSectorDelta{T₁, <:Any, 2},
-        b::AbelianSectorDelta{T₂, <:Any, 2}
-    ) where {T₁, T₂}
-    axes(a, 2) == dual(axes(b, 1)) ||
-        throw(DimensionMismatch("$(axes(a, 2)) != dual($(axes(b, 1))))"))
-    T = Base.promote_type(T₁, T₂)
-    return AbelianSectorDelta{T}((axes(a, 1), axes(b, 2)))
-end
