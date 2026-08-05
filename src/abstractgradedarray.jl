@@ -40,7 +40,7 @@ function Base.getindex(a::AbstractGradedArray, I1::Int, I_rest::Vararg{Int})
     require_unique_fusion(a)
     I = (I1, I_rest...)
     @boundscheck checkbounds(a, I...)
-    bis = map(findblockindex, axes(a), I)
+    bis = map(findblockindex, Tuple(axes(a)), I)
     b = Block(map(bi -> Int(block(bi)), bis))
     SparseArraysBase.isstored(a, b) || return zero(eltype(a))
     return view(a, b)[map(blockindex, bis)...]
@@ -49,7 +49,7 @@ function Base.setindex!(a::AbstractGradedArray, v, I1::Int, I_rest::Vararg{Int})
     require_unique_fusion(a)
     I = (I1, I_rest...)
     @boundscheck checkbounds(a, I...)
-    bis = map(findblockindex, axes(a), I)
+    bis = map(findblockindex, Tuple(axes(a)), I)
     b = Block(map(bi -> Int(block(bi)), bis))
     SparseArraysBase.isstored(a, b) ||
         error("cannot set element at $(I): it lies in a symmetry-forbidden block.")
@@ -199,7 +199,7 @@ function summary_typename(type::Type{<:AbstractGradedArray})
 end
 
 function _to_blockarray(a::AbstractGradedArray{T, <:Any, N}) where {T, N}
-    blens = map(blocklengths, axes(a))
+    blens = map(blocklengths, Tuple(axes(a)))
     blockmat = Array{AbstractArray{T, N}, N}(undef, map(length, blens)...)
     # Unstored blocks render as `Zeros` (printed as `⋅`); stored blocks carry their data.
     for I in CartesianIndices(blockmat)

@@ -62,9 +62,9 @@ Base.@propagate_inbounds function Base.getindex(
 end
 
 # The domain sectors are stored codomain-facing (un-dualed), matching how `FusionArray` stores its
-# `axes_domain`; `axes` dualizes them so a domain leg reads as a dual external axis. Still a flat
-# combined tuple for now (the BiTuple axes representation is a separate follow-up).
-Base.axes(A::UniqueSectorDelta) = (A.sectors_codomain..., map(dual, A.sectors_domain)...)
+# `axes_domain`; `axes` returns a `BiTuple` whose domain half is dualized, so a domain leg reads as a
+# dual external axis and the codomain/domain split rides along.
+Base.axes(A::UniqueSectorDelta) = BiTuple(A.sectors_codomain, map(conj, A.sectors_domain))
 
 # Structural inner product: an abelian delta has a single allowed (unique-fusion) unit entry.
 function LinearAlgebra.dot(a::UniqueSectorDelta, b::UniqueSectorDelta)

@@ -13,7 +13,8 @@ export AbelianGradedArray, AbelianGradedVector, AbelianGradedMatrix
 export FusedGradedMatrix, FusedGradedVector
 export GradedBlockAlgorithm
 
-export dual, flip, gradedrange, isdual,
+export codomain, domain,
+    dual, flip, gradedrange, isdual,
     data, dataaxes, dataaxes1, datalength, datalengths,
     eachdataaxis, eachsectoraxis,
     sector, sectoraxes, sectoraxes1, sectorlength, sectorlengths,
@@ -30,9 +31,9 @@ using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Preferences: @load_preference, @set_preferences!
 using Random: Random, AbstractRNG, rand!, randn!
 using SparseArraysBase: SparseArraysBase, AbstractSparseArray, AbstractSparseMatrix
-using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, MatricizeStyle, bipartition,
-    bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear, isdual,
-    matricize, permutedimsadd!, scale!, unmatricize, zero!
+using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, MatricizeStyle,
+    bipartition, bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear,
+    isdual, matricize, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 

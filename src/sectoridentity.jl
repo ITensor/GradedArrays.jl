@@ -25,7 +25,7 @@ Base.@propagate_inbounds function Base.getindex(
 end
 
 function Base.axes(A::SectorIdentity)
-    return (A.sector, dual(A.sector))
+    return BiTuple((A.sector,), (conj(A.sector),))
 end
 
 # Structural inner product: the identity contracts to its dimension, the quantum dimension.

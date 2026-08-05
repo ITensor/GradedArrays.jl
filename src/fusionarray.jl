@@ -39,10 +39,11 @@ end
 axes_codomain(fa::FusionArray) = fa.axes_codomain
 axes_domain(fa::FusionArray) = fa.axes_domain
 
-# Domain axes are stored codomain-facing (TensorKit's `domain` convention); `axes` dualizes them
-# so a domain leg reads as a dual axis, matching TensorKit's `space(t, i)`.
-Base.axes(fa::FusionArray) = (axes_codomain(fa)..., map(dual, axes_domain(fa))...)
-Base.size(fa::FusionArray) = map(length, axes(fa))
+# Domain axes are stored codomain-facing (TensorKit's `domain` convention); `axes` returns a
+# `BiTuple` whose domain half is dualized, so a domain leg reads as a dual axis (matching TensorKit's
+# `space(t, i)`) and the codomain/domain split rides along. `codomain`/`domain` recover the halves.
+Base.axes(fa::FusionArray) = BiTuple(axes_codomain(fa), map(conj, axes_domain(fa)))
+Base.size(fa::FusionArray) = map(length, Tuple(axes(fa)))
 
 ndims_codomain(fa::FusionArray) = length(axes_codomain(fa))
 ndims_domain(fa::FusionArray) = length(axes_domain(fa))
@@ -132,7 +133,7 @@ struct FusionArrayBlocks{T, S, N, A <: FusionArray{T, S, N}} <:
     parent::A
 end
 BlockArrays.blocks(a::FusionArray) = FusionArrayBlocks(a)
-Base.size(b::FusionArrayBlocks) = Tuple(blocklength.(axes(b.parent)))
+Base.size(b::FusionArrayBlocks) = blocklength.(Tuple(axes(b.parent)))
 
 function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
@@ -202,7 +203,7 @@ end
 # whose split is part of its identity). This also avoids Base's element-wise fallback, which would
 # index forbidden blocks.
 function Base.:(==)(a::FusionArray, b::FusionArray)
-    axes(a) == axes(b) || return false
+    Tuple(axes(a)) == Tuple(axes(b)) || return false
     return matricize(a) == matricize(b, Val(ndims_codomain(a)))
 end
 
@@ -211,7 +212,7 @@ end
 # `AbstractGradedArray` fallback that iterates `eachblockstoredindex` (not defined for `FusionArray`)
 # and scalar-indexes. `b` is rematricized to `a`'s split so the coupled blocks line up.
 function LinearAlgebra.dot(a::FusionArray, b::FusionArray)
-    axes(a) == axes(b) ||
+    Tuple(axes(a)) == Tuple(axes(b)) ||
         throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
     ma = matricize(a)
     mb = matricize(b, Val(ndims_codomain(a)))
@@ -477,7 +478,7 @@ end
 # (e.g. GPU arrays). Carry the block data type on `FusionArrayStyle` and use it here, as
 # BlockSparseArrays does for its broadcast style.
 function Base.similar(bc::BC.Broadcasted{<:FusionArrayStyle}, elt::Type)
-    return FusionArray{elt}(undef, axes(flattenlinear(bc)), ())
+    return FusionArray{elt}(undef, Tuple(axes(flattenlinear(bc))), ())
 end
 
 # ============================  bipermutedimsopadd! (permute primitive)  ============================

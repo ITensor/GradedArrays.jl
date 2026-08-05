@@ -12,7 +12,7 @@ abstract type AbstractSectorDelta{T, S, N} <: AbstractArray{T, N} end
 sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
 
 Base.copy(A::AbstractSectorDelta) = A
-Base.size(A::AbstractSectorDelta) = length.(axes(A))
+Base.size(A::AbstractSectorDelta) = map(length, Tuple(axes(A)))
 
 # A 2D structural delta on a diagonal (coupled) block is the identity over the sector, so its
 # trace is the sector's quantum dimension: the length of the diagonal. Only defined in the
@@ -51,7 +51,7 @@ function fermion_permutation_phase(
     @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
     # Each leg contributes its fermion parity to the swap sign; this is fusion-independent, so it
     # holds for non-abelian symmetric-fermionic sectors as well as abelian ones.
-    mask = map(fermionparity, axes(x))
+    mask = map(fermionparity, Tuple(axes(x)))
     return masked_inversion_parity(mask, perm)
 end
 

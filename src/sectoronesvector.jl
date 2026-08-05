@@ -23,7 +23,8 @@ Base.@propagate_inbounds function Base.getindex(A::SectorOnesVector{T}, i::Int) 
     return one(T)
 end
 
-Base.axes(A::SectorOnesVector) = (A.sector,)
+# All codomain, no domain, so the `BiTuple` domain half is empty.
+Base.axes(A::SectorOnesVector) = BiTuple((A.sector,), ())
 
 # Structural inner product: the all-ones vector contracts to its length, the quantum dimension.
 function LinearAlgebra.dot(a::SectorOnesVector, b::SectorOnesVector)

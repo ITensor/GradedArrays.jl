@@ -24,12 +24,24 @@ function sector_kron end
 
 # The axes decompose into the structural sector factor and the reduced data, derived once here from
 # the `sector`/`data` primitives every concrete subtype provides, so no type re-derives them and
-# they cannot drift apart. `size` follows from `axes`.
+# they cannot drift apart. `axes` carries the codomain/domain split as a `BiTuple`: the sector factor
+# supplies the split (its own axes are a `BiTuple`), so bipartition the flat reduced-data axes at the
+# same boundary and pair each with its sector label. `size` is the flat shape.
 sectoraxes(sa::AbstractSectorArray) = axes(sector(sa))
 dataaxes(sa::AbstractSectorArray) = axes(data(sa))
-Base.axes(sa::AbstractSectorArray) = map(SectorOneTo, sectoraxes(sa), dataaxes(sa))
+function Base.axes(sa::AbstractSectorArray)
+    sax = sectoraxes(sa)
+    datacod, datadom = bipartition(dataaxes(sa), Val(length(sax.t1)))
+    return BiTuple(map(SectorOneTo, sax.t1, datacod), map(SectorOneTo, sax.t2, datadom))
+end
 
-Base.size(sa::AbstractSectorArray) = map(length, axes(sa))
+Base.size(sa::AbstractSectorArray) = map(length, Tuple(axes(sa)))
+
+# `axes` on the sector tensors returns a `BiTuple` carrying the codomain/domain split (which the
+# fermion phase bookkeeping needs on every block). The `BiTuple` itself handles the `AbstractArray`
+# index glue (`checkbounds`, `LinearIndices`, `CartesianIndices`) by flattening; `similar` without
+# explicit axes still needs the flat axes here to reach the split-free constructor.
+Base.similar(a::AbstractSectorArray, ::Type{T}) where {T} = similar(a, T, Tuple(axes(a)))
 
 # Scalar indexing reads/writes the reduced data directly, which only coincides with the full array
 # for unique (abelian) fusion, where the structural factor is trivial and `size == size(data)`. For
@@ -56,9 +68,11 @@ end
 
 # Copy between sector arrays, including across the unfused/fused representations (e.g. writing
 # a block into a graded array). The axes carry the sector labels, so the equality check
-# rejects a sector mismatch; the raw data is then copied directly.
+# rejects a sector mismatch; the raw data is then copied directly. The check is on the flat axes
+# (`Tuple`), so a source and destination that agree on the flat legs but differ in a codomain/domain
+# split (e.g. a `(2, 0)` block into a `(1, 1)` matrix) still copy.
 function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
-    axes(dest) == axes(src) || throw(
+    Tuple(axes(dest)) == Tuple(axes(src)) || throw(
         DimensionMismatch("sector axes mismatch in copy!: $(axes(dest)) vs $(axes(src))")
     )
     copyto!(data(dest), data(src))

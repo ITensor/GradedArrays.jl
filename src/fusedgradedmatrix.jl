@@ -212,10 +212,10 @@ blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 function Base.axes(m::FusedGradedMatrix)
     cod = gradedrange(collect(pairs(m.codomain)))
     dom = gradedrange([dual(s) => l for (s, l) in pairs(m.domain)])
-    return (cod, dom)
+    return BiTuple((cod,), (dom,))
 end
 
-Base.size(m::FusedGradedMatrix) = map(length, axes(m))
+Base.size(m::FusedGradedMatrix) = map(length, Tuple(axes(m)))
 Base.eltype(::Type{FusedGradedMatrix{T}}) where {T} = T
 Base.eltype(::Type{<:FusedGradedMatrix{T}}) where {T} = T
 
@@ -390,7 +390,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
     summary(io, m)
     println(io, ":")
-    for (d, g) in pairs(axes(m))
+    for (d, g) in pairs(Tuple(axes(m)))
         print(io, "  Dim $d: ")
         show_axis(io, g)
         println(io)

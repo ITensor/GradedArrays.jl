@@ -221,10 +221,10 @@ end
 blocktype(v::FusedGradedVector) = blocktype(typeof(v))
 
 function Base.axes(v::FusedGradedVector)
-    return (gradedrange([s => l for (s, l) in pairs(v.axis)]),)
+    return BiTuple((gradedrange([s => l for (s, l) in pairs(v.axis)]),), ())
 end
 
-Base.size(v::FusedGradedVector) = map(length, axes(v))
+Base.size(v::FusedGradedVector) = map(length, Tuple(axes(v)))
 Base.eltype(::Type{FusedGradedVector{T}}) where {T} = T
 Base.eltype(::Type{<:FusedGradedVector{T}}) where {T} = T
 

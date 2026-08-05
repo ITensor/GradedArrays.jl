@@ -205,7 +205,7 @@ end
         # Split preserved (unlike the `conj.(a)` broadcast, which materializes all-codomain), per-leg
         # axes dualized.
         @test (ndims_codomain(c), ndims_domain(c)) == (ndims_codomain(a), ndims_domain(a))
-        @test axes(c) == map(dual, axes(a))
+        @test Tuple(axes(c)) == map(dual, Tuple(axes(a)))
         # Same tensor as the broadcast conj and an involution, compared at a common split via `≈` (a
         # non-abelian double conj picks up recoupling round-off, so `==` is too strict).
         @test c ≈ conj.(a)
@@ -352,7 +352,8 @@ end
         @test back(2 * a - 3 * b) ≈ 2 * back(a) - 3 * back(b)
         # Operands with different codomain/domain splits but equal axes still add (each is bent).
         c = randn_fusionarray((i, dual(j)), ())
-        @test axes(c) == axes(a)
+        @test (ndims_codomain(c), ndims_domain(c)) != (ndims_codomain(a), ndims_domain(a))
+        @test Tuple(axes(c)) == Tuple(axes(a))
         @test back(a + c) ≈ back(a) + back(c)
     end
 
