@@ -267,7 +267,7 @@ function Base.getindex(
         dest_b = Block(map(di -> only(Tuple(di.block)), dest_info))
         a_dest_b = view(a_dest, dest_b)
         dest_r = map(di -> only(di.indices), dest_info)
-        copyto!(view(data(a_dest_b), dest_r...), data(a[bI_src]))
+        copyto!(view(data(a_dest_b), dest_r...), data(view(a, bI_src)))
     end
     return a_dest
 end

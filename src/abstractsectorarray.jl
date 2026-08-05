@@ -88,6 +88,13 @@ function Base.copyto!(dest::AbstractSectorArray, src::AbstractArray)
     return dest
 end
 
+# A sector matrix is diagonal iff its reduced data is (unique fusion only, where the data is the full
+# array). Lets `isdiag` on a graded matrix test its blocks without unwrapping to `data`.
+function LinearAlgebra.isdiag(A::AbstractSectorArray{<:Any, <:Any, 2})
+    require_unique_fusion(A)
+    return LinearAlgebra.isdiag(data(A))
+end
+
 # ========================  Shared utilities  ========================
 
 function require_unique_fusion(A)
