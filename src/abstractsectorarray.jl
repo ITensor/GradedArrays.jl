@@ -78,6 +78,16 @@ function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
     return dest
 end
 
+# Copying a plain array in writes the reduced data directly. This only coincides with the full array
+# under unique (abelian) fusion, where the structural factor is trivial; require it rather than
+# silently mismatching the reduced data against the full array. Lets a dense slice fill a block
+# without the sector wrapper, e.g. in `project`.
+function Base.copyto!(dest::AbstractSectorArray, src::AbstractArray)
+    require_unique_fusion(dest)
+    copyto!(data(dest), src)
+    return dest
+end
+
 # ========================  Shared utilities  ========================
 
 function require_unique_fusion(A)

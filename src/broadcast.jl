@@ -26,6 +26,19 @@ end
 # so the combined axes are never needed.
 BC.instantiate(bc::BC.Broadcasted{<:AbstractSectorStyle}) = bc
 
+# `dest .= <dense expression>`: a dense RHS would make Base combine it against the destination's
+# `BiTuple` axes. Materialize into the reduced data instead (well-defined only under unique/abelian
+# fusion, where the reduced data is the full array). Sector-style RHS expressions are not dense-styled
+# and keep flowing through the linear-broadcast `copyto!` above.
+function BC.materialize!(
+        dest::AbstractSectorArray,
+        bc::BC.Broadcasted{<:BC.DefaultArrayStyle}
+    )
+    require_unique_fusion(dest)
+    BC.materialize!(data(dest), bc)
+    return dest
+end
+
 # Route array arithmetic through the broadcast fold rather than Base's array arithmetic, which
 # would combine the `BiTuple` axes. These are graded linear combinations, so broadcasting (not
 # element-wise arraymath) is the right primitive anyway.

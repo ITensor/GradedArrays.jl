@@ -15,6 +15,16 @@ function isblockdiagonal(A::AbstractGradedMatrix)
     return true
 end
 
+# Diagonal iff block-diagonal and every stored (diagonal) block is itself diagonal. Checking the
+# block data avoids the generic dense-slicing fallback, whose `view` cannot consume the `BiTuple` axes.
+function LinearAlgebra.isdiag(A::AbstractGradedMatrix)
+    for bI in eachblockstoredindex(A)
+        row, col = Tuple(bI)
+        (row == col && LinearAlgebra.isdiag(data(view(A, bI)))) || return false
+    end
+    return true
+end
+
 # Trace: sum the traces of the diagonal blocks (same block position on both axes). Each block
 # view carries its sector, so its `tr` includes that sector's quantum dimension. This is the
 # plain matricized trace, with no fermionic twist sign.
