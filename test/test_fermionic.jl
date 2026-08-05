@@ -422,7 +422,7 @@ end
     A = zeros(Float64, 2, 2, 2, 2)
     A[2, 2, 2, 2] = 1
     a = project(A, (r, r), (r, r))
-    @test map(isdual, Tuple(GradedArrays.axes(a))) == (false, false, true, true)
+    @test map(isdual, GradedArrays.axes(a)) == (false, false, true, true)
     # AGA's split-independent `Array` bends the odd in-legs up and bakes in the fermion sign (-1);
     # the fusion backend's split-dependent `Array` follows TensorKit and keeps +1. `unproject`
     # recovers `A` on both backends (checked next).

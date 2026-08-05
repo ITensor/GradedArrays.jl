@@ -203,7 +203,7 @@ end
 # whose split is part of its identity). This also avoids Base's element-wise fallback, which would
 # index forbidden blocks.
 function Base.:(==)(a::FusionArray, b::FusionArray)
-    Tuple(axes(a)) == Tuple(axes(b)) || return false
+    axes(a) == axes(b) || return false
     return matricize(a) == matricize(b, Val(ndims_codomain(a)))
 end
 
@@ -212,7 +212,7 @@ end
 # `AbstractGradedArray` fallback that iterates `eachblockstoredindex` (not defined for `FusionArray`)
 # and scalar-indexes. `b` is rematricized to `a`'s split so the coupled blocks line up.
 function LinearAlgebra.dot(a::FusionArray, b::FusionArray)
-    Tuple(axes(a)) == Tuple(axes(b)) ||
+    axes(a) == axes(b) ||
         throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
     ma = matricize(a)
     mb = matricize(b, Val(ndims_codomain(a)))
@@ -292,6 +292,10 @@ for f in BARE_MATRIX_FACTORIZATIONS
         return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
     end
 end
+
+# Graded identity fill via the fused path (fills each coupled block), not the generic `one!`, which
+# reshapes and scalar-indexes the graded array. Mirrors the `AbelianGradedMatrix` method.
+MAK.one!(m::FusionMatrix) = TensorAlgebra.one!(m, Val(1))
 
 # ============================  TensorMap conversion  ============================
 

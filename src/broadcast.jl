@@ -21,6 +21,20 @@ function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:AbstractSe
     return dest
 end
 
+# Skip Base's eager axis-combining. Our `axes` return a `BiTuple`, which Base's `combine_axes`
+# cannot merge; `similar` and `copyto!` both rebuild the result from `flattenlinear(bc)` instead,
+# so the combined axes are never needed.
+BC.instantiate(bc::BC.Broadcasted{<:AbstractSectorStyle}) = bc
+
+# Route array arithmetic through the broadcast fold rather than Base's array arithmetic, which
+# would combine the `BiTuple` axes. These are graded linear combinations, so broadcasting (not
+# element-wise arraymath) is the right primitive anyway.
+Base.:+(a::AbstractSectorArray, b::AbstractSectorArray) = a .+ b
+Base.:-(a::AbstractSectorArray, b::AbstractSectorArray) = a .- b
+Base.:*(a::AbstractSectorArray, x::Number) = a .* x
+Base.:*(x::Number, a::AbstractSectorArray) = x .* a
+Base.:/(a::AbstractSectorArray, x::Number) = a ./ x
+
 # ---- abelian sector arrays and structural deltas ----
 
 struct UniqueSectorStyle{N} <: AbstractSectorStyle{N} end
@@ -96,6 +110,16 @@ end
 function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:AbstractGradedStyle})
     return copyto!(dest, flattenlinear(bc))
 end
+
+# See the `AbstractSectorStyle` override above.
+BC.instantiate(bc::BC.Broadcasted{<:AbstractGradedStyle}) = bc
+
+# See the `AbstractSectorArray` arithmetic above.
+Base.:+(a::AbstractGradedArray, b::AbstractGradedArray) = a .+ b
+Base.:-(a::AbstractGradedArray, b::AbstractGradedArray) = a .- b
+Base.:*(a::AbstractGradedArray, x::Number) = a .* x
+Base.:*(x::Number, a::AbstractGradedArray) = x .* a
+Base.:/(a::AbstractGradedArray, x::Number) = a ./ x
 
 # ---- unfused (cartesian-block) graded arrays ----
 

@@ -14,6 +14,11 @@ sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
 Base.copy(A::AbstractSectorDelta) = A
 Base.size(A::AbstractSectorDelta) = map(length, Tuple(axes(A)))
 
+# Display through the dense form. The delta's `axes` are a `BiTuple`, which Base's array-display
+# machinery can't consume; it is a small structural factor, so densifying to a flat-axes array is fine.
+Base.print_array(io::IO, A::AbstractSectorDelta) = Base.print_array(io, Array(A))
+Base.show(io::IO, A::AbstractSectorDelta) = show(io, Array(A))
+
 # A 2D structural delta on a diagonal (coupled) block is the identity over the sector, so its
 # trace is the sector's quantum dimension: the length of the diagonal. Only defined in the
 # canonical ordering: a non-dual first axis paired with its dual as the second axis.

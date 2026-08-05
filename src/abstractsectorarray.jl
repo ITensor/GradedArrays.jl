@@ -67,12 +67,11 @@ Base.@propagate_inbounds function Base.setindex!(
 end
 
 # Copy between sector arrays, including across the unfused/fused representations (e.g. writing
-# a block into a graded array). The axes carry the sector labels, so the equality check
-# rejects a sector mismatch; the raw data is then copied directly. The check is on the flat axes
-# (`Tuple`), so a source and destination that agree on the flat legs but differ in a codomain/domain
-# split (e.g. a `(2, 0)` block into a `(1, 1)` matrix) still copy.
+# a block into a graded array). The axes carry the sector labels, so the equality check rejects a
+# sector mismatch. Axis equality ignores the codomain/domain split, so a source and destination that
+# agree on the flat legs but differ in split (e.g. a `(2, 0)` block into a `(1, 1)` matrix) still copy.
 function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
-    Tuple(axes(dest)) == Tuple(axes(src)) || throw(
+    axes(dest) == axes(src) || throw(
         DimensionMismatch("sector axes mismatch in copy!: $(axes(dest)) vs $(axes(src))")
     )
     copyto!(data(dest), data(src))
