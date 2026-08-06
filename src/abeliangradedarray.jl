@@ -217,12 +217,11 @@ function Base.getindex(
         dest_refs = ntuple(d -> src_to_dests[d][src_tuple[d]], Val(N))
         for combo in Iterators.product(dest_refs...)
             src_r = ntuple(d -> combo[d][2], Val(N))
-            src_data = view(view(a, bI_src), src_r...)
+            src_data = view(a, bI_src[src_r...])
             iszero(src_data) && continue
             dest_b = Block(ntuple(d -> only(Tuple(combo[d][1].block)), Val(N)))
-            a_dest_b = view(a_dest, dest_b)
             dest_r = ntuple(d -> only(combo[d][1].indices), Val(N))
-            copy!(view(a_dest_b, dest_r...), src_data)
+            copy!(view(a_dest, dest_b[dest_r...]), src_data)
         end
     end
     return a_dest
@@ -265,9 +264,8 @@ function Base.getindex(
         src_tuple = Tuple(bI_src)
         dest_info = ntuple(d -> src_to_dest[d][src_tuple[d]], Val(N))
         dest_b = Block(map(di -> only(Tuple(di.block)), dest_info))
-        a_dest_b = view(a_dest, dest_b)
         dest_r = map(di -> only(di.indices), dest_info)
-        copy!(view(a_dest_b, dest_r...), view(a, bI_src))
+        copy!(view(a_dest, dest_b[dest_r...]), view(a, bI_src))
     end
     return a_dest
 end
