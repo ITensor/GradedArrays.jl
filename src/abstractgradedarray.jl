@@ -25,16 +25,6 @@ function LinearAlgebra.isdiag(A::AbstractGradedMatrix)
     return true
 end
 
-# Trace: sum the traces of the diagonal blocks (same block position on both axes). Each block
-# view carries its sector, so its `tr` includes that sector's quantum dimension. This is the
-# plain matricized trace, with no fermionic twist sign.
-function LinearAlgebra.tr(A::AbstractGradedMatrix)
-    return sum(eachblockstoredindex(A); init = zero(eltype(A))) do bI
-        row, col = Tuple(bI)
-        return row == col ? LinearAlgebra.tr(view(A, bI)) : zero(eltype(A))
-    end
-end
-
 # Whether a block is stored (allocated), following the `SparseArraysBase.isstored(a, ::Block)`
 # interface `BlockSparseArrays` uses: delegate to the block container's element `isstored`.
 function SparseArraysBase.isstored(
