@@ -1,22 +1,16 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
-using GradedArrays: AbelianGradedArray, AbelianGradedMatrix, FusedGradedMatrix,
-    FusedGradedVector, FusedSectorMatrix, GradedOneTo, SU2, SectorOneTo, SectorOnesVector,
-    U1, UniqueSectorArray, UniqueSectorDelta, data, datalengths, dual, eachblockstoredindex,
-    eachsectoraxis, flip, gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors,
-    sectortype, tensor_product
+using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, FusionArray,
+    FusionMatrix, GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
+    UniqueSectorDelta, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
+    gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
+    tensor_product
 using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,
     matricizeperm, unmatricize
 using TensorKitSectors: FermionNumber
 using Test: @test, @test_broken, @test_throws, @testset
-
-# Operations that allocate a graded result (`contract`, plain `unmatricize`, broadcasting, backend
-# constructors) route through the selected backend, so assertions on those results check the active
-# backend's type.
-const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
-const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedArray
 
 @testset "UniqueSectorArray linear broadcasting" begin
     s = UniqueSectorArray(randn!(Matrix{ComplexF64}(undef, 2, 2)), (U1(0), dual(U1(0))))
@@ -86,7 +80,7 @@ end
     @test Array(sp) ≈ permutedims(data, (3, 1, 2))
 end
 
-@testset "AbelianGradedArray permutedims" begin
+@testset "graded array permutedims" begin
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
     a = zeros(Float64, g1, g2)
@@ -96,7 +90,7 @@ end
     a[Block(2, 2)] = UniqueSectorArray(block_data, (U1(1), U1(-1)))
 
     ap = permutedims(a, (2, 1))
-    @test ap isa GradedArrayT
+    @test ap isa FusionArray
     @test axes(ap, 1) == g2
     @test axes(ap, 2) == g1
 
@@ -105,7 +99,7 @@ end
     @test Array(ap_block) ≈ permutedims(block_data)
 end
 
-@testset "AbelianGradedArray linear broadcasting" begin
+@testset "graded array linear broadcasting" begin
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
     a = zeros(Float64, g1, g2)
@@ -120,19 +114,18 @@ end
     α = 2.0
     β = -3.0
     c = α .* a .+ β .* b
-    @test c isa GradedArrayT
+    @test c isa FusionArray
     c_block = c[Block(2, 2)]
     @test Array(c_block) ≈ α .* block_a .+ β .* block_b
 end
 
-@testset "sectormergesort on AbelianGradedArray" begin
-    # Merging repeated sectors on an unfused axis (`U1(1)` at blocks 1 and 3) is an
-    # `AbelianGradedArray` capability: `FusionArray` axes are always fused-and-sorted, so this stays
-    # explicit `AbelianGradedArray` (unfused external axes are a deferred `FusionArray` feature,
-    # tracked in the parity plan).
+@testset "sectormergesort on a graded array" begin
+    # `FusionArray` represents unfused (unsorted, repeated-sector) external axes directly (`U1(1)` at
+    # blocks 1 and 3 here). `sectormergesort` sorts and merges them; since the fused storage is already
+    # canonical, it is a pure external-axis relabel over the same data.
     g1 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
-    a = fill!(AbelianGradedArray{Float64}(undef, g1, g2), 0.0)
+    a = zeros(Float64, g1, g2)
 
     a[Block(1, 2)] = UniqueSectorArray(ones(2, 2), (U1(1), U1(-1)))
     a[Block(3, 2)] = UniqueSectorArray(2 * ones(3, 2), (U1(1), U1(-1)))
@@ -157,35 +150,10 @@ end
     @test all(iszero, data(empty_block))
 end
 
-@testset "matricize 2D AbelianGradedArray → FusedGradedMatrix" begin
+@testset "matricize 2D graded array → FusedGradedMatrix" begin
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
-    a = AbelianGradedArray{Float64}(undef, g1, g2)
-
-    block_11 = randn!(Matrix{Float64}(undef, 2, 1))
-    block_22 = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(1, 1)] = UniqueSectorArray(block_11, (U1(0), U1(0)))
-    a[Block(2, 2)] = UniqueSectorArray(block_22, (U1(1), U1(-1)))
-
-    fsm = matricizeperm(a, (1,), (2,))
-    @test fsm isa FusedGradedMatrix{Float64}
-    @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
-    @test blocklength(fsm, 1) == 2
-    @test blocklength(fsm, 2) == 2
-    @test data(fsm[Block(1, 1)]) ≈ block_11
-    @test data(fsm[Block(2, 2)]) ≈ block_22
-
-    a_matrix = AbelianGradedArray(fsm)
-    @test a_matrix isa AbelianGradedMatrix
-    @test sectors(axes(a_matrix, 1)) == [U1(0), U1(1)]
-    # Dual-resolved sectors of the row pair with the dual of the column's.
-    @test eachsectoraxis(axes(a_matrix, 1)) == dual.(eachsectoraxis(axes(a_matrix, 2)))
-end
-
-@testset "matricize AbelianGradedMatrix preserves canonical sector pairing" begin
-    g1 = gradedrange([U1(0) => 2, U1(1) => 3])
-    g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
-    a = AbelianGradedArray{Float64}(undef, g1, g2)
+    a = zeros(Float64, g1, g2)
 
     block_11 = randn!(Matrix{Float64}(undef, 2, 1))
     block_22 = randn!(Matrix{Float64}(undef, 3, 2))
@@ -197,11 +165,13 @@ end
     # Each stored N-D block lands in the coupled sector pairing its row charge with
     # the dual of its column charge: (U1(0), U1(0)) → U1(0), (U1(1), U1(-1)) → U1(1).
     @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
+    @test blocklength(fsm, 1) == 2
+    @test blocklength(fsm, 2) == 2
     @test data(fsm[Block(1, 1)]) ≈ block_11
     @test data(fsm[Block(2, 2)]) ≈ block_22
 end
 
-@testset "matricize 4D AbelianGradedArray → FusedGradedMatrix" begin
+@testset "matricize 4D graded array → FusedGradedMatrix" begin
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     a = zeros(Float64, g, g, dual(g), dual(g))
 
@@ -221,7 +191,7 @@ end
     @test data(fsm[Block(3, 3)]) ≈ 2 * ones(1, 1)
 end
 
-@testset "tr of a matricized AbelianGradedArray" begin
+@testset "tr of a matricized graded array" begin
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     a = ones(Float64, g, g, dual(g), dual(g))
     a[Block(2, 2, 2, 2)] .*= 2  # give the blocks distinct traces
@@ -233,7 +203,7 @@ end
     @test TensorAlgebra.tr(a, (1, 2, 3, 4), (1, 2), (3, 4)) ≈ tr(Array(fsm))
 end
 
-@testset "matricize 3D AbelianGradedArray and unmatricize round-trip" begin
+@testset "matricize 3D graded array and unmatricize round-trip" begin
     # 3D case where the merged codomain (tensor product of two `r`s) has
     # sectors absent from the domain — the asymmetric `FusedGradedMatrix`
     # natively handles this (codomain has U1(2), domain has only U1(0) and
@@ -256,58 +226,22 @@ end
     # passed codomain-facing (un-dualized), so the original `dual(r)` domain axis is given
     # as `r`.
     a_back = unmatricize(fsm, (r, r), (r,))
-    @test a_back isa GradedArrayT
+    @test a_back isa FusionArray
     @test ndims(a_back) == 3
-    # Compare the recovered array densely: `eachblockstoredindex` is not yet defined for
-    # `FusionArray` (a deferred block-accessor, tracked in the parity plan), so avoid per-block
-    # iteration here.
     @test Array(a_back) ≈ Array(a)
-end
-
-@testset "FusedGradedMatrix(::AbelianGradedMatrix) accepts asymmetric axes" begin
-    row_ax = gradedrange([U1(0) => 2, U1(1) => 3])
-    a = AbelianGradedArray{Float64}(undef, row_ax, dual(row_ax))
-    block_11 = randn!(Matrix{Float64}(undef, 2, 2))
-    block_22 = randn!(Matrix{Float64}(undef, 3, 3))
-    a[Block(1, 1)] = UniqueSectorArray(block_11, (U1(0), dual(U1(0))))
-    a[Block(2, 2)] = UniqueSectorArray(block_22, (U1(1), dual(U1(1))))
-
-    fsm = FusedGradedMatrix(a)
-    @test data(fsm[Block(1, 1)]) ≈ block_11
-    @test data(fsm[Block(2, 2)]) ≈ block_22
-
-    # Unsorted axes still rejected (they violate the sorted-keys invariant).
-    nonsorted_ax = gradedrange([U1(1) => 3, U1(0) => 2])
-    a_nonsorted = AbelianGradedArray{Float64}(undef, nonsorted_ax, dual(nonsorted_ax))
-    a_nonsorted[Block(1, 1)] = UniqueSectorArray(block_22, (U1(1), dual(U1(1))))
-    a_nonsorted[Block(2, 2)] = UniqueSectorArray(block_11, (U1(0), dual(U1(0))))
-    @test_throws ArgumentError FusedGradedMatrix(a_nonsorted)
-
-    # Asymmetric axes (codomain and dual(domain) sector sets differ) are
-    # now accepted: cod-only and dom-only sectors land as one-sided blocks
-    # of size 0 on the absent axis (no stored block).
-    asym_col_ax = dual(gradedrange([U1(2) => 3, U1(3) => 2]))
-    a_asym = AbelianGradedArray{Float64}(undef, row_ax, asym_col_ax)
-    fsm_asym = FusedGradedMatrix(a_asym)
-    @test fsm_asym isa FusedGradedMatrix
-    @test collect(keys(fsm_asym.codomain)) == [U1(0), U1(1)]
-    @test collect(keys(fsm_asym.domain)) == [U1(2), U1(3)]
-    # No stored blocks since we didn't write any data and the sectors don't overlap.
-    @test isempty(fsm_asym.blocks)
 end
 
 @testset "Off-diagonal block setindex! errors" begin
     ax = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, ax, dual(ax))
-    # Both backends reject a forbidden off-diagonal block; the exception type differs
-    # (`AbelianGradedArray` throws `ErrorException`, `FusionArray` a TensorKit `SectorMismatch`).
+    # A forbidden off-diagonal block is rejected (a `FusionArray` throws a TensorKit `SectorMismatch`).
     @test_throws Exception (
         a[Block(1, 2)] =
             UniqueSectorArray(randn!(Matrix{Float64}(undef, 2, 3)), (U1(0), dual(U1(1))))
     )
 end
 
-@testset "contract 2D AbelianGradedArray (matrix-matrix)" begin
+@testset "contract 2D graded array (matrix-matrix)" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, g, dual(g))
     b = zeros(Float64, g, dual(g))
@@ -323,12 +257,12 @@ end
     b[Block(2, 2)] = UniqueSectorArray(b_22, (U1(1), dual(U1(1))))
 
     result, dimnames = contract(a, (1, -1), b, (-1, 2))
-    @test result isa GradedArrayT{Float64, <:Any, 2}
+    @test result isa FusionMatrix{Float64}
     @test data(result[Block(1, 1)]) ≈ a_11 * b_11
     @test data(result[Block(2, 2)]) ≈ a_22 * b_22
 end
 
-@testset "contract AbelianGradedArray to a scalar (elt=$elt)" for elt in
+@testset "contract graded array to a scalar (elt=$elt)" for elt in
     (Float64, ComplexF64)
     # A full contraction over every index collapses to a rank-0 result. The
     # destination is allocated as a rank-0 graded array (trivial sector), so the
@@ -339,8 +273,8 @@ end
     b = randn(elt, (dual(g), g))
 
     result = contract((), a, (1, 2), b, (1, 2))
-    # A rank-0 contraction result is the active backend's graded array.
-    @test result isa GradedArrayT{elt, <:Any, 0}
+    # A rank-0 contraction result is a graded array.
+    @test result isa FusionArray{elt, <:Any, 0}
     @test ndims(result) == 0
     @test sectortype(result) === U1
     @test result[] ≈ sum(Array(a) .* Array(b))
@@ -357,16 +291,16 @@ end
 
     # A rank-0 graded array matricizes to a 1×1 trivial-sector `FusedGradedMatrix`,
     # and unmatricizing back recovers the scalar as a rank-0 graded array.
-    a = AbelianGradedArray{Float64, U1, 0, Array{Float64, 0}}(undef, ())
+    a = FusionArray{Float64, U1}(undef, (), ())
     a[] = 4.0
     m = matricize(GradedArrays.SectorMatricize(), a, Val(0))
     @test m isa FusedGradedMatrix{Float64}
     @test size(m) == (1, 1)
     @test data(m[Block(1, 1)]) == fill(4.0, 1, 1)
 
-    # `unmatricize` allocates the active backend's rank-0 graded array, like the higher-rank path.
+    # `unmatricize` allocates a rank-0 graded array, like the higher-rank path.
     back = unmatricize(GradedArrays.SectorMatricize(), m, (), ())
-    @test back isa GradedArrayT{Float64, <:Any, 0}
+    @test back isa FusionArray{Float64, <:Any, 0}
     @test back[] == 4.0
 end
 
@@ -398,14 +332,14 @@ end
     @test Array(s_back) ≈ data_3d
 end
 
-@testset "contract 4D AbelianGradedArray" begin
+@testset "contract 4D graded array" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = randn(g, g, dual(g), dual(g))
     b = randn(g, g, dual(g), dual(g))
 
     # Contract: a[1, -1, 2, -2] * b[2, -3, 1, -4] (permutes + contracts).
     result, dimnames = contract(a, (1, -1, 2, -2), b, (2, -3, 1, -4))
-    @test result isa GradedArrayT
+    @test result isa FusionArray
 
     # Verify numerics against the dense contraction of the same data.
     result_dense, _ = contract(Array(a), (1, -1, 2, -2), Array(b), (2, -3, 1, -4))
@@ -470,29 +404,24 @@ end
     @test_throws ArgumentError m .^ 2
 end
 
-@testset "FusedGradedMatrix conj ($label)" for (label, g) in (
-        "bosonic" => gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 1]),
-        "fermionic" => gradedrange(
-            [
-                FermionNumber(0) => 1, FermionNumber(1) => 2, FermionNumber(2) => 1,
-            ]
-        ),
+@testset "FusedGradedMatrix conj ($label)" for (label, sectorpairs) in (
+        "bosonic" => [U1(0) => 1, U1(1) => 2, U1(2) => 1],
+        "fermionic" => [FermionNumber(0) => 1, FermionNumber(1) => 2, FermionNumber(2) => 1],
     )
-    # `conj` here is a property of the backend-independent `FusedGradedMatrix`; the array is only a
-    # vehicle to build one. Both the matrix and its oracle go through the `FusedGradedMatrix`
-    # constructor so they share its dual-flag labeling of conjugated sectors. `conj ∘ matricize` and
-    # `matricize ∘ conj` currently label dualized sectors differently (tracked in the parity plan), so
-    # mixing construction paths here would not line up.
-    a = randn!(AbelianGradedArray{ComplexF64}(undef, g, dual(g)))
-    m = FusedGradedMatrix(a)
-    ref = FusedGradedMatrix(conj(a))  # oracle: conj on the unfused array, then matricize
+    # `conj` on a `FusedGradedMatrix` dualizes each coupled sector and conjugates the reduced blocks
+    # (with the fermionic leg-reversal sign). Built directly rather than through an array vehicle.
+    m = randn!(FusedGradedMatrix{ComplexF64}(undef, sectorpairs))
 
-    for cm in (conj(m), conj.(m))  # eager and dotted forms agree
+    ce, cd = conj(m), conj.(m)  # eager and dotted forms
+    for cm in (ce, cd)
         @test cm isa FusedGradedMatrix
-        @test axes(cm) == axes(ref)
-        @test collect(keys(cm.blocks)) == collect(keys(ref.blocks))
-        @test all(cm.blocks[c] ≈ ref.blocks[c] for c in keys(ref.blocks))
+        @test collect(keys(cm.blocks)) == map(conj, collect(keys(m.blocks)))
     end
+    # Eager and dotted forms agree block-by-block.
+    @test all(ce.blocks[c] ≈ cd.blocks[c] for c in keys(ce.blocks))
+    # `conj` is an involution: the double conj cancels the fermionic leg-reversal sign and dualizes
+    # the sectors back to the originals.
+    @test conj(conj(m)) ≈ m
 end
 
 @testset "FusedGradedMatrix non-abelian (SU2) broadcasting and conj" begin
@@ -553,22 +482,21 @@ end
 # Regression coverage for TensorAlgebra-level unmatricize-axis bugs on graded
 # operators: a factor's reconstructed axes must respect the conj/dual pairing
 # between contracted bonds rather than reuse the factor's own axes.
-@testset "TA.svd_compact round-trip on AbelianGradedArray (axes_S regression)" begin
+@testset "TA.svd_compact round-trip on a graded array (axes_S regression)" begin
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
     A = randn(Float64, (s, dual(s)))
     U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
     US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
     USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
     @test A ≈ USV
-    # `*` on `AbelianGradedMatrix` routes through the block-wise `contract`.
+    # `*` on a graded matrix routes through the block-wise `contract`.
     @test A ≈ U * S * Vᴴ
 end
 
 @testset "TA.gram_eigh_full_with_pinv (axes_Y regression)" begin
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
     B = randn(Float64, (s,), (s,))
-    # PSD by construction. Build `A = B * B'` block-wise via `contract` with an explicit `conj`, which
-    # works on both backends (the natural `B * B'` form needs an adjoint `AbelianGradedArray` lacks).
+    # PSD by construction. Build `A = B * B'` block-wise via `contract` with an explicit `conj`.
     A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
     X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
     # X · conj(X) ≈ A on the rank subspace.
@@ -576,15 +504,10 @@ end
     # Y is a left inverse of X on the rank subspace.
     YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
     @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))
-    # On the fusion backend the `(1, 1)` adjoint works, so the natural `B * B'` / `X * X'` Gram forms
-    # recover `A` directly. `AbelianGradedArray` has no block-aware adjoint, so they throw there.
-    if FUSION_BACKEND
-        @test B * B' ≈ A
-        @test X * X' ≈ A
-    else
-        @test_throws ErrorException B * B'
-        @test_throws ErrorException X * X'
-    end
+    # `B` and `X` are genuine `(1, 1)` matrices, so the `(1, 1)` adjoint works and the natural
+    # `B * B'` / `X * X'` Gram forms recover `A` directly.
+    @test B * B' ≈ A
+    @test X * X' ≈ A
 end
 
 @testset "contract rejects mismatched contracted-axis duality (bosonic)" begin
@@ -602,5 +525,5 @@ end
     b_ok = zeros(Float64, g, dual(g))
     randn!(b_ok)
     result, = contract(a, (1, -1), b_ok, (-1, 2))
-    @test result isa GradedArrayT
+    @test result isa FusionArray
 end

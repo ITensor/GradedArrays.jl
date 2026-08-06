@@ -1,12 +1,6 @@
 import MatrixAlgebraKit as MAK
-using GradedArrays: GradedArrays, AbelianGradedArray, AbelianGradedMatrix,
-    FusedGradedMatrix, FusedGradedVector, FusionArray, GradedBlockAlgorithm, U1, Z2, dual,
-    gradedrange
-
-# The graded array type the active backend allocates, for asserting that operations stay in the
-# graded representation. Both backends are cross-checked through the Preferences switch.
-const GradedArrayT =
-    GradedArrays.graded_backend == "fusion" ? FusionArray : AbelianGradedArray
+using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
+    FusionMatrix, GradedBlockAlgorithm, U1, Z2, dual, gradedrange
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
@@ -421,10 +415,12 @@ end
         rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
         h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
-        a = randn(rng, Float64, (g, dual(g)))
-        b = randn(rng, Float64, (g, dual(h)))
+        # `*` is matrix algebra, so build genuine (1, 1) matrices via the (codomain,), (domain,) form
+        # (the domain is stored dualized, giving external axes `(g, dual(·))`).
+        a = randn(rng, Float64, (g,), (g,))
+        b = randn(rng, Float64, (g,), (h,))
         c = a * b
-        @test c isa GradedArrayT{<:Any, <:Any, 2}
+        @test c isa FusionMatrix
         # `(a * b)[i, j] == sum_k a[i, k] * b[k, j]`.
         @test Array(c) ≈ Array(a) * Array(b)
         # Result axes: codomain from `a`, domain from `b`.
@@ -472,13 +468,15 @@ end
 
     # -----------------------------------------------------------------------
     # Bare-matrix factorizations delegate to the matricizing `TensorAlgebra` forms.
-    @testset "factorizations on a bare AbelianGradedMatrix" begin
+    @testset "factorizations on a bare graded matrix" begin
         rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
         h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
-        m_rect = randn(rng, Float64, (g, dual(h)))
-        m_sq = randn(rng, Float64, (g, dual(g)))
-        m_herm = MAK.project_hermitian(randn(rng, Float64, (g, dual(g))))
+        # The bare factorizations are matrix algebra, so build genuine (1, 1) matrices via the
+        # (codomain,), (domain,) form (the domain is stored dualized, giving external axes `(g, dual(·))`).
+        m_rect = randn(rng, Float64, (g,), (h,))
+        m_sq = randn(rng, Float64, (g,), (g,))
+        m_herm = MAK.project_hermitian(randn(rng, Float64, (g,), (g,)))
 
         # helper: compare two `FusedGradedVector`s block-by-block (the broadcasting `-`
         # path they would otherwise take is not supported).
@@ -488,7 +486,7 @@ end
 
         @testset "svd_compact" begin
             U, S, Vᴴ = MAK.svd_compact(m_rect)
-            @test all(x -> x isa GradedArrayT{<:Any, <:Any, 2}, (U, S, Vᴴ))
+            @test all(x -> x isa FusionMatrix, (U, S, Vᴴ))
             @test axes(U, 1) == axes(m_rect, 1)
             @test axes(Vᴴ, 2) == axes(m_rect, 2)
             @test U * S * Vᴴ ≈ m_rect
@@ -497,7 +495,7 @@ end
 
         @testset "svd_full" begin
             U, S, Vᴴ = MAK.svd_full(m_rect)
-            @test all(x -> x isa GradedArrayT{<:Any, <:Any, 2}, (U, S, Vᴴ))
+            @test all(x -> x isa FusionMatrix, (U, S, Vᴴ))
             @test Array(U) * Array(S) * Array(Vᴴ) ≈ Array(m_rect)
         end
 
@@ -546,16 +544,16 @@ end
         end
 
         @testset "project_hermitian" begin
-            m = randn(rng, Float64, (g, dual(g)))
+            m = randn(rng, Float64, (g,), (g,))
             @test Array(MAK.project_hermitian(m)) ≈ (Array(m) + Array(m)') / 2
         end
     end
 
     # -----------------------------------------------------------------------
-    @testset "one! on an AbelianGradedMatrix" begin
+    @testset "one! on a graded matrix" begin
         rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
-        a = randn(rng, Float64, (g, dual(g)))
+        a = randn(rng, Float64, (g,), (g,))
         a_before = Array(copy(a))
 
         b = MAK.one!(a)
@@ -564,7 +562,7 @@ end
         @test Array(a) != a_before
 
         # Same as the existing graded identity constructor and the dense identity.
-        id = TensorAlgebra.one(randn(rng, Float64, (g, dual(g))), (1,), (2,))
+        id = TensorAlgebra.one(randn(rng, Float64, (g,), (g,)), (1,), (2,))
         @test Array(a) ≈ Array(id)
         @test Array(a) ≈ Matrix(1.0I, size(a)...)
     end

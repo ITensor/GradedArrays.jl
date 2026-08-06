@@ -2,7 +2,7 @@
     GradedOneTo{S<:SectorRange}
 
 Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
-This is the axis type for `AbelianGradedArray`.
+This is the axis type for `FusionArray`.
 
 Stores non-dual `SectorRange` values in `sectors`, sector lengths, and a single
 `isdual` flag. The `sectors` accessor returns those stored non-dual sectors; query the
@@ -39,7 +39,7 @@ Base.first(::GradedOneTo) = 1
 # A `GradedOneTo` is 1-based and acts as its own axis, like `Base.OneTo`. Without this
 # `axes` falls back to the `AbstractBlockedUnitRange` default, which returns a plain
 # `BlockedOneTo` and drops the sectors — so e.g. `axes(view(dense, ::GradedOneTo...))`
-# would lose the grading. Mirrors `axes(::AbelianGradedArray)` returning its graded axes.
+# would lose the grading. Mirrors `axes(::FusionArray)` returning its graded axes.
 Base.axes(g::GradedOneTo) = (g,)
 BlockArrays.blocklasts(g::GradedOneTo) = cumsum(blocklengths(g))
 BlockArrays.blocklength(g::GradedOneTo) = length(g.sectors)
@@ -283,10 +283,9 @@ function gradedrange(
 end
 
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
-# `to_range([U1(0) => 2, U1(1) => 3])`, routed by symmetry: abelian sectors build a
-# block-sparse `GradedOneTo`, while non-abelian sectors have no block-sparse representation
-# and build a native TensorKit `GradedSpace` via `to_tensorkit_space`. Defined over each key
-# type separately rather than a `Union` so each method stays specific enough not to capture
+# `to_range([U1(0) => 2, U1(1) => 3])`. Both abelian and non-abelian sectors build a `GradedOneTo`
+# (`FusionArray` represents non-abelian sectors via its coupled `FusedGradedMatrix`). Defined over
+# each key type separately rather than a `Union` so each method stays specific enough not to capture
 # unrelated `Pair` vectors. The bare `TensorKitSectors.Sector` key is deliberate type piracy
 # (GradedArrays owns neither `to_range` nor `TKS.Sector`), kept for now so raw sectors work as
 # axis descriptors (e.g. behind `Index([FermionNumber(0) => 2])`); it is allowlisted in the
@@ -295,28 +294,16 @@ for S in (:(TKS.Sector), :SectorRange)
     @eval function TensorAlgebra.to_range(
             space::AbstractVector{<:Pair{K, <:Integer}}
         ) where {K <: $S}
-        # Under the FusionArray backend, non-abelian sectors also build a `GradedOneTo` (FusionArray
-        # represents them via its coupled `FusedGradedMatrix`); otherwise they have no block-sparse
-        # array representation and fall back to a native TensorKit `GradedSpace`.
-        @static if graded_backend == "fusion"
-            return gradedrange(space)
-        else
-            return if TKS.FusionStyle(K) === TKS.UniqueFusion()
-                gradedrange(space)
-            else
-                to_tensorkit_space(space)
-            end
-        end
+        return gradedrange(space)
     end
 end
 
 """
     to_tensorkit_space(sectors)
 
-Convert a vector of non-abelian `sector => multiplicity` pairs into a native TensorKit
-`GradedSpace`. Non-abelian symmetries have no block-sparse (`GradedOneTo`) representation,
-so `to_range` routes them here. The method that builds the space is defined in
-`src/tensorkit.jl`.
+Convert a vector of `sector => multiplicity` pairs into a native TensorKit `GradedSpace`, used by
+the TensorKit interop layer to move a `GradedOneTo` into TensorKit's space representation. The
+method that builds the space is defined in `src/tensorkit.jl`.
 """
 function to_tensorkit_space(space)
     return throw(

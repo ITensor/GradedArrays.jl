@@ -2,7 +2,7 @@
     AbstractGradedArray{T,S,N} <: AbstractArray{T,N}
 
 Abstract supertype for graded (symmetry-structured) arrays whose axes carry sector labels.
-Concrete subtypes include [`AbelianGradedArray`](@ref) and [`FusedGradedMatrix`](@ref).
+The concrete graded array is [`FusionArray`](@ref).
 """
 abstract type AbstractGradedArray{T, S, N} <: AbstractArray{T, N} end
 const AbstractGradedMatrix{T, S} = AbstractGradedArray{T, S, 2}
@@ -347,46 +347,17 @@ function Random.randn!(rng::AbstractRNG, a::AbstractGradedArray)
 end
 
 # ---------------------------------------------------------------------------
-#  Graded backend selection
+#  Graded array allocation
 # ---------------------------------------------------------------------------
-# Backend infrastructure shared by every concrete graded array, so it lives here rather than in a
-# concrete-type file: `allocate_graded` and the `similar_map` router pick the backend type, and
-# `set_graded_backend!` persists the choice. The `graded_backend` constant is defined in
-# `GradedArrays.jl` before the includes so `@static if graded_backend == …` resolves in every file.
-
-# Persist the backend preference; takes effect after restarting Julia (the choice is baked in at
-# precompile time).
-function set_graded_backend!(backend::AbstractString)
-    backend in ("abelian", "fusion") ||
-        throw(
-        ArgumentError(
-            "graded backend must be \"abelian\" or \"fusion\", got $(repr(backend))"
-        )
-    )
-    @set_preferences!("graded_backend" => backend)
-    @info "graded backend set to $(repr(backend)). Restart Julia for it to take effect."
-    return nothing
-end
-
 # `allocate_graded` is the single point building the graded representation from a `(cod, dom)` split,
-# so the backend is chosen in one place, and the split-aware `similar_map` routes through it too. The
-# `@static if` on the compile-time `graded_backend` constant compiles just one branch into the body,
-# so this (and its callers) stay type-stable.
+# and the split-aware `similar_map` routes through it too.
 function allocate_graded(::Type{T}, cod, dom) where {T}
-    @static if graded_backend == "fusion"
-        return FusionArray{T}(undef, cod, dom)
-    else
-        return AbelianGradedArray{T}(undef, (cod..., conj.(dom)...))
-    end
+    return FusionArray{T}(undef, cod, dom)
 end
 
 # Rank-0 form: the empty axes carry no sector type, so it is passed explicitly.
 function allocate_graded(::Type{T}, ::Type{S}, cod::Tuple{}, dom::Tuple{}) where {T, S}
-    @static if graded_backend == "fusion"
-        return FusionArray{T, S}(undef, cod, dom)
-    else
-        return AbelianGradedArray{T, S, 0, Array{T, 0}}(undef, ())
-    end
+    return FusionArray{T, S}(undef, cod, dom)
 end
 
 # The split-aware `similar_map` (used by `project` and by contraction/factorization result

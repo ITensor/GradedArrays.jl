@@ -38,28 +38,17 @@ end
 # ---------------------------
 # The plain matrix forms (`MAK.svd_compact(m)`, etc.) route through the matricizing `TensorAlgebra`
 # factorizations: matricize to a `FusedGradedMatrix`, run the block factorization, then unmatricize
-# back. The factors are returned as graded matrices. An `AbelianGradedMatrix` has no in-place block
-# algorithm for its unfused blocks, so this is how it factorizes; `FusionArray` gets the identical
-# routing in `fusionarray.jl` (defined there because `FusionArray` is not yet defined here). Dispatch
-# must not catch `FusedGradedMatrix`: the matricizing forms produce one, which must terminate at its
-# own in-place block algorithm rather than route back here (that would recurse). Omitted:
-# `project_antihermitian`/`project_isometric` (no `TensorAlgebra` perm-form) and the null-space
-# factorizations, whose `FusionArray` entry points are a follow-up.
+# back. The factors are returned as graded matrices. This list is shared with the `FusionArray`
+# entry points in `fusionarray.jl` (defined there because `FusionArray` is not yet defined here).
+# Dispatch must not catch `FusedGradedMatrix`: the matricizing forms produce one, which must
+# terminate at its own in-place block algorithm rather than route back here (that would recurse).
+# Omitted: `project_antihermitian`/`project_isometric` (no `TensorAlgebra` perm-form) and the
+# null-space factorizations, whose `FusionArray` entry points are a follow-up.
 const BARE_MATRIX_FACTORIZATIONS = (
     :svd_compact, :svd_full, :svd_vals, :qr_compact, :qr_full, :lq_compact,
     :lq_full, :eig_full, :eig_vals, :eigh_full, :eigh_vals, :left_polar,
     :right_polar, :project_hermitian,
 )
-for f in BARE_MATRIX_FACTORIZATIONS
-    @eval function MAK.$f(m::AbelianGradedMatrix; kwargs...)
-        return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
-    end
-end
-
-# In-place graded identity fill. Filling the unfused data blocks with identities is not the
-# graded identity map in general, so route through the fused path: `TensorAlgebra.one!`
-# matricizes, fills the fused matrix with `MAK.one!`, and scatters it back into `a`.
-MAK.one!(a::AbelianGradedMatrix) = TensorAlgebra.one!(a, Val(1))
 
 # Projections on a fused block (`FusedSectorMatrix`)
 # ---------------------------------------------

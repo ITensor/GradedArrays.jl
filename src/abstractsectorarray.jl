@@ -98,6 +98,19 @@ function LinearAlgebra.isdiag(A::AbstractSectorArray{<:Any, <:Any, 2})
     return LinearAlgebra.isdiag(data(A))
 end
 
+# `all`/`any` over a sector array: for unique (abelian) fusion the full array equals its reduced
+# data element-wise, so forward the predicate to `data` (avoiding the scalar-indexing `AbstractArray`
+# fallback). Non-abelian fusion has structural multiplicity beyond the reduced data, so require
+# unique fusion rather than iterating past it.
+function Base.all(f::Function, A::AbstractSectorArray)
+    require_unique_fusion(A)
+    return all(f, data(A))
+end
+function Base.any(f::Function, A::AbstractSectorArray)
+    require_unique_fusion(A)
+    return any(f, data(A))
+end
+
 # ========================  Shared utilities  ========================
 
 function require_unique_fusion(A)

@@ -96,12 +96,6 @@ function sectormergesort(g::GradedOneTo)
     return gradedrange([c => m for (c, m) in total])
 end
 
-# Sort the blocks of an array by sector and merge common sectors.
-function sectormergesort(a::AbelianGradedArray)
-    I = sectormergesortperm.(axes(a))
-    return a[I...]
-end
-
 # tensor_product produces a sorted, non-dual GradedOneTo
 tensor_product(g::GradedOneTo) = sectormergesort(flip_dual(g))
 
@@ -167,8 +161,7 @@ function TensorAlgebra.bipermutedimsopadd!(
     # Fermion signs go on the reduced data (the delta is `one(T)`). `fermion_permutation_phase`
     # (op-aware) gives the braiding sign, plus the ket->bra leg reversal for `op === conj`. The two
     # `fermion_bend_phase` factors reconcile the splits (unbend the source's domain legs, rebend the
-    # destination's) and are `1` for all-codomain blocks, leaving the `AbelianGradedArray` path
-    # (always all-codomain, bends baked into the dense entries) unaffected.
+    # destination's) and are `1` for all-codomain blocks.
     ndims_domain_src = ndims_domain(sx)
     ndims_domain_dest = ndims_domain(sector(y))
     src_domain_legs = ntuple(i -> ndims_codomain(sx) + i, ndims_domain_src)

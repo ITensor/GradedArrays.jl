@@ -98,7 +98,7 @@ function viewblock(
 end
 
 Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
-# Disambiguate the N=1 case against the `Vararg{Block{1}, N}` method, as `AbelianGradedArray` does.
+# Disambiguate the N=1 case against the `Vararg{Block{1}, N}` method.
 Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 
 # Rank-0 (scalar) access: a rank-0 `FusionArray` (e.g. a full contraction to a scalar) holds one
@@ -175,8 +175,7 @@ function SparseArraysBase.setunstoredindex!(
 end
 
 # ============================  similar  ============================
-# `similar` must build a `FusionArray`, not route through the `AbstractGradedArray` `similar` that
-# allocates an `AbelianGradedArray`. Without explicit axes, preserve the prototype's own
+# `similar` must build a `FusionArray`. Without explicit axes, preserve the prototype's own
 # codomain/domain split (like `copy`); with explicit flat axes the split is unrecoverable (see the
 # `copy` note), so put all axes in the codomain, matching the broadcast `similar`.
 function Base.similar(a::FusionArray, ::Type{T}) where {T}
@@ -186,6 +185,12 @@ function Base.similar(
         a::FusionArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
     ) where {T, S}
     return TensorAlgebra.similar_map(a, T, axes, ())
+end
+# Empty axes build a rank-0 `FusionArray`; the sector type is read from the prototype (it cannot
+# be inferred from the empty axes). Without this, `similar(fa, T, ())` falls through to Base and
+# returns a plain rank-0 `Array`.
+function Base.similar(a::FusionArray, ::Type{T}, ::Tuple{}) where {T}
+    return FusionArray{T, sectortype(a)}(undef, (), ())
 end
 
 # ============================  copyto!  ============================
@@ -243,33 +248,36 @@ function Base.permutedims!(
     return y
 end
 
-# ============================  matrix product  ============================
-# Matrix-matrix product as a contraction over the shared leg, mirroring `AbelianGradedMatrix`. The
-# generic `LinearAlgebra` matmul scalar-indexes, which errors on forbidden blocks.
-function Base.:*(a::FusionMatrix, b::FusionMatrix)
-    return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
-end
-
-# ============================  adjoint  ============================
-# `adjoint` is a matrix operation, so restrict it to a genuine `(1, 1)` split (one codomain and one
-# domain leg). A `FusedGradedMatrix` already adjoints block-wise (swapping its codomain/domain), so
-# the `FusionArray` adjoint just swaps the per-leg axis tuples to match, staying `(1, 1)`. Other splits
-# are not matrices: their dense form is split-dependent, so `Array(a')` would not be `adjoint(Array(a))`
-# and the Gram product would not typecheck. This is a working matrix `adjoint` where
-# `AbelianGradedArray` has none.
-function Base.adjoint(fa::FusionArray{<:Any, <:Any, 2, 1, 1})
-    return FusionArray(adjoint(matricize(fa)), axes_domain(fa), axes_codomain(fa))
-end
-
-# A 2-index `FusionArray` with any other split is not a matrix. It already errors through the generic
-# `AbstractGradedArray` fallback rather than building a broken lazy `Adjoint`, but give a clearer
-# message naming the `(1, 1)` requirement.
-function Base.adjoint(fa::FusionMatrix)
+# ============================  matrix algebra is (1, 1)-only  ============================
+# Linear algebra on a `FusionArray` is matrix algebra, so it is restricted to a genuine `(1, 1)`
+# linear map (one codomain, one domain leg). A rank-2 array with any other split is not a matrix: its
+# dense form is split-dependent, so the operation would not agree with the same `Base`/MatrixAlgebraKit
+# operation on `Array(a)` (which `FusionArray <: AbstractArray` promises). Bend such an array to a
+# matrix first, or factor over an explicit bipartition with the `TensorAlgebra` forms. This message is
+# the shared fallback for the `(1, 1)`-only ops below (`*`, `adjoint`, the bare factorizations, `one!`).
+@noinline function not_matrix_error(op, m::FusionMatrix)
     return error(
-        "`adjoint` of a `FusionArray` requires a (1, 1) codomain/domain split; this matrix has \
-        split ($(ndims_codomain(fa)), $(ndims_domain(fa))). Bend it to a matrix first."
+        "`$op` of a `FusionArray` requires a (1, 1) codomain/domain split; this matrix has \
+        split ($(ndims_codomain(m)), $(ndims_domain(m))). Bend it to a matrix first."
     )
 end
+
+# ============================  matrix product  ============================
+# Matrix-matrix product as a contraction over the shared leg, both operands genuine `(1, 1)` matrices.
+# The generic `LinearAlgebra` matmul scalar-indexes, which errors on forbidden blocks.
+function Base.:*(a::FusionMatrix{<:Any, <:Any, 1, 1}, b::FusionMatrix{<:Any, <:Any, 1, 1})
+    return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
+end
+Base.:*(a::FusionMatrix, b::FusionMatrix) = not_matrix_error(*, a)
+
+# ============================  adjoint  ============================
+# `adjoint` is a matrix operation, so restrict it to a genuine `(1, 1)` split. A `FusedGradedMatrix`
+# already adjoints block-wise (swapping its codomain/domain), so the `FusionArray` adjoint just swaps
+# the per-leg axis tuples to match, staying `(1, 1)`.
+function Base.adjoint(fa::FusionMatrix{<:Any, <:Any, 1, 1})
+    return FusionArray(adjoint(matricize(fa)), axes_domain(fa), axes_codomain(fa))
+end
+Base.adjoint(fa::FusionMatrix) = not_matrix_error(adjoint, fa)
 
 # ============================  conj  ============================
 # Conjugate while keeping the codomain/domain split, unlike the `AbstractGradedArray` `conj.(a)`
@@ -289,19 +297,22 @@ end
 
 # ============================  bare-matrix factorizations  ============================
 # Route the plain matrix forms (`MAK.svd_compact(m)`, etc.) through the matricizing `TensorAlgebra`
-# factorizations, identical to the `AbelianGradedMatrix` methods in `matrixalgebrakit.jl` (which
-# also documents the shared name list). Defined here because `FusionArray` is not yet defined at
-# that include point. Avoids MatrixAlgebraKit's native path, which scalar-indexes and hits a
-# forbidden block.
+# factorizations, using the shared `BARE_MATRIX_FACTORIZATIONS` name list defined in
+# `matrixalgebrakit.jl`. Defined here because `FusionArray` is not yet defined at that include
+# point. Avoids MatrixAlgebraKit's native path, which scalar-indexes and hits a forbidden block. The
+# bare form is matrix algebra, so it requires a `(1, 1)` split; factor another split over an explicit
+# bipartition with `TensorAlgebra.$f(a, biperm)`.
 for f in BARE_MATRIX_FACTORIZATIONS
-    @eval function MAK.$f(m::FusionMatrix; kwargs...)
+    @eval function MAK.$f(m::FusionMatrix{<:Any, <:Any, 1, 1}; kwargs...)
         return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
     end
+    @eval MAK.$f(m::FusionMatrix; kwargs...) = not_matrix_error(MAK.$f, m)
 end
 
 # Graded identity fill via the fused path (fills each coupled block), not the generic `one!`, which
-# reshapes and scalar-indexes the graded array. Mirrors the `AbelianGradedMatrix` method.
-MAK.one!(m::FusionMatrix) = TensorAlgebra.one!(m, Val(1))
+# reshapes and scalar-indexes the graded array. A matrix operation, so `(1, 1)` only.
+MAK.one!(m::FusionMatrix{<:Any, <:Any, 1, 1}) = TensorAlgebra.one!(m, Val(1))
+MAK.one!(m::FusionMatrix) = not_matrix_error(MAK.one!, m)
 
 # ============================  TensorMap conversion  ============================
 
@@ -403,9 +414,7 @@ function FusionArray{T, S}(
     return FusionArray(m, axes_codomain, axes_domain)
 end
 
-# A `FusionArray` source always reproduces a `FusionArray`, independent of the `graded_backend`
-# preference (so `FusionArray` stays self-consistent even when it is not the default backend). The
-# graded axes make these more specific than the backend-routing `similar_map` in `abeliangradedarray.jl`.
+# A `FusionArray` source reproduces a `FusionArray`, routing straight to its `undef` constructor.
 function TensorAlgebra.similar_map(
         ::FusionArray, ::Type{T},
         axes_codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
@@ -452,6 +461,18 @@ Base.iszero(fa::FusionArray) = iszero(matricize(fa))
 # relies on the copy keeping `A`'s split so the identity fill lands in the stored matrix).
 function Base.copy(fa::FusionArray)
     return FusionArray(copy(matricize(fa)), axes_codomain(fa), axes_domain(fa))
+end
+
+# Sort each external axis by sector and merge repeated sectors. The internal fused storage is already
+# canonical (blocks are keyed by coupled sector), so the data is unchanged: only the external axes are
+# re-labeled to their merged-sorted form, which re-slices the same coupled blocks into the merged
+# external blocks. Copies the matricized matrix so the result is an independent array.
+function sectormergesort(a::FusionArray)
+    return FusionArray(
+        copy(matricize(a)),
+        map(sectormergesort, axes_codomain(a)),
+        map(sectormergesort, axes_domain(a))
+    )
 end
 
 function Base.real(fa::FusionArray)
@@ -596,7 +617,7 @@ end
 
 # ============================  project (dense -> symmetric)  ============================
 # The dense-to-symmetric projection for the `FusionArray` backend is delegated to TensorKit in the
-# shared `unchecked_project_graded` worker (`abeliangradedarray.jl`): it projects over the equivalent
+# shared `unchecked_project_graded` worker (`gradedconstructors.jl`): it projects over the equivalent
 # `ElementarySpace`s and wraps the resulting `TensorMap` with `FusionArray(t)`. `unproject` below is
 # the dense inverse used by `TA.project`'s verification.
 
@@ -627,8 +648,8 @@ Base.Array(fa::FusionArray{<:Any, <:Any, 0}) = fill(fa[])
 # `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification, and the dense
 # form at an arbitrary codomain split `Val{K}` used to compare tensors across backends (which agree
 # only at a common split). When `K` is the array's own split the `TensorMap` conversion undoes the
-# domain-leg bend directly; otherwise bend the legs to a `K`-codomain split first, mirroring
-# `AbelianGradedArray`'s split-independent dense form. The bend carries the fermion signs.
+# domain-leg bend directly; otherwise bend the legs to a `K`-codomain split first. The bend carries
+# the fermion signs.
 function TensorAlgebra.unproject(fa::FusionArray, ::Val{K}) where {K}
     N = ndims(fa)
     0 <= K <= N ||
