@@ -39,10 +39,17 @@ end
 axes_codomain(fa::FusionArray) = fa.axes_codomain
 axes_domain(fa::FusionArray) = fa.axes_domain
 
-# Domain axes are stored codomain-facing (TensorKit's `domain` convention); `axes` dualizes them
-# so a domain leg reads as a dual axis, matching TensorKit's `space(t, i)`.
-Base.axes(fa::FusionArray) = (axes_codomain(fa)..., map(dual, axes_domain(fa))...)
+# Domain axes are stored codomain-facing (TensorKit's `domain` convention); `biaxes` dualizes the
+# domain half, so a domain leg reads as a dual axis (matching TensorKit's `space(t, i)`) and the
+# codomain/domain split rides along. `axes` is the flat form; `codomain`/`domain` recover the halves.
+biaxes(fa::FusionArray) = BiTuple(axes_codomain(fa), map(conj, axes_domain(fa)))
+Base.axes(fa::FusionArray) = Tuple(biaxes(fa))
 Base.size(fa::FusionArray) = map(length, axes(fa))
+
+# Recover the split halves of a `biaxes` `BiTuple`: `codomain` is the first half as-is; `domain`
+# re-dualizes the second half (stored dualized as the external view) back to codomain-facing form.
+codomain(bt::BiTuple) = bt.t1
+domain(bt::BiTuple) = map(conj, bt.t2)
 
 ndims_codomain(fa::FusionArray) = length(axes_codomain(fa))
 ndims_domain(fa::FusionArray) = length(axes_domain(fa))
@@ -132,7 +139,7 @@ struct FusionArrayBlocks{T, S, N, A <: FusionArray{T, S, N}} <:
     parent::A
 end
 BlockArrays.blocks(a::FusionArray) = FusionArrayBlocks(a)
-Base.size(b::FusionArrayBlocks) = Tuple(blocklength.(axes(b.parent)))
+Base.size(b::FusionArrayBlocks) = blocklength.(axes(b.parent))
 
 function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
@@ -153,7 +160,7 @@ end
 function SparseArraysBase.setstoredindex!(
         b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
-    copyto!(view(b.parent, Block(I...)), value)
+    copy_sector!(view(b.parent, Block(I...)), value)
     return b
 end
 function SparseArraysBase.getunstoredindex(
@@ -291,6 +298,10 @@ for f in BARE_MATRIX_FACTORIZATIONS
         return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
     end
 end
+
+# Graded identity fill via the fused path (fills each coupled block), not the generic `one!`, which
+# reshapes and scalar-indexes the graded array. Mirrors the `AbelianGradedMatrix` method.
+MAK.one!(m::FusionMatrix) = TensorAlgebra.one!(m, Val(1))
 
 # ============================  TensorMap conversion  ============================
 

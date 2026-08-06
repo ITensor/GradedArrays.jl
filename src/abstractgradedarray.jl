@@ -15,6 +15,16 @@ function isblockdiagonal(A::AbstractGradedMatrix)
     return true
 end
 
+# Diagonal iff block-diagonal and every stored (diagonal) block is itself diagonal. Checking blocks
+# avoids densifying a block-sparse matrix through the generic dense-slicing fallback.
+function LinearAlgebra.isdiag(A::AbstractGradedMatrix)
+    for bI in eachblockstoredindex(A)
+        row, col = Tuple(bI)
+        (row == col && LinearAlgebra.isdiag(view(A, bI))) || return false
+    end
+    return true
+end
+
 # Trace: sum the traces of the diagonal blocks (same block position on both axes). Each block
 # view carries its sector, so its `tr` includes that sector's quantum dimension. This is the
 # plain matricized trace, with no fermionic twist sign.
@@ -77,6 +87,23 @@ function Base.view(a::AbstractGradedArray{T, <:Any, N}, I::Vararg{Block{1}, N}) 
     return view(a, Block(Int.(I)))
 end
 
+# A `BlockIndexRange` view is the block view sliced by the within-block ranges. Routing through the
+# `Block` view (then the range sub-view) keeps the result a sector array, which Base's generic
+# `BlockSlice` path would otherwise flatten to a plain dense `SubArray`. Both the combined form and
+# the per-axis splatted form (mirroring the `Block` / `Vararg{Block{1}}` pair) land here.
+function Base.view(a::AbstractGradedArray{T, <:Any, N}, I::BlockIndexRange{N}) where {T, N}
+    return view(view(a, block(I)), I.indices...)
+end
+# The per-axis splatted form combines into the `BlockIndexRange{N}` above. Requiring at least two
+# arguments keeps a lone per-axis range on the combined method (a single splat would rebuild the same
+# `BlockIndexRange{1}` and recurse) and keeps this off the empty `Vararg{Block{1}}` view at N=0.
+function Base.view(
+        a::AbstractGradedArray, I1::BlockIndexRange{1}, I2::BlockIndexRange{1},
+        Irest::BlockIndexRange{1}...
+    )
+    return view(a, BlockIndexRange((I1, I2, Irest...)))
+end
+
 function Base.getindex(a::AbstractGradedArray{T, <:Any, N}, I::Block{N}) where {T, N}
     return copy(view(a, I))
 end
@@ -89,6 +116,21 @@ end
 # Disambiguate the N=1 case: route through the `Block{N}` method to avoid recursion.
 Base.getindex(a::AbstractGradedArray{T, <:Any, 1}, I::Block{1}) where {T} = copy(view(a, I))
 
+# `BlockIndexRange` indexing mirrors the `Block` methods: a copy of the sector-array block view (the
+# two-argument splat rule matches `view` above).
+function Base.getindex(
+        a::AbstractGradedArray{T, <:Any, N},
+        I::BlockIndexRange{N}
+    ) where {T, N}
+    return copy(view(a, I))
+end
+function Base.getindex(
+        a::AbstractGradedArray, I1::BlockIndexRange{1}, I2::BlockIndexRange{1},
+        Irest::BlockIndexRange{1}...
+    )
+    return copy(view(a, I1, I2, Irest...))
+end
+
 function Base.setindex!(
         a::AbstractGradedArray{<:Any, <:Any, N},
         value,
@@ -99,11 +141,11 @@ end
 function Base.setindex!(
         a::AbstractGradedArray{<:Any, <:Any, N}, value, I::Vararg{Block{1}, N}
     ) where {N}
-    copy!(view(a, I...), value)
+    copy_sector!(view(a, I...), value)
     return a
 end
 function Base.setindex!(a::AbstractGradedArray{<:Any, <:Any, 1}, value, I::Block{1})
-    copy!(view(a, I), value)
+    copy_sector!(view(a, I), value)
     return a
 end
 

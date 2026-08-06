@@ -352,6 +352,7 @@ end
         @test back(2 * a - 3 * b) ≈ 2 * back(a) - 3 * back(b)
         # Operands with different codomain/domain splits but equal axes still add (each is bent).
         c = randn_fusionarray((i, dual(j)), ())
+        @test (ndims_codomain(c), ndims_domain(c)) != (ndims_codomain(a), ndims_domain(a))
         @test axes(c) == axes(a)
         @test back(a + c) ≈ back(a) + back(c)
     end

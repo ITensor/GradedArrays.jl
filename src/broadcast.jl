@@ -21,6 +21,33 @@ function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:AbstractSe
     return dest
 end
 
+# Skip Base's eager axis-combining. A sector array stores only the reduced data, not a dense array
+# over its full (structural sector factor times degeneracy) axes, so `similar` and `copyto!` rebuild
+# the result from `flattenlinear(bc)` and the combined axes are never needed.
+BC.instantiate(bc::BC.Broadcasted{<:AbstractSectorStyle}) = bc
+
+# `dest .= <dense expression>`: materialize a dense RHS into the reduced data (well-defined only
+# under unique/abelian fusion, where the reduced data is the full array) rather than letting Base
+# combine it against the destination's full axes. Sector-style RHS expressions are not dense-styled
+# and keep flowing through the linear-broadcast `copyto!` above.
+function BC.materialize!(
+        dest::AbstractSectorArray,
+        bc::BC.Broadcasted{<:BC.DefaultArrayStyle}
+    )
+    require_unique_fusion(dest)
+    BC.materialize!(data(dest), bc)
+    return dest
+end
+
+# Route array arithmetic through the broadcast fold rather than Base's array arithmetic. These are
+# graded linear combinations, so broadcasting (which rebuilds from the reduced data) rather than
+# element-wise arraymath over the full axes is the right primitive.
+Base.:+(a::AbstractSectorArray, b::AbstractSectorArray) = a .+ b
+Base.:-(a::AbstractSectorArray, b::AbstractSectorArray) = a .- b
+Base.:*(a::AbstractSectorArray, x::Number) = a .* x
+Base.:*(x::Number, a::AbstractSectorArray) = x .* a
+Base.:/(a::AbstractSectorArray, x::Number) = a ./ x
+
 # ---- abelian sector arrays and structural deltas ----
 
 struct UniqueSectorStyle{N} <: AbstractSectorStyle{N} end
@@ -96,6 +123,16 @@ end
 function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:AbstractGradedStyle})
     return copyto!(dest, flattenlinear(bc))
 end
+
+# See the `AbstractSectorStyle` override above.
+BC.instantiate(bc::BC.Broadcasted{<:AbstractGradedStyle}) = bc
+
+# See the `AbstractSectorArray` arithmetic above.
+Base.:+(a::AbstractGradedArray, b::AbstractGradedArray) = a .+ b
+Base.:-(a::AbstractGradedArray, b::AbstractGradedArray) = a .- b
+Base.:*(a::AbstractGradedArray, x::Number) = a .* x
+Base.:*(x::Number, a::AbstractGradedArray) = x .* a
+Base.:/(a::AbstractGradedArray, x::Number) = a ./ x
 
 # ---- unfused (cartesian-block) graded arrays ----
 

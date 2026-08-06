@@ -97,6 +97,15 @@ function Base.copy(a::UniqueSectorArray)
     return UniqueSectorArray(copy(data(a)), a.sectors_codomain, a.sectors_domain)
 end
 
+# A range sub-view keeps the sector labels and shrinks the reduced data: the degeneracy dimensions
+# live in the data, while the sector factor is unchanged, so the sub-view is again a sector array
+# rather than a plain dense view.
+function Base.view(
+        a::UniqueSectorArray{<:Any, <:Any, N}, I::Vararg{AbstractUnitRange, N}
+    ) where {N}
+    return sector_kron(sector(a), view(data(a), I...))
+end
+
 # similar for UniqueSectorArray with SectorOneTo axes.
 # Delegates to similar on the data array for the data dimensions.
 function Base.similar(

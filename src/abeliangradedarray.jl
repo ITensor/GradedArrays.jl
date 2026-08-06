@@ -121,7 +121,7 @@ end
 # scalar `a[] = value` above: block access carries a `Block` index, scalar access takes none,
 # which for a rank-0 array would otherwise collide on the same no-coordinate `setindex!`.
 function Base.setindex!(a::AbelianGradedArray{T, <:Any, 0}, value, ::Block{0}) where {T}
-    copy!(view(a, Block()), value)
+    copy_sector!(view(a, Block()), value)
     return a
 end
 
@@ -166,7 +166,7 @@ end
 function SparseArraysBase.setstoredindex!(
         b::AbelianBlocks{T, N}, value, I::Vararg{Int, N}
     ) where {T, N}
-    copyto!(view(b.parent, Block.(I)...), value)
+    copy_sector!(view(b.parent, Block.(I)...), value)
     return b
 end
 # An unstored index is a symmetry-forbidden block, not a lazily-omitted zero: an
@@ -217,12 +217,11 @@ function Base.getindex(
         dest_refs = ntuple(d -> src_to_dests[d][src_tuple[d]], Val(N))
         for combo in Iterators.product(dest_refs...)
             src_r = ntuple(d -> combo[d][2], Val(N))
-            src_data = view(a[bI_src], src_r...)
+            src_data = view(a, bI_src[src_r...])
             iszero(src_data) && continue
             dest_b = Block(ntuple(d -> only(Tuple(combo[d][1].block)), Val(N)))
-            a_dest_b = view(a_dest, dest_b)
             dest_r = ntuple(d -> only(combo[d][1].indices), Val(N))
-            copyto!(view(a_dest_b, dest_r...), src_data)
+            copy!(view(a_dest, dest_b[dest_r...]), src_data)
         end
     end
     return a_dest
@@ -265,9 +264,8 @@ function Base.getindex(
         src_tuple = Tuple(bI_src)
         dest_info = ntuple(d -> src_to_dest[d][src_tuple[d]], Val(N))
         dest_b = Block(map(di -> only(Tuple(di.block)), dest_info))
-        a_dest_b = view(a_dest, dest_b)
         dest_r = map(di -> only(di.indices), dest_info)
-        copyto!(view(a_dest_b, dest_r...), a[bI_src])
+        copy!(view(a_dest, dest_b[dest_r...]), view(a, bI_src))
     end
     return a_dest
 end

@@ -24,12 +24,21 @@ function sector_kron end
 
 # The axes decompose into the structural sector factor and the reduced data, derived once here from
 # the `sector`/`data` primitives every concrete subtype provides, so no type re-derives them and
-# they cannot drift apart. `size` follows from `axes`.
+# they cannot drift apart. `biaxes` carries the codomain/domain split as a `BiTuple`: the sector
+# factor supplies the split (via its own `biaxes`), so bipartition the flat reduced-data axes at the
+# same boundary and pair each with its sector label. `axes` is the flat form; `size` the flat shape.
 sectoraxes(sa::AbstractSectorArray) = axes(sector(sa))
 dataaxes(sa::AbstractSectorArray) = axes(data(sa))
-Base.axes(sa::AbstractSectorArray) = map(SectorOneTo, sectoraxes(sa), dataaxes(sa))
+function biaxes(sa::AbstractSectorArray)
+    sbi = biaxes(sector(sa))
+    datacod, datadom = bipartition(dataaxes(sa), Val(length(sbi.t1)))
+    return BiTuple(map(SectorOneTo, sbi.t1, datacod), map(SectorOneTo, sbi.t2, datadom))
+end
+Base.axes(sa::AbstractSectorArray) = Tuple(biaxes(sa))
 
 Base.size(sa::AbstractSectorArray) = map(length, axes(sa))
+
+Base.similar(a::AbstractSectorArray, ::Type{T}) where {T} = similar(a, T, axes(a))
 
 # Scalar indexing reads/writes the reduced data directly, which only coincides with the full array
 # for unique (abelian) fusion, where the structural factor is trivial and `size == size(data)`. For
@@ -54,15 +63,39 @@ Base.@propagate_inbounds function Base.setindex!(
     return A
 end
 
-# Copy between sector arrays, including across the unfused/fused representations (e.g. writing
-# a block into a graded array). The axes carry the sector labels, so the equality check
-# rejects a sector mismatch; the raw data is then copied directly.
-function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
+# `copy_sector!` is the sector-aware block copy used by block assignment and the concatenation
+# scatter. It dispatches on whether each side is a sector array or a plain array. Keeping it a
+# GradedArrays function, rather than overloading `Base.copyto!`/`copy!` against `AbstractArray`, keeps
+# it out of those crowded method tables and so adds no ambiguities with stdlib array types.
+
+# sector <- sector: the reduced data carries the block, so the axes (sector labels and lengths) must
+# match. The flat axes carry no codomain/domain split, so a `(2, 0)` block still copies into a
+# `(1, 1)` one.
+function copy_sector!(dest::AbstractSectorArray, src::AbstractSectorArray)
     axes(dest) == axes(src) || throw(
-        DimensionMismatch("sector axes mismatch in copy!: $(axes(dest)) vs $(axes(src))")
+        DimensionMismatch("sector axes mismatch in copy: $(axes(dest)) vs $(axes(src))")
     )
     copyto!(data(dest), data(src))
     return dest
+end
+# sector <- plain: a plain array is the full array, which equals the reduced data only under unique
+# (abelian) fusion; require it. Lets `a[Block] = dense` fill a block.
+function copy_sector!(dest::AbstractSectorArray, src::AbstractArray)
+    require_unique_fusion(dest)
+    copyto!(data(dest), src)
+    return dest
+end
+
+# `copy!`/`copyto!` between two sector arrays route through `copy_sector!` (which does the full-axis
+# check Base's `copy!` requires) so generic array code keeps working.
+Base.copyto!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
+Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
+
+# A sector matrix is the Kronecker product of its structural factor with the reduced data. The factor
+# is diagonal (identity-like) for any fusion, so the matrix is diagonal iff the reduced data is. Lets
+# `isdiag` on a graded matrix test its blocks without unwrapping to `data`.
+function LinearAlgebra.isdiag(A::AbstractSectorArray{<:Any, <:Any, 2})
+    return LinearAlgebra.isdiag(data(A))
 end
 
 # ========================  Shared utilities  ========================

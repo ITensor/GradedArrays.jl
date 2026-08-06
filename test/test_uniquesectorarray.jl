@@ -112,6 +112,21 @@ using Test: @test, @test_throws, @testset
         @test sa[1, 1] == 1.0
     end
 
+    @testset "copyto! / broadcast-assign from a plain array" begin
+        src = [1.0 2.0; 3.0 4.0]
+        sa = UniqueSectorArray(zeros(2, 2), (U1(1), conj(U1(1))))
+        copyto!(sa, src)
+        @test data(sa) == src
+
+        sa2 = UniqueSectorArray(zeros(2, 2), (U1(1), conj(U1(1))))
+        sa2 .= src
+        @test data(sa2) == src
+
+        sa3 = UniqueSectorArray(zeros(2, 2), (U1(1), conj(U1(1))))
+        sa3 .= 2 .* src
+        @test data(sa3) == 2 .* src
+    end
+
     @testset "convert" begin
         data = [1 2; 3 4]
         sa = UniqueSectorArray(data, (U1(0), U1(1)))

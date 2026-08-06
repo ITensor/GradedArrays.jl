@@ -12,7 +12,7 @@ struct FusedGradedMatrixBlocks{T, S, D, A <: FusedGradedMatrix{T, S, D}} <:
 end
 BlockArrays.blocks(m::FusedGradedMatrix) = FusedGradedMatrixBlocks(m)
 
-Base.size(b::FusedGradedMatrixBlocks) = Tuple(blocklength.(axes(b.parent)))
+Base.size(b::FusedGradedMatrixBlocks) = blocklength.(axes(b.parent))
 
 # Return `Vector`s (not lazy generators): the `SubArray` wrapper path in SparseArraysBase
 # `filter`s over these, and `filter` is not defined for `Base.Generator`.
@@ -39,7 +39,7 @@ function SparseArraysBase.getstoredindex(b::FusedGradedMatrixBlocks, i::Int, j::
     return view(b.parent, Block(i), Block(j))
 end
 function SparseArraysBase.setstoredindex!(b::FusedGradedMatrixBlocks, value, i::Int, j::Int)
-    copyto!(view(b.parent, Block(i), Block(j)), value)
+    copy_sector!(view(b.parent, Block(i), Block(j)), value)
     return b
 end
 # An unstored index is a symmetry-forbidden block, not a lazily-omitted zero, so reading or
