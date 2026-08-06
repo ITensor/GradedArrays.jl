@@ -16,7 +16,7 @@ function isblockdiagonal(A::AbstractGradedMatrix)
 end
 
 # Diagonal iff block-diagonal and every stored (diagonal) block is itself diagonal. Checking blocks
-# avoids the generic dense-slicing fallback, whose `view` cannot consume the `BiTuple` axes.
+# avoids densifying a block-sparse matrix through the generic dense-slicing fallback.
 function LinearAlgebra.isdiag(A::AbstractGradedMatrix)
     for bI in eachblockstoredindex(A)
         row, col = Tuple(bI)

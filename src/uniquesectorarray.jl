@@ -98,9 +98,8 @@ function Base.copy(a::UniqueSectorArray)
 end
 
 # A range sub-view keeps the sector labels and shrinks the reduced data: the degeneracy dimensions
-# live in the data, while the sector factor is unchanged, so the sub-view is again a sector array.
-# Reusing the `sector`/`data` split also avoids the generic `to_indices` path, which cannot consume
-# the `BiTuple` axes.
+# live in the data, while the sector factor is unchanged, so the sub-view is again a sector array
+# rather than a plain dense view.
 function Base.view(
         a::UniqueSectorArray{<:Any, <:Any, N}, I::Vararg{AbstractUnitRange, N}
     ) where {N}

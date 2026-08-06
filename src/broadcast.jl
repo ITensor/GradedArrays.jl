@@ -21,14 +21,14 @@ function Base.copyto!(dest::AbstractSectorArray, bc::BC.Broadcasted{<:AbstractSe
     return dest
 end
 
-# Skip Base's eager axis-combining. Our `axes` return a `BiTuple`, which Base's `combine_axes`
-# cannot merge; `similar` and `copyto!` both rebuild the result from `flattenlinear(bc)` instead,
-# so the combined axes are never needed.
+# Skip Base's eager axis-combining. A sector array stores only the reduced data, not a dense array
+# over its full (structural sector factor times degeneracy) axes, so `similar` and `copyto!` rebuild
+# the result from `flattenlinear(bc)` and the combined axes are never needed.
 BC.instantiate(bc::BC.Broadcasted{<:AbstractSectorStyle}) = bc
 
-# `dest .= <dense expression>`: a dense RHS would make Base combine it against the destination's
-# `BiTuple` axes. Materialize into the reduced data instead (well-defined only under unique/abelian
-# fusion, where the reduced data is the full array). Sector-style RHS expressions are not dense-styled
+# `dest .= <dense expression>`: materialize a dense RHS into the reduced data (well-defined only
+# under unique/abelian fusion, where the reduced data is the full array) rather than letting Base
+# combine it against the destination's full axes. Sector-style RHS expressions are not dense-styled
 # and keep flowing through the linear-broadcast `copyto!` above.
 function BC.materialize!(
         dest::AbstractSectorArray,
@@ -39,9 +39,9 @@ function BC.materialize!(
     return dest
 end
 
-# Route array arithmetic through the broadcast fold rather than Base's array arithmetic, which
-# would combine the `BiTuple` axes. These are graded linear combinations, so broadcasting (not
-# element-wise arraymath) is the right primitive anyway.
+# Route array arithmetic through the broadcast fold rather than Base's array arithmetic. These are
+# graded linear combinations, so broadcasting (which rebuilds from the reduced data) rather than
+# element-wise arraymath over the full axes is the right primitive.
 Base.:+(a::AbstractSectorArray, b::AbstractSectorArray) = a .+ b
 Base.:-(a::AbstractSectorArray, b::AbstractSectorArray) = a .- b
 Base.:*(a::AbstractSectorArray, x::Number) = a .* x

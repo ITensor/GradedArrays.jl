@@ -209,13 +209,14 @@ function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
 end
 blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 
-function Base.axes(m::FusedGradedMatrix)
+function biaxes(m::FusedGradedMatrix)
     cod = gradedrange(collect(pairs(m.codomain)))
     dom = gradedrange([dual(s) => l for (s, l) in pairs(m.domain)])
     return BiTuple((cod,), (dom,))
 end
+Base.axes(m::FusedGradedMatrix) = Tuple(biaxes(m))
 
-Base.size(m::FusedGradedMatrix) = map(length, Tuple(axes(m)))
+Base.size(m::FusedGradedMatrix) = map(length, axes(m))
 Base.eltype(::Type{FusedGradedMatrix{T}}) where {T} = T
 Base.eltype(::Type{<:FusedGradedMatrix{T}}) where {T} = T
 

@@ -258,9 +258,6 @@ end
 
 # ========================  Allowed block keys  ========================
 
-# A `FusionArray`'s `axes` is a `BiTuple`; the allowed external blocks do not depend on the
-# codomain/domain split, so flatten to the per-leg axes.
-allowedblocks(axs::BiTuple) = allowedblocks(Tuple(axs))
 function allowedblocks(axs::NTuple{N, GradedOneTo}) where {N}
     N == 0 && return Block{0, Int}[Block()]
     @assert TKS.FusionStyle(sectortype(eltype(axs))) === TKS.UniqueFusion()

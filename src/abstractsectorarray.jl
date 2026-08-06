@@ -24,24 +24,21 @@ function sector_kron end
 
 # The axes decompose into the structural sector factor and the reduced data, derived once here from
 # the `sector`/`data` primitives every concrete subtype provides, so no type re-derives them and
-# they cannot drift apart. `axes` carries the codomain/domain split as a `BiTuple`: the sector factor
-# supplies the split (its own axes are a `BiTuple`), so bipartition the flat reduced-data axes at the
-# same boundary and pair each with its sector label. `size` is the flat shape.
+# they cannot drift apart. `biaxes` carries the codomain/domain split as a `BiTuple`: the sector
+# factor supplies the split (via its own `biaxes`), so bipartition the flat reduced-data axes at the
+# same boundary and pair each with its sector label. `axes` is the flat form; `size` the flat shape.
 sectoraxes(sa::AbstractSectorArray) = axes(sector(sa))
 dataaxes(sa::AbstractSectorArray) = axes(data(sa))
-function Base.axes(sa::AbstractSectorArray)
-    sax = sectoraxes(sa)
-    datacod, datadom = bipartition(dataaxes(sa), Val(length(sax.t1)))
-    return BiTuple(map(SectorOneTo, sax.t1, datacod), map(SectorOneTo, sax.t2, datadom))
+function biaxes(sa::AbstractSectorArray)
+    sbi = biaxes(sector(sa))
+    datacod, datadom = bipartition(dataaxes(sa), Val(length(sbi.t1)))
+    return BiTuple(map(SectorOneTo, sbi.t1, datacod), map(SectorOneTo, sbi.t2, datadom))
 end
+Base.axes(sa::AbstractSectorArray) = Tuple(biaxes(sa))
 
-Base.size(sa::AbstractSectorArray) = map(length, Tuple(axes(sa)))
+Base.size(sa::AbstractSectorArray) = map(length, axes(sa))
 
-# `axes` on the sector tensors returns a `BiTuple` carrying the codomain/domain split (which the
-# fermion phase bookkeeping needs on every block). The `BiTuple` itself handles the `AbstractArray`
-# index glue (`checkbounds`, `LinearIndices`, `CartesianIndices`) by flattening; `similar` without
-# explicit axes still needs the flat axes here to reach the split-free constructor.
-Base.similar(a::AbstractSectorArray, ::Type{T}) where {T} = similar(a, T, Tuple(axes(a)))
+Base.similar(a::AbstractSectorArray, ::Type{T}) where {T} = similar(a, T, axes(a))
 
 # Scalar indexing reads/writes the reduced data directly, which only coincides with the full array
 # for unique (abelian) fusion, where the structural factor is trivial and `size == size(data)`. For
@@ -72,7 +69,7 @@ end
 # it out of those crowded method tables and so adds no ambiguities with stdlib array types.
 
 # sector <- sector: the reduced data carries the block, so the axes (sector labels and lengths) must
-# match. Axis equality ignores the codomain/domain split, so a `(2, 0)` block still copies into a
+# match. The flat axes carry no codomain/domain split, so a `(2, 0)` block still copies into a
 # `(1, 1)` one.
 function copy_sector!(dest::AbstractSectorArray, src::AbstractSectorArray)
     axes(dest) == axes(src) || throw(
