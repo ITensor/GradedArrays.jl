@@ -71,13 +71,12 @@ end
 # GradedArrays function, rather than overloading `Base.copyto!`/`copy!` against `AbstractArray`, keeps
 # it out of those crowded method tables and so adds no ambiguities with stdlib array types.
 
-# sector <- sector: the reduced data carries the block, so the sector labels must match (ignoring the
-# codomain/domain split, so a `(2, 0)` block still copies into a `(1, 1)` one).
+# sector <- sector: the reduced data carries the block, so the axes (sector labels and lengths) must
+# match. Axis equality ignores the codomain/domain split, so a `(2, 0)` block still copies into a
+# `(1, 1)` one.
 function copy_sector!(dest::AbstractSectorArray, src::AbstractSectorArray)
-    sectoraxes(dest) == sectoraxes(src) || throw(
-        DimensionMismatch(
-            "sector mismatch in copy: $(sectoraxes(dest)) vs $(sectoraxes(src))"
-        )
+    axes(dest) == axes(src) || throw(
+        DimensionMismatch("sector axes mismatch in copy: $(axes(dest)) vs $(axes(src))")
     )
     copyto!(data(dest), data(src))
     return dest
@@ -90,20 +89,15 @@ function copy_sector!(dest::AbstractSectorArray, src::AbstractArray)
     return dest
 end
 
-# `copy!`/`copyto!` between two sector arrays route through `copy_sector!` so generic array code keeps
-# working. `copy!` adds Base's stricter full-axis match (sector labels and lengths).
+# `copy!`/`copyto!` between two sector arrays route through `copy_sector!` (which does the full-axis
+# check Base's `copy!` requires) so generic array code keeps working.
 Base.copyto!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
-function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
-    axes(dest) == axes(src) || throw(
-        DimensionMismatch("sector axes mismatch in copy!: $(axes(dest)) vs $(axes(src))")
-    )
-    return copy_sector!(dest, src)
-end
+Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
 
-# A sector matrix is diagonal iff its reduced data is (unique fusion only, where the data is the full
-# array). Lets `isdiag` on a graded matrix test its blocks without unwrapping to `data`.
+# A sector matrix is the Kronecker product of its structural factor with the reduced data. The factor
+# is diagonal (identity-like) for any fusion, so the matrix is diagonal iff the reduced data is. Lets
+# `isdiag` on a graded matrix test its blocks without unwrapping to `data`.
 function LinearAlgebra.isdiag(A::AbstractSectorArray{<:Any, <:Any, 2})
-    require_unique_fusion(A)
     return LinearAlgebra.isdiag(data(A))
 end
 
