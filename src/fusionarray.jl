@@ -154,7 +154,7 @@ end
 function SparseArraysBase.setstoredindex!(
         b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
-    copyto!(view(b.parent, Block(I...)), value)
+    copy_sector!(view(b.parent, Block(I...)), value)
     return b
 end
 function SparseArraysBase.getunstoredindex(

@@ -39,7 +39,7 @@ function SparseArraysBase.getstoredindex(b::FusedGradedMatrixBlocks, i::Int, j::
     return view(b.parent, Block(i), Block(j))
 end
 function SparseArraysBase.setstoredindex!(b::FusedGradedMatrixBlocks, value, i::Int, j::Int)
-    copyto!(view(b.parent, Block(i), Block(j)), value)
+    copy_sector!(view(b.parent, Block(i), Block(j)), value)
     return b
 end
 # An unstored index is a symmetry-forbidden block, not a lazily-omitted zero, so reading or

@@ -109,11 +109,11 @@ end
 function Base.setindex!(
         a::AbstractGradedArray{<:Any, <:Any, N}, value, I::Vararg{Block{1}, N}
     ) where {N}
-    copy!(view(a, I...), value)
+    copy_sector!(view(a, I...), value)
     return a
 end
 function Base.setindex!(a::AbstractGradedArray{<:Any, <:Any, 1}, value, I::Block{1})
-    copy!(view(a, I), value)
+    copy_sector!(view(a, I), value)
     return a
 end
 

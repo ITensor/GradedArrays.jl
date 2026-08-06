@@ -66,26 +66,38 @@ Base.@propagate_inbounds function Base.setindex!(
     return A
 end
 
-# Copy between sector arrays, including across the unfused/fused representations (e.g. writing
-# a block into a graded array). The axes carry the sector labels, so the equality check rejects a
-# sector mismatch. Axis equality ignores the codomain/domain split, so a source and destination that
-# agree on the flat legs but differ in split (e.g. a `(2, 0)` block into a `(1, 1)` matrix) still copy.
-function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
-    axes(dest) == axes(src) || throw(
-        DimensionMismatch("sector axes mismatch in copy!: $(axes(dest)) vs $(axes(src))")
+# `copy_sector!` is the sector-aware block copy used by block assignment and the concatenation
+# scatter. It dispatches on whether each side is a sector array or a plain array. Keeping it a
+# GradedArrays function, rather than overloading `Base.copyto!`/`copy!` against `AbstractArray`, keeps
+# it out of those crowded method tables and so adds no ambiguities with stdlib array types.
+
+# sector <- sector: the reduced data carries the block, so the sector labels must match (ignoring the
+# codomain/domain split, so a `(2, 0)` block still copies into a `(1, 1)` one).
+function copy_sector!(dest::AbstractSectorArray, src::AbstractSectorArray)
+    sectoraxes(dest) == sectoraxes(src) || throw(
+        DimensionMismatch(
+            "sector mismatch in copy: $(sectoraxes(dest)) vs $(sectoraxes(src))"
+        )
     )
     copyto!(data(dest), data(src))
     return dest
 end
-
-# Copying a plain array in writes the reduced data directly. This only coincides with the full array
-# under unique (abelian) fusion, where the structural factor is trivial; require it rather than
-# silently mismatching the reduced data against the full array. Lets a dense slice fill a block
-# without the sector wrapper, e.g. in `project`.
-function Base.copyto!(dest::AbstractSectorArray, src::AbstractArray)
+# sector <- plain: a plain array is the full array, which equals the reduced data only under unique
+# (abelian) fusion; require it. Lets `a[Block] = dense` fill a block.
+function copy_sector!(dest::AbstractSectorArray, src::AbstractArray)
     require_unique_fusion(dest)
     copyto!(data(dest), src)
     return dest
+end
+
+# `copy!`/`copyto!` between two sector arrays route through `copy_sector!` so generic array code keeps
+# working. `copy!` adds Base's stricter full-axis match (sector labels and lengths).
+Base.copyto!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
+function Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray)
+    axes(dest) == axes(src) || throw(
+        DimensionMismatch("sector axes mismatch in copy!: $(axes(dest)) vs $(axes(src))")
+    )
+    return copy_sector!(dest, src)
 end
 
 # A sector matrix is diagonal iff its reduced data is (unique fusion only, where the data is the full
