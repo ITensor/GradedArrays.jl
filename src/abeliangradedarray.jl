@@ -66,7 +66,7 @@ function AbelianGradedArray(m::AbstractGradedMatrix)
     # Assumes each allowed block of the target is also stored in `m` — every
     # `similar` allocation is overwritten by the loop below, so no `zero!`
     # is needed.
-    a = similar(m, Tuple(axes(m)))
+    a = similar(m, axes(m))
     for I in eachblockstoredindex(m)
         a[Data(I)] = view(m, Data(I))
     end

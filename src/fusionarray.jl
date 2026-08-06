@@ -139,7 +139,7 @@ struct FusionArrayBlocks{T, S, N, A <: FusionArray{T, S, N}} <:
     parent::A
 end
 BlockArrays.blocks(a::FusionArray) = FusionArrayBlocks(a)
-Base.size(b::FusionArrayBlocks) = blocklength.(Tuple(axes(b.parent)))
+Base.size(b::FusionArrayBlocks) = blocklength.(axes(b.parent))
 
 function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
@@ -488,7 +488,7 @@ end
 # (e.g. GPU arrays). Carry the block data type on `FusionArrayStyle` and use it here, as
 # BlockSparseArrays does for its broadcast style.
 function Base.similar(bc::BC.Broadcasted{<:FusionArrayStyle}, elt::Type)
-    return FusionArray{elt}(undef, Tuple(axes(flattenlinear(bc))), ())
+    return FusionArray{elt}(undef, axes(flattenlinear(bc)), ())
 end
 
 # ============================  bipermutedimsopadd! (permute primitive)  ============================

@@ -391,7 +391,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
     summary(io, m)
     println(io, ":")
-    for (d, g) in pairs(Tuple(axes(m)))
+    for (d, g) in pairs(axes(m))
         print(io, "  Dim $d: ")
         show_axis(io, g)
         println(io)

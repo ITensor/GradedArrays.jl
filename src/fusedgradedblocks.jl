@@ -12,7 +12,7 @@ struct FusedGradedMatrixBlocks{T, S, D, A <: FusedGradedMatrix{T, S, D}} <:
 end
 BlockArrays.blocks(m::FusedGradedMatrix) = FusedGradedMatrixBlocks(m)
 
-Base.size(b::FusedGradedMatrixBlocks) = blocklength.(Tuple(axes(b.parent)))
+Base.size(b::FusedGradedMatrixBlocks) = blocklength.(axes(b.parent))
 
 # Return `Vector`s (not lazy generators): the `SubArray` wrapper path in SparseArraysBase
 # `filter`s over these, and `filter` is not defined for `Base.Generator`.

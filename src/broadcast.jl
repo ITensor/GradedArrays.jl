@@ -67,7 +67,7 @@ end
 function Base.similar(bc::BC.Broadcasted{<:UniqueSectorStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbstractSectorArray, bc′.args)]
-    return similar(arg, elt, Tuple(axes(flattenlinear(bc))))
+    return similar(arg, elt, axes(flattenlinear(bc)))
 end
 
 # ---- fused blocks (FusedSectorVector, FusedSectorMatrix) ----
@@ -151,7 +151,7 @@ end
 function Base.similar(bc::BC.Broadcasted{<:AbelianGradedStyle}, elt::Type)
     bc′ = BC.flatten(bc)
     arg = bc′.args[findfirst(arg -> arg isa AbstractGradedArray, bc′.args)]
-    return similar(arg, elt, Tuple(axes(flattenlinear(bc))))
+    return similar(arg, elt, axes(flattenlinear(bc)))
 end
 
 # ---- fused (coupled-sector-block) graded arrays ----
@@ -172,8 +172,8 @@ BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = GradedStyle{2}()
 # Rebuild the fused array from the linear expression's axes: the undef constructors invert `axes`,
 # undoing the domain dualization a `conj` operand introduces so the result lands in the right sectors.
 function Base.similar(bc::BC.Broadcasted{GradedStyle{1}}, elt::Type)
-    return FusedGradedVector{elt}(undef, Tuple(axes(flattenlinear(bc))))
+    return FusedGradedVector{elt}(undef, axes(flattenlinear(bc)))
 end
 function Base.similar(bc::BC.Broadcasted{GradedStyle{2}}, elt::Type)
-    return FusedGradedMatrix{elt}(undef, Tuple(axes(flattenlinear(bc))))
+    return FusedGradedMatrix{elt}(undef, axes(flattenlinear(bc)))
 end

@@ -12,7 +12,7 @@ abstract type AbstractSectorDelta{T, S, N} <: AbstractArray{T, N} end
 sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
 
 Base.copy(A::AbstractSectorDelta) = A
-Base.size(A::AbstractSectorDelta) = map(length, Tuple(axes(A)))
+Base.size(A::AbstractSectorDelta) = map(length, axes(A))
 
 # Display through the dense form. Base's array-display machinery scalar-indexes, which a delta only
 # supports under unique fusion; it is a small structural factor, so densifying it for display is fine.
@@ -56,7 +56,7 @@ function fermion_permutation_phase(
     @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
     # Each leg contributes its fermion parity to the swap sign; this is fusion-independent, so it
     # holds for non-abelian symmetric-fermionic sectors as well as abelian ones.
-    mask = map(fermionparity, Tuple(axes(x)))
+    mask = map(fermionparity, axes(x))
     return masked_inversion_parity(mask, perm)
 end
 
