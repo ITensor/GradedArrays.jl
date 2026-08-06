@@ -489,8 +489,6 @@ end
     US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
     USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
     @test A ≈ USV
-    # `*` on a graded matrix routes through the block-wise `contract`.
-    @test A ≈ U * S * Vᴴ
 end
 
 @testset "TA.gram_eigh_full_with_pinv (axes_Y regression)" begin
@@ -504,10 +502,6 @@ end
     # Y is a left inverse of X on the rank subspace.
     YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
     @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))
-    # `B` and `X` are genuine `(1, 1)` matrices, so the `(1, 1)` adjoint works and the natural
-    # `B * B'` / `X * X'` Gram forms recover `A` directly.
-    @test B * B' ≈ A
-    @test X * X' ≈ A
 end
 
 @testset "contract rejects mismatched contracted-axis duality (bosonic)" begin

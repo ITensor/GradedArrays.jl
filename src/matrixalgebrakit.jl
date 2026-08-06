@@ -167,6 +167,20 @@ for f in [
     end
 end
 
+# `one!` (identity fill) is a matrix operation: defined on the matrix storage types by filling each
+# stored block, and guarded on the array types (`_matrix_op_error`) so it does not silently
+# scalar-index the generic `AbstractMatrix` fallback.
+function MAK.one!(A::FusedGradedMatrix)
+    for bI in eachblockstoredindex(A)
+        MAK.one!(view(A, bI))
+    end
+    return A
+end
+MAK.one!(A::FusedSectorMatrix) = (MAK.one!(data(A)); A)
+MAK.one!(A::AbstractGradedArray) = _matrix_op_error(MAK.one!, A)
+MAK.one!(A::AbstractSectorArray) = _matrix_op_error(MAK.one!, A)
+MAK.one!(A::AbstractSectorDelta) = _matrix_op_error(MAK.one!, A)
+
 # initialize_outputs: have to compute the correct sizes for all sectors
 # since these might be present or missing
 # =====================================================================

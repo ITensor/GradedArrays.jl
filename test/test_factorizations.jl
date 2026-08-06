@@ -415,12 +415,11 @@ end
         rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
         h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
-        # `*` is matrix algebra, so build genuine (1, 1) matrices via the (codomain,), (domain,) form
-        # (the domain is stored dualized, giving external axes `(g, dual(·))`).
-        a = randn(rng, Float64, (g,), (g,))
-        b = randn(rng, Float64, (g,), (h,))
+        # `*` is a matrix operation, defined on the matricized `FusedGradedMatrix`, not the array.
+        a = matricize(randn(rng, Float64, (g,), (g,)))
+        b = matricize(randn(rng, Float64, (g,), (h,)))
         c = a * b
-        @test c isa FusionMatrix
+        @test c isa FusedGradedMatrix
         # `(a * b)[i, j] == sum_k a[i, k] * b[k, j]`.
         @test Array(c) ≈ Array(a) * Array(b)
         # Result axes: codomain from `a`, domain from `b`.
@@ -467,42 +466,26 @@ end
     end
 
     # -----------------------------------------------------------------------
-    # Bare-matrix factorizations delegate to the matricizing `TensorAlgebra` forms.
-    @testset "factorizations on a bare graded matrix" begin
+    # Factorizations are matrix operations, defined on the matricized `FusedGradedMatrix`. These
+    # exercise the `randn((codomain,), (domain,))` array constructor feeding `matricize` into each
+    # factorization and check the dense reconstruction. (The block-level factorization behavior is
+    # covered above on directly-built `FusedGradedMatrix`es.)
+    @testset "factorizations reconstruct on a matricized FusedGradedMatrix" begin
         rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
         h = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 4])
-        # The bare factorizations are matrix algebra, so build genuine (1, 1) matrices via the
-        # (codomain,), (domain,) form (the domain is stored dualized, giving external axes `(g, dual(·))`).
-        m_rect = randn(rng, Float64, (g,), (h,))
-        m_sq = randn(rng, Float64, (g,), (g,))
-        m_herm = MAK.project_hermitian(randn(rng, Float64, (g,), (g,)))
+        m_rect = matricize(randn(rng, Float64, (g,), (h,)))
+        m_sq = matricize(randn(rng, Float64, (g,), (g,)))
+        m_herm = MAK.project_hermitian(matricize(randn(rng, Float64, (g,), (g,))))
 
-        # helper: compare two `FusedGradedVector`s block-by-block (the broadcasting `-`
-        # path they would otherwise take is not supported).
-        fgv_approx(x, y) =
-            keys(x.blocks) == keys(y.blocks) &&
-            all(x.blocks[k] ≈ y.blocks[k] for k in keys(x.blocks))
-
-        @testset "svd_compact" begin
+        @testset "svd_compact / svd_full" begin
             U, S, Vᴴ = MAK.svd_compact(m_rect)
-            @test all(x -> x isa FusionMatrix, (U, S, Vᴴ))
+            @test all(x -> x isa FusedGradedMatrix, (U, S, Vᴴ))
             @test axes(U, 1) == axes(m_rect, 1)
             @test axes(Vᴴ, 2) == axes(m_rect, 2)
             @test U * S * Vᴴ ≈ m_rect
-            @test Array(U) * Array(S) * Array(Vᴴ) ≈ Array(m_rect)
-        end
-
-        @testset "svd_full" begin
             U, S, Vᴴ = MAK.svd_full(m_rect)
-            @test all(x -> x isa FusionMatrix, (U, S, Vᴴ))
             @test Array(U) * Array(S) * Array(Vᴴ) ≈ Array(m_rect)
-        end
-
-        @testset "svd_vals" begin
-            @test fgv_approx(
-                MAK.svd_vals(m_rect), MAK.svd_vals(matricize(m_rect, Val(1)))
-            )
         end
 
         @testset "qr_compact / qr_full" begin
@@ -519,21 +502,11 @@ end
             @test Array(L) * Array(Q) ≈ Array(m_rect)
         end
 
-        @testset "eig_full / eig_vals" begin
+        @testset "eig_full / eigh_full" begin
             D, V = MAK.eig_full(m_sq)
             @test Array(m_sq) * Array(V) ≈ Array(V) * Array(D)
-            @test fgv_approx(
-                MAK.eig_vals(m_sq), MAK.eig_vals(matricize(m_sq, Val(1)))
-            )
-        end
-
-        @testset "eigh_full / eigh_vals" begin
             D, V = MAK.eigh_full(m_herm)
             @test Array(m_herm) ≈ Array(V) * Array(D) * Array(V)'
-            @test fgv_approx(
-                MAK.eigh_vals(m_herm),
-                MAK.eigh_vals(matricize(m_herm, Val(1)))
-            )
         end
 
         @testset "left_polar / right_polar" begin
@@ -544,16 +517,16 @@ end
         end
 
         @testset "project_hermitian" begin
-            m = randn(rng, Float64, (g,), (g,))
+            m = matricize(randn(rng, Float64, (g,), (g,)))
             @test Array(MAK.project_hermitian(m)) ≈ (Array(m) + Array(m)') / 2
         end
     end
 
     # -----------------------------------------------------------------------
-    @testset "one! on a graded matrix" begin
+    @testset "one! on a FusedGradedMatrix" begin
         rng = StableRNG(1234)
         g = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
-        a = randn(rng, Float64, (g,), (g,))
+        a = matricize(randn(rng, Float64, (g,), (g,)))
         a_before = Array(copy(a))
 
         b = MAK.one!(a)
@@ -561,7 +534,7 @@ end
         @test b === a
         @test Array(a) != a_before
 
-        # Same as the existing graded identity constructor and the dense identity.
+        # Same as the graded identity from the tensor-form constructor and the dense identity.
         id = TensorAlgebra.one(randn(rng, Float64, (g,), (g,)), (1,), (2,))
         @test Array(a) ≈ Array(id)
         @test Array(a) ≈ Matrix(1.0I, size(a)...)

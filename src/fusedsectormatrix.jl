@@ -67,3 +67,12 @@ end
 function sector_kron(s::SectorIdentity, data::AbstractMatrix)
     return FusedSectorMatrix(data, s.sector)
 end
+
+# ---- matrix operations ----
+
+# A block is the tensor product of its structural factor `sector(a)` (a `SectorIdentity`) and its
+# reduced data `data(a)`, so the trace factorizes: the sector's quantum dimension (the structural
+# trace) times the trace of the reduced data.
+function LinearAlgebra.tr(a::FusedSectorMatrix)
+    return LinearAlgebra.tr(sector(a)) * LinearAlgebra.tr(data(a))
+end

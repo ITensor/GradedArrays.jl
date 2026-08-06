@@ -39,6 +39,16 @@ function LinearAlgebra.norm(a::SectorIdentity{T}, p::Real = 2) where {T}
     return convert(real(float(T)), length(a.sector)^(1 / p))
 end
 
+# The identity structural factor is a matrix, so its trace is defined (unlike the general structural
+# deltas): the sector's quantum dimension, the length of the diagonal. The second axis is always the
+# dual of the first (`biaxes` pairs `sector` with `conj(sector)`), so the only thing to check is that
+# the first axis is non-dual (`SectorIdentity` can be built on a dual sector, which has no trace).
+function LinearAlgebra.tr(a::SectorIdentity)
+    !isdual(axes(a, 1)) ||
+        throw(ArgumentError("trace requires a non-dual first axis, got $(axes(a, 1))"))
+    return size(a, 1)
+end
+
 function Base.permutedims(a::SectorIdentity, perm)
     perm == ntuple(identity, ndims(a)) && return a
     return SectorIdentity{eltype(a)}(dual(a.sector))

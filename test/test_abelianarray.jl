@@ -975,20 +975,20 @@ end
     @test maximum(c) == maximum(Array(c))
 end
 
-# Adjoint is a matrix operation, so it is defined only on a genuine (1, 1)-split `FusionMatrix` (a
-# linear map), conjugate-transposing through its matricized `FusedGradedMatrix`. A (2, 0) rank-2
-# array is not a linear map, so adjoint errors on it by design (linear algebra is the algebra of
-# matrices, not of arbitrary rank-2 tensors).
+# Adjoint (and matrix multiplication) are matrix operations, defined only on the matricized
+# `FusedGradedMatrix`, not on the graded array (`FusionArray`), which errors by design regardless of
+# split. Matricize first.
 @testset "graded matrix adjoint" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
-    # `randn(g, dual(g))` is an all-codomain (2, 0) array with the same axes as the (1, 1) matrix
-    # below, but it is not a matrix, so adjoint is undefined for it.
+    # Adjoint errors on a `FusionArray`, whether all-codomain (2, 0) or a (1, 1) split.
     @test_throws ErrorException randn(g, dual(g))'
-    a = randn((g,), (g,))                # a genuine (1, 1) `FusionMatrix`
-    @test a' isa FusionArray
-    @test (a')' == a                     # double adjoint is the identity
-    @test Array(a') ≈ adjoint(Array(a))  # dense form is the plain conjugate transpose
-    h = a * a'                           # Gram product is Hermitian
+    @test_throws ErrorException randn((g,), (g,))'
+    # On the matricized `FusedGradedMatrix` it works, conjugate-transposing through the blocks.
+    m = matricize(randn((g,), (g,)))
+    @test m' isa FusedGradedMatrix
+    @test (m')' == m                     # double adjoint is the identity
+    @test Array(m') ≈ adjoint(Array(m))  # dense form is the plain conjugate transpose
+    h = m * m'                           # Gram product is Hermitian
     @test h == h'
 end
 

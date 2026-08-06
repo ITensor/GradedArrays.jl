@@ -248,37 +248,6 @@ function Base.permutedims!(
     return y
 end
 
-# ============================  matrix algebra is (1, 1)-only  ============================
-# Linear algebra on a `FusionArray` is matrix algebra, so it is restricted to a genuine `(1, 1)`
-# linear map (one codomain, one domain leg). A rank-2 array with any other split is not a matrix: its
-# dense form is split-dependent, so the operation would not agree with the same `Base`/MatrixAlgebraKit
-# operation on `Array(a)` (which `FusionArray <: AbstractArray` promises). Bend such an array to a
-# matrix first, or factor over an explicit bipartition with the `TensorAlgebra` forms. This message is
-# the shared fallback for the `(1, 1)`-only ops below (`*`, `adjoint`, the bare factorizations, `one!`).
-@noinline function not_matrix_error(op, m::FusionMatrix)
-    return error(
-        "`$op` of a `FusionArray` requires a (1, 1) codomain/domain split; this matrix has \
-        split ($(ndims_codomain(m)), $(ndims_domain(m))). Bend it to a matrix first."
-    )
-end
-
-# ============================  matrix product  ============================
-# Matrix-matrix product as a contraction over the shared leg, both operands genuine `(1, 1)` matrices.
-# The generic `LinearAlgebra` matmul scalar-indexes, which errors on forbidden blocks.
-function Base.:*(a::FusionMatrix{<:Any, <:Any, 1, 1}, b::FusionMatrix{<:Any, <:Any, 1, 1})
-    return TensorAlgebra.contract((1, 3), a, (1, 2), b, (2, 3))
-end
-Base.:*(a::FusionMatrix, b::FusionMatrix) = not_matrix_error(*, a)
-
-# ============================  adjoint  ============================
-# `adjoint` is a matrix operation, so restrict it to a genuine `(1, 1)` split. A `FusedGradedMatrix`
-# already adjoints block-wise (swapping its codomain/domain), so the `FusionArray` adjoint just swaps
-# the per-leg axis tuples to match, staying `(1, 1)`.
-function Base.adjoint(fa::FusionMatrix{<:Any, <:Any, 1, 1})
-    return FusionArray(adjoint(matricize(fa)), axes_domain(fa), axes_codomain(fa))
-end
-Base.adjoint(fa::FusionMatrix) = not_matrix_error(adjoint, fa)
-
 # ============================  conj  ============================
 # Conjugate while keeping the codomain/domain split, unlike the `AbstractGradedArray` `conj.(a)`
 # broadcast, which materializes into a fresh array and so lands at the all-codomain split. Fill a
@@ -294,25 +263,6 @@ function Base.conj(fa::FusionArray{<:Any, <:Any, <:Any, NC, ND}) where {NC, ND}
     )
     return dest
 end
-
-# ============================  bare-matrix factorizations  ============================
-# Route the plain matrix forms (`MAK.svd_compact(m)`, etc.) through the matricizing `TensorAlgebra`
-# factorizations, using the shared `BARE_MATRIX_FACTORIZATIONS` name list defined in
-# `matrixalgebrakit.jl`. Defined here because `FusionArray` is not yet defined at that include
-# point. Avoids MatrixAlgebraKit's native path, which scalar-indexes and hits a forbidden block. The
-# bare form is matrix algebra, so it requires a `(1, 1)` split; factor another split over an explicit
-# bipartition with `TensorAlgebra.$f(a, biperm)`.
-for f in BARE_MATRIX_FACTORIZATIONS
-    @eval function MAK.$f(m::FusionMatrix{<:Any, <:Any, 1, 1}; kwargs...)
-        return TensorAlgebra.$f(m, (1,), (2,); kwargs...)
-    end
-    @eval MAK.$f(m::FusionMatrix; kwargs...) = not_matrix_error(MAK.$f, m)
-end
-
-# Graded identity fill via the fused path (fills each coupled block), not the generic `one!`, which
-# reshapes and scalar-indexes the graded array. A matrix operation, so `(1, 1)` only.
-MAK.one!(m::FusionMatrix{<:Any, <:Any, 1, 1}) = TensorAlgebra.one!(m, Val(1))
-MAK.one!(m::FusionMatrix) = not_matrix_error(MAK.one!, m)
 
 # ============================  TensorMap conversion  ============================
 

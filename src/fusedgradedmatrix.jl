@@ -328,6 +328,17 @@ function Base.adjoint(A::FusedGradedMatrix)
 end
 # note: not defining transpose here since that has requirements on sectors
 
+# The full-matrix trace is the sum of the per-coupled-sector block traces, each weighted by the
+# sector's quantum dimension (the structural factor's trace). Reuse the block-level
+# `tr(::FusedSectorMatrix)`, which carries that weighting, so this matches `tr(Array(A))` without
+# scalar-indexing the generic `AbstractMatrix` fallback.
+function LinearAlgebra.tr(A::FusedGradedMatrix)
+    return sum(
+        bI -> LinearAlgebra.tr(view(A, bI)), eachblockstoredindex(A);
+        init = zero(eltype(A))
+    )
+end
+
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))

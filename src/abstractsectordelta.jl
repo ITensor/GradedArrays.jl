@@ -19,16 +19,29 @@ Base.size(A::AbstractSectorDelta) = map(length, axes(A))
 Base.print_array(io::IO, A::AbstractSectorDelta) = Base.print_array(io, Array(A))
 Base.show(io::IO, A::AbstractSectorDelta) = show(io, Array(A))
 
-# A 2D structural delta on a diagonal (coupled) block is the identity over the sector, so its
-# trace is the sector's quantum dimension: the length of the diagonal. Only defined in the
-# canonical ordering: a non-dual first axis paired with its dual as the second axis.
-function LinearAlgebra.tr(A::AbstractSectorDelta{<:Any, <:Any, 2})
-    (!isdual(axes(A, 1)) && axes(A, 1) == conj(axes(A, 2))) || throw(
-        ArgumentError(
-            "trace requires the canonical dual ordering (non-dual first axis), got $(axes(A, 1)) and $(axes(A, 2))"
-        )
+# Matrix/linear-algebra operations (`*`, `adjoint`, `transpose`, `tr`, `one!`, factorizations,
+# matrix functions) are defined only on the matrix storage types (`FusedGradedMatrix` /
+# `FusedSectorMatrix`) and, among the structural deltas, only on the identity factor
+# `SectorIdentity`. On the array and general-delta types they would fall through to the generic
+# `AbstractArray` methods, which scalar-index into a dense, non-graded result. Error instead; the
+# specific methods (the matrix-storage types, `SectorIdentity`) are more specific, so they still
+# win. This helper is the shared fallback for every level (defined here, the earliest sector file).
+@noinline function _matrix_op_error(op, A)
+    return error(
+        "`$op` is a matrix operation and is not defined on `$(nameof(typeof(A)))`; matrix \
+        operations live on the matrix storage types (`FusedGradedMatrix` / `FusedSectorMatrix`). \
+        Matricize first."
     )
-    return size(A, 1)
+end
+
+Base.adjoint(A::AbstractSectorDelta) = _matrix_op_error(adjoint, A)
+Base.transpose(A::AbstractSectorDelta) = _matrix_op_error(transpose, A)
+Base.:*(A::AbstractSectorDelta, B::AbstractSectorDelta) = _matrix_op_error(*, A)
+function LinearAlgebra.tr(A::AbstractSectorDelta{<:Any, <:Any, 2})
+    return _matrix_op_error(LinearAlgebra.tr, A)
+end
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval Base.$f(A::AbstractSectorDelta) = _matrix_op_error($f, A)
 end
 
 # ========================  Fermionic specializations  ========================

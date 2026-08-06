@@ -266,12 +266,12 @@ using Test: @test, @test_throws, @testset
     end
 end
 
-@testset "UniqueSectorDelta tr — canonical dual ordering" begin
-    # Canonical: non-dual first axis paired with its dual as the second.
-    @test tr(UniqueSectorDelta{Float64}((U1(1), dual(U1(1))))) == 1
-    @test tr(UniqueSectorDelta{Float64}((SU2(1 // 2), dual(SU2(1 // 2))))) == 2
-    # Axes not mutually dual.
-    @test_throws ArgumentError tr(UniqueSectorDelta{Float64}((U1(1), U1(1))))
-    # Mutually dual but dual-first (non-canonical).
-    @test_throws ArgumentError tr(UniqueSectorDelta{Float64}((dual(U1(1)), U1(1))))
+@testset "UniqueSectorDelta is not a matrix (no `tr`)" begin
+    # Matrix operations are defined only on the matrix storage types (`FusedSectorMatrix` /
+    # `FusedGradedMatrix`) and, among the structural deltas, only `SectorIdentity`. `UniqueSectorDelta`
+    # is a general structural delta, so `tr` (a matrix operation) errors on it.
+    @test_throws ErrorException tr(UniqueSectorDelta{Float64}((U1(1), dual(U1(1)))))
+    @test_throws ErrorException tr(
+        UniqueSectorDelta{Float64}((SU2(1 // 2), dual(SU2(1 // 2))))
+    )
 end

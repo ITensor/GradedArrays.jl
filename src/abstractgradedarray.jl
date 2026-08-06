@@ -67,11 +67,18 @@ function Base.setindex!(a::AbstractGradedArray, v, I1::Int, I_rest::Vararg{Int})
     return a
 end
 
-# There is no generic block-aware `adjoint`: the lazy `Adjoint` wrapper falls back to
-# LinearAlgebra's scalar-indexing path, which silently produces a dense, non-graded result. Error
-# instead. `FusedGradedMatrix` defines its own working `adjoint` (more specific, so it still wins).
-function Base.adjoint(::AbstractGradedArray)
-    return error("`adjoint` is not supported for this graded array")
+# Matrix/linear-algebra operations are defined only on the matrix storage type
+# `FusedGradedMatrix`, never on the graded array. On an array they would otherwise fall through to
+# the generic `AbstractArray` methods, which scalar-index into a dense, non-graded result. Error
+# instead (via the shared `_matrix_op_error`); matricize to a `FusedGradedMatrix` first
+# (`matricize(a, Val(ndims_codomain))`). The `FusedGradedMatrix` methods are on a separate type,
+# so they still win.
+Base.adjoint(A::AbstractGradedArray) = _matrix_op_error(adjoint, A)
+Base.transpose(A::AbstractGradedArray) = _matrix_op_error(transpose, A)
+Base.:*(A::AbstractGradedArray, B::AbstractGradedArray) = _matrix_op_error(*, A)
+LinearAlgebra.tr(A::AbstractGradedArray) = _matrix_op_error(LinearAlgebra.tr, A)
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval Base.$f(A::AbstractGradedArray) = _matrix_op_error($f, A)
 end
 
 # ---------------------------------------------------------------------------
