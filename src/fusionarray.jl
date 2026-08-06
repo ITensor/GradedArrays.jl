@@ -45,6 +45,11 @@ axes_domain(fa::FusionArray) = fa.axes_domain
 Base.axes(fa::FusionArray) = BiTuple(axes_codomain(fa), map(conj, axes_domain(fa)))
 Base.size(fa::FusionArray) = map(length, Tuple(axes(fa)))
 
+# Recover the split halves of such a `BiTuple`: `codomain` is the first half as-is; `domain`
+# re-dualizes the second half (stored dualized as the external view) back to codomain-facing form.
+codomain(bt::BiTuple) = bt.t1
+domain(bt::BiTuple) = map(conj, bt.t2)
+
 ndims_codomain(fa::FusionArray) = length(axes_codomain(fa))
 ndims_domain(fa::FusionArray) = length(axes_domain(fa))
 

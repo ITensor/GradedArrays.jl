@@ -1,11 +1,5 @@
 using TensorKit: TensorKit as TK, ElementarySpace, Vect
 
-# Split-aware view of a `BiTuple` of axes (what `axes(::FusionArray)` returns): `codomain` is the
-# first half as-is, `domain` re-dualizes the second half (stored already-dualized as the external
-# view) back to the codomain-facing form, `HomSpace`-style.
-codomain(bt::BiTuple) = bt.t1
-domain(bt::BiTuple) = map(conj, bt.t2)
-
 # Non-abelian `sector => multiplicity` pairs have no block-sparse `GradedOneTo` representation,
 # so `to_range` routes them here to build a native TensorKit `GradedSpace`. A raw TensorKit
 # sector carries no arrow, so this is the non-dual builder. It is the entry point both for the
