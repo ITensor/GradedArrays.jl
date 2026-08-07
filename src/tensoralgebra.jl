@@ -239,7 +239,7 @@ which is always ``1`` for bosonic symmetries, but can be ``-1`` for odd fermion 
 Equivalent to `twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`.
 A no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
 
-See also [`twist!`](@ref).
+See also `twist!`.
 """
 function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
     return twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
