@@ -8,7 +8,6 @@ export AbstractSectorDelta, UniqueSectorDelta, SectorIdentity
 export AbstractSectorArray,
     UniqueSectorArray, UniqueSectorVector, UniqueSectorMatrix,
     FusedSectorMatrix, FusedSectorVector
-export AbstractGradedArray, AbstractGradedMatrix
 export FusedGradedMatrix, FusedGradedVector
 export GradedBlockAlgorithm
 
@@ -49,7 +48,7 @@ include("uniquesectorarray.jl")
 include("sectoridentity.jl")
 include("sectoronesvector.jl")
 include("fusedsectormatrix.jl")
-include("abstractgradedarray.jl")
+include("abstractfusedarray.jl")
 
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
@@ -60,13 +59,15 @@ include("sectorproduct.jl")
 include("broadcast.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
-include("vectorinterface.jl")
 include("cat.jl")
 
 include("matrixalgebrakit.jl")
 
 include("fusionarray.jl")
 include("fusionmap.jl")
+# Shared graded-array interface + `VectorInterface` (both name `FusionArray`, so they come after it).
+include("gradedarrayinterface.jl")
+include("vectorinterface.jl")
 include("gradedconstructors.jl")
 
 end

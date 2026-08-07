@@ -1,7 +1,7 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
 using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, FusionArray,
-    FusionMatrix, GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
+    GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
     tensor_product
@@ -257,7 +257,7 @@ end
     b[Block(2, 2)] = UniqueSectorArray(b_22, (U1(1), dual(U1(1))))
 
     result, dimnames = contract(a, (1, -1), b, (-1, 2))
-    @test result isa FusionMatrix{Float64}
+    @test result isa FusionArray{Float64, <:Any, 2}
     @test data(result[Block(1, 1)]) ≈ a_11 * b_11
     @test data(result[Block(2, 2)]) ≈ a_22 * b_22
 end

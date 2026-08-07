@@ -1,7 +1,6 @@
 using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
-using GradedArrays: GradedArrays, AbstractGradedArray, AbstractGradedMatrix,
-    FusedGradedMatrix, FusedGradedVector, FusionArray, FusionMatrix, FusionVector,
+using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
     GradedOneTo, SU2, SectorRange, U1, UniqueSectorArray, blockstoredlength, data,
     datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectors,
     sectortype, to_gradedrange
@@ -20,8 +19,7 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "Construction" begin
         a = zeros(Float64, g1, g2)
-        @test a isa FusionMatrix{Float64, U1}
-        @test a isa AbstractGradedMatrix{Float64, U1}
+        @test a isa FusionArray{Float64, U1, 2}
         @test a isa AbstractArray{Float64, 2}
         @test size(a) == (5, 3)
         @test ndims(a) == 2
@@ -237,13 +235,13 @@ using Test: @test, @test_broken, @test_throws, @testset
         a[Block(1, 1)] = ones(2, 1)
 
         a2 = similar(a)
-        @test a2 isa FusionMatrix{Float64}
+        @test a2 isa FusionArray{Float64, <:Any, 2}
         @test size(a2) == size(a)
         # similar now allocates all allowed blocks (same as constructor)
         @test length(collect(eachblockstoredindex(a2))) == 2
 
         a3 = similar(a, ComplexF64)
-        @test a3 isa FusionMatrix{ComplexF64}
+        @test a3 isa FusionArray{ComplexF64, <:Any, 2}
         @test size(a3) == size(a)
     end
 
@@ -528,11 +526,11 @@ end
     # Constructor form: `rand(T, axes)` / `randn(T, axes)` for graded axes
     # builds a graded array with the right block structure.
     r = randn(rng, Float64, (g1, dual(g1)))
-    @test r isa FusionMatrix{Float64}
+    @test r isa FusionArray{Float64, <:Any, 2}
     @test axes(r) == (g1, dual(g1))
     @test !iszero(r)
     u = rand(rng, Float64, (g1, dual(g1)))
-    @test u isa FusionMatrix{Float64}
+    @test u isa FusionArray{Float64, <:Any, 2}
     @test !iszero(u)
 end
 
@@ -546,30 +544,30 @@ end
     @testset "ones" begin
         for o in
             (ones(g1, g2), ones(Float64, g1, g2), ones((g1, g2)), ones(Float64, (g1, g2)))
-            @test o isa FusionMatrix{Float64}
+            @test o isa FusionArray{Float64, <:Any, 2}
             @test axes(o) == (g1, g2)
             @test Array(o) == Array(reference1(1.0))
         end
-        @test ones(ComplexF64, g1, g2) isa FusionMatrix{ComplexF64}
+        @test ones(ComplexF64, g1, g2) isa FusionArray{ComplexF64, <:Any, 2}
     end
     @testset "fill" begin
         for a in (fill(2.5, g1, g2), fill(2.5, (g1, g2)))
-            @test a isa FusionMatrix{Float64}
+            @test a isa FusionArray{Float64, <:Any, 2}
             @test axes(a) == (g1, g2)
             @test Array(a) == Array(reference1(2.5))
         end
-        @test fill(1.0im, g1, g2) isa FusionMatrix{ComplexF64}
+        @test fill(1.0im, g1, g2) isa FusionArray{ComplexF64, <:Any, 2}
     end
 
     # rand/randn shorthands forward to the canonical `(rng, T, tuple)` form, so a seeded
     # shorthand matches a seeded canonical call. All non-canonical arg shapes are covered.
     @testset "$f shorthands" for f in (rand, randn)
-        @test f(g1, g2) isa FusionMatrix{Float64}
-        @test f(ComplexF64, g1, g2) isa FusionMatrix{ComplexF64}
-        @test f((g1, g2)) isa FusionMatrix{Float64}
-        @test f(ComplexF64, (g1, g2)) isa FusionMatrix{ComplexF64}
-        @test f(Random.Xoshiro(1), g1, g2) isa FusionMatrix{Float64}
-        @test f(Random.Xoshiro(1), (g1, g2)) isa FusionMatrix{Float64}
+        @test f(g1, g2) isa FusionArray{Float64, <:Any, 2}
+        @test f(ComplexF64, g1, g2) isa FusionArray{ComplexF64, <:Any, 2}
+        @test f((g1, g2)) isa FusionArray{Float64, <:Any, 2}
+        @test f(ComplexF64, (g1, g2)) isa FusionArray{ComplexF64, <:Any, 2}
+        @test f(Random.Xoshiro(1), g1, g2) isa FusionArray{Float64, <:Any, 2}
+        @test f(Random.Xoshiro(1), (g1, g2)) isa FusionArray{Float64, <:Any, 2}
         # Seeded shorthand == seeded canonical, for every shape that fills in defaults.
         @test Array(f(Random.Xoshiro(1), Float64, g1, g2)) ==
             Array(f(Random.Xoshiro(1), Float64, (g1, g2)))
@@ -907,7 +905,7 @@ end
     TensorAlgebra.projectto!(ref, randn(5, 5))
     src = Array(ref)
     a = src[g, dual(g)]
-    @test a isa FusionMatrix{Float64}
+    @test a isa FusionArray{Float64, <:Any, 2}
     @test axes(a) == (g, dual(g))
     @test Array(a) ≈ src
 
@@ -928,7 +926,7 @@ end
     vsrc = zeros(5)
     vsrc[1:2] .= randn(2)              # weight only in the trivial (U1(0)) block
     av = vsrc[g]
-    @test av isa FusionVector{Float64}
+    @test av isa FusionArray{Float64, <:Any, 1}
     @test Array(av) ≈ vsrc
 end
 
