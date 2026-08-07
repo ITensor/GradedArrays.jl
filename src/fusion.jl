@@ -7,7 +7,7 @@ struct TwistedSectorMatricize <: MatricizeStyle end
 
 TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorDelta}) = SectorMatricize()
 TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorArray}) = SectorMatricize()
-TensorAlgebra.MatricizeStyle(::Type{<:AbstractGradedArray}) = SectorMatricize()
+TensorAlgebra.MatricizeStyle(::Type{<:AbstractFusedArray}) = SectorMatricize()
 TensorAlgebra.MatricizeStyle(::Type{<:SectorOneTo}) = SectorMatricize()
 
 # ========================  trivial_gradedrange  ========================

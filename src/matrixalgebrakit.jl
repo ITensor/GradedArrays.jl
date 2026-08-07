@@ -177,7 +177,9 @@ function MAK.one!(A::FusedGradedMatrix)
     return A
 end
 MAK.one!(A::FusedSectorMatrix) = (MAK.one!(data(A)); A)
-MAK.one!(A::AbstractGradedArray) = _matrix_op_error(MAK.one!, A)
+# The `FusionArray` `one!` guard is in `fusionarray.jl`; the fused-vector guard is here (the rest of
+# its matrix-op guards are in `abstractfusedarray.jl`, where `MatrixAlgebraKit` is not yet in scope).
+MAK.one!(A::AbstractFusedVector) = _matrix_op_error(MAK.one!, A)
 MAK.one!(A::AbstractSectorArray) = _matrix_op_error(MAK.one!, A)
 MAK.one!(A::AbstractSectorDelta) = _matrix_op_error(MAK.one!, A)
 
