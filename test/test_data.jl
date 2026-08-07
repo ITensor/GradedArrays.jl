@@ -80,7 +80,7 @@ using Test: @test, @test_throws, @testset
         end
     end
 
-    @testset "AbelianGradedArray" begin
+    @testset "FusionArray" begin
         g1 = gradedrange([U1(0) => 2, U1(1) => 3])
         g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
         a = zeros(Float64, g1, g2)

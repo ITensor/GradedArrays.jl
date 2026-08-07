@@ -3,8 +3,8 @@
 
 Unfused N-D structural tensor for abelian symmetries. Stores one `SectorRange` per axis,
 split into `NC` codomain legs and `ND` domain legs (`NC + ND == N`); the all-codomain case
-(`NC == N`) is the block an `AbelianGradedArray` yields. For abelian symmetries, every element
-equals `one(T)` (the Kronecker delta selection rule).
+(`NC == N`) is the block a `FusionArray` yields (via `fa[Block]`). For abelian symmetries, every
+element equals `one(T)` (the Kronecker delta selection rule).
 """
 struct UniqueSectorDelta{T, S <: SectorRange, N, NC, ND} <: AbstractSectorDelta{T, S, N}
     sectors_codomain::NTuple{NC, S}

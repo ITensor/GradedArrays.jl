@@ -71,10 +71,8 @@ end
         @test_throws ArgumentError TensorKit.ElementarySpace(unfused)
     end
 
-    # `project` routes through the selected backend, so it only builds a `FusionArray` when the fusion
-    # backend is active; the reorder-in path exercised here lives in that branch.
-    GradedArrays.graded_backend == "fusion" &&
-        @testset "unfused/unsorted project round-trip ($name)" for (name, T, cod, dom) in (
+    # `project` reorders unfused/unsorted external axes into the fused-sorted matricized backing.
+    @testset "unfused/unsorted project round-trip ($name)" for (name, T, cod, dom) in (
             (
                 "U1 unsorted codomain", Float64,
                 (gradedrange([U1(1) => 1, U1(0) => 2]),),

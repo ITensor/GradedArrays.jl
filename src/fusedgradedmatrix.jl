@@ -328,6 +328,17 @@ function Base.adjoint(A::FusedGradedMatrix)
 end
 # note: not defining transpose here since that has requirements on sectors
 
+# The full-matrix trace is the sum of the per-coupled-sector block traces, each weighted by the
+# sector's quantum dimension (the structural factor's trace). Reuse the block-level
+# `tr(::FusedSectorMatrix)`, which carries that weighting, so this matches `tr(Array(A))` without
+# scalar-indexing the generic `AbstractMatrix` fallback.
+function LinearAlgebra.tr(A::FusedGradedMatrix)
+    return sum(
+        bI -> LinearAlgebra.tr(view(A, bI)), eachblockstoredindex(A);
+        init = zero(eltype(A))
+    )
+end
+
 LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
@@ -407,37 +418,4 @@ function Base.show(io::IO, m::FusedGradedMatrix)
         " (", length(m.blocks), " stored)"
     )
     return nothing
-end
-
-# ========================  Conversion from AbelianGradedArray  ========================
-
-"""
-    FusedGradedMatrix(a::AbelianGradedMatrix{T})
-
-Convert a 2D block-sparse `AbelianGradedArray` (as produced by `matricize`)
-into a `FusedGradedMatrix`. The codomain dict comes from the row axis sectors
-and lengths; the domain dict comes from `dual.(domain_axis_sectors)` and
-lengths. Stored entries of `a` populate `blocks`.
-"""
-function FusedGradedMatrix(a::AbelianGradedMatrix{T}) where {T}
-    S = sectortype(a)
-    cod_sectors = eachsectoraxis(axes(a, 1))
-    issorted(cod_sectors) ||
-        throw(ArgumentError("codomain sectors of input must be sorted"))
-    allunique(cod_sectors) ||
-        throw(ArgumentError("codomain sectors of input must be unique"))
-    cod = Dictionary{S, Int}(cod_sectors, datalengths(axes(a, 1)))
-
-    dom_sectors = eachsectoraxis(axes(a, 2))
-    issorted(dom_sectors) ||
-        throw(ArgumentError("domain sectors of input must have sorted, unique duals"))
-    allunique(dom_sectors) ||
-        throw(ArgumentError("domain sectors of input must have unique duals"))
-    dom = Dictionary{S, Int}(dual.(dom_sectors), datalengths(axes(a, 2)))
-
-    m = FusedGradedMatrix{T, S, datatype(a)}(undef, cod, dom)
-    for I in eachblockstoredindex(a)
-        copy!(view(m, I), view(a, I))
-    end
-    return m
 end

@@ -231,6 +231,25 @@ using Test: @test, @test_throws, @testset
         @test TensorAlgebra.to_range(g) === g
     end
 
+    # Non-abelian sectors have no native-`GradedSpace` detour: `to_range` keeps them a `GradedOneTo`,
+    # which `FusionArray` represents through its coupled matrix.
+    @testset "to_range keeps non-abelian sectors a GradedOneTo" begin
+        g = TensorAlgebra.to_range([SU2(0) => 1, SU2(1) => 2])
+        @test g isa GradedOneTo
+        @test g == gradedrange([SU2(0) => 1, SU2(1) => 2])
+    end
+
+    # A shared dual flag on every key rides into the result as a dual range.
+    @testset "to_range carries the dual arrow" begin
+        g = TensorAlgebra.to_range([dual(SU2(0)) => 1, dual(SU2(1)) => 2])
+        @test g == dual(gradedrange([SU2(0) => 1, SU2(1) => 2]))
+    end
+
+    # A single-arrow range cannot hold mixed arrows.
+    @testset "to_range rejects mixed arrows" begin
+        @test_throws ArgumentError TensorAlgebra.to_range([SU2(0) => 1, dual(SU2(1)) => 2])
+    end
+
     @testset "ungrade drops sectors and arrow" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         @test TensorAlgebra.ungrade(g) == Base.OneTo(length(g))

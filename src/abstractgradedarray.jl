@@ -2,7 +2,7 @@
     AbstractGradedArray{T,S,N} <: AbstractArray{T,N}
 
 Abstract supertype for graded (symmetry-structured) arrays whose axes carry sector labels.
-Concrete subtypes include [`AbelianGradedArray`](@ref) and [`FusedGradedMatrix`](@ref).
+The concrete graded array is [`FusionArray`](@ref).
 """
 abstract type AbstractGradedArray{T, S, N} <: AbstractArray{T, N} end
 const AbstractGradedMatrix{T, S} = AbstractGradedArray{T, S, 2}
@@ -23,16 +23,6 @@ function LinearAlgebra.isdiag(A::AbstractGradedMatrix)
         (row == col && LinearAlgebra.isdiag(view(A, bI))) || return false
     end
     return true
-end
-
-# Trace: sum the traces of the diagonal blocks (same block position on both axes). Each block
-# view carries its sector, so its `tr` includes that sector's quantum dimension. This is the
-# plain matricized trace, with no fermionic twist sign.
-function LinearAlgebra.tr(A::AbstractGradedMatrix)
-    return sum(eachblockstoredindex(A); init = zero(eltype(A))) do bI
-        row, col = Tuple(bI)
-        return row == col ? LinearAlgebra.tr(view(A, bI)) : zero(eltype(A))
-    end
 end
 
 # Whether a block is stored (allocated), following the `SparseArraysBase.isstored(a, ::Block)`
@@ -67,11 +57,18 @@ function Base.setindex!(a::AbstractGradedArray, v, I1::Int, I_rest::Vararg{Int})
     return a
 end
 
-# There is no generic block-aware `adjoint`: the lazy `Adjoint` wrapper falls back to
-# LinearAlgebra's scalar-indexing path, which silently produces a dense, non-graded result. Error
-# instead. `FusedGradedMatrix` defines its own working `adjoint` (more specific, so it still wins).
-function Base.adjoint(::AbstractGradedArray)
-    return error("`adjoint` is not supported for this graded array")
+# Matrix/linear-algebra operations are defined only on the matrix storage type
+# `FusedGradedMatrix`, never on the graded array. On an array they would otherwise fall through to
+# the generic `AbstractArray` methods, which scalar-index into a dense, non-graded result. Error
+# instead (via the shared `_matrix_op_error`); matricize to a `FusedGradedMatrix` first
+# (`matricize(a, Val(ndims_codomain))`). The `FusedGradedMatrix` methods are on a separate type,
+# so they still win.
+Base.adjoint(A::AbstractGradedArray) = _matrix_op_error(adjoint, A)
+Base.transpose(A::AbstractGradedArray) = _matrix_op_error(transpose, A)
+Base.:*(A::AbstractGradedArray, B::AbstractGradedArray) = _matrix_op_error(*, A)
+LinearAlgebra.tr(A::AbstractGradedArray) = _matrix_op_error(LinearAlgebra.tr, A)
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval Base.$f(A::AbstractGradedArray) = _matrix_op_error($f, A)
 end
 
 # ---------------------------------------------------------------------------
@@ -347,46 +344,17 @@ function Random.randn!(rng::AbstractRNG, a::AbstractGradedArray)
 end
 
 # ---------------------------------------------------------------------------
-#  Graded backend selection
+#  Graded array allocation
 # ---------------------------------------------------------------------------
-# Backend infrastructure shared by every concrete graded array, so it lives here rather than in a
-# concrete-type file: `allocate_graded` and the `similar_map` router pick the backend type, and
-# `set_graded_backend!` persists the choice. The `graded_backend` constant is defined in
-# `GradedArrays.jl` before the includes so `@static if graded_backend == …` resolves in every file.
-
-# Persist the backend preference; takes effect after restarting Julia (the choice is baked in at
-# precompile time).
-function set_graded_backend!(backend::AbstractString)
-    backend in ("abelian", "fusion") ||
-        throw(
-        ArgumentError(
-            "graded backend must be \"abelian\" or \"fusion\", got $(repr(backend))"
-        )
-    )
-    @set_preferences!("graded_backend" => backend)
-    @info "graded backend set to $(repr(backend)). Restart Julia for it to take effect."
-    return nothing
-end
-
 # `allocate_graded` is the single point building the graded representation from a `(cod, dom)` split,
-# so the backend is chosen in one place, and the split-aware `similar_map` routes through it too. The
-# `@static if` on the compile-time `graded_backend` constant compiles just one branch into the body,
-# so this (and its callers) stay type-stable.
+# and the split-aware `similar_map` routes through it too.
 function allocate_graded(::Type{T}, cod, dom) where {T}
-    @static if graded_backend == "fusion"
-        return FusionArray{T}(undef, cod, dom)
-    else
-        return AbelianGradedArray{T}(undef, (cod..., conj.(dom)...))
-    end
+    return FusionArray{T}(undef, cod, dom)
 end
 
 # Rank-0 form: the empty axes carry no sector type, so it is passed explicitly.
 function allocate_graded(::Type{T}, ::Type{S}, cod::Tuple{}, dom::Tuple{}) where {T, S}
-    @static if graded_backend == "fusion"
-        return FusionArray{T, S}(undef, cod, dom)
-    else
-        return AbelianGradedArray{T, S, 0, Array{T, 0}}(undef, ())
-    end
+    return FusionArray{T, S}(undef, cod, dom)
 end
 
 # The split-aware `similar_map` (used by `project` and by contraction/factorization result

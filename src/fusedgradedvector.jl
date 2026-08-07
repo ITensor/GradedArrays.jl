@@ -241,7 +241,7 @@ end
 
 # Block-wise `map`: returns a `FusedGradedVector` with the same axis and `f` applied to
 # each stored block, instead of falling through to `collect_similar` which would
-# allocate an `AbelianGradedVector` and scalar-setindex! into it. Each per-block `map`
+# scalar-setindex! into a fresh array. Each per-block `map`
 # dispatches to the storage backend's `map` (e.g. GPU kernel for `CuVector` blocks).
 function Base.map(f, v::FusedGradedVector)
     blocks = dictionary(s => map(f, b) for (s, b) in pairs(v.blocks))

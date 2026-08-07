@@ -98,10 +98,8 @@ end
 # ========================  Graded-array broadcasting  ========================
 #
 # The graded layer mirrors the sector layer: linear machinery shared via `AbstractGradedStyle`, and
-# allocation split by whether the result reconstructs from axes alone. An `AbelianGradedArray` has
-# one graded range per axis, so `Base.similar(arg, elt, axes)` (the same path `unmatricize` uses)
-# works; a fused graded array keys its blocks by coupled sector, a layout axis type cannot tell apart
-# from the unfused cartesian one, so it reconstructs from its rank instead.
+# each concrete graded array reconstructs the broadcast result from its own style (`FusionArray` and
+# the fused `FusedGraded*` matrices/vectors each define their own `similar`).
 
 abstract type AbstractGradedStyle{N} <: BC.AbstractArrayStyle{N} end
 
@@ -134,32 +132,10 @@ Base.:*(a::AbstractGradedArray, x::Number) = a .* x
 Base.:*(x::Number, a::AbstractGradedArray) = x .* a
 Base.:/(a::AbstractGradedArray, x::Number) = a ./ x
 
-# ---- unfused (cartesian-block) graded arrays ----
-
-struct AbelianGradedStyle{N} <: AbstractGradedStyle{N} end
-AbelianGradedStyle{N}(::Val{M}) where {N, M} = AbelianGradedStyle{M}()
-
-# Default for a generic graded array; the fused subtypes override this below.
-function BC.BroadcastStyle(::Type{<:AbstractGradedArray{<:Any, <:Any, N}}) where {N}
-    return AbelianGradedStyle{N}()
-end
-
-# TODO: Ideally this would incorporate information from all broadcast arguments
-# (or their blocktypes) when computing similar, rather than picking one argument.
-# The axes come from the flattened linear expression so a `conj` operand (lowered to a
-# `ConjArray` with dualized axes) gives the result dualized axes for free.
-function Base.similar(bc::BC.Broadcasted{<:AbelianGradedStyle}, elt::Type)
-    bc′ = BC.flatten(bc)
-    arg = bc′.args[findfirst(arg -> arg isa AbstractGradedArray, bc′.args)]
-    return similar(arg, elt, axes(flattenlinear(bc)))
-end
-
 # ---- fused (coupled-sector-block) graded arrays ----
 #
-# `FusedGradedMatrix` and `FusedGradedVector` store their blocks keyed by coupled sector, a
-# different layout from `AbelianGradedArray`'s cartesian blocks. Allocating the result rebuilds the
-# fused block structure rather than routing through the shared axes-based `similar` that
-# `unmatricize` relies on to build an *unfused* `AbelianGradedArray` destination. Only linear
+# `FusedGradedMatrix` and `FusedGradedVector` store their blocks keyed by coupled sector. Allocating
+# the result rebuilds the fused block structure from the linear expression's axes. Only linear
 # broadcasts are supported; the block arithmetic is the `bipermutedimsopadd!` overload in
 # `tensoralgebra.jl`.
 

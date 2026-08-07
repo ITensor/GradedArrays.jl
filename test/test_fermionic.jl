@@ -1,6 +1,6 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: AbelianGradedArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
+using GradedArrays: FusionArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
     UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
     isdual, sectoraxes, sectors
 using Random: randn!
@@ -12,12 +12,8 @@ using Test: @test, @test_throws, @testset
 const fP0 = SectorRange(TKS.FermionParity(false))  # even parity
 const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
 
-# The two backends use different (both correct) `Array` conventions for tensors with domain legs:
-# AGA's `Array` is split-independent (the fully-bent-to-codomain form, so the fermion domain-bend sign
-# is baked into the dense entries), while the fusion backend's `Array` matches TensorKit's
-# `convert(Array, ::TensorMap)` (split-dependent, no baked bend sign). A few assertions branch on this.
-const FUSION_BACKEND = GradedArrays.graded_backend == "fusion"
-const GradedArrayT = FUSION_BACKEND ? GradedArrays.FusionArray : AbelianGradedArray
+# `Array(::FusionArray)` matches TensorKit's `convert(Array, ::TensorMap)`: split-dependent, with no
+# fermion domain-bend sign baked into the dense entries.
 
 @testset "fermionparity / twist" begin
     # `FermionNumber = U1Irrep ⊠ FermionParity` is a product sector with a bosonic
@@ -221,7 +217,7 @@ end
     b = randn_blockdiagonal(elt, (g, dual(g)))
 
     ca = conj.(a)
-    @test ca isa GradedArrayT
+    @test ca isa FusionArray
     @test isdual(axes(ca, 1)) == !isdual(axes(a, 1))
     @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
 
@@ -371,13 +367,13 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a2_dense = Array(a2)
 
         parallel = contract((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
-        # Rank-0 result is the active backend's graded array.
-        @test parallel isa GradedArrayT{elt, <:Any, 0}
+        # Rank-0 result is a graded array.
+        @test parallel isa FusionArray{elt, <:Any, 0}
         @test Array(parallel) ≈
             contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
 
         crossed = contract((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
-        @test crossed isa GradedArrayT{elt, <:Any, 0}
+        @test crossed isa FusionArray{elt, <:Any, 0}
         @test Array(crossed) ≈
             -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
     end
@@ -405,15 +401,10 @@ end
     @test Array(matricize(a, Val(1))) ≈ [1 0; 0 2]
     # Bending both odd legs into the domain reverses them: the (odd,odd) entry is negated.
     @test vec(Array(matricize(a, Val(0)))) ≈ [1, -2, 0, 0]
-    # unmatricize inverts the bend; with the check above this pins both directions. AGA's
-    # split-independent `Array` reproduces the dense form from any split, so the all-to-domain
-    # (`Val(0)`) round-trip returns `Array(a)`. The fusion backend's split-dependent `Array` instead
-    # reflects the all-domain split, where bending both odd legs down flips the both-odd entry.
-    if FUSION_BACKEND
-        @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ [1 0; 0 -2]
-    else
-        @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ Array(a)
-    end
+    # unmatricize inverts the bend; with the check above this pins both directions. The
+    # split-dependent `Array` reflects the all-domain split, where bending both odd legs down flips
+    # the both-odd entry.
+    @test Array(unmatricize(matricize(a, Val(0)), (), (r, r))) ≈ [1 0; 0 -2]
 end
 
 @testset "project bends the operator domain; unproject inverts it" begin
@@ -423,10 +414,9 @@ end
     A[2, 2, 2, 2] = 1
     a = project(A, (r, r), (r, r))
     @test map(isdual, GradedArrays.axes(a)) == (false, false, true, true)
-    # AGA's split-independent `Array` bends the odd in-legs up and bakes in the fermion sign (-1);
-    # the fusion backend's split-dependent `Array` follows TensorKit and keeps +1. `unproject`
-    # recovers `A` on both backends (checked next).
-    @test Array(a)[2, 2, 2, 2] ≈ (FUSION_BACKEND ? 1 : -1)
+    # The split-dependent `Array` follows TensorKit and keeps +1 at the both-odd entry (no baked-in
+    # bend sign). `unproject` recovers `A` (checked next).
+    @test Array(a)[2, 2, 2, 2] ≈ 1
     @test unproject(a, Val(2)) ≈ A
     # A state (empty domain) has no domain to bend, so `unproject` is the plain conversion.
     v = zeros(Float64, 2, 2)

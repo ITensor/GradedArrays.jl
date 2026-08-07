@@ -98,6 +98,19 @@ function LinearAlgebra.isdiag(A::AbstractSectorArray{<:Any, <:Any, 2})
     return LinearAlgebra.isdiag(data(A))
 end
 
+# `all`/`any` over a sector array: for unique (abelian) fusion the full array equals its reduced
+# data element-wise, so forward the predicate to `data` (avoiding the scalar-indexing `AbstractArray`
+# fallback). Non-abelian fusion has structural multiplicity beyond the reduced data, so require
+# unique fusion rather than iterating past it.
+function Base.all(f::Function, A::AbstractSectorArray)
+    require_unique_fusion(A)
+    return all(f, data(A))
+end
+function Base.any(f::Function, A::AbstractSectorArray)
+    require_unique_fusion(A)
+    return any(f, data(A))
+end
+
 # ========================  Shared utilities  ========================
 
 function require_unique_fusion(A)
@@ -127,13 +140,19 @@ function Base.fill!(a::AbstractSectorArray, v)
     return a
 end
 
-# ========================  trace  ========================
-
-# A 2D sector block is the tensor product of its structural factor `sector(a)` and its reduced
-# data `data(a)`, so the trace factorizes: the sector's quantum dimension times the trace of
-# the reduced data.
+# ========================  matrix operations live on the matrix storage types  ========================
+# Matrix/linear-algebra operations are defined only on the matrix storage type `FusedSectorMatrix`,
+# never on the array types. On an array they would otherwise fall through to the generic
+# `AbstractArray` methods, which scalar-index into a dense, non-graded result. Error instead (via the
+# shared `_matrix_op_error`); `FusedSectorMatrix` is a more specific subtype, so it still wins.
+Base.adjoint(a::AbstractSectorArray) = _matrix_op_error(adjoint, a)
+Base.transpose(a::AbstractSectorArray) = _matrix_op_error(transpose, a)
+Base.:*(a::AbstractSectorArray, b::AbstractSectorArray) = _matrix_op_error(*, a)
 function LinearAlgebra.tr(a::AbstractSectorArray{<:Any, <:Any, 2})
-    return LinearAlgebra.tr(sector(a)) * LinearAlgebra.tr(data(a))
+    return _matrix_op_error(LinearAlgebra.tr, a)
+end
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval Base.$f(a::AbstractSectorArray) = _matrix_op_error($f, a)
 end
 
 # The inner product factorizes the same way: the structural factors contract to their inner product

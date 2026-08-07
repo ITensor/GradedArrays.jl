@@ -5,7 +5,7 @@ Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus o
 per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
 Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker product of the
 structural [`UniqueSectorDelta`](@ref) (`sector`) with the data array (reduced matrix elements).
-The all-codomain case (`NC == N`) is the block an `AbelianGradedArray` yields.
+The all-codomain case (`NC == N`) is the block a `FusionArray` yields (via `fa[Block]`).
 """
 struct UniqueSectorArray{T, S <: SectorRange, N, NC, ND, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, S, N}
@@ -22,8 +22,8 @@ struct UniqueSectorArray{T, S <: SectorRange, N, NC, ND, A <: AbstractArray{T, N
 end
 
 # Constructors
-# `UniqueSectorArray` is a block type (the `fa[Block]` view, and the `AbelianGradedArray` block),
-# not meant to be built directly; these are the forms used internally.
+# `UniqueSectorArray` is a block type (the `fa[Block]` view), not meant to be built directly;
+# these are the forms used internally.
 
 # Primary: data plus the two sector tuples, inferring the parameters. `N == NC + ND`.
 function UniqueSectorArray(
@@ -47,8 +47,8 @@ function UniqueSectorArray{T, S, N}(
     )
 end
 
-# All-codomain shorthand from a flat sector tuple: the block an `AbelianGradedArray` yields, and
-# what `fa[Block]` returns when there is no domain leg. Flat always means all-codomain.
+# All-codomain shorthand from a flat sector tuple: what `fa[Block]` returns when there is no
+# domain leg. Flat always means all-codomain.
 function UniqueSectorArray(
         data::AbstractArray{T, N}, sectors::NTuple{N, S}
     ) where {T, S <: SectorRange, N}
