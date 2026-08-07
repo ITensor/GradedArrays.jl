@@ -2,9 +2,9 @@
 #  Graded-array construction and projection surface
 # ===========================================================================
 # The public `rand`/`randn`/`zeros`/`ones`/`fill` constructors over graded axes, and the projection
-# hooks (`unchecked_project`/`infer_aux_space`), all routed through `allocate_graded` so they build
-# the concrete graded array (`FusionArray`). Kept type-agnostic (dispatched on the axes, not on the
-# array type) so the construction API is independent of the concrete array.
+# hooks (`unchecked_project`/`infer_aux_space`), all build the concrete graded array (`FusionArray`).
+# Kept type-agnostic (dispatched on the axes, not on the array type) so the construction API is
+# independent of the concrete array.
 
 # An axis is a `GradedOneTo` or a vector of `sector => multiplicity` pairs (keyed by a
 # `SectorRange` or a bare `TensorKitSectors.Sector`), normalized to a `GradedOneTo` by
@@ -15,63 +15,52 @@
 # A leading graded axis on every tuple/vararg form keeps these from pirating Base's
 # zero-argument and `Integer`/`Dims` calls.
 
-# Two anchored `*_map` entries — codomain-led and empty-codomain domain-led — each forwarding to
-# the `*_graded` worker, mirroring the `unchecked_project` / `allocate_project` split below. A
+# Two anchored `*_map` entries — codomain-led and empty-codomain domain-led — each building the
+# `FusionArray` directly, mirroring the `unchecked_project` / `allocate_project` split below. A
 # fully empty `((), ())` matches neither.
 for f in (:rand, :randn)
-    fmap, fgraded = Symbol(f, :_map), Symbol(f, :_graded)
+    fmap, fbang = Symbol(f, :_map), Symbol(f, :!)
     @eval begin
         function TA.$fmap(
                 rng::AbstractRNG, ::Type{T},
                 cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
             ) where {T}
-            return $fgraded(rng, T, cod, dom)
+            return $fbang(rng, FusionArray{T}(undef, cod, dom))
         end
         function TA.$fmap(
                 rng::AbstractRNG, ::Type{T},
                 cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
             ) where {T}
-            return $fgraded(rng, T, cod, dom)
+            return $fbang(rng, FusionArray{T}(undef, cod, dom))
         end
     end
 end
-function rand_graded(rng::AbstractRNG, ::Type{T}, cod, dom) where {T}
-    return rand!(rng, allocate_graded(T, cod, dom))
-end
-function randn_graded(rng::AbstractRNG, ::Type{T}, cod, dom) where {T}
-    return randn!(rng, allocate_graded(T, cod, dom))
-end
-for f in (:zeros, :ones)
-    fmap, fgraded = Symbol(f, :_map), Symbol(f, :_graded)
+for (f, fill_block) in ((:zeros, :(zero!(a))), (:ones, :(fill!(a, one(T)))))
+    fmap = Symbol(f, :_map)
     @eval begin
         function TA.$fmap(
                 ::Type{T},
                 cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
             ) where {T}
-            return $fgraded(T, cod, dom)
+            a = FusionArray{T}(undef, cod, dom)
+            return $fill_block
         end
         function TA.$fmap(
                 ::Type{T}, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
             ) where {T}
-            return $fgraded(T, cod, dom)
+            a = FusionArray{T}(undef, cod, dom)
+            return $fill_block
         end
     end
-end
-function zeros_graded(::Type{T}, cod, dom) where {T}
-    return zero!(allocate_graded(T, cod, dom))
-end
-function ones_graded(::Type{T}, cod, dom) where {T}
-    return fill!(allocate_graded(T, cod, dom), one(T))
 end
 function TA.fill_map(
         value, cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
     )
-    return fill_graded(value, cod, dom)
+    return fill!(FusionArray{typeof(value)}(undef, cod, dom), value)
 end
 function TA.fill_map(value, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return fill_graded(value, cod, dom)
+    return fill!(FusionArray{typeof(value)}(undef, cod, dom), value)
 end
-fill_graded(value, cod, dom) = fill!(allocate_graded(typeof(value), cod, dom), value)
 
 # Public `Base` constructors: normalize pairs-vector axes with `to_range` and route to `*_map`.
 # Pairs-vector axes are keyed by `SectorRange` (which every GradedArrays sector subtypes); keying
@@ -616,12 +605,6 @@ function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
         return eachsectoraxis(ax)[Int(BlockArrays.findblock(ax, i))]
     end
     return reduce(tensor_product, secs)
-end
-
-# `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`, which scalar-indexes
-# opaque block storage; route through the graded `/` instead.
-function LinearAlgebra.normalize(a::AbstractGradedArray, p::Real = 2)
-    return a / LinearAlgebra.norm(a, p)
 end
 
 """

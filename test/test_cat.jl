@@ -1,4 +1,4 @@
-using GradedArrays: AbstractGradedArray, U1, dual, gradedrange, isdual, mortar_axis, sectors
+using GradedArrays: FusionArray, U1, dual, gradedrange, isdual, mortar_axis, sectors
 using TensorAlgebra: TensorAlgebra, cat_axes, cat_similar, cat_style
 using Test: @test, @test_throws, @testset
 
@@ -39,7 +39,7 @@ using Test: @test, @test_throws, @testset
         a2 = randn(g2, g2)
         ax = cat_axes(Val((1, 2)), a1, a2)
         d = cat_similar(cat_style(Val((1, 2)), a1, a2), Float64, ax, a1, a2)
-        @test d isa AbstractGradedArray
+        @test d isa FusionArray
         @test eltype(d) == Float64
         @test axes(d) == (mortar_axis([g1, g2]), mortar_axis([g1, g2]))
     end

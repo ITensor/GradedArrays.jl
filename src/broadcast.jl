@@ -118,19 +118,8 @@ function BC.BroadcastStyle(::BC.DefaultArrayStyle, ::AbstractGradedStyle)
     return error("cannot broadcast a graded array together with a non-graded array")
 end
 
-function Base.copyto!(dest::AbstractGradedArray, bc::BC.Broadcasted{<:AbstractGradedStyle})
-    return copyto!(dest, flattenlinear(bc))
-end
-
 # See the `AbstractSectorStyle` override above.
 BC.instantiate(bc::BC.Broadcasted{<:AbstractGradedStyle}) = bc
-
-# See the `AbstractSectorArray` arithmetic above.
-Base.:+(a::AbstractGradedArray, b::AbstractGradedArray) = a .+ b
-Base.:-(a::AbstractGradedArray, b::AbstractGradedArray) = a .- b
-Base.:*(a::AbstractGradedArray, x::Number) = a .* x
-Base.:*(x::Number, a::AbstractGradedArray) = x .* a
-Base.:/(a::AbstractGradedArray, x::Number) = a ./ x
 
 # ---- fused (coupled-sector-block) graded arrays ----
 #
@@ -139,17 +128,28 @@ Base.:/(a::AbstractGradedArray, x::Number) = a ./ x
 # broadcasts are supported; the block arithmetic is the `bipermutedimsopadd!` overload in
 # `tensoralgebra.jl`.
 
-struct GradedStyle{N} <: AbstractGradedStyle{N} end
-GradedStyle{N}(::Val{M}) where {N, M} = GradedStyle{M}()
+struct FusedGradedStyle{N} <: AbstractGradedStyle{N} end
+FusedGradedStyle{N}(::Val{M}) where {N, M} = FusedGradedStyle{M}()
 
-BC.BroadcastStyle(::Type{<:FusedGradedVector}) = GradedStyle{1}()
-BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = GradedStyle{2}()
+BC.BroadcastStyle(::Type{<:FusedGradedVector}) = FusedGradedStyle{1}()
+BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle{2}()
 
 # Rebuild the fused array from the linear expression's axes: the undef constructors invert `axes`,
 # undoing the domain dualization a `conj` operand introduces so the result lands in the right sectors.
-function Base.similar(bc::BC.Broadcasted{GradedStyle{1}}, elt::Type)
+function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{1}}, elt::Type)
     return FusedGradedVector{elt}(undef, axes(flattenlinear(bc)))
 end
-function Base.similar(bc::BC.Broadcasted{GradedStyle{2}}, elt::Type)
+function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{2}}, elt::Type)
     return FusedGradedMatrix{elt}(undef, axes(flattenlinear(bc)))
 end
+
+# Linear-combination arithmetic for the fused arrays. `FusionArray` defines its own
+# split-preserving versions in `fusionarray.jl`.
+function Base.copyto!(dest::AbstractFusedArray, bc::BC.Broadcasted{<:FusedGradedStyle})
+    return copyto!(dest, flattenlinear(bc))
+end
+Base.:+(a::AbstractFusedArray, b::AbstractFusedArray) = a .+ b
+Base.:-(a::AbstractFusedArray, b::AbstractFusedArray) = a .- b
+Base.:*(a::AbstractFusedArray, x::Number) = a .* x
+Base.:*(x::Number, a::AbstractFusedArray) = x .* a
+Base.:/(a::AbstractFusedArray, x::Number) = a ./ x

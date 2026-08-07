@@ -2,8 +2,6 @@ using GradedArrays: GradedArrays
 using Test: @test, @testset
 @testset "Test exports" begin
     exports = [
-        :AbstractGradedArray,
-        :AbstractGradedMatrix,
         :AbstractSectorArray,
         :AbstractSectorDelta,
         :UniqueSectorArray,
