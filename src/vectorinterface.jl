@@ -2,9 +2,10 @@
 # `KrylovKit.linsolve`, which push their Krylov vectors through `VectorInterface`. The generic
 # `AbstractArray` fallbacks broadcast a function over the elements, which the graded/sector broadcast
 # styles reject, so the in-place methods forward to the block-wise `TensorAlgebra` methods instead.
-# The definitions are identical for the fused graded arrays and the structural sector blocks, so they
-# share one `@eval` loop over both supertypes.
-for AT in (:AbstractGradedArray, :AbstractSectorArray)
+# The definitions are identical for the graded arrays and the structural sector blocks, so they
+# share one `@eval` loop over the graded types (`FusionArray`, `AbstractFusedArray`) and the sector
+# blocks (`AbstractSectorArray`).
+for AT in (:FusionArray, :AbstractFusedArray, :AbstractSectorArray)
     @eval begin
         function VI.zerovector(a::$AT, ::Type{S}) where {S <: Number}
             return VI.zerovector!(similar(a, S))

@@ -184,7 +184,7 @@ end
 StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a))
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractGradedArray{<:Any, <:Any, N}, op, x::AbstractGradedArray{<:Any, <:Any, N},
+        y::AbstractFusedArray{<:Any, <:Any, N}, op, x::AbstractFusedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}
@@ -243,41 +243,6 @@ See also `twist!`.
 """
 function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
     return twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
-end
-
-function TensorAlgebra.check_input(
-        f::typeof(TensorAlgebra.contract),
-        a1::AbstractGradedArray, perm1_codomain, perm1_domain,
-        a2::AbstractGradedArray, perm2_codomain, perm2_domain
-    )
-    @invoke TensorAlgebra.check_input(
-        f,
-        a1::AbstractArray, perm1_codomain, perm1_domain,
-        a2::AbstractArray, perm2_codomain, perm2_domain
-    )
-    # Contracted axes must be a canonical dual pair (`dual(ax1) == ax2`), so a
-    # contraction always pairs a space with its dual, for every sector type.
-    for (i, j) in zip(perm1_domain, perm2_codomain)
-        ax1 = axes(a1, i)
-        ax2 = axes(a2, j)
-        dual(ax1) == ax2 || throw(
-            ArgumentError(
-                "Contracted axes do not match: `axes(a1, $i) = $ax1` and `axes(a2, $j) = $ax2`"
-            )
-        )
-    end
-    return nothing
-end
-
-# Twist only the right factor; the left factor and the output use plain `SectorMatricize`.
-function TensorAlgebra.default_contract_algorithm(
-        ::Type{<:AbstractGradedArray}, ::Type{<:AbstractGradedArray}
-    )
-    return TensorAlgebra.Matricize(
-        SectorMatricize(),
-        TwistedSectorMatricize(),
-        SectorMatricize()
-    )
 end
 
 function TensorAlgebra.matricizeopperm(

@@ -101,7 +101,7 @@ Fields:
     size. Keys are sorted and unique. Stored non-dual (codomain convention).
 """
 struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
-    AbstractGradedArray{T, S, 1}
+    AbstractFusedVector{T, S}
     blocks::Dictionary{S, D}
     axis::Dictionary{S, Int}
 

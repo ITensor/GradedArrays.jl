@@ -5,7 +5,7 @@
 """
     FusedGradedMatrix{T,S<:SectorRange,D<:AbstractMatrix{T}}
 
-Block-diagonal matrix produced by matricizing an `AbstractGradedArray`.
+Block-diagonal matrix produced by matricizing a `FusionArray`.
 Each stored block corresponds to a coupled sector that lives on both the codomain and the domain.
 
 Fields:
@@ -21,7 +21,7 @@ Fields:
     actual axis is dual (the keys are dualed by `axes(m, 2)`).
 """
 struct FusedGradedMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
-    AbstractGradedMatrix{T, S}
+    AbstractFusedMatrix{T, S}
     blocks::Dictionary{S, D}
     codomain::Dictionary{S, Int}
     domain::Dictionary{S, Int}

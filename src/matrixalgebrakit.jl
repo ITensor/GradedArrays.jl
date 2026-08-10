@@ -177,7 +177,7 @@ function MAK.one!(A::FusedGradedMatrix)
     return A
 end
 MAK.one!(A::FusedSectorMatrix) = (MAK.one!(data(A)); A)
-MAK.one!(A::AbstractGradedArray) = _matrix_op_error(MAK.one!, A)
+MAK.one!(A::AbstractFusedVector) = _matrix_op_error(MAK.one!, A)
 MAK.one!(A::AbstractSectorArray) = _matrix_op_error(MAK.one!, A)
 MAK.one!(A::AbstractSectorDelta) = _matrix_op_error(MAK.one!, A)
 
