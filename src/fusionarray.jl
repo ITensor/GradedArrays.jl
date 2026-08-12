@@ -67,6 +67,7 @@ function viewblock(
         a::FusionArray{T, S, N, NC, ND},
         I::Block{N}
     ) where {T, S, N, NC, ND}
+    assert_block_indexing()
     require_unique_fusion(a)
     bk = Int.(Tuple(I))
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
@@ -279,6 +280,12 @@ Base.transpose(A::FusionArray) = _matrix_op_error(transpose, A)
 Base.:*(A::FusionArray, B::FusionArray) = _matrix_op_error(*, A)
 LinearAlgebra.tr(A::FusionArray) = _matrix_op_error(LinearAlgebra.tr, A)
 MAK.one!(A::FusionArray) = _matrix_op_error(MAK.one!, A)
+# The matrix predicates (`FusedGradedMatrix` defines these) are matrix concepts too: on a `FusionArray`
+# they would otherwise fall through to a dense elementwise scan.
+LinearAlgebra.isdiag(A::FusionArray) = _matrix_op_error(LinearAlgebra.isdiag, A)
+LinearAlgebra.istriu(A::FusionArray) = _matrix_op_error(LinearAlgebra.istriu, A)
+LinearAlgebra.istril(A::FusionArray) = _matrix_op_error(LinearAlgebra.istril, A)
+LinearAlgebra.isposdef(A::FusionArray) = _matrix_op_error(LinearAlgebra.isposdef, A)
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval Base.$f(A::FusionArray) = _matrix_op_error($f, A)
 end
@@ -423,6 +430,27 @@ TensorAlgebra.scale!(fa::FusionArray, α::Number) = (scale!(matricize(fa), α); 
 LinearAlgebra.norm(fa::FusionArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
 Base.fill!(fa::FusionArray, v) = (fill!(matricize(fa), v); fa)
 Base.iszero(fa::FusionArray) = iszero(matricize(fa))
+
+# ============================  reductions  ============================
+# `sum`/`maximum`/`minimum`/`extrema` are not defined on a `FusionArray`: the intended reduction is
+# ambiguous. The reduction over the dense array `Array(a)` and the reduction over the fused matrix
+# `matricize(a)` differ for non-abelian fusion (the Clebsch-Gordan recoupling mixes the dense entries),
+# so require the caller to pick one explicitly rather than silently committing to a split-dependent
+# densification. `FusedGradedMatrix` defines the fused-matrix reductions, and `Array` gives the dense
+# ones.
+@noinline function _reduction_error(op, ::FusionArray)
+    return error(
+        "`$op` is not defined for a `FusionArray`: reduce explicitly over `Array(a)` for the " *
+            "dense array, or over `matricize(a)` for the fused matrix (these differ for non-abelian " *
+            "fusion)."
+    )
+end
+for op in (:sum, :maximum, :minimum, :extrema)
+    @eval begin
+        Base.$op(a::FusionArray; kwargs...) = _reduction_error($op, a)
+        Base.$op(f, a::FusionArray; kwargs...) = _reduction_error($op, a)
+    end
+end
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
 # because a generic `similar` over flat axes cannot recover the
@@ -603,9 +631,12 @@ end
 # ============================  concatenation  ============================
 # Place whole blocks (no scalar indexing) with the inner `concatenate!` on the block containers. That
 # works because `FusionArrayBlocks` is an `AbstractSparseArray`, so the placement visits only the
-# stored (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions.
+# stored (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions. The block
+# placement goes through the guarded block views, so opt into block indexing for its extent.
 function TensorAlgebra.concatenate!(dest::FusionArray, dims, args...)
-    TensorAlgebra.concatenate!(blocks(dest), dims, blocks.(args)...)
+    with_block_indexing() do
+        return TensorAlgebra.concatenate!(blocks(dest), dims, blocks.(args)...)
+    end
     return dest
 end
 # Route `Base.cat` through the same machinery so it uses the graded destination and placement.

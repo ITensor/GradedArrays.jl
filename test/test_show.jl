@@ -1,7 +1,7 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, Fib, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
     Ising, O2, SU2, SectorOneTo, SectorRange, TrivialSector, U1, UniqueSectorArray, Z, dual,
-    gradedrange, ×
+    gradedrange, with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionNumber, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 
@@ -140,7 +140,9 @@ end
     # `FusedGradedMatrix`.
     g = gradedrange([U1(0) => 2, U1(1) => 2])
     a = zeros(Float64, (g,), (g,))
-    a[1, 1] = 1.0
+    with_scalar_indexing() do
+        return a[1, 1] = 1.0
+    end
 
     s = sprint(show, MIME("text/plain"), a)
     @test occursin("FusionArray (codomain 1, domain 1)", s)

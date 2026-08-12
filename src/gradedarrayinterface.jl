@@ -22,15 +22,21 @@ for AT in (:FusionArray, :AbstractFusedArray)
         # Scalar indexing is well-defined only for unique (abelian) fusion, where the trivial
         # structural factor lets a coordinate pick out a single element.
         function Base.getindex(a::$AT, I1::Int, I_rest::Vararg{Int})
+            assert_scalar_indexing()
             require_unique_fusion(a)
             I = (I1, I_rest...)
             @boundscheck checkbounds(a, I...)
             bis = map(findblockindex, axes(a), I)
             b = Block(map(bi -> Int(block(bi)), bis))
             SparseArraysBase.isstored(a, b) || return zero(eltype(a))
-            return view(a, b)[map(blockindex, bis)...]
+            # Scalar access reaches its element through the block view; allow that internal block
+            # indexing even when block indexing is otherwise disabled.
+            return with_block_indexing() do
+                return view(a, b)[map(blockindex, bis)...]
+            end
         end
         function Base.setindex!(a::$AT, v, I1::Int, I_rest::Vararg{Int})
+            assert_scalar_indexing()
             require_unique_fusion(a)
             I = (I1, I_rest...)
             @boundscheck checkbounds(a, I...)
@@ -38,7 +44,9 @@ for AT in (:FusionArray, :AbstractFusedArray)
             b = Block(map(bi -> Int(block(bi)), bis))
             SparseArraysBase.isstored(a, b) ||
                 error("cannot set element at $(I): it lies in a symmetry-forbidden block.")
-            view(a, b)[map(blockindex, bis)...] = v
+            with_block_indexing() do
+                return view(a, b)[map(blockindex, bis)...] = v
+            end
             return a
         end
 

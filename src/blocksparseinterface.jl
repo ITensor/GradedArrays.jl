@@ -11,6 +11,7 @@ function mortar_axis end
 function blocktype end
 function isblockdiagonal end
 
-# `blockstoredlength` is only called (never extended on graded types), so vendor the generic
-# definition that BlockSparseArrays provides, built on the SparseArraysBase block storage.
-blockstoredlength(a) = SparseArraysBase.storedlength(blocks(a))
+# The number of stored (symmetry-allowed) blocks. Counted from the stored block indices directly
+# rather than via `storedlength(blocks(a))`, whose generic `length(storedvalues(...))` would
+# materialize a view of every block (disabled by the block-indexing guard on a `FusionArray`).
+blockstoredlength(a) = length(eachblockstoredindex(a))

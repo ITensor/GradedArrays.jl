@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, SU2, SectorOneTo, SectorRange, U1, UniqueSectorArray,
     UniqueSectorDelta, UniqueSectorMatrix, UniqueSectorVector, data, dual, isdual, sector,
-    sector_kron, sectoraxes, sectortype
+    sector_kron, sectoraxes, sectortype, with_scalar_indexing
 using LinearAlgebra: tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -70,7 +70,9 @@ using Test: @test, @test_throws, @testset
         sa = UniqueSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(fill(2.0), (), ())
         @test ndims(sa) == 0
         @test sectortype(sa) === U1
-        @test sa[] == 2.0
+        with_scalar_indexing() do
+            @test sa[] == 2.0
+        end
 
         sd = sector(sa)
         @test sd isa UniqueSectorDelta{Float64, U1, 0}
@@ -79,7 +81,9 @@ using Test: @test, @test_throws, @testset
         rebuilt = UniqueSectorArray(fill(5.0), sd)
         @test rebuilt isa
             UniqueSectorArray{Float64, U1, 0, <:Any, <:Any, Array{Float64, 0}}
-        @test rebuilt[] == 5.0
+        with_scalar_indexing() do
+            @test rebuilt[] == 5.0
+        end
 
         # The convenience constructors infer `S` from the axes/sectors, which is
         # impossible for an empty tuple, so they require at least one; a rank-0 value
@@ -92,30 +96,34 @@ using Test: @test, @test_throws, @testset
         data = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(data, (U1(1), U1(0)))
         @test size(sa) == (2, 2)
-        @test sa[1, 1] == 1.0
-        @test sa[2, 1] == 3.0
-        @test sa[1, 2] == 2.0
-        @test sa[2, 2] == 4.0
+        with_scalar_indexing() do
+            @test sa[1, 1] == 1.0
+            @test sa[2, 1] == 3.0
+            @test sa[1, 2] == 2.0
+            @test sa[2, 2] == 4.0
 
-        sa[1, 2] = 99.0
-        @test sa[1, 2] == 99.0
+            sa[1, 2] = 99.0
+            @test sa[1, 2] == 99.0
+        end
     end
 
     @testset "copy" begin
         data = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(data, (U1(1), U1(0)))
         sa2 = copy(sa)
-        @test sa2[1, 1] == sa[1, 1]
-        @test sectoraxes(sa2) == sectoraxes(sa)
+        with_scalar_indexing() do
+            @test sa2[1, 1] == sa[1, 1]
+            @test sectoraxes(sa2) == sectoraxes(sa)
 
-        sa2[1, 1] = 999.0
-        @test sa[1, 1] == 1.0
+            sa2[1, 1] = 999.0
+            @test sa[1, 1] == 1.0
+        end
     end
 
     @testset "copyto! / broadcast-assign from a plain array" begin
         src = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(zeros(2, 2), (U1(1), conj(U1(1))))
-        copyto!(sa, src)
+        copyto!(data(sa), src)
         @test data(sa) == src
 
         sa2 = UniqueSectorArray(zeros(2, 2), (U1(1), conj(U1(1))))
@@ -133,7 +141,9 @@ using Test: @test, @test_throws, @testset
         T = UniqueSectorArray{Float64, U1, 2, 2, 0, Matrix{Float64}}
         sa2 = convert(T, sa)
         @test eltype(sa2) == Float64
-        @test sa2[1, 1] === 1.0
+        with_scalar_indexing() do
+            @test sa2[1, 1] === 1.0
+        end
     end
 
     @testset "UniqueSectorMatrix alias" begin
@@ -152,7 +162,9 @@ using Test: @test, @test_throws, @testset
         data = [1.0, 2.0, 3.0]
         sa = UniqueSectorArray(data, (U1(1),))
         @test size(sa) == (3,)
-        @test sa[2] == 2.0
+        with_scalar_indexing() do
+            @test sa[2] == 2.0
+        end
         @test ndims(sa) == 1
     end
 
@@ -161,7 +173,9 @@ using Test: @test, @test_throws, @testset
         sa = UniqueSectorArray(data, (U1(1), conj(U1(0)), U1(-1)))
         @test size(sa) == (2, 3, 4)
         @test ndims(sa) == 3
-        @test sa[1, 2, 3] == 1.0
+        with_scalar_indexing() do
+            @test sa[1, 2, 3] == 1.0
+        end
     end
 
     @testset "permutedims" begin
@@ -170,8 +184,10 @@ using Test: @test, @test_throws, @testset
         sa_perm = permutedims(sa, (2, 1))
         @test size(sa_perm) == (3, 2)
         @test sectoraxes(sa_perm) == (conj(U1(0)), U1(1))
-        @test sa_perm[1, 1] == 1.0
-        @test sa_perm[1, 2] == 4.0
+        with_scalar_indexing() do
+            @test sa_perm[1, 1] == 1.0
+            @test sa_perm[1, 2] == 4.0
+        end
     end
 
     @testset "mul!" begin

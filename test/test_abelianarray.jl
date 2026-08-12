@@ -3,7 +3,7 @@ using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
     GradedOneTo, SU2, SectorRange, U1, UniqueSectorArray, blockstoredlength, data,
     datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectors,
-    sectortype, to_gradedrange
+    sectortype, to_gradedrange, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored
@@ -36,29 +36,35 @@ using Test: @test, @test_broken, @test_throws, @testset
         @test Block(2, 2) in stored  # U1(1) × U1(-1): charge 0
         @test length(stored) == 2
         # Blocks are allocated but uninitialized (undef)
-        @test size(a[Block(1, 1)]) == (2, 1)
-        @test size(a[Block(2, 2)]) == (3, 2)
+        with_block_indexing() do
+            @test size(a[Block(1, 1)]) == (2, 1)
+            @test size(a[Block(2, 2)]) == (3, 2)
+        end
     end
 
     @testset "Block setindex!/getindex" begin
         a = zeros(Float64, g1, g2)
         # Block (1,1): U1(0) with mult 2 × U1(0) with mult 1 → 2×1
         data11 = reshape([1.0, 3.0], 2, 1)
-        a[Block(1, 1)] = data11
+        with_block_indexing() do
+            a[Block(1, 1)] = data11
 
-        blk = a[Block(1, 1)]
-        @test blk isa UniqueSectorArray
-        @test data(blk) == data11
-        @test sectoraxes(blk) == (U1(0), U1(0))
+            blk = a[Block(1, 1)]
+            @test blk isa UniqueSectorArray
+            @test data(blk) == data11
+            @test sectoraxes(blk) == (U1(0), U1(0))
+        end
     end
 
     @testset "Block getindex returns correct sectors" begin
         g1_dual = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
         a = zeros(Float64, g1_dual, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
 
-        blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (conj(U1(0)), U1(0))
+            blk = a[Block(1, 1)]
+            @test sectoraxes(blk) == (conj(U1(0)), U1(0))
+        end
     end
 
     @testset "Block getindex for unstored block errors" begin
@@ -70,24 +76,30 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "Single Block{N} argument" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
-        blk = a[Block(1, 1)]
-        @test blk isa UniqueSectorArray
-        @test all(isone, data(blk))
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            blk = a[Block(1, 1)]
+            @test blk isa UniqueSectorArray
+            @test all(isone, data(blk))
+        end
     end
 
     @testset "UniqueSectorArray block setindex!" begin
         a = zeros(Float64, g1, g2)
         # Block (1,1): 2×1
         sa = UniqueSectorArray(reshape([5.0, 7.0], 2, 1), (U1(0), U1(0)))
-        a[Block(1, 1)] = sa
-        @test data(a[Block(1, 1)]) == reshape([5.0, 7.0], 2, 1)
+        with_block_indexing() do
+            a[Block(1, 1)] = sa
+            @test data(a[Block(1, 1)]) == reshape([5.0, 7.0], 2, 1)
+        end
     end
 
     @testset "eachblockstoredindex" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
-        a[Block(2, 2)] = ones(3, 2)
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            return a[Block(2, 2)] = ones(3, 2)
+        end
 
         stored = Set(collect(eachblockstoredindex(a)))
         @test Block(1, 1) in stored
@@ -118,16 +130,20 @@ using Test: @test, @test_broken, @test_throws, @testset
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = zeros(g, dual(g))
         @test a isa FusionArray
-        a[1, 1] = 5.0
-        @test a[1, 1] == 5.0
-        @test a[2, 1] == 0.0  # same allowed block, untouched
-        @test a[1, 3] == 0.0  # symmetry-forbidden position reads as a structural zero
-        @test_throws ErrorException (a[1, 3] = 1.0)
+        with_scalar_indexing() do
+            a[1, 1] = 5.0
+            @test a[1, 1] == 5.0
+            @test a[2, 1] == 0.0  # same allowed block, untouched
+            @test a[1, 3] == 0.0  # symmetry-forbidden position reads as a structural zero
+            @test_throws ErrorException (a[1, 3] = 1.0)
+        end
     end
 
     @testset "isstored(a, ::Block)" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = ones(2, 1)
+        end
         @test isstored(a, Block(1, 1))
         @test !isstored(a, Block(2, 1))  # symmetry-forbidden block
         m = FusedGradedMatrix([ones(2, 2), 2 * ones(3, 3)], [U1(0), U1(1)])
@@ -152,32 +168,54 @@ using Test: @test, @test_broken, @test_throws, @testset
         # `zero!` so the other allowed block (2, 2) is initialized: the elementwise comparison
         # below reads every position, and an undef block could hold `NaN` (never `==` itself).
         a = TensorAlgebra.zero!(zeros(Float64, g1, g2))
-        a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        end
         dense = Array(a)
         # Scalar reads match the dense array elementwise, including forbidden positions
         # (unstored blocks), which read as a structural zero.
-        @test all(a[i, j] == dense[i, j] for i in axes(a, 1), j in axes(a, 2))
-        @test a[1, 1] === 5.0
-        @test a[3, 1] === 0.0  # falls in an unstored (forbidden) block
+        with_scalar_indexing() do
+            @test all(a[i, j] == dense[i, j] for i in axes(a, 1), j in axes(a, 2))
+            @test a[1, 1] === 5.0
+            @test a[3, 1] === 0.0  # falls in an unstored (forbidden) block
+        end
     end
 
     @testset "Scalar setindex!" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        end
         # Writing into an allowed block updates the single element and reads back.
-        a[1, 1] = 42.0
-        @test a[1, 1] === 42.0
-        @test a[2, 1] === 7.0  # neighboring element in the same block is untouched
-        # A forbidden position has no valid target.
-        @test_throws ErrorException (a[3, 1] = 1.0)
+        with_scalar_indexing() do
+            a[1, 1] = 42.0
+            @test a[1, 1] === 42.0
+            @test a[2, 1] === 7.0  # neighboring element in the same block is untouched
+            # A forbidden position has no valid target.
+            @test_throws ErrorException (a[3, 1] = 1.0)
+        end
     end
 
     @testset "Scalar indexing requires unique fusion" begin
         # The fused representation can hold non-abelian sectors, where scalar indexing is
         # not well defined; it must error rather than read/write past the reduced block data.
         m = FusedGradedMatrix([ones(1, 1), ones(1, 1)], [SU2(0), SU2(1 // 2)])
-        @test_throws ErrorException m[1, 1]
-        @test_throws ErrorException (m[1, 1] = 1.0)
+        with_scalar_indexing() do
+            @test_throws ErrorException m[1, 1]
+            @test_throws ErrorException (m[1, 1] = 1.0)
+        end
+    end
+
+    @testset "reductions fold in the quantum dimension (non-abelian fused matrix)" begin
+        # A `FusedGradedMatrix` block carries the sector's quantum dimension, so `sum` weights each
+        # block's reduced sum by that dimension (1 for `SU2(0)`, 2 for `SU2(1//2)`) and folds the
+        # structural zeros in for `maximum`/`minimum`, matching the reduction over `Array`.
+        m = FusedGradedMatrix([[2.0;;], [1.0 2.0; 3.0 4.0]], [SU2(0), SU2(1 // 2)])
+        @test sum(m) == 1 * 2.0 + 2 * (1 + 2 + 3 + 4)  # == 22.0
+        @test sum(m) == sum(Array(m))
+        @test maximum(m) == maximum(Array(m))
+        @test minimum(m) == minimum(Array(m))  # folds in a structural zero
+        @test extrema(m) == extrema(Array(m))
     end
 
     @testset "unsupported ops error gracefully" begin
@@ -225,14 +263,18 @@ using Test: @test, @test_broken, @test_throws, @testset
         @test isdual(axes(a, 2)) == true
         @test size(a) == (5, 3)
 
-        a[Block(1, 1)] = ones(2, 1)
-        blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (conj(U1(0)), conj(U1(0)))
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            blk = a[Block(1, 1)]
+            @test sectoraxes(blk) == (conj(U1(0)), conj(U1(0)))
+        end
     end
 
     @testset "similar" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = ones(2, 1)
+        end
 
         a2 = similar(a)
         @test a2 isa FusionArray{Float64, <:Any, 2}
@@ -252,15 +294,17 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "Stored block insertions" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
-        a[Block(2, 2)] = 4.0 * ones(3, 2)
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            a[Block(2, 2)] = 4.0 * ones(3, 2)
 
-        @test length(collect(eachblockstoredindex(a))) == 2
-        @test data(a[Block(1, 1)]) == ones(2, 1)
-        @test data(a[Block(2, 2)]) == 4.0 * ones(3, 2)
+            @test length(collect(eachblockstoredindex(a))) == 2
+            @test data(a[Block(1, 1)]) == ones(2, 1)
+            @test data(a[Block(2, 2)]) == 4.0 * ones(3, 2)
 
-        # Setting a symmetry-forbidden (non-allowed) block errors.
-        @test_throws Exception (a[Block(1, 2)] = 2.0 * ones(2, 2))
+            # Setting a symmetry-forbidden (non-allowed) block errors.
+            @test_throws Exception (a[Block(1, 2)] = 2.0 * ones(2, 2))
+        end
     end
 
     @testset "SU2 (non-abelian dimensions)" begin
@@ -283,7 +327,9 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "show" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = ones(2, 1)
+        end
         s = sprint(show, MIME("text/plain"), a)
         @test occursin("FusionArray", s)
         @test occursin("5×3", s)
@@ -293,45 +339,51 @@ using Test: @test, @test_broken, @test_throws, @testset
     @testset "blocks accessor" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = zeros(Float64, g, dual(g))
-        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
-        a[Block(2, 2)] = UniqueSectorArray(2 * ones(3, 3), (U1(1), dual(U1(1))))
+        with_block_indexing() do
+            a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+            return a[Block(2, 2)] = UniqueSectorArray(2 * ones(3, 3), (U1(1), dual(U1(1))))
+        end
 
         b = BlockArrays.blocks(a)
         @test size(b) == (2, 2)
 
-        # Stored blocks return UniqueSectorArray
-        b11 = b[1, 1]
-        @test b11 isa UniqueSectorArray
-        @test data(b11) ≈ ones(2, 2)
+        with_block_indexing() do
+            # Stored blocks return UniqueSectorArray
+            b11 = b[1, 1]
+            @test b11 isa UniqueSectorArray
+            @test data(b11) ≈ ones(2, 2)
 
-        # Unstored (symmetry-forbidden) blocks error rather than reading back as zero
-        @test_throws ErrorException b[1, 2]
+            # Unstored (symmetry-forbidden) blocks error rather than reading back as zero
+            @test_throws ErrorException b[1, 2]
 
-        # Writing through blocks
-        b[1, 1] = UniqueSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
-        @test data(a[Block(1, 1)]) ≈ 5 * ones(2, 2)
+            # Writing through blocks
+            b[1, 1] = UniqueSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
+            @test data(a[Block(1, 1)]) ≈ 5 * ones(2, 2)
+        end
     end
 
     @testset "fill! and zero!" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = zeros(Float64, g, dual(g))
-        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+        with_block_indexing() do
+            a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
 
-        # fill!(a, 0) zeros stored blocks in place. `all` on the block forwards to its reduced
-        # data for unique fusion, so the reduction stays off the discouraged scalar-indexing path.
-        fill!(a, 0)
-        @test blockstoredlength(a) > 0
-        @test all(iszero, a[Block(1, 1)])
+            # fill!(a, 0) zeros stored blocks in place. `all` on the block forwards to its reduced
+            # data for unique fusion, so the reduction stays off the discouraged scalar-indexing path.
+            fill!(a, 0)
+            @test blockstoredlength(a) > 0
+            @test all(iszero, a[Block(1, 1)])
 
-        # fill! fills stored blocks block-wise with any value
-        fill!(a, 1.0)
-        @test all(==(1.0), a[Block(1, 1)])
+            # fill! fills stored blocks block-wise with any value
+            fill!(a, 1.0)
+            @test all(==(1.0), a[Block(1, 1)])
 
-        # zero! zeros stored blocks in place (blocks stay allocated)
-        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
-        TensorAlgebra.zero!(a)
-        @test blockstoredlength(a) > 0
-        @test all(iszero, a[Block(1, 1)])
+            # zero! zeros stored blocks in place (blocks stay allocated)
+            a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+            TensorAlgebra.zero!(a)
+            @test blockstoredlength(a) > 0
+            @test all(iszero, a[Block(1, 1)])
+        end
     end
 end
 
@@ -603,22 +655,6 @@ end
     @test Array(ca) ≈ conj(Array(a))
 end
 
-@testset "isdiag on a graded matrix" begin
-    g = gradedrange([U1(0) => 2, U1(1) => 2])
-
-    # Block-diagonal with each stored block diagonal.
-    a = zeros(Float64, g, dual(g))
-    a[Block(1, 1)] = UniqueSectorArray([1.0 0.0; 0.0 2.0], (U1(0), dual(U1(0))))
-    a[Block(2, 2)] = UniqueSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
-    @test LinearAlgebra.isdiag(a)
-
-    # A non-diagonal stored block breaks it.
-    b = zeros(Float64, g, dual(g))
-    b[Block(1, 1)] = UniqueSectorArray([1.0 5.0; 0.0 2.0], (U1(0), dual(U1(0))))
-    b[Block(2, 2)] = UniqueSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
-    @test !LinearAlgebra.isdiag(b)
-end
-
 @testset "project (constructing)" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     # A dense source already in the allowed subspace round-trips through the checked `project`.
@@ -648,8 +684,10 @@ end
     src = randn(5, 5)
     dest = zeros(Float64, g, dual(g))
     @test TensorAlgebra.projectto!(dest, src) === dest
-    @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
-    @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
+    with_block_indexing() do
+        @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
+        @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
+    end
 
     # A lower-rank `src` is reshaped up before projecting into the flux-canceling aux leg.
     site = gradedrange([U1(0) => 1, U1(1) => 1])
@@ -945,32 +983,47 @@ end
     @test_throws DimensionMismatch LinearAlgebra.dot(a, c)
 end
 
-@testset "sum" begin
+@testset "reductions error on a FusionArray" begin
+    # An elementwise reduction on a `FusionArray` is ambiguous (dense array vs fused matrix, which
+    # differ for non-abelian fusion), so it errors by design; reduce `Array(a)` or `matricize(a)`.
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(ComplexF64, g, dual(g))
     Random.randn!(a)
-    @test sum(a) ≈ sum(Array(a))
+    @test_throws ErrorException sum(a)
+    @test_throws ErrorException maximum(a)
+    @test_throws ErrorException minimum(a)
+    @test_throws ErrorException extrema(a)
+    @test_throws ErrorException maximum(abs, a)
 end
 
-@testset "maximum / minimum / extrema" begin
-    # Forbidden and allowed-but-unstored blocks are zeros that the reductions must see, so
-    # they agree with the dense array (which includes those zeros).
+@testset "sum over the fused matrix" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = zeros(ComplexF64, g, dual(g))
+    Random.randn!(a)
+    # For abelian fusion the fused-matrix reduction matches the dense array; structural zeros do not
+    # contribute to a sum.
+    @test sum(matricize(a)) ≈ sum(Array(a))
+end
+
+@testset "maximum / minimum / extrema over the fused matrix" begin
+    # Forbidden and allowed-but-unstored blocks are structural zeros the reductions must see, so for
+    # abelian fusion they agree with the dense array (which includes those zeros).
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, g, dual(g))
     Random.randn!(a)
-    @test maximum(a) == maximum(Array(a))
-    @test minimum(a) == minimum(Array(a))
-    @test maximum(abs, a) == maximum(abs, Array(a))
-    @test minimum(abs, a) == minimum(abs, Array(a))
-    @test extrema(a) == extrema(Array(a))
-    @test extrema(abs, a) == extrema(abs, Array(a))
+    m = matricize(a)
+    @test maximum(m) == maximum(Array(a))
+    @test minimum(m) == minimum(Array(a))
+    @test maximum(abs, m) == maximum(abs, Array(a))
+    @test minimum(abs, m) == minimum(abs, Array(a))
+    @test extrema(m) == extrema(Array(a))
+    @test extrema(abs, m) == extrema(abs, Array(a))
 
     # When every element lives in a stored block there is no implicit zero to fold in, so a
     # sign-definite array keeps its sign.
     h = gradedrange([U1(1) => 2])
     c = fill(-1.0, 2, 2)[h, dual(h)]
-    @test maximum(c) == -1.0
-    @test maximum(c) == maximum(Array(c))
+    @test maximum(matricize(c)) == -1.0 == maximum(Array(c))
 end
 
 # Adjoint (and matrix multiplication) are matrix operations, defined only on the matricized

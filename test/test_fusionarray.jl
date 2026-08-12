@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusionArray, SU2, SectorRange, U1,
     UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain, ndims_domain,
-    sector
+    sector, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, bipermutedims, contract, matricize, svd_compact
@@ -139,15 +139,21 @@ end
             [(c[k] - blocklengths(g)[k] + 1):c[k] for k in eachindex(c)]
         )
         r1, r2 = elranges(g1), elranges(g2)
-        for B in GradedArrays.eachblockstoredindex(a)
-            i, j = Int.(Tuple(B))
-            # Each stored block is the dense sub-block at its positional (i, j) location.
-            @test Array(GradedArrays.viewblock(a, B)) ≈ dense[r1[i], r2[j]]
+        with_block_indexing() do
+            for B in GradedArrays.eachblockstoredindex(a)
+                i, j = Int.(Tuple(B))
+                # Each stored block is the dense sub-block at its positional (i, j) location.
+                @test Array(GradedArrays.viewblock(a, B)) ≈ dense[r1[i], r2[j]]
+            end
         end
         # The view shares storage, so writes land in the backing.
         B = first(GradedArrays.eachblockstoredindex(a))
         i, j = Int.(Tuple(B))
-        GradedArrays.viewblock(a, B)[1, 1] = 42.0
+        with_block_indexing() do
+            with_scalar_indexing() do
+                return GradedArrays.viewblock(a, B)[1, 1] = 42.0
+            end
+        end
         @test Array(a)[r1[i][1], r2[j][1]] == 42.0
     end
 
@@ -213,9 +219,11 @@ end
         # (matching TensorKit): `conj(a[I])` equals `conj(a)[I]`, split and axes preserved. The SU2
         # blocks take a separate non-abelian conj path, so skip them here.
         if !startswith(G, "SU2")
-            for I in GradedArrays.eachblockstoredindex(a)
-                @test Array(conj(a[I])) ≈ Array(c[I])
-                @test axes(conj(a[I])) == axes(c[I])
+            with_block_indexing() do
+                for I in GradedArrays.eachblockstoredindex(a)
+                    @test Array(conj(a[I])) ≈ Array(c[I])
+                    @test axes(conj(a[I])) == axes(c[I])
+                end
             end
         end
     end
@@ -236,21 +244,23 @@ end
             fa = randn_fusionarray(ComplexF64, cod, dom)
             perm = (pc..., pd...)
             fp = bipermutedims(fa, pc, pd)
-            for I in GradedArrays.eachblockstoredindex(fa)
-                Ip = Block(ntuple(d -> Int(Tuple(I)[perm[d]]), ndims(fa))...)
-                gt = fp[Ip]
-                dest = UniqueSectorArray(similar(data(gt)), sector(gt))
-                TensorAlgebra.bipermutedimsopadd!(
-                    dest,
-                    identity,
-                    fa[I],
-                    pc,
-                    pd,
-                    true,
-                    false
-                )
-                @test Array(dest) ≈ Array(gt)
-                @test axes(dest) == axes(gt)
+            with_block_indexing() do
+                for I in GradedArrays.eachblockstoredindex(fa)
+                    Ip = Block(ntuple(d -> Int(Tuple(I)[perm[d]]), ndims(fa))...)
+                    gt = fp[Ip]
+                    dest = UniqueSectorArray(similar(data(gt)), sector(gt))
+                    TensorAlgebra.bipermutedimsopadd!(
+                        dest,
+                        identity,
+                        fa[I],
+                        pc,
+                        pd,
+                        true,
+                        false
+                    )
+                    @test Array(dest) ≈ Array(gt)
+                    @test axes(dest) == axes(gt)
+                end
             end
         end
     end

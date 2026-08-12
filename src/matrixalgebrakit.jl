@@ -1,5 +1,8 @@
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
+# Length of the main diagonal of a matrix (e.g. the number of singular values a block produces).
+diaglength(a::AbstractArray) = minimum(size(a))
+
 struct GradedBlockAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A
 end
@@ -210,7 +213,7 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_S = map(x -> min(size(x)...), A.blocks)
+    V_S = map(diaglength, A.blocks)
     U = similar(A, A.codomain, V_S)
     Tr = real(eltype(A))
     S = similar_diagonal(A, Tr, V_S)
@@ -222,7 +225,7 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_S = map(x -> min(size(x)...), A.blocks)
+    V_S = map(diaglength, A.blocks)
     Tr = real(eltype(A))
     return similar(A, Vector{Tr}, V_S) # TODO: don't hardcode type
 end
@@ -283,7 +286,7 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_Q = map(x -> min(size(x)...), A.blocks)
+    V_Q = map(diaglength, A.blocks)
     Q = similar(A, A.codomain, V_Q)
     R = similar(A, V_Q, A.domain)
     return Q, R
@@ -318,7 +321,7 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_Q = map(x -> min(size(x)...), A.blocks)
+    V_Q = map(diaglength, A.blocks)
     L = similar(A, A.codomain, V_Q)
     Q = similar(A, V_Q, A.domain)
     return L, Q

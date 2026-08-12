@@ -48,6 +48,7 @@ Base.@propagate_inbounds function Base.getindex(
         A::AbstractSectorArray{T, <:Any, N},
         I::Vararg{Int, N}
     ) where {T, N}
+    assert_scalar_indexing()
     require_unique_fusion(A)
     @boundscheck checkbounds(A, I...)
     return @inbounds data(A)[I...]
@@ -57,6 +58,7 @@ Base.@propagate_inbounds function Base.setindex!(
         v,
         I::Vararg{Int, N}
     ) where {T, N}
+    assert_scalar_indexing()
     require_unique_fusion(A)
     @boundscheck checkbounds(A, I...)
     @inbounds data(A)[I...] = v
@@ -113,9 +115,9 @@ end
 
 # ========================  Shared utilities  ========================
 
+is_unique_fusion(A) = TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion()
 function require_unique_fusion(A)
-    return TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion() ||
-        error("not implemented for non-abelian tensors")
+    return is_unique_fusion(A) || error("not implemented for non-abelian tensors")
 end
 
 # ========================  scale! / zero!  ========================

@@ -76,3 +76,45 @@ end
 function LinearAlgebra.tr(a::FusedSectorMatrix)
     return LinearAlgebra.tr(sector(a)) * LinearAlgebra.tr(data(a))
 end
+
+# The stored element count factorizes the same way: the structural factor contributes its quantum
+# dimension (the length of its diagonal), the reduced data its full size. Abelian sectors have quantum
+# dimension 1, so this is just `length(data(a))`.
+function SparseArraysBase.storedlength(a::FusedSectorMatrix)
+    return storedlength(sector(a)) * length(data(a))
+end
+
+# ---- reductions ----
+
+# `sum` over a graded matrix is restricted to zero-preserving `f` (`f(0) == 0`) for now, so the
+# structural zeros contribute nothing and need not be counted. Shared by the `FusedSectorMatrix` and
+# `FusedGradedMatrix` `sum` methods.
+@noinline function throw_not_zero_preserving_sum(z)
+    return error(
+        "`sum` over a graded matrix supports only zero-preserving `f` (`f(0) == 0`) for now; \
+        got `f(0) = $z`. Materialize with `Array` first."
+    )
+end
+
+# The dense block is `sector(a) ⊗ data(a)`: the quantum dimension `d` copies of the reduced data on the
+# diagonal, with `length - storedlength` structural zeros off it. `sum` (zero-preserving `f` only for
+# now) weights the reduced sum by `d` and drops the structural zeros; `maximum`/`minimum` are unchanged
+# by the duplication and fold in a single `f(0)` when the block has structural zeros (`d > 1`).
+Base.sum(a::FusedSectorMatrix) = sum(identity, a)
+function Base.sum(f, a::FusedSectorMatrix)
+    z = f(zero(eltype(a)))
+    iszero(z) || throw_not_zero_preserving_sum(z)
+    return storedlength(sector(a)) * sum(f, data(a))
+end
+Base.maximum(a::FusedSectorMatrix) = maximum(identity, a)
+function Base.maximum(f, a::FusedSectorMatrix)
+    m = maximum(f, data(a))
+    return length(a) > storedlength(a) ? max(m, f(zero(eltype(a)))) : m
+end
+Base.minimum(a::FusedSectorMatrix) = minimum(identity, a)
+function Base.minimum(f, a::FusedSectorMatrix)
+    m = minimum(f, data(a))
+    return length(a) > storedlength(a) ? min(m, f(zero(eltype(a)))) : m
+end
+Base.extrema(a::FusedSectorMatrix) = extrema(identity, a)
+Base.extrema(f, a::FusedSectorMatrix) = (minimum(f, a), maximum(f, a))

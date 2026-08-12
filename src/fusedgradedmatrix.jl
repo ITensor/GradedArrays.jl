@@ -67,7 +67,45 @@ function FusedGradedMatrix(
 end
 
 # Block-diagonal by construction (one block per sector), so just check each block.
+# Sum the per-block stored counts over the stored (symmetry-allowed) blocks; each block view is a
+# `FusedSectorMatrix`, whose count folds in the sector's quantum dimension. The rest of `length` are
+# structural zeros. Without this, the `AbstractArray` fallback reports `length` (i.e. fully dense).
+function SparseArraysBase.storedlength(A::FusedGradedMatrix)
+    return sum(B -> storedlength(view(A, B)), eachblockstoredindex(A); init = 0)
+end
+
 LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
+
+# Reductions over `Array(A)` without densifying, folding through the per-block `FusedSectorMatrix`
+# reductions (each block already accounts for its quantum dimension and its within-block structural
+# zeros). The remaining structural zeros are the off-sector (symmetry-forbidden) positions: for
+# `maximum`/`minimum` a single `f(0)` folds them in when any is present (`length > storedlength`); for
+# `sum` they would each add `f(0)`, so we restrict to zero-preserving `f` for now and reduce only the
+# stored blocks. These return a scalar and take no keyword arguments (`dims` is not meaningful for a
+# graded reduction, and `init` is just `x + sum(A)` at the call site).
+Base.sum(A::FusedGradedMatrix) = sum(identity, A)
+function Base.sum(f, A::FusedGradedMatrix)
+    z = f(zero(eltype(A)))
+    iszero(z) || throw_not_zero_preserving_sum(z)
+    return sum(B -> sum(f, view(A, B)), eachblockstoredindex(A); init = z)
+end
+
+Base.maximum(A::FusedGradedMatrix) = maximum(identity, A)
+function Base.maximum(f, A::FusedGradedMatrix)
+    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
+    m = maximum(B -> maximum(f, view(A, B)), eachblockstoredindex(A))
+    return length(A) > storedlength(A) ? max(m, f(zero(eltype(A)))) : m
+end
+
+Base.minimum(A::FusedGradedMatrix) = minimum(identity, A)
+function Base.minimum(f, A::FusedGradedMatrix)
+    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
+    m = minimum(B -> minimum(f, view(A, B)), eachblockstoredindex(A))
+    return length(A) > storedlength(A) ? min(m, f(zero(eltype(A)))) : m
+end
+
+Base.extrema(A::FusedGradedMatrix) = extrema(identity, A)
+Base.extrema(f, A::FusedGradedMatrix) = (minimum(f, A), maximum(f, A))
 
 # Blockwise copy: the generic `AbstractArray` fallback copies elementwise, which
 # scalar-indexes (disallowed for graded arrays).

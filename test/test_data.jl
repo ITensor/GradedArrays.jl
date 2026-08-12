@@ -1,7 +1,7 @@
 using BlockArrays: Block, blockedrange
 using GradedArrays: GradedArrays, Data, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
     U1, UniqueSectorArray, data, dual, eachblockstoredindex, gradedrange, sectoraxes,
-    sectors
+    sectors, with_block_indexing
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin
@@ -84,37 +84,39 @@ using Test: @test, @test_throws, @testset
         g1 = gradedrange([U1(0) => 2, U1(1) => 3])
         g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
-        a[Block(2, 2)] = 2 * ones(3, 2)
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            a[Block(2, 2)] = 2 * ones(3, 2)
 
-        @testset "Data getindex returns copy of raw block" begin
-            d = a[Data(1, 1)]
-            @test d isa AbstractMatrix{Float64}
-            @test d == ones(2, 1)
-            # Verify it's a copy
-            d[1, 1] = 999.0
-            @test data(a[Block(1, 1)]) == ones(2, 1)
-        end
+            @testset "Data getindex returns copy of raw block" begin
+                d = a[Data(1, 1)]
+                @test d isa AbstractMatrix{Float64}
+                @test d == ones(2, 1)
+                # Verify it's a copy
+                d[1, 1] = 999.0
+                @test data(a[Block(1, 1)]) == ones(2, 1)
+            end
 
-        @testset "Data getindex second block" begin
-            d = a[Data(2, 2)]
-            @test d == 2 * ones(3, 2)
-        end
+            @testset "Data getindex second block" begin
+                d = a[Data(2, 2)]
+                @test d == 2 * ones(3, 2)
+            end
 
-        @testset "Data setindex! copies into raw block" begin
-            a2 = zeros(Float64, g1, g2)
-            a2[Block(1, 1)] = zeros(2, 1)
-            new_data = 5 * ones(2, 1)
-            a2[Data(1, 1)] = new_data
-            @test data(a2[Block(1, 1)]) == 5 * ones(2, 1)
-            # Verify it's a copy
-            new_data[1, 1] = 0.0
-            @test data(a2[Block(1, 1)])[1, 1] == 5.0
-        end
+            @testset "Data setindex! copies into raw block" begin
+                a2 = zeros(Float64, g1, g2)
+                a2[Block(1, 1)] = zeros(2, 1)
+                new_data = 5 * ones(2, 1)
+                a2[Data(1, 1)] = new_data
+                @test data(a2[Block(1, 1)]) == 5 * ones(2, 1)
+                # Verify it's a copy
+                new_data[1, 1] = 0.0
+                @test data(a2[Block(1, 1)])[1, 1] == 5.0
+            end
 
-        @testset "Data access on unstored block errors" begin
-            @test_throws Exception a[Data(1, 2)]
-            @test_throws Exception (a[Data(1, 2)] = ones(2, 2))
+            @testset "Data access on unstored block errors" begin
+                @test_throws Exception a[Data(1, 2)]
+                @test_throws Exception (a[Data(1, 2)] = ones(2, 2))
+            end
         end
     end
 end

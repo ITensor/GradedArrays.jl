@@ -2,7 +2,7 @@ import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
 using GradedArrays: FusionArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
     UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
-    isdual, sectoraxes, sectors
+    isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using Random: randn!
 using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, project,
     unmatricize, unmatricizeperm!, unproject
@@ -47,11 +47,14 @@ function randn_blockdiagonal(elt::Type, axs::Tuple)
     a = zeros(elt, axs...)
     blockdiaglength = minimum(blocksize(a))
     N = ndims(a)
-    for i in 1:blockdiaglength
-        block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
-        block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
-        block_data = randn!(Array{elt}(undef, block_dims...))
-        a[Block(ntuple(Returns(i), N)...)] = UniqueSectorArray(block_data, block_sectors)
+    with_block_indexing() do
+        for i in 1:blockdiaglength
+            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
+            block_data = randn!(Array{elt}(undef, block_dims...))
+            a[Block(ntuple(Returns(i), N)...)] =
+                UniqueSectorArray(block_data, block_sectors)
+        end
     end
     return a
 end
@@ -122,78 +125,82 @@ end
 end
 
 @testset "permutedims on fermionic UniqueSectorArray" begin
-    # Two odd sectors: swap picks up -1 phase
-    sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
-    sp = permutedims(sa, (2, 1))
-    @test sp[1, 1] ≈ -3.0
-    @test sectoraxes(sp) == (fP1, fP1)
+    with_scalar_indexing() do
+        # Two odd sectors: swap picks up -1 phase
+        sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
+        sp = permutedims(sa, (2, 1))
+        @test sp[1, 1] ≈ -3.0
+        @test sectoraxes(sp) == (fP1, fP1)
 
-    # Two even sectors: swap gives no phase
-    sa_even = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0))
-    sp_even = permutedims(sa_even, (2, 1))
-    @test sp_even[1, 1] ≈ 3.0
+        # Two even sectors: swap gives no phase
+        sa_even = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0))
+        sp_even = permutedims(sa_even, (2, 1))
+        @test sp_even[1, 1] ≈ 3.0
 
-    # Mixed (even, odd): swap gives no phase
-    sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
-    sp_mix = permutedims(sa_mix, (2, 1))
-    @test sp_mix[1, 1] ≈ 3.0
-    @test sectoraxes(sp_mix) == (fP1, fP0)
+        # Mixed (even, odd): swap gives no phase
+        sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
+        sp_mix = permutedims(sa_mix, (2, 1))
+        @test sp_mix[1, 1] ≈ 3.0
+        @test sectoraxes(sp_mix) == (fP1, fP0)
 
-    # Double permutation recovers original (phase squares to 1)
-    @test permutedims(permutedims(sa, (2, 1)), (2, 1))[1, 1] ≈ sa[1, 1]
+        # Double permutation recovers original (phase squares to 1)
+        @test permutedims(permutedims(sa, (2, 1)), (2, 1))[1, 1] ≈ sa[1, 1]
 
-    # Three-index: cyclic permutation of 3 odd sectors → even crossings → +1
-    sa3 = UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1))
-    @test permutedims(sa3, (2, 3, 1))[1, 1, 1] ≈ 2.0
-    @test permutedims(sa3, (3, 2, 1))[1, 1, 1] ≈ -2.0
-    @test permutedims(sa3, (2, 1, 3))[1, 1, 1] ≈ -2.0
+        # Three-index: cyclic permutation of 3 odd sectors → even crossings → +1
+        sa3 = UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1))
+        @test permutedims(sa3, (2, 3, 1))[1, 1, 1] ≈ 2.0
+        @test permutedims(sa3, (3, 2, 1))[1, 1, 1] ≈ -2.0
+        @test permutedims(sa3, (2, 1, 3))[1, 1, 1] ≈ -2.0
 
-    # Two odd sectors with non-unit data: verify value propagates
-    sa_val = UniqueSectorArray(fill(7.5, 1, 1), (fP1, fP1))
-    @test permutedims(sa_val, (2, 1))[1, 1] ≈ -7.5
+        # Two odd sectors with non-unit data: verify value propagates
+        sa_val = UniqueSectorArray(fill(7.5, 1, 1), (fP1, fP1))
+        @test permutedims(sa_val, (2, 1))[1, 1] ≈ -7.5
 
-    # No phase for bosonic (U1) sectors even though same permutation
-    u1 = SectorRange(TKS.U1Irrep(1))
-    sa_u1 = UniqueSectorArray(fill(3.0, 1, 1), (u1, u1))
-    sp_u1 = permutedims(sa_u1, (2, 1))
-    @test sp_u1[1, 1] ≈ 3.0
+        # No phase for bosonic (U1) sectors even though same permutation
+        u1 = SectorRange(TKS.U1Irrep(1))
+        sa_u1 = UniqueSectorArray(fill(3.0, 1, 1), (u1, u1))
+        sp_u1 = permutedims(sa_u1, (2, 1))
+        @test sp_u1[1, 1] ≈ 3.0
+    end
 end
 
 @testset "conj on fermionic UniqueSectorArray" begin
-    # Two odd sectors: reversing 2 odd legs is one odd-odd inversion → -1 phase
-    sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
-    sc = conj(sa)
-    @test sc[1, 1] ≈ -3.0
-    @test sectoraxes(sc) == (dual(fP1), dual(fP1))
+    with_scalar_indexing() do
+        # Two odd sectors: reversing 2 odd legs is one odd-odd inversion → -1 phase
+        sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
+        sc = conj(sa)
+        @test sc[1, 1] ≈ -3.0
+        @test sectoraxes(sc) == (dual(fP1), dual(fP1))
 
-    # Two even sectors: no phase, data just conjugated
-    @test conj(UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0)))[1, 1] ≈ 3.0
+        # Two even sectors: no phase, data just conjugated
+        @test conj(UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0)))[1, 1] ≈ 3.0
 
-    # Mixed (even, odd): single odd leg → no odd-odd inversion → no phase
-    sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
-    @test conj(sa_mix)[1, 1] ≈ 3.0
-    @test sectoraxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
+        # Mixed (even, odd): single odd leg → no odd-odd inversion → no phase
+        sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
+        @test conj(sa_mix)[1, 1] ≈ 3.0
+        @test sectoraxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
 
-    # Three odd sectors: reverse(1,2,3) has 3 odd-odd inversions → odd → -1 phase
-    @test conj(UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1)))[1, 1, 1] ≈ -2.0
+        # Three odd sectors: reverse(1,2,3) has 3 odd-odd inversions → odd → -1 phase
+        @test conj(UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1)))[1, 1, 1] ≈ -2.0
 
-    # Complex data: conjugates the data *and* applies the fermionic phase
-    sa_c = UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (fP1, fP1))
-    @test conj(sa_c)[1, 1] ≈ -(1.0 - 2.0im)
+        # Complex data: conjugates the data *and* applies the fermionic phase
+        sa_c = UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (fP1, fP1))
+        @test conj(sa_c)[1, 1] ≈ -(1.0 - 2.0im)
 
-    # Involution: conj ∘ conj recovers data and sectors (phase squares to 1)
-    @test conj(conj(sa))[1, 1] ≈ sa[1, 1]
-    @test sectoraxes(conj(conj(sa))) == (fP1, fP1)
-    @test conj(conj(sa_c))[1, 1] ≈ sa_c[1, 1]
+        # Involution: conj ∘ conj recovers data and sectors (phase squares to 1)
+        @test conj(conj(sa))[1, 1] ≈ sa[1, 1]
+        @test sectoraxes(conj(conj(sa))) == (fP1, fP1)
+        @test conj(conj(sa_c))[1, 1] ≈ sa_c[1, 1]
 
-    # Mutation safety: conj must not scale the parent block in place
-    sa_mut = UniqueSectorArray(fill(5.0, 1, 1), (fP1, fP1))
-    conj(sa_mut)
-    @test sa_mut[1, 1] ≈ 5.0
+        # Mutation safety: conj must not scale the parent block in place
+        sa_mut = UniqueSectorArray(fill(5.0, 1, 1), (fP1, fP1))
+        conj(sa_mut)
+        @test sa_mut[1, 1] ≈ 5.0
 
-    # Bosonic (U1) sectors: no fermionic phase, just data conj
-    u1 = SectorRange(TKS.U1Irrep(1))
-    @test conj(UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (u1, u1)))[1, 1] ≈ 1.0 - 2.0im
+        # Bosonic (U1) sectors: no fermionic phase, just data conj
+        u1 = SectorRange(TKS.U1Irrep(1))
+        @test conj(UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (u1, u1)))[1, 1] ≈ 1.0 - 2.0im
+    end
 end
 
 # `conj` is routed through `conj.`, so a direct `conj.(a) == conj(a)` check is vacuous. The
@@ -204,7 +211,9 @@ end
     sa = UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (fP1, fP1))
     sb = UniqueSectorArray(fill(3.0 - 1.0im, 1, 1), (fP1, fP1))
     cs = conj.(sa) .- conj.(sb) ./ 2
-    @test cs[1, 1] ≈ conj.(sa)[1, 1] - conj.(sb)[1, 1] / 2
+    with_scalar_indexing() do
+        @test cs[1, 1] ≈ conj.(sa)[1, 1] - conj.(sb)[1, 1] / 2
+    end
     @test sectoraxes(cs) == sectoraxes(conj.(sa))
 end
 
@@ -222,8 +231,10 @@ end
     @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
 
     # The graded block loop agrees block-by-block with the sector-level conj broadcast.
-    for I in eachblockstoredindex(a)
-        @test ca[I] ≈ conj.(a[I])
+    with_block_indexing() do
+        for I in eachblockstoredindex(a)
+            @test ca[I] ≈ conj.(a[I])
+        end
     end
 
     # Involution: the reversal sign squares to 1, recovering the array and its axes.
@@ -231,9 +242,11 @@ end
     @test axes(conj.(ca)) == axes(a)
 
     # Compound conj broadcasts combine linearly, block by block.
-    for I in eachblockstoredindex(a)
-        @test (conj.(a) .+ conj.(b))[I] ≈ conj.(a[I]) .+ conj.(b[I])
-        @test (conj.(a) .- conj.(b) ./ 2)[I] ≈ conj.(a[I]) .- conj.(b[I]) ./ 2
+    with_block_indexing() do
+        for I in eachblockstoredindex(a)
+            @test (conj.(a) .+ conj.(b))[I] ≈ conj.(a[I]) .+ conj.(b[I])
+            @test (conj.(a) .- conj.(b) ./ 2)[I] ≈ conj.(a[I]) .- conj.(b[I]) ./ 2
+        end
     end
 
     # Conjugating only one operand leaves dualized axes against non-dual ones: rejected.
@@ -247,8 +260,10 @@ end
     a = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
     ca = conj.(a)
     @test all(d -> isdual(axes(ca, d)) == !isdual(axes(a, d)), 1:4)
-    for I in eachblockstoredindex(a)
-        @test ca[I] ≈ conj.(a[I])
+    with_block_indexing() do
+        for I in eachblockstoredindex(a)
+            @test ca[I] ≈ conj.(a[I])
+        end
     end
     @test Array(conj.(ca)) ≈ Array(a)
 end
@@ -384,11 +399,13 @@ end
 function const_blockdiagonal(elt::Type, axs::Tuple, vals)
     a = zeros(elt, axs...)
     N = ndims(a)
-    for (i, v) in enumerate(vals)
-        block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
-        block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
-        a[Block(ntuple(Returns(i), N)...)] =
-            UniqueSectorArray(fill(elt(v), block_dims...), block_sectors)
+    with_block_indexing() do
+        for (i, v) in enumerate(vals)
+            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
+            a[Block(ntuple(Returns(i), N)...)] =
+                UniqueSectorArray(fill(elt(v), block_dims...), block_sectors)
+        end
     end
     return a
 end

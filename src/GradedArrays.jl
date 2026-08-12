@@ -19,6 +19,10 @@ export codomain, domain,
     sectors, sectortype,
     Data
 
+if VERSION >= v"1.11.0-DEV.469"
+    eval(Meta.parse("public with_scalar_indexing, with_block_indexing"))
+end
+
 # imports
 # -------
 using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, Block,
@@ -27,13 +31,15 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
-using SparseArraysBase: SparseArraysBase, AbstractSparseArray, AbstractSparseMatrix
+using SparseArraysBase:
+    SparseArraysBase, AbstractSparseArray, AbstractSparseMatrix, storedlength
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, MatricizeStyle,
     bipartition, bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear,
     isdual, matricize, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 
+include("indexingguards.jl")
 include("kron.jl")
 include("blocksparseinterface.jl")
 include("sectorrange.jl")
