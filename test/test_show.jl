@@ -1,7 +1,7 @@
 using BlockArrays: Block
-using GradedArrays: GradedArrays, Fib, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
-    Ising, O2, SU2, SectorOneTo, SectorRange, TrivialSector, U1, UniqueSectorArray, Z, dual,
-    gradedrange, with_scalar_indexing, ×
+using GradedArrays: GradedArrays, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo, SU2,
+    SectorOneTo, SectorRange, TrivialSector, U1, UniqueSectorArray, Z, dual, gradedrange,
+    with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionNumber, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 
@@ -9,22 +9,8 @@ using Test: @test, @testset
     q1 = U1(1)
     @test sprint(show, q1) == "U1(1)"
 
-    s0e = O2(0)
-    s0o = O2(-1)
-    s12 = O2(1 // 2)
-    s1 = O2(1)
-    @test isnothing(show(devnull, [s0o, s0e, s12]))
-    @test sprint(show, s0e) == "O2(0)"
-    @test sprint(show, s0o) == "O2(-1)"
-    @test sprint(show, s12) == "O2(1/2)"
-    @test sprint(show, s0e) == "O2(0)"
-
     j1 = SU2(0)
     @test sprint(show, j1) == "SU2(0)"
-
-    @test sprint(show, Fib.(("1", "τ"))) == "(Fib(\"1\"), Fib(\"τ\"))"
-    @test sprint(show, Ising.(("1", "σ", "ψ"))) ==
-        "(Ising(\"1\"), Ising(\"σ\"), Ising(\"ψ\"))"
 
     s = (A = U1(1),) × (B = SU2(2),)
     @test sprint(show, s) == "((A=U1(1),) × (B=SU2(2),))"
