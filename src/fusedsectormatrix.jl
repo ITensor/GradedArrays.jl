@@ -14,6 +14,22 @@ struct FusedSectorMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
     AbstractSectorArray{T, S, 2}
     data::D
     sector::S
+    function FusedSectorMatrix{T, S, D}(
+            data::D, sector::S
+        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+        !isdual(sector) ||
+            throw(
+            ArgumentError(
+                "`FusedSectorMatrix` requires a non-dual sector, got `$sector`"
+            )
+        )
+        return new{T, S, D}(data, sector)
+    end
+end
+
+# Default the parameters from the data and sector types.
+function FusedSectorMatrix(data::D, sector::S) where {S <: SectorRange, D <: AbstractMatrix}
+    return FusedSectorMatrix{eltype(D), S, D}(data, sector)
 end
 
 # ---- undef constructors ----
@@ -76,6 +92,8 @@ end
 function LinearAlgebra.tr(a::FusedSectorMatrix)
     return LinearAlgebra.tr(sector(a)) * LinearAlgebra.tr(data(a))
 end
+
+Base.conj(a::FusedSectorMatrix) = throw_flips_first_axis(conj, a)
 
 # The stored element count factorizes the same way: the structural factor contributes its quantum
 # dimension (the length of its diagonal), the reduced data its full size. Abelian sectors have quantum

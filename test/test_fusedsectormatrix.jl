@@ -180,6 +180,13 @@ using Test: @test, @test_throws, @testset
         @test size(data(sm)) == (3, 4)
     end
 
+    @testset "conj is disallowed (would flip the first axis to dual)" begin
+        sm = FusedSectorMatrix([1.0 2.0; 3.0 4.0], U1(1))
+        @test_throws ErrorException conj(sm)
+        sv = FusedSectorVector{Float64}(undef, U1(1), 4)
+        @test_throws ErrorException conj(sv)
+    end
+
     @testset "tr — sector quantum dimension times reduced-data trace" begin
         d = [1.0 2.0; 3.0 4.0]
         @test tr(FusedSectorMatrix(d, U1(0))) == tr(d)         # dim 1

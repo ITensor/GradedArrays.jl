@@ -11,10 +11,8 @@ using Test: @test, @test_throws, @testset
         @test eltype(si) == Float64
     end
 
-    @testset "Construction from dual SectorRange (dual flag preserved)" begin
-        si = SectorIdentity{Float64}(conj(U1(1)))
-        @test axes(si, 1) == conj(U1(1))
-        @test axes(si, 2) == U1(1)
+    @testset "Construction rejects a dual sector (non-dual first axis)" begin
+        @test_throws ArgumentError SectorIdentity{Float64}(conj(U1(1)))
     end
 
     @testset "size and axes — U1 (dim=1)" begin
@@ -70,8 +68,13 @@ using Test: @test, @test_throws, @testset
     @testset "tr — quantum dimension of the sector" begin
         @test tr(SectorIdentity{Float64}(U1(0))) == 1
         @test tr(SectorIdentity{Float64}(SU2(1 // 2))) == 2
-        # Only the canonical ordering (non-dual first axis) is allowed.
-        @test_throws ArgumentError tr(SectorIdentity{Float64}(conj(U1(1))))
+    end
+
+    @testset "conj and transpose are disallowed (would flip the first axis to dual)" begin
+        si = SectorIdentity{Float64}(U1(1))
+        @test_throws ErrorException conj(si)
+        @test permutedims(si, (1, 2)) === si
+        @test_throws ErrorException permutedims(si, (2, 1))
     end
 
     @testset "norm — counts the unit diagonal entries" begin

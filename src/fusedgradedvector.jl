@@ -20,6 +20,22 @@ struct FusedSectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, S, 1}
     data::D
     sector::S
+    function FusedSectorVector{T, S, D}(
+            data::D, sector::S
+        ) where {T, S <: SectorRange, D <: AbstractVector{T}}
+        !isdual(sector) ||
+            throw(
+            ArgumentError(
+                "`FusedSectorVector` requires a non-dual sector, got `$sector`"
+            )
+        )
+        return new{T, S, D}(data, sector)
+    end
+end
+
+# Default the parameters from the data and sector types.
+function FusedSectorVector(data::D, sector::S) where {S <: SectorRange, D <: AbstractVector}
+    return FusedSectorVector{eltype(D), S, D}(data, sector)
 end
 
 # ---- undef constructors ----
@@ -61,6 +77,8 @@ function Base.similar(sv::FusedSectorVector{<:Any, S, <:Any}, ::Type{T}) where {
     D = typeof(new_data)
     return FusedSectorVector{T, S, D}(new_data, sv.sector)
 end
+
+Base.conj(a::FusedSectorVector) = throw_flips_first_axis(conj, a)
 
 # ---- display ----
 
@@ -110,6 +128,8 @@ struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
             ::UndefInitializer, axis::Dictionary{S, Int}
         ) where {T, S <: SectorRange, D <: AbstractVector{T}}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
+        all(!isdual, keys(axis)) ||
+            throw(ArgumentError("`FusedGradedVector` requires non-dual sectors"))
 
         blocks = dictionary(s => similar(D, (Base.OneTo(axis[s]),)) for s in keys(axis))
 
@@ -121,6 +141,8 @@ struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
             blocks::Dictionary{S, D}, axis::Dictionary{S, Int}
         ) where {T, S <: SectorRange, D <: AbstractVector{T}}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
+        all(!isdual, keys(axis)) ||
+            throw(ArgumentError("`FusedGradedVector` requires non-dual sectors"))
 
         issetequal(keys(axis), keys(blocks)) || throw(ArgumentError("invalid blocks"))
         for (s, b) in pairs(blocks)

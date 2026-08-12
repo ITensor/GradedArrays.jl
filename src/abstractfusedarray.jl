@@ -163,10 +163,9 @@ function LinearAlgebra.normalize(a::AbstractFusedArray, p::Real = 2)
     return a / LinearAlgebra.norm(a, p)
 end
 
-# Conjugate through broadcasting, which conjugates each block and dualizes the sectors and axes
-# (and folds in the fermionic leg-reversal sign). Overrides `Base`'s real-eltype short-circuit,
-# which would keep the axes non-dual.
-Base.conj(a::AbstractFusedArray) = conj.(a)
+# `conj` would dualize the sectors and axes, flipping the first axis to dual, which the fused storage
+# types disallow. Conjugate the `FusionArray` (or matricize) instead.
+Base.conj(a::AbstractFusedArray) = throw_flips_first_axis(conj, a)
 
 # `real`/`imag` act on the reduced data of each stored block, leaving the (real) structural sector
 # factor untouched (`f(I ⊗ A) = I ⊗ f(A)`). Unlike `conj` they are not semilinear, so they cannot go

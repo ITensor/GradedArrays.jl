@@ -445,27 +445,19 @@ end
     @test_throws ArgumentError m .^ 2
 end
 
-@testset "FusedGradedMatrix conj ($label)" for (label, sectorpairs) in (
+@testset "FusedGradedMatrix conj is disallowed ($label)" for (label, sectorpairs) in (
         "bosonic" => [U1(0) => 1, U1(1) => 2, U1(2) => 1],
         "fermionic" => [FermionNumber(0) => 1, FermionNumber(1) => 2, FermionNumber(2) => 1],
     )
-    # `conj` on a `FusedGradedMatrix` dualizes each coupled sector and conjugates the reduced blocks
-    # (with the fermionic leg-reversal sign). Built directly rather than through an array vehicle.
+    # `conj` would dualize each coupled sector, flipping the first axis to dual, which the fused
+    # storage types disallow. The dotted form is rejected by the constructor invariant when it
+    # allocates the dual-keyed result. Conjugate the `FusionArray` (or matricize) instead.
     m = randn!(FusedGradedMatrix{ComplexF64}(undef, sectorpairs))
-
-    ce, cd = conj(m), conj.(m)  # eager and dotted forms
-    for cm in (ce, cd)
-        @test cm isa FusedGradedMatrix
-        @test collect(keys(cm.blocks)) == map(conj, collect(keys(m.blocks)))
-    end
-    # Eager and dotted forms agree block-by-block.
-    @test all(ce.blocks[c] ≈ cd.blocks[c] for c in keys(ce.blocks))
-    # `conj` is an involution: the double conj cancels the fermionic leg-reversal sign and dualizes
-    # the sectors back to the originals.
-    @test conj(conj(m)) ≈ m
+    @test_throws ErrorException conj(m)
+    @test_throws ArgumentError conj.(m)
 end
 
-@testset "FusedGradedMatrix non-abelian (SU2) broadcasting and conj" begin
+@testset "FusedGradedMatrix non-abelian (SU2) broadcasting" begin
     # A non-abelian block's axis length is its reduced length times the sector's quantum dimension
     # (SU2(1) has dimension 3), so the broadcast allocator has to key on reduced lengths, and the
     # per-block phase must not require unique fusion.
@@ -476,11 +468,6 @@ end
     @test s isa FusedGradedMatrix
     @test Array(s) ≈ 2 .* Array(m) .- Array(n)
 
-    for cm in (conj(m), conj.(m))
-        @test cm isa FusedGradedMatrix
-        @test Array(cm) ≈ conj(Array(m))
-    end
-
     v = randn!(
         FusedGradedVector{ComplexF64}(undef, [SU2(0) => 1, SU2(1 // 2) => 2, SU2(1) => 1])
     )
@@ -488,23 +475,18 @@ end
     @test Array(3 .* v) ≈ 3 .* Array(v)
 end
 
-@testset "FusedGradedVector conj (single index carries no sign)" begin
-    # A single index has no leg-reversal parity, so conj dualizes the sectors but adds no
-    # fermionic sign even for odd-parity blocks (unlike the paired-index matrix).
-    # n=1 is odd parity
+@testset "FusedGradedVector conj is disallowed" begin
+    # `conj` would dualize the sectors, flipping the first axis to dual, which the fused storage
+    # types disallow. The dotted form is rejected by the constructor invariant when it allocates the
+    # dual-keyed result. Conjugate the `FusionArray` (or matricize) instead.
     v = randn!(
         FusedGradedVector{ComplexF64}(
             undef,
             [FermionNumber(n) => l for (n, l) in zip(0:2, (1, 2, 1))]
         )
     )
-
-    for cv in (conj(v), conj.(v))
-        @test cv isa FusedGradedVector
-        @test collect(keys(cv.blocks)) == map(conj, collect(keys(v.blocks)))
-        @test all(cv.blocks[conj(s)] ≈ conj(v.blocks[s]) for s in keys(v.blocks))
-    end
-    @test conj(conj(v)) ≈ v
+    @test_throws ErrorException conj(v)
+    @test_throws ArgumentError conj.(v)
 end
 
 @testset "FusedGradedVector non-abelian Array reconstruction" begin

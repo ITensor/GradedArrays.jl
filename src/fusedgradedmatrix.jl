@@ -32,6 +32,8 @@ struct FusedGradedMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
         ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
         issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
         issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
+        all(!isdual, keys(codomain)) ||
+            throw(ArgumentError("`FusedGradedMatrix` requires non-dual codomain sectors"))
 
         blocksectors = intersect(keys(codomain), keys(domain))
         blocks = dictionary(
@@ -48,6 +50,8 @@ struct FusedGradedMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
         ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
         issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
         issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
+        all(!isdual, keys(codomain)) ||
+            throw(ArgumentError("`FusedGradedMatrix` requires non-dual codomain sectors"))
 
         blocksectors = intersect(keys(codomain), keys(domain))
         issetequal(blocksectors, keys(blocks)) || throw(ArgumentError("invalid blocks"))
