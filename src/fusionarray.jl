@@ -144,12 +144,12 @@ Base.size(b::FusionArrayBlocks) = blocklength.(axes(b.parent))
 function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
 end
-# The block-container interface is the explicit, block-structure-aware entry point (the analog of the
-# reduced `data`), so its stored-block access is allowed even when array-level block indexing is off.
+# The number of stored blocks, counted from the stored indices directly. Overriding the generic
+# `length(storedvalues(b))` avoids materializing the block views (which the block guard disables), so a
+# structural query like `blockstoredlength` does not need the block-indexing opt-in.
+SparseArraysBase.storedlength(b::FusionArrayBlocks) = length(eachblockstoredindex(b.parent))
 function SparseArraysBase.storedvalues(b::FusionArrayBlocks)
-    return with_block_indexing() do
-        return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
-    end
+    return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
 end
 function SparseArraysBase.isstored(
         b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
@@ -159,16 +159,12 @@ end
 function SparseArraysBase.getstoredindex(
         b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
-    return with_block_indexing() do
-        return view(b.parent, Block(I...))
-    end
+    return view(b.parent, Block(I...))
 end
 function SparseArraysBase.setstoredindex!(
         b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
-    with_block_indexing() do
-        return copy_sector!(view(b.parent, Block(I...)), value)
-    end
+    copy_sector!(view(b.parent, Block(I...)), value)
     return b
 end
 function SparseArraysBase.getunstoredindex(
@@ -444,55 +440,25 @@ Base.fill!(fa::FusionArray, v) = (fill!(matricize(fa), v); fa)
 Base.iszero(fa::FusionArray) = iszero(matricize(fa))
 
 # ============================  reductions  ============================
-# `sum`/`maximum`/`minimum`/`extrema` over the whole array, without scalar-indexing it. For unique
-# (abelian) fusion each stored coefficient is a full-array entry (the Clebsch-Gordan factors are 1) and
-# every other position (a forbidden or allowed-but-empty block) is a structural zero, so a reduction
-# over `Array(fa)` equals the same reduction over the stored blocks with the structural zeros folded
-# back in. We support only zero-preserving `f` (`f(0) == 0`) for now, so the zeros contribute nothing to
-# a `sum` and a single `zero` to `maximum`/`minimum` — no need to count them. A non-zero-preserving `f`
-# would need the full structural-zero multiplicity and errors instead of silently dropping it.
-# Non-abelian fusion carries multiplicity beyond the reduced data, so require unique fusion rather than
-# reducing past it.
-function _stored_blocks(fa::FusionArray)
-    require_unique_fusion(fa)
-    return values(matricize(fa).blocks)
-end
-function _reduction_zero(f, fa::FusionArray)
-    z = f(zero(eltype(fa)))
-    iszero(z) || error(
-        "reductions over a `FusionArray` support only zero-preserving `f` (`f(0) == 0`) for now; \
-        got `f(0) = $z`. Materialize with `Array` first."
+# `sum`/`maximum`/`minimum`/`extrema` are not defined on a `FusionArray`: the intended reduction is
+# ambiguous. The reduction over the dense array `Array(a)` and the reduction over the fused matrix
+# `matricize(a)` differ for non-abelian fusion (the Clebsch-Gordan recoupling mixes the dense entries),
+# so require the caller to pick one explicitly rather than silently committing to a split-dependent
+# densification. `FusedGradedMatrix` defines the fused-matrix reductions, and `Array` gives the dense
+# ones.
+@noinline function _reduction_error(op, ::FusionArray)
+    return error(
+        "`$op` is not defined for a `FusionArray`: reduce explicitly over `Array(a)` for the " *
+            "dense array, or over `matricize(a)` for the fused matrix (these differ for non-abelian " *
+            "fusion)."
     )
-    return z
 end
-_has_structural_zeros(fa::FusionArray) = length(fa) > storedlength(fa)
-
-Base.sum(fa::FusionArray) = sum(identity, fa)
-function Base.sum(f, fa::FusionArray)
-    z = _reduction_zero(f, fa)
-    return sum(b -> sum(f, b), _stored_blocks(fa); init = z)
+for op in (:sum, :maximum, :minimum, :extrema)
+    @eval begin
+        Base.$op(a::FusionArray; kwargs...) = _reduction_error($op, a)
+        Base.$op(f, a::FusionArray; kwargs...) = _reduction_error($op, a)
+    end
 end
-
-Base.maximum(fa::FusionArray) = maximum(identity, fa)
-function Base.maximum(f, fa::FusionArray)
-    z = _reduction_zero(f, fa)
-    blocks = _stored_blocks(fa)
-    isempty(blocks) && return z
-    m = maximum(b -> maximum(f, b), blocks)
-    return _has_structural_zeros(fa) ? max(m, z) : m
-end
-
-Base.minimum(fa::FusionArray) = minimum(identity, fa)
-function Base.minimum(f, fa::FusionArray)
-    z = _reduction_zero(f, fa)
-    blocks = _stored_blocks(fa)
-    isempty(blocks) && return z
-    m = minimum(b -> minimum(f, b), blocks)
-    return _has_structural_zeros(fa) ? min(m, z) : m
-end
-
-Base.extrema(fa::FusionArray) = extrema(identity, fa)
-Base.extrema(f, fa::FusionArray) = (minimum(f, fa), maximum(f, fa))
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
 # because a generic `similar` over flat axes cannot recover the
@@ -673,9 +639,12 @@ end
 # ============================  concatenation  ============================
 # Place whole blocks (no scalar indexing) with the inner `concatenate!` on the block containers. That
 # works because `FusionArrayBlocks` is an `AbstractSparseArray`, so the placement visits only the
-# stored (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions.
+# stored (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions. The block
+# placement goes through the guarded block views, so opt into block indexing for its extent.
 function TensorAlgebra.concatenate!(dest::FusionArray, dims, args...)
-    TensorAlgebra.concatenate!(blocks(dest), dims, blocks.(args)...)
+    with_block_indexing() do
+        return TensorAlgebra.concatenate!(blocks(dest), dims, blocks.(args)...)
+    end
     return dest
 end
 # Route `Base.cat` through the same machinery so it uses the graded destination and placement.

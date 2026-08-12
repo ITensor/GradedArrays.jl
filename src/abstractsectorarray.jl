@@ -92,10 +92,6 @@ end
 # check Base's `copy!` requires) so generic array code keeps working.
 Base.copyto!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
 Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
-# `copyto!` from a plain array routes through `copy_sector!` (a bulk `copyto!` into the reduced data
-# under unique fusion) rather than Base's elementwise fallback, which would scalar-index the sector
-# array.
-Base.copyto!(dest::AbstractSectorArray, src::AbstractArray) = copy_sector!(dest, src)
 
 # A sector matrix is the Kronecker product of its structural factor with the reduced data. The factor
 # is diagonal (identity-like) for any fusion, so the matrix is diagonal iff the reduced data is. Lets
@@ -119,9 +115,9 @@ end
 
 # ========================  Shared utilities  ========================
 
+is_unique_fusion(A) = TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion()
 function require_unique_fusion(A)
-    return TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion() ||
-        error("not implemented for non-abelian tensors")
+    return is_unique_fusion(A) || error("not implemented for non-abelian tensors")
 end
 
 # ========================  scale! / zero!  ========================

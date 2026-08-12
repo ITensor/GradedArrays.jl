@@ -45,16 +45,19 @@ using Test: @test, @test_throws, @testset
         @test_throws ErrorException a[1, 1]
         # `allow = false` re-disables within an enabled scope, and the outer scope is restored.
         with_scalar_indexing() do
-            with_scalar_indexing(; allow = false) do
+            with_scalar_indexing(false) do
                 @test_throws ErrorException a[1, 1]
             end
             @test a[1, 1] isa Float64
         end
     end
 
-    @testset "block-container interface is allowed without wrapping" begin
-        # `blocks(a)` and its stored-block interface are the explicit, block-structure-aware entry
-        # point, so they do not require `with_block_indexing`.
-        @test storedvalues(blocks(a)) isa AbstractVector
+    @testset "block-container interface is guarded" begin
+        # `storedvalues`/`getstoredindex` on the block container reach through the guarded block
+        # views, so they require `with_block_indexing` like any other block access.
+        @test_throws ErrorException storedvalues(blocks(a))
+        with_block_indexing() do
+            @test storedvalues(blocks(a)) isa AbstractVector
+        end
     end
 end

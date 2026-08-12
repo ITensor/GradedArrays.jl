@@ -24,10 +24,11 @@ scalar_indexing_allowed() = _scalar_indexing[]
 block_indexing_allowed() = _block_indexing[]
 
 """
-    with_scalar_indexing(f; allow = true)
+    with_scalar_indexing(f, allow = true)
 
 Run `f()` with scalar indexing of graded arrays enabled (or, with `allow = false`,
-disabled) for its dynamic extent, e.g. `with_scalar_indexing() do ... end`.
+disabled) for its dynamic extent, e.g. `with_scalar_indexing() do ... end` or
+`with_scalar_indexing(false) do ... end`.
 
 !!! warning
 
@@ -35,13 +36,14 @@ disabled) for its dynamic extent, e.g. `with_scalar_indexing() do ... end`.
     efficient access pattern. It should be avoided in performance-critical code, which should
     operate on whole blocks or the reduced data instead.
 """
-with_scalar_indexing(f; allow::Bool = true) = with(f, _scalar_indexing => allow)
+with_scalar_indexing(f, allow::Bool = true) = with(f, _scalar_indexing => allow)
 
 """
-    with_block_indexing(f; allow = true)
+    with_block_indexing(f, allow = true)
 
 Run `f()` with block indexing of graded arrays enabled (or, with `allow = false`,
-disabled) for its dynamic extent, e.g. `with_block_indexing() do ... end`.
+disabled) for its dynamic extent, e.g. `with_block_indexing() do ... end` or
+`with_block_indexing(false) do ... end`.
 
 !!! warning
 
@@ -52,7 +54,7 @@ disabled) for its dynamic extent, e.g. `with_block_indexing() do ... end`.
     Like scalar indexing, this is a convenience, not an efficient access pattern, and should
     be avoided in performance-critical code.
 """
-with_block_indexing(f; allow::Bool = true) = with(f, _block_indexing => allow)
+with_block_indexing(f, allow::Bool = true) = with(f, _block_indexing => allow)
 
 function assert_scalar_indexing()
     scalar_indexing_allowed() || _throw_scalar_indexing_disabled()
@@ -60,8 +62,10 @@ function assert_scalar_indexing()
 end
 @noinline function _throw_scalar_indexing_disabled()
     return error(
-        "scalar indexing of a graded array is disabled by default; wrap the call in " *
-            "`with_scalar_indexing() do ... end`"
+        "scalar indexing of a graded array is disabled by default: it is generally not " *
+            "efficient (element-wise access defeats the block structure) and should be avoided " *
+            "in favor of whole-block or reduced-data operations. To opt in for a specific call, " *
+            "wrap it in `with_scalar_indexing() do ... end`."
     )
 end
 
@@ -71,7 +75,9 @@ function assert_block_indexing()
 end
 @noinline function _throw_block_indexing_disabled()
     return error(
-        "block indexing of a graded array is disabled by default; wrap the call in " *
-            "`with_block_indexing() do ... end`"
+        "block indexing of a graded array is disabled by default. Support for it is " *
+            "experimental and subject to change (the output format and type may change in a " *
+            "future release). To opt in for a specific call, wrap it in " *
+            "`with_block_indexing() do ... end`."
     )
 end

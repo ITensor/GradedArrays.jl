@@ -76,6 +76,42 @@ end
 
 LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 
+# Reductions over `Array(A)` without densifying. A stored block `view(A, B)` is the Kronecker product
+# of a `d`-dimensional structural identity (`d` the sector's quantum dimension) with the reduced data,
+# so the block holds `d` copies of the reduced data plus structural zeros, and every off-sector
+# position is a structural zero too. `storedlength` counts the nonzero (`d`-weighted) positions, so
+# `length - storedlength` is the number of structural zeros. `sum` weights each block's reduced sum by
+# `d` and adds `f(0)` for every structural zero; `maximum`/`minimum` are unchanged by the duplication
+# and fold in a single `f(0)` when any structural zero is present. Correct for any `f`.
+Base.sum(A::FusedGradedMatrix; kwargs...) = sum(identity, A; kwargs...)
+function Base.sum(f, A::FusedGradedMatrix; init = zero(f(zero(eltype(A)))))
+    z = f(zero(eltype(A)))
+    blocksum = sum(eachblockstoredindex(A); init = zero(z)) do B
+        sm = view(A, B)
+        return storedlength(sector(sm)) * sum(f, data(sm))
+    end
+    return init + blocksum + (length(A) - storedlength(A)) * z
+end
+
+Base.maximum(A::FusedGradedMatrix; kwargs...) = maximum(identity, A; kwargs...)
+function Base.maximum(f, A::FusedGradedMatrix; kwargs...)
+    isempty(A.blocks) && return f(zero(eltype(A)))
+    m = maximum(B -> maximum(f, data(view(A, B))), eachblockstoredindex(A); kwargs...)
+    return length(A) > storedlength(A) ? max(m, f(zero(eltype(A)))) : m
+end
+
+Base.minimum(A::FusedGradedMatrix; kwargs...) = minimum(identity, A; kwargs...)
+function Base.minimum(f, A::FusedGradedMatrix; kwargs...)
+    isempty(A.blocks) && return f(zero(eltype(A)))
+    m = minimum(B -> minimum(f, data(view(A, B))), eachblockstoredindex(A); kwargs...)
+    return length(A) > storedlength(A) ? min(m, f(zero(eltype(A)))) : m
+end
+
+Base.extrema(A::FusedGradedMatrix; kwargs...) = extrema(identity, A; kwargs...)
+function Base.extrema(f, A::FusedGradedMatrix; kwargs...)
+    return (minimum(f, A; kwargs...), maximum(f, A; kwargs...))
+end
+
 # Blockwise copy: the generic `AbstractArray` fallback copies elementwise, which
 # scalar-indexes (disallowed for graded arrays).
 function Base.copy(A::FusedGradedMatrix)

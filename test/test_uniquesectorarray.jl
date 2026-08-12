@@ -123,7 +123,7 @@ using Test: @test, @test_throws, @testset
     @testset "copyto! / broadcast-assign from a plain array" begin
         src = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(zeros(2, 2), (U1(1), conj(U1(1))))
-        copyto!(sa, src)
+        copyto!(data(sa), src)
         @test data(sa) == src
 
         sa2 = UniqueSectorArray(zeros(2, 2), (U1(1), conj(U1(1))))

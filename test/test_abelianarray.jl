@@ -206,6 +206,18 @@ using Test: @test, @test_broken, @test_throws, @testset
         end
     end
 
+    @testset "reductions fold in the quantum dimension (non-abelian fused matrix)" begin
+        # A `FusedGradedMatrix` block carries the sector's quantum dimension, so `sum` weights each
+        # block's reduced sum by that dimension (1 for `SU2(0)`, 2 for `SU2(1//2)`) and folds the
+        # structural zeros in for `maximum`/`minimum`, matching the reduction over `Array`.
+        m = FusedGradedMatrix([[2.0;;], [1.0 2.0; 3.0 4.0]], [SU2(0), SU2(1 // 2)])
+        @test sum(m) == 1 * 2.0 + 2 * (1 + 2 + 3 + 4)  # == 22.0
+        @test sum(m) == sum(Array(m))
+        @test maximum(m) == maximum(Array(m))
+        @test minimum(m) == minimum(Array(m))  # folds in a structural zero
+        @test extrema(m) == extrema(Array(m))
+    end
+
     @testset "unsupported ops error gracefully" begin
         a = TensorAlgebra.zero!(zeros(Float64, g1, g2))
         # No block-aware `adjoint` for a general graded array (it would silently scalar-index).
@@ -335,17 +347,17 @@ using Test: @test, @test_broken, @test_throws, @testset
         b = BlockArrays.blocks(a)
         @test size(b) == (2, 2)
 
-        # Stored blocks return UniqueSectorArray
-        b11 = b[1, 1]
-        @test b11 isa UniqueSectorArray
-        @test data(b11) ≈ ones(2, 2)
-
-        # Unstored (symmetry-forbidden) blocks error rather than reading back as zero
-        @test_throws ErrorException b[1, 2]
-
-        # Writing through blocks
-        b[1, 1] = UniqueSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
         with_block_indexing() do
+            # Stored blocks return UniqueSectorArray
+            b11 = b[1, 1]
+            @test b11 isa UniqueSectorArray
+            @test data(b11) ≈ ones(2, 2)
+
+            # Unstored (symmetry-forbidden) blocks error rather than reading back as zero
+            @test_throws ErrorException b[1, 2]
+
+            # Writing through blocks
+            b[1, 1] = UniqueSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
             @test data(a[Block(1, 1)]) ≈ 5 * ones(2, 2)
         end
     end
@@ -971,34 +983,47 @@ end
     @test_throws DimensionMismatch LinearAlgebra.dot(a, c)
 end
 
-@testset "sum" begin
+@testset "reductions error on a FusionArray" begin
+    # An elementwise reduction on a `FusionArray` is ambiguous (dense array vs fused matrix, which
+    # differ for non-abelian fusion), so it errors by design; reduce `Array(a)` or `matricize(a)`.
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(ComplexF64, g, dual(g))
     Random.randn!(a)
-    # Block-wise: the structural zeros do not contribute to a sum.
-    @test sum(a) ≈ sum(Array(a))
+    @test_throws ErrorException sum(a)
+    @test_throws ErrorException maximum(a)
+    @test_throws ErrorException minimum(a)
+    @test_throws ErrorException extrema(a)
+    @test_throws ErrorException maximum(abs, a)
 end
 
-@testset "maximum / minimum / extrema" begin
-    # Forbidden and allowed-but-unstored blocks are zeros that the reductions must see, so
-    # they agree with the dense array (which includes those zeros).
+@testset "sum over the fused matrix" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = zeros(ComplexF64, g, dual(g))
+    Random.randn!(a)
+    # For abelian fusion the fused-matrix reduction matches the dense array; structural zeros do not
+    # contribute to a sum.
+    @test sum(matricize(a)) ≈ sum(Array(a))
+end
+
+@testset "maximum / minimum / extrema over the fused matrix" begin
+    # Forbidden and allowed-but-unstored blocks are structural zeros the reductions must see, so for
+    # abelian fusion they agree with the dense array (which includes those zeros).
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, g, dual(g))
     Random.randn!(a)
-    # Block-wise reductions fold in one structural zero, matching the dense array.
-    @test maximum(a) == maximum(Array(a))
-    @test minimum(a) == minimum(Array(a))
-    @test maximum(abs, a) == maximum(abs, Array(a))
-    @test minimum(abs, a) == minimum(abs, Array(a))
-    @test extrema(a) == extrema(Array(a))
-    @test extrema(abs, a) == extrema(abs, Array(a))
+    m = matricize(a)
+    @test maximum(m) == maximum(Array(a))
+    @test minimum(m) == minimum(Array(a))
+    @test maximum(abs, m) == maximum(abs, Array(a))
+    @test minimum(abs, m) == minimum(abs, Array(a))
+    @test extrema(m) == extrema(Array(a))
+    @test extrema(abs, m) == extrema(abs, Array(a))
 
     # When every element lives in a stored block there is no implicit zero to fold in, so a
     # sign-definite array keeps its sign.
     h = gradedrange([U1(1) => 2])
     c = fill(-1.0, 2, 2)[h, dual(h)]
-    @test maximum(c) == -1.0
-    @test maximum(c) == maximum(Array(c))
+    @test maximum(matricize(c)) == -1.0 == maximum(Array(c))
 end
 
 # Adjoint (and matrix multiplication) are matrix operations, defined only on the matricized
