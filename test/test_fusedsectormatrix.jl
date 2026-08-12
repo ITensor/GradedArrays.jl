@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, FusedSectorMatrix, FusedSectorVector, SU2, SectorIdentity,
     SectorOneTo, SectorRange, U1, UniqueSectorArray, data, dataaxes, dual, isdual, sector,
-    sector_kron, sectoraxes, sectortype
+    sector_kron, sectoraxes, sectortype, with_scalar_indexing
 using LinearAlgebra: dot, norm, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -72,10 +72,12 @@ using Test: @test, @test_throws, @testset
         d = [1.0 2.0; 3.0 4.0]
         sm = FusedSectorMatrix(d, U1(0))
         @test size(sm) == (2, 2)
-        @test sm[1, 1] == 1.0
-        @test sm[2, 1] == 3.0
-        sm[1, 2] = 99.0
-        @test sm[1, 2] == 99.0
+        with_scalar_indexing() do
+            @test sm[1, 1] == 1.0
+            @test sm[2, 1] == 3.0
+            sm[1, 2] = 99.0
+            @test sm[1, 2] == 99.0
+        end
     end
 
     @testset "copy" begin
@@ -84,8 +86,10 @@ using Test: @test, @test_throws, @testset
         sm2 = copy(sm)
         @test sectoraxes(sm2) == sectoraxes(sm)
         @test data(sm2) ≈ data(sm)
-        sm2[1, 1] = 999.0
-        @test sm[1, 1] == 1.0
+        with_scalar_indexing() do
+            sm2[1, 1] = 999.0
+            @test sm[1, 1] == 1.0
+        end
     end
 
     @testset "fill!" begin
@@ -101,7 +105,9 @@ using Test: @test, @test_throws, @testset
         T = FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         sm2 = convert(T, sm)
         @test eltype(sm2) == Float64
-        @test sm2[1, 1] === 1.0
+        with_scalar_indexing() do
+            @test sm2[1, 1] === 1.0
+        end
     end
 
     @testset "isdual via axes" begin
@@ -216,10 +222,12 @@ using Test: @test, @test_throws, @testset
 
     @testset "scalar indexing requires unique fusion" begin
         ab = FusedSectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
-        @test ab[1, 1] == 1.0
         na = FusedSectorMatrix{Float64}(undef, SU2(1), 2, 3)
-        @test_throws ErrorException na[1, 1]
-        @test_throws ErrorException (na[1, 1] = 0.0)
+        with_scalar_indexing() do
+            @test ab[1, 1] == 1.0
+            @test_throws ErrorException na[1, 1]
+            @test_throws ErrorException (na[1, 1] = 0.0)
+        end
     end
 
     # The projection acts on the reduced data and factorizes through the structural identity,

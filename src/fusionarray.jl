@@ -173,6 +173,10 @@ function SparseArraysBase.setunstoredindex!(
     return error("Block $(I) is not stored.")
 end
 
+# Stored element count reflects the block sparsity (the matricized backing carries the stored blocks);
+# `length(fa) - storedlength(fa)` is the number of structural (symmetry-forbidden) zeros.
+SparseArraysBase.storedlength(fa::FusionArray) = storedlength(matricize(fa))
+
 # ============================  similar  ============================
 # `similar` must build a `FusionArray`. Without explicit axes, preserve the prototype's own
 # codomain/domain split (like `copy`); with explicit flat axes the split is unrecoverable (see the
@@ -279,6 +283,12 @@ Base.transpose(A::FusionArray) = _matrix_op_error(transpose, A)
 Base.:*(A::FusionArray, B::FusionArray) = _matrix_op_error(*, A)
 LinearAlgebra.tr(A::FusionArray) = _matrix_op_error(LinearAlgebra.tr, A)
 MAK.one!(A::FusionArray) = _matrix_op_error(MAK.one!, A)
+# The matrix predicates (`FusedGradedMatrix` defines these) are matrix concepts too: on a `FusionArray`
+# they would otherwise fall through to a dense elementwise scan.
+LinearAlgebra.isdiag(A::FusionArray) = _matrix_op_error(LinearAlgebra.isdiag, A)
+LinearAlgebra.istriu(A::FusionArray) = _matrix_op_error(LinearAlgebra.istriu, A)
+LinearAlgebra.istril(A::FusionArray) = _matrix_op_error(LinearAlgebra.istril, A)
+LinearAlgebra.isposdef(A::FusionArray) = _matrix_op_error(LinearAlgebra.isposdef, A)
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval Base.$f(A::FusionArray) = _matrix_op_error($f, A)
 end
@@ -423,6 +433,57 @@ TensorAlgebra.scale!(fa::FusionArray, α::Number) = (scale!(matricize(fa), α); 
 LinearAlgebra.norm(fa::FusionArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
 Base.fill!(fa::FusionArray, v) = (fill!(matricize(fa), v); fa)
 Base.iszero(fa::FusionArray) = iszero(matricize(fa))
+
+# ============================  reductions  ============================
+# `sum`/`maximum`/`minimum`/`extrema` over the whole array, without scalar-indexing it. For unique
+# (abelian) fusion each stored coefficient is a full-array entry (the Clebsch-Gordan factors are 1) and
+# every other position (a forbidden or allowed-but-empty block) is a structural zero, so a reduction
+# over `Array(fa)` equals the same reduction over the stored blocks with the structural zeros folded
+# back in. We support only zero-preserving `f` (`f(0) == 0`) for now, so the zeros contribute nothing to
+# a `sum` and a single `zero` to `maximum`/`minimum` — no need to count them. A non-zero-preserving `f`
+# would need the full structural-zero multiplicity and errors instead of silently dropping it.
+# Non-abelian fusion carries multiplicity beyond the reduced data, so require unique fusion rather than
+# reducing past it.
+function _stored_blocks(fa::FusionArray)
+    require_unique_fusion(fa)
+    return values(matricize(fa).blocks)
+end
+function _reduction_zero(f, fa::FusionArray)
+    z = f(zero(eltype(fa)))
+    iszero(z) || error(
+        "reductions over a `FusionArray` support only zero-preserving `f` (`f(0) == 0`) for now; \
+        got `f(0) = $z`. Materialize with `Array` first."
+    )
+    return z
+end
+_has_structural_zeros(fa::FusionArray) = length(fa) > storedlength(fa)
+
+Base.sum(fa::FusionArray) = sum(identity, fa)
+function Base.sum(f, fa::FusionArray)
+    z = _reduction_zero(f, fa)
+    return sum(b -> sum(f, b), _stored_blocks(fa); init = z)
+end
+
+Base.maximum(fa::FusionArray) = maximum(identity, fa)
+function Base.maximum(f, fa::FusionArray)
+    z = _reduction_zero(f, fa)
+    blocks = _stored_blocks(fa)
+    isempty(blocks) && return z
+    m = maximum(b -> maximum(f, b), blocks)
+    return _has_structural_zeros(fa) ? max(m, z) : m
+end
+
+Base.minimum(fa::FusionArray) = minimum(identity, fa)
+function Base.minimum(f, fa::FusionArray)
+    z = _reduction_zero(f, fa)
+    blocks = _stored_blocks(fa)
+    isempty(blocks) && return z
+    m = minimum(b -> minimum(f, b), blocks)
+    return _has_structural_zeros(fa) ? min(m, z) : m
+end
+
+Base.extrema(fa::FusionArray) = extrema(identity, fa)
+Base.extrema(f, fa::FusionArray) = (minimum(f, fa), maximum(f, fa))
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
 # because a generic `similar` over flat axes cannot recover the

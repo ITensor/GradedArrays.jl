@@ -67,6 +67,13 @@ function FusedGradedMatrix(
 end
 
 # Block-diagonal by construction (one block per sector), so just check each block.
+# Sum the per-block stored counts over the stored (symmetry-allowed) blocks; each block view is a
+# `FusedSectorMatrix`, whose count folds in the sector's quantum dimension. The rest of `length` are
+# structural zeros. Without this, the `AbstractArray` fallback reports `length` (i.e. fully dense).
+function SparseArraysBase.storedlength(A::FusedGradedMatrix)
+    return sum(B -> storedlength(view(A, B)), eachblockstoredindex(A); init = 0)
+end
+
 LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 
 # Blockwise copy: the generic `AbstractArray` fallback copies elementwise, which

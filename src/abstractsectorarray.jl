@@ -48,6 +48,7 @@ Base.@propagate_inbounds function Base.getindex(
         A::AbstractSectorArray{T, <:Any, N},
         I::Vararg{Int, N}
     ) where {T, N}
+    assert_scalar_indexing()
     require_unique_fusion(A)
     @boundscheck checkbounds(A, I...)
     return @inbounds data(A)[I...]
@@ -57,6 +58,7 @@ Base.@propagate_inbounds function Base.setindex!(
         v,
         I::Vararg{Int, N}
     ) where {T, N}
+    assert_scalar_indexing()
     require_unique_fusion(A)
     @boundscheck checkbounds(A, I...)
     @inbounds data(A)[I...] = v
@@ -90,6 +92,10 @@ end
 # check Base's `copy!` requires) so generic array code keeps working.
 Base.copyto!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
 Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
+# `copyto!` from a plain array routes through `copy_sector!` (a bulk `copyto!` into the reduced data
+# under unique fusion) rather than Base's elementwise fallback, which would scalar-index the sector
+# array.
+Base.copyto!(dest::AbstractSectorArray, src::AbstractArray) = copy_sector!(dest, src)
 
 # A sector matrix is the Kronecker product of its structural factor with the reduced data. The factor
 # is diagonal (identity-like) for any fusion, so the matrix is diagonal iff the reduced data is. Lets

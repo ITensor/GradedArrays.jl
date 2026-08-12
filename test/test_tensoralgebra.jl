@@ -4,7 +4,7 @@ using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, Fus
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
-    tensor_product
+    tensor_product, with_scalar_indexing
 using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,
@@ -49,13 +49,17 @@ end
     materialized = 2 .* s
     @test materialized isa UniqueSectorArray
     @test data(materialized) isa Matrix
-    @test materialized[1, 1] == 2 * s[1, 1]
+    with_scalar_indexing() do
+        @test materialized[1, 1] == 2 * s[1, 1]
+    end
     @test Array(materialized) ≈ 2 .* Array(s)
 
     scaled_mul = 2 * s
     @test scaled_mul isa UniqueSectorArray
     @test data(scaled_mul) isa Matrix
-    @test scaled_mul[1, 1] == 2 * s[1, 1]
+    with_scalar_indexing() do
+        @test scaled_mul[1, 1] == 2 * s[1, 1]
+    end
     @test Array(scaled_mul) ≈ 2 .* Array(s)
 end
 

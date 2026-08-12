@@ -22,6 +22,7 @@ for AT in (:FusionArray, :AbstractFusedArray)
         # Scalar indexing is well-defined only for unique (abelian) fusion, where the trivial
         # structural factor lets a coordinate pick out a single element.
         function Base.getindex(a::$AT, I1::Int, I_rest::Vararg{Int})
+            assert_scalar_indexing()
             require_unique_fusion(a)
             I = (I1, I_rest...)
             @boundscheck checkbounds(a, I...)
@@ -31,6 +32,7 @@ for AT in (:FusionArray, :AbstractFusedArray)
             return view(a, b)[map(blockindex, bis)...]
         end
         function Base.setindex!(a::$AT, v, I1::Int, I_rest::Vararg{Int})
+            assert_scalar_indexing()
             require_unique_fusion(a)
             I = (I1, I_rest...)
             @boundscheck checkbounds(a, I...)

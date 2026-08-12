@@ -3,7 +3,7 @@ using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
     GradedOneTo, SU2, SectorRange, U1, UniqueSectorArray, blockstoredlength, data,
     datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectors,
-    sectortype, to_gradedrange
+    sectortype, to_gradedrange, with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored
@@ -118,11 +118,13 @@ using Test: @test, @test_broken, @test_throws, @testset
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = zeros(g, dual(g))
         @test a isa FusionArray
-        a[1, 1] = 5.0
-        @test a[1, 1] == 5.0
-        @test a[2, 1] == 0.0  # same allowed block, untouched
-        @test a[1, 3] == 0.0  # symmetry-forbidden position reads as a structural zero
-        @test_throws ErrorException (a[1, 3] = 1.0)
+        with_scalar_indexing() do
+            a[1, 1] = 5.0
+            @test a[1, 1] == 5.0
+            @test a[2, 1] == 0.0  # same allowed block, untouched
+            @test a[1, 3] == 0.0  # symmetry-forbidden position reads as a structural zero
+            @test_throws ErrorException (a[1, 3] = 1.0)
+        end
     end
 
     @testset "isstored(a, ::Block)" begin
@@ -156,28 +158,34 @@ using Test: @test, @test_broken, @test_throws, @testset
         dense = Array(a)
         # Scalar reads match the dense array elementwise, including forbidden positions
         # (unstored blocks), which read as a structural zero.
-        @test all(a[i, j] == dense[i, j] for i in axes(a, 1), j in axes(a, 2))
-        @test a[1, 1] === 5.0
-        @test a[3, 1] === 0.0  # falls in an unstored (forbidden) block
+        with_scalar_indexing() do
+            @test all(a[i, j] == dense[i, j] for i in axes(a, 1), j in axes(a, 2))
+            @test a[1, 1] === 5.0
+            @test a[3, 1] === 0.0  # falls in an unstored (forbidden) block
+        end
     end
 
     @testset "Scalar setindex!" begin
         a = zeros(Float64, g1, g2)
         a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
         # Writing into an allowed block updates the single element and reads back.
-        a[1, 1] = 42.0
-        @test a[1, 1] === 42.0
-        @test a[2, 1] === 7.0  # neighboring element in the same block is untouched
-        # A forbidden position has no valid target.
-        @test_throws ErrorException (a[3, 1] = 1.0)
+        with_scalar_indexing() do
+            a[1, 1] = 42.0
+            @test a[1, 1] === 42.0
+            @test a[2, 1] === 7.0  # neighboring element in the same block is untouched
+            # A forbidden position has no valid target.
+            @test_throws ErrorException (a[3, 1] = 1.0)
+        end
     end
 
     @testset "Scalar indexing requires unique fusion" begin
         # The fused representation can hold non-abelian sectors, where scalar indexing is
         # not well defined; it must error rather than read/write past the reduced block data.
         m = FusedGradedMatrix([ones(1, 1), ones(1, 1)], [SU2(0), SU2(1 // 2)])
-        @test_throws ErrorException m[1, 1]
-        @test_throws ErrorException (m[1, 1] = 1.0)
+        with_scalar_indexing() do
+            @test_throws ErrorException m[1, 1]
+            @test_throws ErrorException (m[1, 1] = 1.0)
+        end
     end
 
     @testset "unsupported ops error gracefully" begin
@@ -603,22 +611,6 @@ end
     @test Array(ca) ≈ conj(Array(a))
 end
 
-@testset "isdiag on a graded matrix" begin
-    g = gradedrange([U1(0) => 2, U1(1) => 2])
-
-    # Block-diagonal with each stored block diagonal.
-    a = zeros(Float64, g, dual(g))
-    a[Block(1, 1)] = UniqueSectorArray([1.0 0.0; 0.0 2.0], (U1(0), dual(U1(0))))
-    a[Block(2, 2)] = UniqueSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
-    @test LinearAlgebra.isdiag(a)
-
-    # A non-diagonal stored block breaks it.
-    b = zeros(Float64, g, dual(g))
-    b[Block(1, 1)] = UniqueSectorArray([1.0 5.0; 0.0 2.0], (U1(0), dual(U1(0))))
-    b[Block(2, 2)] = UniqueSectorArray([3.0 0.0; 0.0 4.0], (U1(1), dual(U1(1))))
-    @test !LinearAlgebra.isdiag(b)
-end
-
 @testset "project (constructing)" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     # A dense source already in the allowed subspace round-trips through the checked `project`.
@@ -949,6 +941,7 @@ end
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(ComplexF64, g, dual(g))
     Random.randn!(a)
+    # Block-wise: the structural zeros do not contribute to a sum.
     @test sum(a) ≈ sum(Array(a))
 end
 
@@ -958,6 +951,7 @@ end
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, g, dual(g))
     Random.randn!(a)
+    # Block-wise reductions fold in one structural zero, matching the dense array.
     @test maximum(a) == maximum(Array(a))
     @test minimum(a) == minimum(Array(a))
     @test maximum(abs, a) == maximum(abs, Array(a))

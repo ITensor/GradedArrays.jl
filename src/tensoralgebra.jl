@@ -183,6 +183,22 @@ end
 # permute-add path when the other operand is a plain dense array.
 StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a))
 
+# Permute-add a sector source into a plain (non-sector) destination. Under unique fusion the reduced
+# data is the full dense array, so forward to the dense primitive on `data(x)` rather than letting the
+# generic fall back to scalar reads of the sector source. The `y::AbstractSectorArray` method above is
+# strictly more specific, so a sector→sector call still takes the block-wise path. This is the seam that
+# lets `add!(dest::AbstractArray, ::AbstractSectorArray, α, β)` (via the generic `permutedimsopadd!`)
+# work without a bespoke `add!` overload.
+function TensorAlgebra.bipermutedimsopadd!(
+        y::AbstractArray, op, x::AbstractSectorArray,
+        perm_codomain, perm_domain,
+        α::Number, β::Number
+    )
+    require_unique_fusion(x)
+    bipermutedimsopadd!(y, op, data(x), perm_codomain, perm_domain, α, β)
+    return y
+end
+
 function TensorAlgebra.bipermutedimsopadd!(
         y::AbstractFusedArray{<:Any, <:Any, N}, op, x::AbstractFusedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,

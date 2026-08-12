@@ -46,8 +46,11 @@ end
 function LinearAlgebra.tr(a::SectorIdentity)
     !isdual(axes(a, 1)) ||
         throw(ArgumentError("trace requires a non-dual first axis, got $(axes(a, 1))"))
-    return size(a, 1)
+    return diaglength(a)
 end
+
+# The stored (nonzero) entries of the identity are its diagonal.
+SparseArraysBase.storedlength(a::SectorIdentity) = diaglength(a)
 
 function Base.permutedims(a::SectorIdentity, perm)
     perm == ntuple(identity, ndims(a)) && return a

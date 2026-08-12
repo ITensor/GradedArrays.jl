@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusionArray, SU2, SectorRange, U1,
     UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain, ndims_domain,
-    sector
+    sector, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, bipermutedims, contract, matricize, svd_compact
@@ -147,7 +147,9 @@ end
         # The view shares storage, so writes land in the backing.
         B = first(GradedArrays.eachblockstoredindex(a))
         i, j = Int.(Tuple(B))
-        GradedArrays.viewblock(a, B)[1, 1] = 42.0
+        with_scalar_indexing() do
+            return GradedArrays.viewblock(a, B)[1, 1] = 42.0
+        end
         @test Array(a)[r1[i][1], r2[j][1]] == 42.0
     end
 
