@@ -221,44 +221,5 @@ const Z2 = SectorRange{TKS.ZNIrrep{2}}
 const U1 = SectorRange{TKS.U1Irrep}
 sector_label(c::TKS.U1Irrep) = c.charge
 
-const O2 = SectorRange{TKS.CU1Irrep}
-function O2(l::Real)
-    j = max(l, zero(l))
-    s = if l == 0
-        0
-    elseif l == -1
-        1
-    else
-        2
-    end
-    return O2(TKS.CU1Irrep(j, s))
-end
-function sector_label(c::TKS.CU1Irrep)
-    return if c.s == 0
-        c.j
-    elseif c.s == 1
-        oftype(c.j, -1)
-    else
-        c.j
-    end
-end
-zero_odd(::Type{O2}) = O2(-1)
-
 const SU2 = SectorRange{TKS.SU2Irrep}
 sector_label(c::TKS.SU2Irrep) = c.j
-
-const Fib = SectorRange{TKS.FibonacciAnyon}
-function Fib(s::AbstractString)
-    s == "1" && return Fib(:I)
-    s == "τ" && return Fib(:τ)
-    throw(ArgumentError("Unrecognized input `$s`"))
-end
-sector_label(c::TKS.FibonacciAnyon) = isone(c) ? "1" : "τ"
-
-const Ising = SectorRange{TKS.IsingAnyon}
-function Ising(s::AbstractString)
-    s in ("1", "σ", "ψ") || throw(ArgumentError("Unrecognized input `$s`"))
-    sym = s == "1" ? :I : Symbol(s)
-    return Ising(sym)
-end
-sector_label(c::TKS.IsingAnyon) = Symbol(c.s) == :I ? "1" : String(c.s)

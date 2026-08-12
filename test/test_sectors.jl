@@ -1,6 +1,7 @@
-using GradedArrays: Fib, Ising, O2, SU2, SectorRange, TrivialSector, U1, Z, dual, flip,
-    istrivial, modulus, sectortype, trivial, zero_odd
+using GradedArrays: SU2, SectorRange, TrivialSector, U1, Z, dual, flip, istrivial, modulus,
+    sectortype, trivial
 using SUNRepresentations: SUNRepresentations
+using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
@@ -79,14 +80,13 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "O(2)" begin
-        s0e = O2(0)
-        s0o = O2(-1)
-        s12 = O2(1 // 2)
-        s1 = O2(1)
+        s0e = SectorRange(TKS.CU1Irrep(0, 0))
+        s0o = SectorRange(TKS.CU1Irrep(0, 1))
+        s12 = SectorRange(TKS.CU1Irrep(1 // 2, 2))
+        s1 = SectorRange(TKS.CU1Irrep(1, 2))
 
-        @test trivial(O2) == s0e
+        @test trivial(SectorRange{TKS.CU1Irrep}) == s0e
         @test istrivial(s0e)
-        @test zero_odd(O2) == s0o
 
         @test (@constinferred length(s0e)) == 1
         @test (@constinferred length(s0o)) == 1
@@ -167,10 +167,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "Fibonacci" begin
-        ı = Fib("1")
-        τ = Fib("τ")
+        ı = SectorRange(TKS.FibonacciAnyon(:I))
+        τ = SectorRange(TKS.FibonacciAnyon(:τ))
 
-        @test trivial(Fib) == ı
+        @test trivial(SectorRange{TKS.FibonacciAnyon}) == ı
         @test istrivial(ı)
         @test ı == TrivialSector()
 
@@ -184,11 +184,11 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "Ising" begin
-        ı = Ising("1")
-        σ = Ising("σ")
-        ψ = Ising("ψ")
+        ı = SectorRange(TKS.IsingAnyon(:I))
+        σ = SectorRange(TKS.IsingAnyon(:σ))
+        ψ = SectorRange(TKS.IsingAnyon(:ψ))
 
-        @test trivial(Ising) == ı
+        @test trivial(SectorRange{TKS.IsingAnyon}) == ı
         @test istrivial(ı)
         @test ı == TrivialSector()
 

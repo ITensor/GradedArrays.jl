@@ -2,7 +2,7 @@ module GradedArrays
 
 # exports
 # -------
-export TrivialSector, Z, Z2, U1, O2, SU2, Fib, Ising
+export TrivialSector, Z, Z2, U1, SU2
 export SectorRange, SectorOneTo, GradedOneTo
 export AbstractSectorDelta, UniqueSectorDelta, SectorIdentity
 export AbstractSectorArray,
