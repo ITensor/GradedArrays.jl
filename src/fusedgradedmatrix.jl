@@ -81,29 +81,28 @@ LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 # zeros). The remaining structural zeros are the off-sector (symmetry-forbidden) positions: for
 # `maximum`/`minimum` a single `f(0)` folds them in when any is present (`length > storedlength`); for
 # `sum` they would each add `f(0)`, so we restrict to zero-preserving `f` for now and reduce only the
-# stored blocks. `sum` takes `init` (added once, to the outer per-block sum); `dims` is not accepted
-# (a per-dimension reduction of a graded matrix is not defined here).
-Base.sum(A::FusedGradedMatrix; init = zero(eltype(A))) = sum(identity, A; init)
-function Base.sum(f, A::FusedGradedMatrix; init = f(zero(eltype(A))))
+# stored blocks. These return a scalar and take no keyword arguments (`dims` is not meaningful for a
+# graded reduction, and `init` is just `x + sum(A)` at the call site).
+Base.sum(A::FusedGradedMatrix) = sum(identity, A)
+function Base.sum(f, A::FusedGradedMatrix)
     z = f(zero(eltype(A)))
     iszero(z) || error(
         "`sum` over a graded matrix supports only zero-preserving `f` (`f(0) == 0`) for now; \
         got `f(0) = $z`. Materialize with `Array` first."
     )
-    isempty(A.blocks) && return init
-    return sum(B -> sum(f, view(A, B)), eachblockstoredindex(A); init)
+    return sum(B -> sum(f, view(A, B)), eachblockstoredindex(A); init = z)
 end
 
 Base.maximum(A::FusedGradedMatrix) = maximum(identity, A)
 function Base.maximum(f, A::FusedGradedMatrix)
-    isempty(A.blocks) && return f(zero(eltype(A)))
+    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
     m = maximum(B -> maximum(f, view(A, B)), eachblockstoredindex(A))
     return length(A) > storedlength(A) ? max(m, f(zero(eltype(A)))) : m
 end
 
 Base.minimum(A::FusedGradedMatrix) = minimum(identity, A)
 function Base.minimum(f, A::FusedGradedMatrix)
-    isempty(A.blocks) && return f(zero(eltype(A)))
+    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
     m = minimum(B -> minimum(f, view(A, B)), eachblockstoredindex(A))
     return length(A) > storedlength(A) ? min(m, f(zero(eltype(A)))) : m
 end

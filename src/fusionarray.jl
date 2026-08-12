@@ -144,10 +144,6 @@ Base.size(b::FusionArrayBlocks) = blocklength.(axes(b.parent))
 function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
 end
-# The number of stored blocks, counted from the stored indices directly. Overriding the generic
-# `length(storedvalues(b))` avoids materializing the block views (which the block guard disables), so a
-# structural query like `blockstoredlength` does not need the block-indexing opt-in.
-SparseArraysBase.storedlength(b::FusionArrayBlocks) = length(eachblockstoredindex(b.parent))
 function SparseArraysBase.storedvalues(b::FusionArrayBlocks)
     return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
 end
