@@ -200,6 +200,7 @@ using Test: @test, @test_throws, @testset
         @test minimum(a) == minimum(Array(a))
         @test extrema(a) == extrema(Array(a))
         @test maximum(abs, a) == maximum(abs, Array(a))
+        @test_throws ErrorException sum(x -> x + 1, a)  # `sum` requires zero-preserving `f` for now
     end
 
     @testset "dot, norm, and dense Array factorize through the structural factor" for s in

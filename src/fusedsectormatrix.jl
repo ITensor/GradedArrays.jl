@@ -86,14 +86,26 @@ end
 
 # ---- reductions ----
 
+# `sum` over a graded matrix is restricted to zero-preserving `f` (`f(0) == 0`) for now, so the
+# structural zeros contribute nothing and need not be counted. Shared by the `FusedSectorMatrix` and
+# `FusedGradedMatrix` `sum` methods; returns `f(0)` for use as the reduction's zero element.
+function require_zero_preserving_sum(f, a)
+    z = f(zero(eltype(a)))
+    iszero(z) || error(
+        "`sum` over a graded matrix supports only zero-preserving `f` (`f(0) == 0`) for now; \
+        got `f(0) = $z`. Materialize with `Array` first."
+    )
+    return z
+end
+
 # The dense block is `sector(a) ⊗ data(a)`: the quantum dimension `d` copies of the reduced data on the
-# diagonal, with `length - storedlength` structural zeros off it. `sum` weights the reduced sum by `d`
-# and adds `f(0)` for each structural zero; `maximum`/`minimum` are unchanged by the duplication and
-# fold in a single `f(0)` when the block has structural zeros (`d > 1`). Correct for any `f`.
+# diagonal, with `length - storedlength` structural zeros off it. `sum` (zero-preserving `f` only for
+# now) weights the reduced sum by `d` and drops the structural zeros; `maximum`/`minimum` are unchanged
+# by the duplication and fold in a single `f(0)` when the block has structural zeros (`d > 1`).
 Base.sum(a::FusedSectorMatrix) = sum(identity, a)
 function Base.sum(f, a::FusedSectorMatrix)
-    return storedlength(sector(a)) * sum(f, data(a)) +
-        (length(a) - storedlength(a)) * f(zero(eltype(a)))
+    require_zero_preserving_sum(f, a)
+    return storedlength(sector(a)) * sum(f, data(a))
 end
 Base.maximum(a::FusedSectorMatrix) = maximum(identity, a)
 function Base.maximum(f, a::FusedSectorMatrix)

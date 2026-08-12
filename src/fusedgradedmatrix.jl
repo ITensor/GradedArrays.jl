@@ -85,11 +85,7 @@ LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 # graded reduction, and `init` is just `x + sum(A)` at the call site).
 Base.sum(A::FusedGradedMatrix) = sum(identity, A)
 function Base.sum(f, A::FusedGradedMatrix)
-    z = f(zero(eltype(A)))
-    iszero(z) || error(
-        "`sum` over a graded matrix supports only zero-preserving `f` (`f(0) == 0`) for now; \
-        got `f(0) = $z`. Materialize with `Array` first."
-    )
+    z = require_zero_preserving_sum(f, A)
     return sum(B -> sum(f, view(A, B)), eachblockstoredindex(A); init = z)
 end
 
