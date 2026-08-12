@@ -1,6 +1,6 @@
 using BlockArrays: Block
 using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix,
-    FusedSectorVector, SU2, U1, UniqueSectorArray, data, gradedrange
+    FusedSectorVector, SU2, U1, UniqueSectorArray, data, gradedrange, with_block_indexing
 using LinearAlgebra: dot, norm
 using Random: randn!
 using TensorAlgebra: TensorAlgebra
@@ -177,6 +177,8 @@ end
     # corrupting the result, matching `TensorOperations`.
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     b = zeros(Float64, g, g)
-    b[Block(1, 1)] = UniqueSectorArray(randn(Float64, 1, 1), (U1(0), U1(0)))
+    with_block_indexing() do
+        return b[Block(1, 1)] = UniqueSectorArray(randn(Float64, 1, 1), (U1(0), U1(0)))
+    end
     @test_throws ArgumentError TensorAlgebra.permutedims!(b, b, (2, 1))
 end

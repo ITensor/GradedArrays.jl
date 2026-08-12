@@ -2,7 +2,7 @@ import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
 using GradedArrays: FusionArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
     UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
-    isdual, sectoraxes, sectors, with_scalar_indexing
+    isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using Random: randn!
 using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, project,
     unmatricize, unmatricizeperm!, unproject
@@ -47,11 +47,14 @@ function randn_blockdiagonal(elt::Type, axs::Tuple)
     a = zeros(elt, axs...)
     blockdiaglength = minimum(blocksize(a))
     N = ndims(a)
-    for i in 1:blockdiaglength
-        block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
-        block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
-        block_data = randn!(Array{elt}(undef, block_dims...))
-        a[Block(ntuple(Returns(i), N)...)] = UniqueSectorArray(block_data, block_sectors)
+    with_block_indexing() do
+        for i in 1:blockdiaglength
+            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
+            block_data = randn!(Array{elt}(undef, block_dims...))
+            a[Block(ntuple(Returns(i), N)...)] =
+                UniqueSectorArray(block_data, block_sectors)
+        end
     end
     return a
 end
@@ -228,8 +231,10 @@ end
     @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
 
     # The graded block loop agrees block-by-block with the sector-level conj broadcast.
-    for I in eachblockstoredindex(a)
-        @test ca[I] ≈ conj.(a[I])
+    with_block_indexing() do
+        for I in eachblockstoredindex(a)
+            @test ca[I] ≈ conj.(a[I])
+        end
     end
 
     # Involution: the reversal sign squares to 1, recovering the array and its axes.
@@ -237,9 +242,11 @@ end
     @test axes(conj.(ca)) == axes(a)
 
     # Compound conj broadcasts combine linearly, block by block.
-    for I in eachblockstoredindex(a)
-        @test (conj.(a) .+ conj.(b))[I] ≈ conj.(a[I]) .+ conj.(b[I])
-        @test (conj.(a) .- conj.(b) ./ 2)[I] ≈ conj.(a[I]) .- conj.(b[I]) ./ 2
+    with_block_indexing() do
+        for I in eachblockstoredindex(a)
+            @test (conj.(a) .+ conj.(b))[I] ≈ conj.(a[I]) .+ conj.(b[I])
+            @test (conj.(a) .- conj.(b) ./ 2)[I] ≈ conj.(a[I]) .- conj.(b[I]) ./ 2
+        end
     end
 
     # Conjugating only one operand leaves dualized axes against non-dual ones: rejected.
@@ -253,8 +260,10 @@ end
     a = randn_blockdiagonal(elt, (r_odd, r_odd, dual(r_odd), dual(r_odd)))
     ca = conj.(a)
     @test all(d -> isdual(axes(ca, d)) == !isdual(axes(a, d)), 1:4)
-    for I in eachblockstoredindex(a)
-        @test ca[I] ≈ conj.(a[I])
+    with_block_indexing() do
+        for I in eachblockstoredindex(a)
+            @test ca[I] ≈ conj.(a[I])
+        end
     end
     @test Array(conj.(ca)) ≈ Array(a)
 end
@@ -390,11 +399,13 @@ end
 function const_blockdiagonal(elt::Type, axs::Tuple, vals)
     a = zeros(elt, axs...)
     N = ndims(a)
-    for (i, v) in enumerate(vals)
-        block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
-        block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
-        a[Block(ntuple(Returns(i), N)...)] =
-            UniqueSectorArray(fill(elt(v), block_dims...), block_sectors)
+    with_block_indexing() do
+        for (i, v) in enumerate(vals)
+            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
+            a[Block(ntuple(Returns(i), N)...)] =
+                UniqueSectorArray(fill(elt(v), block_dims...), block_sectors)
+        end
     end
     return a
 end

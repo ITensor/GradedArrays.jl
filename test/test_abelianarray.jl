@@ -3,7 +3,7 @@ using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
     GradedOneTo, SU2, SectorRange, U1, UniqueSectorArray, blockstoredlength, data,
     datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectors,
-    sectortype, to_gradedrange, with_scalar_indexing
+    sectortype, to_gradedrange, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored
@@ -36,29 +36,35 @@ using Test: @test, @test_broken, @test_throws, @testset
         @test Block(2, 2) in stored  # U1(1) × U1(-1): charge 0
         @test length(stored) == 2
         # Blocks are allocated but uninitialized (undef)
-        @test size(a[Block(1, 1)]) == (2, 1)
-        @test size(a[Block(2, 2)]) == (3, 2)
+        with_block_indexing() do
+            @test size(a[Block(1, 1)]) == (2, 1)
+            @test size(a[Block(2, 2)]) == (3, 2)
+        end
     end
 
     @testset "Block setindex!/getindex" begin
         a = zeros(Float64, g1, g2)
         # Block (1,1): U1(0) with mult 2 × U1(0) with mult 1 → 2×1
         data11 = reshape([1.0, 3.0], 2, 1)
-        a[Block(1, 1)] = data11
+        with_block_indexing() do
+            a[Block(1, 1)] = data11
 
-        blk = a[Block(1, 1)]
-        @test blk isa UniqueSectorArray
-        @test data(blk) == data11
-        @test sectoraxes(blk) == (U1(0), U1(0))
+            blk = a[Block(1, 1)]
+            @test blk isa UniqueSectorArray
+            @test data(blk) == data11
+            @test sectoraxes(blk) == (U1(0), U1(0))
+        end
     end
 
     @testset "Block getindex returns correct sectors" begin
         g1_dual = conj(gradedrange([U1(0) => 2, U1(1) => 3]))
         a = zeros(Float64, g1_dual, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
 
-        blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (conj(U1(0)), U1(0))
+            blk = a[Block(1, 1)]
+            @test sectoraxes(blk) == (conj(U1(0)), U1(0))
+        end
     end
 
     @testset "Block getindex for unstored block errors" begin
@@ -70,24 +76,30 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "Single Block{N} argument" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
-        blk = a[Block(1, 1)]
-        @test blk isa UniqueSectorArray
-        @test all(isone, data(blk))
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            blk = a[Block(1, 1)]
+            @test blk isa UniqueSectorArray
+            @test all(isone, data(blk))
+        end
     end
 
     @testset "UniqueSectorArray block setindex!" begin
         a = zeros(Float64, g1, g2)
         # Block (1,1): 2×1
         sa = UniqueSectorArray(reshape([5.0, 7.0], 2, 1), (U1(0), U1(0)))
-        a[Block(1, 1)] = sa
-        @test data(a[Block(1, 1)]) == reshape([5.0, 7.0], 2, 1)
+        with_block_indexing() do
+            a[Block(1, 1)] = sa
+            @test data(a[Block(1, 1)]) == reshape([5.0, 7.0], 2, 1)
+        end
     end
 
     @testset "eachblockstoredindex" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
-        a[Block(2, 2)] = ones(3, 2)
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            return a[Block(2, 2)] = ones(3, 2)
+        end
 
         stored = Set(collect(eachblockstoredindex(a)))
         @test Block(1, 1) in stored
@@ -129,7 +141,9 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "isstored(a, ::Block)" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = ones(2, 1)
+        end
         @test isstored(a, Block(1, 1))
         @test !isstored(a, Block(2, 1))  # symmetry-forbidden block
         m = FusedGradedMatrix([ones(2, 2), 2 * ones(3, 3)], [U1(0), U1(1)])
@@ -154,7 +168,9 @@ using Test: @test, @test_broken, @test_throws, @testset
         # `zero!` so the other allowed block (2, 2) is initialized: the elementwise comparison
         # below reads every position, and an undef block could hold `NaN` (never `==` itself).
         a = TensorAlgebra.zero!(zeros(Float64, g1, g2))
-        a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        end
         dense = Array(a)
         # Scalar reads match the dense array elementwise, including forbidden positions
         # (unstored blocks), which read as a structural zero.
@@ -167,7 +183,9 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "Scalar setindex!" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = reshape([5.0, 7.0], 2, 1)
+        end
         # Writing into an allowed block updates the single element and reads back.
         with_scalar_indexing() do
             a[1, 1] = 42.0
@@ -233,14 +251,18 @@ using Test: @test, @test_broken, @test_throws, @testset
         @test isdual(axes(a, 2)) == true
         @test size(a) == (5, 3)
 
-        a[Block(1, 1)] = ones(2, 1)
-        blk = a[Block(1, 1)]
-        @test sectoraxes(blk) == (conj(U1(0)), conj(U1(0)))
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            blk = a[Block(1, 1)]
+            @test sectoraxes(blk) == (conj(U1(0)), conj(U1(0)))
+        end
     end
 
     @testset "similar" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = ones(2, 1)
+        end
 
         a2 = similar(a)
         @test a2 isa FusionArray{Float64, <:Any, 2}
@@ -260,15 +282,17 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "Stored block insertions" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
-        a[Block(2, 2)] = 4.0 * ones(3, 2)
+        with_block_indexing() do
+            a[Block(1, 1)] = ones(2, 1)
+            a[Block(2, 2)] = 4.0 * ones(3, 2)
 
-        @test length(collect(eachblockstoredindex(a))) == 2
-        @test data(a[Block(1, 1)]) == ones(2, 1)
-        @test data(a[Block(2, 2)]) == 4.0 * ones(3, 2)
+            @test length(collect(eachblockstoredindex(a))) == 2
+            @test data(a[Block(1, 1)]) == ones(2, 1)
+            @test data(a[Block(2, 2)]) == 4.0 * ones(3, 2)
 
-        # Setting a symmetry-forbidden (non-allowed) block errors.
-        @test_throws Exception (a[Block(1, 2)] = 2.0 * ones(2, 2))
+            # Setting a symmetry-forbidden (non-allowed) block errors.
+            @test_throws Exception (a[Block(1, 2)] = 2.0 * ones(2, 2))
+        end
     end
 
     @testset "SU2 (non-abelian dimensions)" begin
@@ -291,7 +315,9 @@ using Test: @test, @test_broken, @test_throws, @testset
 
     @testset "show" begin
         a = zeros(Float64, g1, g2)
-        a[Block(1, 1)] = ones(2, 1)
+        with_block_indexing() do
+            return a[Block(1, 1)] = ones(2, 1)
+        end
         s = sprint(show, MIME("text/plain"), a)
         @test occursin("FusionArray", s)
         @test occursin("5×3", s)
@@ -301,8 +327,10 @@ using Test: @test, @test_broken, @test_throws, @testset
     @testset "blocks accessor" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = zeros(Float64, g, dual(g))
-        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
-        a[Block(2, 2)] = UniqueSectorArray(2 * ones(3, 3), (U1(1), dual(U1(1))))
+        with_block_indexing() do
+            a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+            return a[Block(2, 2)] = UniqueSectorArray(2 * ones(3, 3), (U1(1), dual(U1(1))))
+        end
 
         b = BlockArrays.blocks(a)
         @test size(b) == (2, 2)
@@ -317,29 +345,33 @@ using Test: @test, @test_broken, @test_throws, @testset
 
         # Writing through blocks
         b[1, 1] = UniqueSectorArray(5 * ones(2, 2), (U1(0), dual(U1(0))))
-        @test data(a[Block(1, 1)]) ≈ 5 * ones(2, 2)
+        with_block_indexing() do
+            @test data(a[Block(1, 1)]) ≈ 5 * ones(2, 2)
+        end
     end
 
     @testset "fill! and zero!" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = zeros(Float64, g, dual(g))
-        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+        with_block_indexing() do
+            a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
 
-        # fill!(a, 0) zeros stored blocks in place. `all` on the block forwards to its reduced
-        # data for unique fusion, so the reduction stays off the discouraged scalar-indexing path.
-        fill!(a, 0)
-        @test blockstoredlength(a) > 0
-        @test all(iszero, a[Block(1, 1)])
+            # fill!(a, 0) zeros stored blocks in place. `all` on the block forwards to its reduced
+            # data for unique fusion, so the reduction stays off the discouraged scalar-indexing path.
+            fill!(a, 0)
+            @test blockstoredlength(a) > 0
+            @test all(iszero, a[Block(1, 1)])
 
-        # fill! fills stored blocks block-wise with any value
-        fill!(a, 1.0)
-        @test all(==(1.0), a[Block(1, 1)])
+            # fill! fills stored blocks block-wise with any value
+            fill!(a, 1.0)
+            @test all(==(1.0), a[Block(1, 1)])
 
-        # zero! zeros stored blocks in place (blocks stay allocated)
-        a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
-        TensorAlgebra.zero!(a)
-        @test blockstoredlength(a) > 0
-        @test all(iszero, a[Block(1, 1)])
+            # zero! zeros stored blocks in place (blocks stay allocated)
+            a[Block(1, 1)] = UniqueSectorArray(ones(2, 2), (U1(0), dual(U1(0))))
+            TensorAlgebra.zero!(a)
+            @test blockstoredlength(a) > 0
+            @test all(iszero, a[Block(1, 1)])
+        end
     end
 end
 
@@ -640,8 +672,10 @@ end
     src = randn(5, 5)
     dest = zeros(Float64, g, dual(g))
     @test TensorAlgebra.projectto!(dest, src) === dest
-    @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
-    @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
+    with_block_indexing() do
+        @test data(dest[Block(1, 1)]) ≈ src[1:2, 1:2]
+        @test data(dest[Block(2, 2)]) ≈ src[3:5, 3:5]
+    end
 
     # A lower-rank `src` is reshaped up before projecting into the flux-canceling aux leg.
     site = gradedrange([U1(0) => 1, U1(1) => 1])

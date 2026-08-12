@@ -67,6 +67,7 @@ function viewblock(
         a::FusionArray{T, S, N, NC, ND},
         I::Block{N}
     ) where {T, S, N, NC, ND}
+    assert_block_indexing()
     require_unique_fusion(a)
     bk = Int.(Tuple(I))
     sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
@@ -143,8 +144,12 @@ Base.size(b::FusionArrayBlocks) = blocklength.(axes(b.parent))
 function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
 end
+# The block-container interface is the explicit, block-structure-aware entry point (the analog of the
+# reduced `data`), so its stored-block access is allowed even when array-level block indexing is off.
 function SparseArraysBase.storedvalues(b::FusionArrayBlocks)
-    return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
+    return with_block_indexing() do
+        return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
+    end
 end
 function SparseArraysBase.isstored(
         b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
@@ -154,12 +159,16 @@ end
 function SparseArraysBase.getstoredindex(
         b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
-    return view(b.parent, Block(I...))
+    return with_block_indexing() do
+        return view(b.parent, Block(I...))
+    end
 end
 function SparseArraysBase.setstoredindex!(
         b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
-    copy_sector!(view(b.parent, Block(I...)), value)
+    with_block_indexing() do
+        return copy_sector!(view(b.parent, Block(I...)), value)
+    end
     return b
 end
 function SparseArraysBase.getunstoredindex(

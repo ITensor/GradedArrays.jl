@@ -4,7 +4,7 @@ using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, Fus
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
     gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
-    tensor_product, with_scalar_indexing
+    tensor_product, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,
@@ -91,7 +91,9 @@ end
 
     # Set allowed block (2,2): U1(1) × U1(-1) = 0
     block_data = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(2, 2)] = UniqueSectorArray(block_data, (U1(1), U1(-1)))
+    with_block_indexing() do
+        return a[Block(2, 2)] = UniqueSectorArray(block_data, (U1(1), U1(-1)))
+    end
 
     ap = permutedims(a, (2, 1))
     @test ap isa FusionArray
@@ -99,8 +101,10 @@ end
     @test axes(ap, 2) == g1
 
     # The block (2,2) in a should map to block (2,2) in ap
-    ap_block = ap[Block(2, 2)]
-    @test Array(ap_block) ≈ permutedims(block_data)
+    with_block_indexing() do
+        ap_block = ap[Block(2, 2)]
+        @test Array(ap_block) ≈ permutedims(block_data)
+    end
 end
 
 @testset "graded array linear broadcasting" begin
@@ -112,15 +116,19 @@ end
     # Use allowed block (2,2): U1(1) × U1(-1) = 0
     block_a = randn!(Matrix{Float64}(undef, 3, 2))
     block_b = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(2, 2)] = UniqueSectorArray(block_a, (U1(1), U1(-1)))
-    b[Block(2, 2)] = UniqueSectorArray(block_b, (U1(1), U1(-1)))
+    with_block_indexing() do
+        a[Block(2, 2)] = UniqueSectorArray(block_a, (U1(1), U1(-1)))
+        return b[Block(2, 2)] = UniqueSectorArray(block_b, (U1(1), U1(-1)))
+    end
 
     α = 2.0
     β = -3.0
     c = α .* a .+ β .* b
     @test c isa FusionArray
-    c_block = c[Block(2, 2)]
-    @test Array(c_block) ≈ α .* block_a .+ β .* block_b
+    with_block_indexing() do
+        c_block = c[Block(2, 2)]
+        @test Array(c_block) ≈ α .* block_a .+ β .* block_b
+    end
 end
 
 @testset "sectormergesort on a graded array" begin
@@ -131,8 +139,10 @@ end
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
     a = zeros(Float64, g1, g2)
 
-    a[Block(1, 2)] = UniqueSectorArray(ones(2, 2), (U1(1), U1(-1)))
-    a[Block(3, 2)] = UniqueSectorArray(2 * ones(3, 2), (U1(1), U1(-1)))
+    with_block_indexing() do
+        a[Block(1, 2)] = UniqueSectorArray(ones(2, 2), (U1(1), U1(-1)))
+        return a[Block(3, 2)] = UniqueSectorArray(2 * ones(3, 2), (U1(1), U1(-1)))
+    end
 
     a_merged = sectormergesort(a)
 
@@ -143,15 +153,17 @@ end
     @test datalengths(axes(a_merged, 2)) == [1, 2]
 
     # The merged U1(1) block should stack the two source blocks (2×2 + 3×2 → 5×2)
-    merged_block = a_merged[Block(2, 2)]
-    @test size(merged_block) == (5, 2)
-    @test data(merged_block)[1:2, :] ≈ ones(2, 2)
-    @test data(merged_block)[3:5, :] ≈ 2 * ones(3, 2)
+    with_block_indexing() do
+        merged_block = a_merged[Block(2, 2)]
+        @test size(merged_block) == (5, 2)
+        @test data(merged_block)[1:2, :] ≈ ones(2, 2)
+        @test data(merged_block)[3:5, :] ≈ 2 * ones(3, 2)
 
-    # U1(0) × U1(0) block should be empty (no stored data)
-    empty_block = a_merged[Block(1, 1)]
-    @test size(empty_block) == (1, 1)
-    @test all(iszero, data(empty_block))
+        # U1(0) × U1(0) block should be empty (no stored data)
+        empty_block = a_merged[Block(1, 1)]
+        @test size(empty_block) == (1, 1)
+        @test all(iszero, data(empty_block))
+    end
 end
 
 @testset "matricize 2D graded array → FusedGradedMatrix" begin
@@ -161,8 +173,10 @@ end
 
     block_11 = randn!(Matrix{Float64}(undef, 2, 1))
     block_22 = randn!(Matrix{Float64}(undef, 3, 2))
-    a[Block(1, 1)] = UniqueSectorArray(block_11, (U1(0), U1(0)))
-    a[Block(2, 2)] = UniqueSectorArray(block_22, (U1(1), U1(-1)))
+    with_block_indexing() do
+        a[Block(1, 1)] = UniqueSectorArray(block_11, (U1(0), U1(0)))
+        return a[Block(2, 2)] = UniqueSectorArray(block_22, (U1(1), U1(-1)))
+    end
 
     fsm = matricizeperm(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
@@ -179,10 +193,15 @@ end
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     a = zeros(Float64, g, g, dual(g), dual(g))
 
-    a[Block(1, 1, 1, 1)] =
-        UniqueSectorArray(ones(1, 1, 1, 1), (U1(0), U1(0), dual(U1(0)), dual(U1(0))))
-    a[Block(2, 2, 2, 2)] =
-        UniqueSectorArray(2 * ones(1, 1, 1, 1), (U1(1), U1(1), dual(U1(1)), dual(U1(1))))
+    with_block_indexing() do
+        a[Block(1, 1, 1, 1)] =
+            UniqueSectorArray(ones(1, 1, 1, 1), (U1(0), U1(0), dual(U1(0)), dual(U1(0))))
+        return a[Block(2, 2, 2, 2)] =
+            UniqueSectorArray(
+            2 * ones(1, 1, 1, 1),
+            (U1(1), U1(1), dual(U1(1)), dual(U1(1)))
+        )
+    end
 
     fsm = matricizeperm(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
@@ -198,7 +217,9 @@ end
 @testset "tr of a matricized graded array" begin
     g = gradedrange([U1(0) => 1, U1(1) => 1])
     a = ones(Float64, g, g, dual(g), dual(g))
-    a[Block(2, 2, 2, 2)] .*= 2  # give the blocks distinct traces
+    with_block_indexing() do
+        return a[Block(2, 2, 2, 2)] .*= 2  # give the blocks distinct traces
+    end
 
     # `tr` on the matricized graded matrix sums the diagonal blocks and matches the dense trace.
     fsm = matricizeperm(a, (1, 2), (3, 4))
@@ -214,9 +235,11 @@ end
     # U1(1)).
     r = gradedrange([U1(0) => 1, U1(1) => 2])
     a = zeros(Float64, (r, r, dual(r)))
-    a[Block(1, 1, 1)] = fill(1.0, 1, 1, 1)
-    a[Block(1, 2, 2)] = fill(2.0, 1, 2, 2)
-    a[Block(2, 1, 2)] = fill(3.0, 2, 1, 2)
+    with_block_indexing() do
+        a[Block(1, 1, 1)] = fill(1.0, 1, 1, 1)
+        a[Block(1, 2, 2)] = fill(2.0, 1, 2, 2)
+        return a[Block(2, 1, 2)] = fill(3.0, 2, 1, 2)
+    end
 
     fsm = matricizeperm(a, (1, 2), (3,))
     @test fsm isa FusedGradedMatrix{Float64}
@@ -239,10 +262,15 @@ end
     ax = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, ax, dual(ax))
     # A forbidden off-diagonal block is rejected (a `FusionArray` throws a TensorKit `SectorMismatch`).
-    @test_throws Exception (
-        a[Block(1, 2)] =
-            UniqueSectorArray(randn!(Matrix{Float64}(undef, 2, 3)), (U1(0), dual(U1(1))))
-    )
+    with_block_indexing() do
+        @test_throws Exception (
+            a[Block(1, 2)] =
+                UniqueSectorArray(
+                randn!(Matrix{Float64}(undef, 2, 3)),
+                (U1(0), dual(U1(1)))
+            )
+        )
+    end
 end
 
 @testset "contract 2D graded array (matrix-matrix)" begin
@@ -252,18 +280,21 @@ end
 
     a_11 = randn!(Matrix{Float64}(undef, 2, 2))
     a_22 = randn!(Matrix{Float64}(undef, 3, 3))
-    a[Block(1, 1)] = UniqueSectorArray(a_11, (U1(0), dual(U1(0))))
-    a[Block(2, 2)] = UniqueSectorArray(a_22, (U1(1), dual(U1(1))))
-
     b_11 = randn!(Matrix{Float64}(undef, 2, 2))
     b_22 = randn!(Matrix{Float64}(undef, 3, 3))
-    b[Block(1, 1)] = UniqueSectorArray(b_11, (U1(0), dual(U1(0))))
-    b[Block(2, 2)] = UniqueSectorArray(b_22, (U1(1), dual(U1(1))))
+    with_block_indexing() do
+        a[Block(1, 1)] = UniqueSectorArray(a_11, (U1(0), dual(U1(0))))
+        a[Block(2, 2)] = UniqueSectorArray(a_22, (U1(1), dual(U1(1))))
+        b[Block(1, 1)] = UniqueSectorArray(b_11, (U1(0), dual(U1(0))))
+        return b[Block(2, 2)] = UniqueSectorArray(b_22, (U1(1), dual(U1(1))))
+    end
 
     result, dimnames = contract(a, (1, -1), b, (-1, 2))
     @test result isa FusionArray{Float64, <:Any, 2}
-    @test data(result[Block(1, 1)]) ≈ a_11 * b_11
-    @test data(result[Block(2, 2)]) ≈ a_22 * b_22
+    with_block_indexing() do
+        @test data(result[Block(1, 1)]) ≈ a_11 * b_11
+        @test data(result[Block(2, 2)]) ≈ a_22 * b_22
+    end
 end
 
 @testset "contract graded array to a scalar (elt=$elt)" for elt in
@@ -354,23 +385,29 @@ end
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, g, dual(g))
     TensorAlgebra.scale!(a, false)
-    @test all(iszero, data(a[Block(1, 1)]))
-    @test all(iszero, data(a[Block(2, 2)]))
+    with_block_indexing() do
+        @test all(iszero, data(a[Block(1, 1)]))
+        @test all(iszero, data(a[Block(2, 2)]))
+    end
 end
 
 @testset "allocating broadcast produces correct results" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, (g, dual(g)))
-    a[Block(1, 1)] = [1.0 0.0; 0.0 1.0]
-    a[Block(2, 2)] = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+    with_block_indexing() do
+        a[Block(1, 1)] = [1.0 0.0; 0.0 1.0]
+        return a[Block(2, 2)] = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+    end
 
     b = 3 .* a
-    @test data(b[Block(1, 1)]) == [3.0 0.0; 0.0 3.0]
-    @test data(b[Block(2, 2)]) == [3.0 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 3.0]
-
     c = a - a
-    @test all(iszero, data(c[Block(1, 1)]))
-    @test all(iszero, data(c[Block(2, 2)]))
+    with_block_indexing() do
+        @test data(b[Block(1, 1)]) == [3.0 0.0; 0.0 3.0]
+        @test data(b[Block(2, 2)]) == [3.0 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 3.0]
+
+        @test all(iszero, data(c[Block(1, 1)]))
+        @test all(iszero, data(c[Block(2, 2)]))
+    end
 end
 
 @testset "FusedGradedMatrix block-wise arithmetic" begin
