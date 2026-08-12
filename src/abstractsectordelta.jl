@@ -44,6 +44,18 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval Base.$f(A::AbstractSectorDelta) = _matrix_op_error($f, A)
 end
 
+# `conj` and a transposing `permutedims` would flip the first axis to dual. The fused storage types
+# (the matrix trio `FusedGradedMatrix` / `FusedSectorMatrix` / `SectorIdentity` and the vector trio
+# `FusedGradedVector` / `FusedSectorVector` / `SectorOnesVector`) always carry a non-dual first axis,
+# so both are blocked on them. Conjugate or transpose the `FusionArray` (or matricize) instead.
+@noinline function throw_flips_first_axis(op, A)
+    return error(
+        "`$op` is not supported on `$(nameof(typeof(A)))` because it would flip the first axis to \
+        dual; the fused storage types always carry a non-dual first axis. Apply `$op` to the \
+        `FusionArray` (or matricize) first."
+    )
+end
+
 # ========================  Fermionic specializations  ========================
 
 """

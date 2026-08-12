@@ -8,6 +8,13 @@ The codomain axis is non-dual, the domain axis is dual.
 """
 struct SectorIdentity{T, S <: SectorRange} <: AbstractSectorDelta{T, S, 2}
     sector::S
+    function SectorIdentity{T, S}(sector::S) where {T, S <: SectorRange}
+        !isdual(sector) ||
+            throw(
+            ArgumentError("`SectorIdentity` requires a non-dual sector, got `$sector`")
+        )
+        return new{T, S}(sector)
+    end
 end
 function SectorIdentity{T}(s::S) where {T, S <: SectorRange}
     return SectorIdentity{T, S}(s)
@@ -40,19 +47,20 @@ function LinearAlgebra.norm(a::SectorIdentity{T}, p::Real = 2) where {T}
 end
 
 # The identity structural factor is a matrix, so its trace is defined (unlike the general structural
-# deltas): the sector's quantum dimension, the length of the diagonal. The second axis is always the
-# dual of the first (`biaxes` pairs `sector` with `conj(sector)`), so the only thing to check is that
-# the first axis is non-dual (`SectorIdentity` can be built on a dual sector, which has no trace).
+# deltas): the sector's quantum dimension, the length of the diagonal. The first axis is always
+# non-dual (enforced by the constructor), so no runtime guard is needed.
 function LinearAlgebra.tr(a::SectorIdentity)
-    !isdual(axes(a, 1)) ||
-        throw(ArgumentError("trace requires a non-dual first axis, got $(axes(a, 1))"))
     return diaglength(a)
 end
 
 # The stored (nonzero) entries of the identity are its diagonal.
 SparseArraysBase.storedlength(a::SectorIdentity) = diaglength(a)
 
+# Only the identity permutation is supported: a transposing `permutedims` would flip the first axis
+# to dual, which the fused storage types disallow.
 function Base.permutedims(a::SectorIdentity, perm)
-    perm == ntuple(identity, ndims(a)) && return a
-    return SectorIdentity{eltype(a)}(dual(a.sector))
+    perm == ntuple(identity, ndims(a)) || throw_flips_first_axis(permutedims, a)
+    return a
 end
+
+Base.conj(a::SectorIdentity) = throw_flips_first_axis(conj, a)

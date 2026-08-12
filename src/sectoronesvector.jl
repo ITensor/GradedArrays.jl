@@ -9,6 +9,15 @@ The axis is non-dual.
 """
 struct SectorOnesVector{T, S <: SectorRange} <: AbstractSectorDelta{T, S, 1}
     sector::S
+    function SectorOnesVector{T, S}(sector::S) where {T, S <: SectorRange}
+        !isdual(sector) ||
+            throw(
+            ArgumentError(
+                "`SectorOnesVector` requires a non-dual sector, got `$sector`"
+            )
+        )
+        return new{T, S}(sector)
+    end
 end
 function SectorOnesVector{T}(s::S) where {T, S <: SectorRange}
     return SectorOnesVector{T, S}(s)
@@ -41,3 +50,5 @@ end
 
 # A single index has only the identity permutation.
 Base.permutedims(a::SectorOnesVector, perm) = a
+
+Base.conj(a::SectorOnesVector) = throw_flips_first_axis(conj, a)
