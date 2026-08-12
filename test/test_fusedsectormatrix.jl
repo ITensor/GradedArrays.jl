@@ -186,6 +186,22 @@ using Test: @test, @test_throws, @testset
         @test tr(FusedSectorMatrix(d, SU2(1 // 2))) == 2 * tr(d)  # dim 2
     end
 
+    @testset "reductions match the dense block (quantum dimension folded in)" for s in
+        (
+            U1(1),
+            SU2(1 // 2),
+            SU2(1),
+        )
+        d = [1.0 2.0; 3.0 4.0]
+        a = FusedSectorMatrix(d, s)
+        @test sum(a) == length(s) * sum(d)     # dim copies of the reduced data
+        @test sum(a) == sum(Array(a))
+        @test maximum(a) == maximum(Array(a))  # folds a structural zero when dim > 1
+        @test minimum(a) == minimum(Array(a))
+        @test extrema(a) == extrema(Array(a))
+        @test maximum(abs, a) == maximum(abs, Array(a))
+    end
+
     @testset "dot, norm, and dense Array factorize through the structural factor" for s in
         (
             U1(1),

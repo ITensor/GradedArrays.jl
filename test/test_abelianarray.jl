@@ -1003,6 +1003,8 @@ end
     # For abelian fusion the fused-matrix reduction matches the dense array; structural zeros do not
     # contribute to a sum.
     @test sum(matricize(a)) ≈ sum(Array(a))
+    # `init` is added once (not scaled by any quantum dimension).
+    @test sum(matricize(a); init = 100.0) ≈ 100.0 + sum(Array(a))
 end
 
 @testset "maximum / minimum / extrema over the fused matrix" begin

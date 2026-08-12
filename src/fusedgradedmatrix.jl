@@ -76,41 +76,40 @@ end
 
 LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
 
-# Reductions over `Array(A)` without densifying. A stored block `view(A, B)` is the Kronecker product
-# of a `d`-dimensional structural identity (`d` the sector's quantum dimension) with the reduced data,
-# so the block holds `d` copies of the reduced data plus structural zeros, and every off-sector
-# position is a structural zero too. `storedlength` counts the nonzero (`d`-weighted) positions, so
-# `length - storedlength` is the number of structural zeros. `sum` weights each block's reduced sum by
-# `d` and adds `f(0)` for every structural zero; `maximum`/`minimum` are unchanged by the duplication
-# and fold in a single `f(0)` when any structural zero is present. Correct for any `f`.
-Base.sum(A::FusedGradedMatrix; kwargs...) = sum(identity, A; kwargs...)
-function Base.sum(f, A::FusedGradedMatrix; init = zero(f(zero(eltype(A)))))
+# Reductions over `Array(A)` without densifying, folding through the per-block `FusedSectorMatrix`
+# reductions (each block already accounts for its quantum dimension and its within-block structural
+# zeros). The remaining structural zeros are the off-sector (symmetry-forbidden) positions: for
+# `maximum`/`minimum` a single `f(0)` folds them in when any is present (`length > storedlength`); for
+# `sum` they would each add `f(0)`, so we restrict to zero-preserving `f` for now and reduce only the
+# stored blocks. `sum` takes `init` (added once, to the outer per-block sum); `dims` is not accepted
+# (a per-dimension reduction of a graded matrix is not defined here).
+Base.sum(A::FusedGradedMatrix; init = zero(eltype(A))) = sum(identity, A; init)
+function Base.sum(f, A::FusedGradedMatrix; init = f(zero(eltype(A))))
     z = f(zero(eltype(A)))
-    blocksum = sum(eachblockstoredindex(A); init = zero(z)) do B
-        sm = view(A, B)
-        return storedlength(sector(sm)) * sum(f, data(sm))
-    end
-    return init + blocksum + (length(A) - storedlength(A)) * z
+    iszero(z) || error(
+        "`sum` over a graded matrix supports only zero-preserving `f` (`f(0) == 0`) for now; \
+        got `f(0) = $z`. Materialize with `Array` first."
+    )
+    isempty(A.blocks) && return init
+    return sum(B -> sum(f, view(A, B)), eachblockstoredindex(A); init)
 end
 
-Base.maximum(A::FusedGradedMatrix; kwargs...) = maximum(identity, A; kwargs...)
-function Base.maximum(f, A::FusedGradedMatrix; kwargs...)
+Base.maximum(A::FusedGradedMatrix) = maximum(identity, A)
+function Base.maximum(f, A::FusedGradedMatrix)
     isempty(A.blocks) && return f(zero(eltype(A)))
-    m = maximum(B -> maximum(f, data(view(A, B))), eachblockstoredindex(A); kwargs...)
+    m = maximum(B -> maximum(f, view(A, B)), eachblockstoredindex(A))
     return length(A) > storedlength(A) ? max(m, f(zero(eltype(A)))) : m
 end
 
-Base.minimum(A::FusedGradedMatrix; kwargs...) = minimum(identity, A; kwargs...)
-function Base.minimum(f, A::FusedGradedMatrix; kwargs...)
+Base.minimum(A::FusedGradedMatrix) = minimum(identity, A)
+function Base.minimum(f, A::FusedGradedMatrix)
     isempty(A.blocks) && return f(zero(eltype(A)))
-    m = minimum(B -> minimum(f, data(view(A, B))), eachblockstoredindex(A); kwargs...)
+    m = minimum(B -> minimum(f, view(A, B)), eachblockstoredindex(A))
     return length(A) > storedlength(A) ? min(m, f(zero(eltype(A)))) : m
 end
 
-Base.extrema(A::FusedGradedMatrix; kwargs...) = extrema(identity, A; kwargs...)
-function Base.extrema(f, A::FusedGradedMatrix; kwargs...)
-    return (minimum(f, A; kwargs...), maximum(f, A; kwargs...))
-end
+Base.extrema(A::FusedGradedMatrix) = extrema(identity, A)
+Base.extrema(f, A::FusedGradedMatrix) = (minimum(f, A), maximum(f, A))
 
 # Blockwise copy: the generic `AbstractArray` fallback copies elementwise, which
 # scalar-indexes (disallowed for graded arrays).

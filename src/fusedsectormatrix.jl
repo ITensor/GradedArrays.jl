@@ -83,3 +83,27 @@ end
 function SparseArraysBase.storedlength(a::FusedSectorMatrix)
     return storedlength(sector(a)) * length(data(a))
 end
+
+# ---- reductions ----
+
+# The dense block is `sector(a) ⊗ data(a)`: the quantum dimension `d` copies of the reduced data on the
+# diagonal, with `length - storedlength` structural zeros off it. `sum` weights the reduced sum by `d`
+# and adds `f(0)` for each structural zero; `maximum`/`minimum` are unchanged by the duplication and
+# fold in a single `f(0)` when the block has structural zeros (`d > 1`). Correct for any `f`.
+Base.sum(a::FusedSectorMatrix) = sum(identity, a)
+function Base.sum(f, a::FusedSectorMatrix)
+    return storedlength(sector(a)) * sum(f, data(a)) +
+        (length(a) - storedlength(a)) * f(zero(eltype(a)))
+end
+Base.maximum(a::FusedSectorMatrix) = maximum(identity, a)
+function Base.maximum(f, a::FusedSectorMatrix)
+    m = maximum(f, data(a))
+    return length(a) > storedlength(a) ? max(m, f(zero(eltype(a)))) : m
+end
+Base.minimum(a::FusedSectorMatrix) = minimum(identity, a)
+function Base.minimum(f, a::FusedSectorMatrix)
+    m = minimum(f, data(a))
+    return length(a) > storedlength(a) ? min(m, f(zero(eltype(a)))) : m
+end
+Base.extrema(a::FusedSectorMatrix) = extrema(identity, a)
+Base.extrema(f, a::FusedSectorMatrix) = (minimum(f, a), maximum(f, a))

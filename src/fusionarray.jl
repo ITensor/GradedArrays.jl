@@ -178,10 +178,6 @@ function SparseArraysBase.setunstoredindex!(
     return error("Block $(I) is not stored.")
 end
 
-# Stored element count reflects the block sparsity (the matricized backing carries the stored blocks);
-# `length(fa) - storedlength(fa)` is the number of structural (symmetry-forbidden) zeros.
-SparseArraysBase.storedlength(fa::FusionArray) = storedlength(matricize(fa))
-
 # ============================  similar  ============================
 # `similar` must build a `FusionArray`. Without explicit axes, preserve the prototype's own
 # codomain/domain split (like `copy`); with explicit flat axes the split is unrecoverable (see the
