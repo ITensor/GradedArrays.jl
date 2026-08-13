@@ -50,10 +50,11 @@ function blocktype(::Type{<:AdjointFusedGradedArray{T, S, N, P}}) where {T, S, N
 end
 blocktype(a::AdjointFusedGradedArray) = blocktype(typeof(a))
 
+# The adjoint swaps codomain and domain: its codomain is the parent's domain and its domain is the
+# parent's codomain (`axes(m') == (dual(axes(m, 2)), dual(axes(m, 1)))`).
 function biaxes(a::AdjointFusedGradedArray)
-    cod = gradedrange(collect(pairs(sectordatalengths_codomain(a))))
-    dom = gradedrange([dual(s) => l for (s, l) in pairs(sectordatalengths_domain(a))])
-    return BiTuple((cod,), (dom,))
+    b = biaxes(parent(a))
+    return bispace(domain(b), codomain(b))
 end
 Base.axes(a::AdjointFusedGradedArray) = Tuple(biaxes(a))
 Base.size(a::AdjointFusedGradedArray) = map(length, axes(a))

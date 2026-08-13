@@ -273,7 +273,7 @@ end
 blocktype(v::FusedGradedVector) = blocktype(typeof(v))
 
 function biaxes(v::FusedGradedVector)
-    return BiTuple((gradedrange([s => l for (s, l) in pairs(v.axis)]),), ())
+    return bispace((gradedrange([s => l for (s, l) in pairs(v.axis)]),), ())
 end
 Base.axes(v::FusedGradedVector) = Tuple(biaxes(v))
 

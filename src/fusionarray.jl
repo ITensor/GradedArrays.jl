@@ -39,15 +39,18 @@ end
 axes_codomain(fa::FusionArray) = fa.axes_codomain
 axes_domain(fa::FusionArray) = fa.axes_domain
 
-# Domain axes are stored codomain-facing (TensorKit's `domain` convention); `biaxes` dualizes the
+# Domain axes are stored codomain-facing (TensorKit's `domain` convention); `bispace` dualizes the
 # domain half, so a domain leg reads as a dual axis (matching TensorKit's `space(t, i)`) and the
 # codomain/domain split rides along. `axes` is the flat form; `codomain`/`domain` recover the halves.
-biaxes(fa::FusionArray) = BiTuple(axes_codomain(fa), map(conj, axes_domain(fa)))
+biaxes(fa::FusionArray) = bispace(axes_codomain(fa), axes_domain(fa))
 Base.axes(fa::FusionArray) = Tuple(biaxes(fa))
 Base.size(fa::FusionArray) = map(length, axes(fa))
 
-# Recover the split halves of a `biaxes` `BiTuple`: `codomain` is the first half as-is; `domain`
-# re-dualizes the second half (stored dualized as the external view) back to codomain-facing form.
+# Build a codomain/domain `BiTuple` from the two halves in codomain-facing (un-dualized) form,
+# dualizing the domain half for storage; `codomain`/`domain` recover them. Internal, analogous to
+# `TensorKit.HomSpace` (also accessed with `codomain`/`domain`), but over `gradedrange` axes or
+# sectors rather than vector spaces.
+bispace(codomain, domain) = BiTuple(codomain, map(conj, domain))
 codomain(bt::BiTuple) = bt.t1
 domain(bt::BiTuple) = map(conj, bt.t2)
 

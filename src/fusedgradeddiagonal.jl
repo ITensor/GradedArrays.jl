@@ -63,8 +63,7 @@ blocktype(d::FusedGradedDiagonal) = blocktype(typeof(d))
 function biaxes(d::FusedGradedDiagonal)
     ax = d.diag.axis
     cod = gradedrange(collect(pairs(ax)))
-    dom = gradedrange([dual(s) => l for (s, l) in pairs(ax)])
-    return BiTuple((cod,), (dom,))
+    return bispace((cod,), (cod,))
 end
 Base.axes(d::FusedGradedDiagonal) = Tuple(biaxes(d))
 Base.size(d::FusedGradedDiagonal) = map(length, axes(d))

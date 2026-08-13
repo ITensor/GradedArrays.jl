@@ -33,7 +33,7 @@ Base.@propagate_inbounds function Base.getindex(A::SectorOnesVector{T}, i::Int) 
 end
 
 # All codomain, no domain, so the `biaxes` domain half is empty.
-biaxes(A::SectorOnesVector) = BiTuple((A.sector,), ())
+biaxes(A::SectorOnesVector) = bispace((A.sector,), ())
 Base.axes(A::SectorOnesVector) = Tuple(biaxes(A))
 
 # Structural inner product: the all-ones vector contracts to its length, the quantum dimension.

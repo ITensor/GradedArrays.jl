@@ -294,8 +294,8 @@ sectordatalengths_domain(m::FusedGradedMatrix) = m.domain
 
 function biaxes(m::FusedGradedMatrix)
     cod = gradedrange(collect(pairs(m.codomain)))
-    dom = dual(gradedrange(collect(pairs(m.domain))))
-    return BiTuple((cod,), (dom,))
+    dom = gradedrange(collect(pairs(m.domain)))
+    return bispace((cod,), (dom,))
 end
 Base.axes(m::FusedGradedMatrix) = Tuple(biaxes(m))
 

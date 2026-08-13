@@ -64,7 +64,7 @@ end
 # The domain sectors are stored codomain-facing (un-dualed), matching how `FusionArray` stores its
 # `axes_domain`; `biaxes` dualizes the domain half, so a domain leg reads as a dual external axis and
 # the codomain/domain split rides along. `axes` is the flat form.
-biaxes(A::UniqueSectorDelta) = BiTuple(A.sectors_codomain, map(conj, A.sectors_domain))
+biaxes(A::UniqueSectorDelta) = bispace(A.sectors_codomain, A.sectors_domain)
 Base.axes(A::UniqueSectorDelta) = Tuple(biaxes(A))
 
 # Structural inner product: an abelian delta has a single allowed (unique-fusion) unit entry.
