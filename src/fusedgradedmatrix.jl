@@ -323,85 +323,6 @@ function eachblockstoredindex(m::FusedGradedMatrix)
     )
 end
 
-# ========================  mul!  ========================
-
-function TensorAlgebra.check_input(
-        ::typeof(*),
-        A::AbstractFusedGradedMatrix,
-        B::AbstractFusedGradedMatrix
-    )
-    axes(A, 2) == dual(axes(B, 1)) ||
-        throw(DimensionMismatch("sector mismatch in contracted dimension"))
-    return nothing
-end
-
-function TensorAlgebra.check_input(
-        ::typeof(mul!),
-        C::AbstractFusedGradedMatrix, A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix
-    )
-    check_input(*, A, B)
-    axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
-    axes(C, 2) == axes(B, 2) || throw(DimensionMismatch())
-    return nothing
-end
-
-function LinearAlgebra.mul!(
-        C::FusedGradedMatrix, A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix,
-        α::Number, β::Number
-    )
-    check_input(mul!, C, A, B)
-    for (s, c) in pairs(C.blocks)
-        if haskey(A.blocks, s) && haskey(B.blocks, s)
-            mul!(c, A.blocks[s], B.blocks[s], α, β)
-        else
-            iszero(β) ? fill!(c, β) : scale!(c, β)
-        end
-    end
-    return C
-end
-
-function allocate_output(
-        ::typeof(*),
-        A::AbstractFusedGradedMatrix,
-        B::AbstractFusedGradedMatrix
-    )
-    cod = A.codomain
-    dom = B.domain
-    Tout = Base.promote_op(*, eltype(A), eltype(B))
-    return FusedGradedMatrix{Tout}(undef, cod, dom)
-end
-
-function Base.:(*)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
-    check_input(*, A, B)
-    C = allocate_output(*, A, B)
-    return mul!(C, A, B)
-end
-
-# ========================  lmul! / rmul! (matrix-matrix)  ========================
-#
-# MatrixAlgebraKit's SVD-based `left_orth!` / `right_orth!` fold the singular values into the
-# orthogonal factor in place with `lmul!(S, C)` / `rmul!(C, S)`, where `S` is the (diagonal)
-# singular-value matrix. The scalar-argument `lmul!` / `rmul!` in `abstractgradedarray.jl` do not
-# cover this two-matrix form, so define it block-wise: each stored sector block delegates to the
-# `LinearAlgebra` method for that block pair, an in-place row / column scaling for the diagonal
-# `S` blocks the factorizations feed in. The `check_input(mul!, ...)` call validates the contracted
-# axes and that the product fits the mutated operand (the operand plays the role of the `mul!`
-# destination `C`: `B` for `lmul!`, `A` for `rmul!`), so the block sectors line up by construction.
-function LinearAlgebra.lmul!(A::AbstractFusedGradedMatrix, B::FusedGradedMatrix)
-    check_input(mul!, B, A, B)
-    for (s, b) in pairs(B.blocks)
-        LinearAlgebra.lmul!(A.blocks[s], b)
-    end
-    return B
-end
-function LinearAlgebra.rmul!(A::FusedGradedMatrix, B::AbstractFusedGradedMatrix)
-    check_input(mul!, A, A, B)
-    for (s, a) in pairs(A.blocks)
-        LinearAlgebra.rmul!(a, B.blocks[s])
-    end
-    return A
-end
-
 # ======================== LinearAlgebra ======================
 
 # `adjoint` is the lazy `AdjointFusedGradedArray` wrapper (defined with that type). `transpose` stays
@@ -422,14 +343,6 @@ LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.
 LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
 LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
 Base.iszero(A::FusedGradedMatrix) = all(iszero, values(A.blocks))
-
-# Compare coupled-sector blocks directly instead of falling back to element-wise iteration (which
-# would index forbidden blocks). Equal axes guarantee the same stored (allowed) sectors. Broad enough
-# to compare against a lazy adjoint or diagonal factor (whose blocks are lazy views).
-function Base.:(==)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
-    axes(A) == axes(B) || return false
-    return all(A.blocks[c] == B.blocks[c] for c in keys(A.blocks))
-end
 
 # ========================  similar  ========================
 
