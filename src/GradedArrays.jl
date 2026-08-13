@@ -8,7 +8,7 @@ export AbstractSectorDelta, UniqueSectorDelta, SectorIdentity
 export AbstractSectorArray,
     UniqueSectorArray, UniqueSectorVector, UniqueSectorMatrix,
     FusedSectorMatrix, FusedSectorVector
-export FusedGradedMatrix, FusedGradedVector
+export FusedGradedMatrix, FusedGradedVector, FusedGradedDiagonal
 export GradedBlockAlgorithm
 
 export codomain, domain,
@@ -60,6 +60,7 @@ include("abstractfusedarray.jl")
 
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
+include("fusedgradeddiagonal.jl")
 include("fusedgradedblocks.jl")
 
 include("sectorproduct.jl")

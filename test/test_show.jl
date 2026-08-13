@@ -109,7 +109,7 @@ end
 @testset "compact type summary in display header" begin
     m = FusedGradedMatrix([ones(2, 2), ones(3, 3)], [U1(0), U1(1)])
     @test occursin(
-        "FusedGradedMatrix{Float64, …, Matrix{Float64}}",
+        "FusedGradedMatrix{Float64, …, Vector{Float64}}",
         sprint(show, MIME("text/plain"), m)
     )
 end

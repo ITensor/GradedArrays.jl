@@ -106,58 +106,87 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    FusedGradedVector{T,S<:SectorRange,D<:AbstractVector{T}}
+    FusedGradedVector{T,S<:SectorRange,D<:AbstractVector{T},V<:DenseVector{T}}
 
 Block-structured 1-D graded array produced by a sector-preserving operation on
 a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`).
 
 Fields:
 
-  - `blocks::Dictionary{S,D}` — stored data blocks, keyed by sector. Keys match
-    `keys(axis)` exactly and `length(blocks[s]) == axis[s]`.
+  - `data::V` — one contiguous buffer holding every block, in sorted-sector order. The owner of the
+    storage.
+  - `blocks::Dictionary{S,D}` — per-sector `view`s into `data`, keyed by sector. Keys match
+    `keys(axis)` and `length(blocks[s]) == axis[s]`.
   - `axis::Dictionary{S,Int}` — axis layout, mapping each sector to its block
     size. Keys are sorted and unique. Stored non-dual (codomain convention).
 """
-struct FusedGradedVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
+struct FusedGradedVector{
+        T,
+        S <: SectorRange,
+        D <: AbstractVector{T},
+        V <: DenseVector{T},
+    } <:
     AbstractFusedVector{T, S}
+    data::V
     blocks::Dictionary{S, D}
     axis::Dictionary{S, Int}
 
-    # Undef constructor
-    function FusedGradedVector{T, S, D}(
-            ::UndefInitializer, axis::Dictionary{S, Int}
-        ) where {T, S <: SectorRange, D <: AbstractVector{T}}
+    # Primitive constructor: wrap a contiguous buffer, carving per-sector `view`s (shares, no copy).
+    function FusedGradedVector{T, S, D, V}(
+            data::V, axis::Dictionary{S, Int}
+        ) where {T, S <: SectorRange, D <: AbstractVector{T}, V <: DenseVector{T}}
         issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
         all(!isdual, keys(axis)) ||
             throw(ArgumentError("`FusedGradedVector` requires non-dual sectors"))
-
-        blocks = dictionary(s => similar(D, (Base.OneTo(axis[s]),)) for s in keys(axis))
-
-        return new{T, S, D}(blocks, axis)
-    end
-
-    # Data constructor
-    function FusedGradedVector{T, S, D}(
-            blocks::Dictionary{S, D}, axis::Dictionary{S, Int}
-        ) where {T, S <: SectorRange, D <: AbstractVector{T}}
-        issorted(keys(axis)) || throw(ArgumentError("axis sectors must be sorted"))
-        all(!isdual, keys(axis)) ||
-            throw(ArgumentError("`FusedGradedVector` requires non-dual sectors"))
-
-        issetequal(keys(axis), keys(blocks)) || throw(ArgumentError("invalid blocks"))
-        for (s, b) in pairs(blocks)
-            length(b) == axis[s] ||
-                throw(DimensionMismatch("invalid block for sector $s"))
-        end
-
-        return new{T, S, D}(blocks, axis)
+        blocks = carve_blocks(D, data, axis)
+        return new{T, S, D, V}(data, blocks, axis)
     end
 end
 
+# Carve a contiguous buffer into per-sector blocks as `view`s, in sorted-sector order.
+function carve_blocks(::Type{D}, data, axis::Dictionary{S, Int}) where {D, S}
+    total = sum(values(axis); init = 0)
+    length(data) == total ||
+        throw(
+        DimensionMismatch(
+            "buffer length $(length(data)) does not match block total $total"
+        )
+    )
+    blocks = Dictionary{S, D}()
+    offset = 0
+    for s in keys(axis)
+        len = axis[s]
+        insert!(blocks, s, view(data, (offset + 1):(offset + len)))
+        offset += len
+    end
+    return blocks
+end
+
+# The `view` block type of a 1-D buffer, derived from a zero-length view.
+blockviewtype1(data::AbstractVector) = typeof(view(data, 1:0))
+
+# Primitive constructor deriving the block-view type from the buffer.
 function FusedGradedVector(
-        blocks::Dictionary{S, D}, axis::Dictionary{S, Int}
-    ) where {S <: SectorRange, D <: AbstractVector}
-    return FusedGradedVector{eltype(D), S, D}(blocks, axis)
+        data::V, axis::Dictionary{S, Int}
+    ) where {T, S <: SectorRange, V <: DenseVector{T}}
+    return FusedGradedVector{T, S, blockviewtype1(data), V}(data, axis)
+end
+
+# Data constructor: allocate a fresh buffer and copy each given block into its view.
+function FusedGradedVector(
+        blocks::Dictionary{S, <:AbstractVector}, axis::Dictionary{S, Int}
+    ) where {S <: SectorRange}
+    issetequal(keys(axis), keys(blocks)) || throw(ArgumentError("invalid blocks"))
+    for (s, b) in pairs(blocks)
+        length(b) == axis[s] ||
+            throw(DimensionMismatch("invalid block for sector $s"))
+    end
+    T = eltype(eltype(blocks))
+    v = FusedGradedVector{T}(undef, axis)
+    for (s, b) in pairs(blocks)
+        copyto!(v.blocks[s], b)
+    end
+    return v
 end
 
 """
@@ -186,7 +215,8 @@ end
 function FusedGradedVector{T}(
         ::UndefInitializer, axis::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
-    return FusedGradedVector{T, S, Vector{T}}(undef, axis)
+    total = sum(values(axis); init = 0)
+    return FusedGradedVector(Vector{T}(undef, total), axis)
 end
 
 # Build from the axis graded range, the inverse of `axes(v)`. Used to allocate a broadcast result.
@@ -290,11 +320,11 @@ end
 # ========================  similar  ========================
 
 function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
-    new_blocks = map(b -> similar(b, T), v.blocks)
-    return FusedGradedVector(new_blocks, v.axis)
+    data = similar(v.data, T, length(v.data))
+    return FusedGradedVector(data, v.axis)
 end
 function Base.similar(v::FusedGradedVector, axis::Dictionary{S, Int}) where {S}
-    return typeof(v)(undef, axis)
+    return FusedGradedVector{eltype(v)}(undef, axis)
 end
 function Base.similar(
         v::FusedGradedVector,
@@ -304,7 +334,7 @@ function Base.similar(
     if T <: Number
         return FusedGradedVector{T}(undef, axis)
     elseif T <: AbstractVector
-        return FusedGradedVector{eltype(T), S, T}(undef, axis)
+        return FusedGradedVector{eltype(T)}(undef, axis)
     else
         throw(ArgumentError("invalid type $T"))
     end

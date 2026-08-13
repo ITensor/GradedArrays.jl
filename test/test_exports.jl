@@ -10,6 +10,7 @@ using Test: @test, @testset
         :UniqueSectorMatrix,
         :UniqueSectorVector,
         :Data,
+        :FusedGradedDiagonal,
         :FusedGradedMatrix,
         :FusedGradedOneTo,
         :FusedGradedVector,

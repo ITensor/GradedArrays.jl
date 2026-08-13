@@ -75,10 +75,10 @@ end
 #  block grid; unstored blocks become `Zeros`, which print as `⋅`.
 # ---------------------------------------------------------------------------
 
-# Compact type name for the summary line. The sector parameter is dotted (it is spelled out in
-# full in the `Dim` lines below, so repeating it in the header only adds noise); the element,
-# order, and storage parameters are kept. `make_typealias` recovers the `Vector`/`Matrix` alias
-# names and leaves the order `N` explicit for higher-rank arrays.
+# Compact type name for the summary line. The buffer-backed fused arrays carry `{T,S,D,V}` — element,
+# sector, block-view, and storage-buffer types. Only the element `T` and the storage buffer `V` are
+# informative in the header (the sector is spelled out in the `Dim` lines below, and the block-view `D`
+# is a derived reshape/view of the buffer), so keep those two and elide the middle to `…`.
 function summary_typename(type::Type{<:AbstractFusedArray})
     alias = Base.make_typealias(type)
     base, params = if isnothing(alias)
@@ -88,7 +88,11 @@ function summary_typename(type::Type{<:AbstractFusedArray})
         string(globalref.name), collect(alias_params)
     end
     isempty(params) && return base
-    strs = map(p -> (p isa Type && p <: SectorRange) ? "…" : string(p), params)
+    strs = if length(params) <= 2
+        map(string, params)
+    else
+        [string(first(params)), "…", string(last(params))]
+    end
     return string(base, "{", join(strs, ", "), "}")
 end
 

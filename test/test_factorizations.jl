@@ -1,6 +1,6 @@
 import MatrixAlgebraKit as MAK
-using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
-    GradedBlockAlgorithm, U1, Z2, dual, gradedrange
+using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
+    FusionArray, GradedBlockAlgorithm, U1, Z2, dual, gradedrange
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
@@ -69,7 +69,7 @@ end
         @testset "compact" begin
             U, S, Vᴴ = MAK.svd_compact(A_rect)
             @test U isa FusedGradedMatrix
-            @test S isa FusedGradedMatrix
+            @test S isa FusedGradedDiagonal
             @test Vᴴ isa FusedGradedMatrix
             @test all(x -> x isa Diagonal, values(S.blocks))
 
@@ -204,7 +204,7 @@ end
     @testset "Eig" begin
         @testset "full" begin
             D, V = MAK.eig_full(A_sq)
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             @test V isa FusedGradedMatrix
             @test all(x -> x isa Diagonal, values(D.blocks))
 
@@ -236,7 +236,7 @@ end
     @testset "Eigh" begin
         @testset "full" begin
             D, V = MAK.eigh_full(A_herm)
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             @test V isa FusedGradedMatrix
             @test all(x -> x isa Diagonal, values(D.blocks))
 
@@ -298,7 +298,7 @@ end
         @testset "notrunc" begin
             U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = notrunc())
             @test U isa FusedGradedMatrix
-            @test S isa FusedGradedMatrix
+            @test S isa FusedGradedDiagonal
             @test Vᴴ isa FusedGradedMatrix
             @test ε ≈ 0 atol = precision(eltype(A_rect))
             @test A_rect ≈ U * S * Vᴴ
@@ -384,7 +384,7 @@ end
 
         @testset "notrunc" begin
             D, V, ε = MAK.eigh_trunc(A_herm; trunc = notrunc())
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             @test V isa FusedGradedMatrix
             @test ε ≈ 0 atol = precision(eltype(A_herm))
             @test A_herm ≈ V * D * V'
@@ -395,7 +395,7 @@ end
         @testset "truncrank" begin
             maxrank = 5
             D, V, ε = MAK.eigh_trunc(A_herm; trunc = truncrank(maxrank))
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             @test sum(size(b, 2) for b in values(V.blocks)) <= maxrank
             @test isisometric(V)
         end
@@ -403,7 +403,7 @@ end
         @testset "trunctol (keep largest by abs)" begin
             atol = 0.3
             D, V, ε = MAK.eigh_trunc(A_herm; trunc = trunctol(; atol))
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             for b in values(D.blocks)
                 @test all(≥(atol) ∘ abs, MAK.diagview(b))
             end
@@ -430,8 +430,9 @@ end
     @testset "lmul! / rmul! (block-wise matrix-matrix)" begin
         rng = StableRNG(1234)
         dims = [3, 4, 2]
-        Sblocks = [Diagonal(randn(rng, n)) for n in dims]
-        S = FusedGradedMatrix(Sblocks, sectors_u1)
+        svals = [randn(rng, n) for n in dims]
+        Sblocks = [Diagonal(v) for v in svals]
+        S = FusedGradedDiagonal(FusedGradedVector(svals, sectors_u1))
 
         # `lmul!(S, C)`: `C <- S * C` block-wise, `S` square (diagonal, as singular values).
         Cblocks = [randn(rng, dims[i], d) for (i, d) in enumerate([2, 3, 5])]
@@ -480,7 +481,9 @@ end
 
         @testset "svd_compact / svd_full" begin
             U, S, Vᴴ = MAK.svd_compact(m_rect)
-            @test all(x -> x isa FusedGradedMatrix, (U, S, Vᴴ))
+            @test U isa FusedGradedMatrix
+            @test S isa FusedGradedDiagonal
+            @test Vᴴ isa FusedGradedMatrix
             @test axes(U, 1) == axes(m_rect, 1)
             @test axes(Vᴴ, 2) == axes(m_rect, 2)
             @test U * S * Vᴴ ≈ m_rect

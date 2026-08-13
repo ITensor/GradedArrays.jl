@@ -3,16 +3,18 @@
 # ===========================================================================
 
 """
-    FusedGradedMatrix{T,S<:SectorRange,D<:AbstractMatrix{T}}
+    FusedGradedMatrix{T,S<:SectorRange,D<:AbstractMatrix{T},V<:DenseVector{T}}
 
 Block-diagonal matrix produced by matricizing a `FusionArray`.
 Each stored block corresponds to a coupled sector that lives on both the codomain and the domain.
 
 Fields:
 
-  - `blocks::Dictionary{S,D}` — stored data blocks, keyed by sector. Each key
-    must be in both `codomain` and `domain`, and `size(blocks[s])` must equal
-    `(codomain[s], domain[s])`.
+  - `data::V` — one contiguous buffer holding every stored block, in TensorKit's `.data` layout:
+    sorted coupled-sector order, column-major within each block. This is the owner of the storage.
+  - `blocks::Dictionary{S,D}` — per-coupled-sector `reshape`d views into `data`, keyed by sector.
+    Mutating a block mutates the buffer. Each key is in both `codomain` and `domain`, and
+    `size(blocks[s])` equals `(codomain[s], domain[s])`.
   - `codomain::Dictionary{S,Int}` — codomain (row) axis, mapping each sector to
     its row-block size. Keys are sorted and unique. Sectors are stored
     non-dual (codomain convention).
@@ -20,54 +22,87 @@ Fields:
     its column-block size. Keys are sorted and unique. Stored non-dual; the
     actual axis is dual (the keys are dualed by `axes(m, 2)`).
 """
-struct FusedGradedMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
+struct FusedGradedMatrix{
+        T,
+        S <: SectorRange,
+        D <: AbstractMatrix{T},
+        V <: DenseVector{T},
+    } <:
     AbstractFusedMatrix{T, S}
+    data::V
     blocks::Dictionary{S, D}
     codomain::Dictionary{S, Int}
     domain::Dictionary{S, Int}
 
-    # Undef constructor
-    function FusedGradedMatrix{T, S, D}(
-            ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
-        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+    # Primitive constructor: wrap a contiguous buffer already in TensorKit `.data` layout. `blocks`
+    # are carved from `data` as reshaped views, so this shares (does not copy) the buffer.
+    function FusedGradedMatrix{T, S, D, V}(
+            data::V, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}, V <: DenseVector{T}}
         issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
         issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
         all(!isdual, keys(codomain)) ||
             throw(ArgumentError("`FusedGradedMatrix` requires non-dual codomain sectors"))
-
-        blocksectors = intersect(keys(codomain), keys(domain))
-        blocks = dictionary(
-            c => similar(D, (Base.OneTo(codomain[c]), Base.OneTo(domain[c]))) for
-                c in blocksectors
-        )
-
-        return new{T, S, D}(blocks, codomain, domain)
-    end
-
-    # Data constructor
-    function FusedGradedMatrix{T, S, D}(
-            blocks::Dictionary{S, D}, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
-        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
-        issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
-        issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
-        all(!isdual, keys(codomain)) ||
-            throw(ArgumentError("`FusedGradedMatrix` requires non-dual codomain sectors"))
-
-        blocksectors = intersect(keys(codomain), keys(domain))
-        issetequal(blocksectors, keys(blocks)) || throw(ArgumentError("invalid blocks"))
-        for (c, b) in pairs(blocks)
-            size(b) == (codomain[c], domain[c]) ||
-                throw(DimensionMismatch("invalid block for sector $c"))
-        end
-
-        return new{T, S, D}(blocks, codomain, domain)
+        blocks = carve_blocks(D, data, codomain, domain)
+        return new{T, S, D, V}(data, blocks, codomain, domain)
     end
 end
 
+# Carve a contiguous buffer into per-coupled-sector blocks as reshaped views, in sorted coupled-sector
+# order and column-major within each block (TensorKit's `.data` layout). The block type `D` is fixed by
+# the buffer type, so pass it explicitly to type the (possibly empty) block dictionary.
+function carve_blocks(
+        ::Type{D}, data, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+    ) where {D, S}
+    coupled = intersect(keys(codomain), keys(domain))
+    total = sum(c -> codomain[c] * domain[c], coupled; init = 0)
+    length(data) == total ||
+        throw(
+        DimensionMismatch(
+            "buffer length $(length(data)) does not match block total $total"
+        )
+    )
+    blocks = Dictionary{S, D}()
+    offset = 0
+    for c in coupled
+        len = codomain[c] * domain[c]
+        block = reshape(view(data, (offset + 1):(offset + len)), (codomain[c], domain[c]))
+        insert!(blocks, c, block)
+        offset += len
+    end
+    return blocks
+end
+
+# The reshaped-view block type is fixed by the buffer type `V`; derive it from a zero-length view so
+# callers never spell it out.
+blockviewtype(data::AbstractVector) = typeof(reshape(view(data, 1:0), (0, 0)))
+
+# Primitive constructor deriving the block-view type from the buffer.
 function FusedGradedMatrix(
-        blocks::Dictionary{S, D}, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
-    ) where {S <: SectorRange, D <: AbstractMatrix}
-    return FusedGradedMatrix{eltype(D), S, D}(blocks, codomain, domain)
+        data::V, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+    ) where {T, S <: SectorRange, V <: DenseVector{T}}
+    return FusedGradedMatrix{T, S, blockviewtype(data), V}(data, codomain, domain)
+end
+
+# Data constructor: allocate a fresh buffer and copy each given block into its view. Used by `copy`,
+# `adjoint`, the matrix-function loop, and the vector-of-blocks form below, none of which need to
+# share the passed blocks.
+function FusedGradedMatrix(
+        blocks::Dictionary{S, <:AbstractMatrix},
+        codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+    ) where {S <: SectorRange}
+    blocksectors = intersect(keys(codomain), keys(domain))
+    issetequal(blocksectors, keys(blocks)) || throw(ArgumentError("invalid blocks"))
+    for (c, b) in pairs(blocks)
+        size(b) == (codomain[c], domain[c]) ||
+            throw(DimensionMismatch("invalid block for sector $c"))
+    end
+    T = eltype(eltype(blocks))
+    m = FusedGradedMatrix{T}(undef, codomain, domain)
+    for (c, b) in pairs(blocks)
+        copyto!(m.blocks[c], b)
+    end
+    return m
 end
 
 # Block-diagonal by construction (one block per sector), so just check each block.
@@ -167,7 +202,9 @@ end
 function FusedGradedMatrix{T}(
         ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
     ) where {T, S <: SectorRange}
-    return FusedGradedMatrix{T, S, Matrix{T}}(undef, codomain, domain)
+    coupled = intersect(keys(codomain), keys(domain))
+    total = sum(c -> codomain[c] * domain[c], coupled; init = 0)
+    return FusedGradedMatrix(Vector{T}(undef, total), codomain, domain)
 end
 
 # Build from the codomain and domain graded ranges, both in the stored (non-dual codomain)
@@ -288,7 +325,11 @@ end
 
 # ========================  mul!  ========================
 
-function TensorAlgebra.check_input(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
+function TensorAlgebra.check_input(
+        ::typeof(*),
+        A::AbstractFusedMatrix,
+        B::AbstractFusedMatrix
+    )
     axes(A, 2) == dual(axes(B, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
     return nothing
@@ -296,7 +337,7 @@ end
 
 function TensorAlgebra.check_input(
         ::typeof(mul!),
-        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix
+        C::AbstractFusedMatrix, A::AbstractFusedMatrix, B::AbstractFusedMatrix
     )
     check_input(*, A, B)
     axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
@@ -305,7 +346,7 @@ function TensorAlgebra.check_input(
 end
 
 function LinearAlgebra.mul!(
-        C::FusedGradedMatrix, A::FusedGradedMatrix, B::FusedGradedMatrix,
+        C::FusedGradedMatrix, A::AbstractFusedMatrix, B::AbstractFusedMatrix,
         α::Number, β::Number
     )
     check_input(mul!, C, A, B)
@@ -319,19 +360,14 @@ function LinearAlgebra.mul!(
     return C
 end
 
-function allocate_output(::typeof(*), A::FusedGradedMatrix, B::FusedGradedMatrix)
+function allocate_output(::typeof(*), A::AbstractFusedMatrix, B::AbstractFusedMatrix)
     cod = A.codomain
     dom = B.domain
-    S = sectortype(typeof(A))
-    DA = datatype(A)
-    DB = datatype(B)
-    Dout = Base.promote_op(*, DA, DB)
-    Dout′ = isconcretetype(Dout) ? Dout : Matrix{eltype(Dout)}
-
-    return FusedGradedMatrix{eltype(Dout′), S, Dout′}(undef, cod, dom)
+    Tout = Base.promote_op(*, eltype(A), eltype(B))
+    return FusedGradedMatrix{Tout}(undef, cod, dom)
 end
 
-function Base.:(*)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+function Base.:(*)(A::AbstractFusedMatrix, B::AbstractFusedMatrix)
     check_input(*, A, B)
     C = allocate_output(*, A, B)
     return mul!(C, A, B)
@@ -347,14 +383,14 @@ end
 # `S` blocks the factorizations feed in. The `check_input(mul!, ...)` call validates the contracted
 # axes and that the product fits the mutated operand (the operand plays the role of the `mul!`
 # destination `C`: `B` for `lmul!`, `A` for `rmul!`), so the block sectors line up by construction.
-function LinearAlgebra.lmul!(A::FusedGradedMatrix, B::FusedGradedMatrix)
+function LinearAlgebra.lmul!(A::AbstractFusedMatrix, B::FusedGradedMatrix)
     check_input(mul!, B, A, B)
     for (s, b) in pairs(B.blocks)
         LinearAlgebra.lmul!(A.blocks[s], b)
     end
     return B
 end
-function LinearAlgebra.rmul!(A::FusedGradedMatrix, B::FusedGradedMatrix)
+function LinearAlgebra.rmul!(A::FusedGradedMatrix, B::AbstractFusedMatrix)
     check_input(mul!, A, A, B)
     for (s, a) in pairs(A.blocks)
         LinearAlgebra.rmul!(a, B.blocks[s])
@@ -396,15 +432,15 @@ end
 # ========================  similar  ========================
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
-    new_blocks = map(b -> similar(b, T), m.blocks)
-    return FusedGradedMatrix(new_blocks, m.codomain, m.domain)
+    data = similar(m.data, T, length(m.data))
+    return FusedGradedMatrix(data, m.codomain, m.domain)
 end
 function Base.similar(
         m::FusedGradedMatrix,
         codomain::Dictionary{S, Int},
         domain::Dictionary{S, Int}
     ) where {S}
-    return typeof(m)(undef, codomain, domain)
+    return FusedGradedMatrix{eltype(m)}(undef, codomain, domain)
 end
 function Base.similar(
         m::FusedGradedMatrix,
@@ -415,7 +451,7 @@ function Base.similar(
     if T <: Number
         return FusedGradedMatrix{T}(undef, codomain, domain)
     elseif T <: AbstractMatrix
-        return FusedGradedMatrix{eltype(T), S, T}(undef, codomain, domain)
+        return FusedGradedMatrix{eltype(T)}(undef, codomain, domain)
     else
         throw(ArgumentError("invalid type $T"))
     end
@@ -425,7 +461,7 @@ function Base.similar(
         ::Type{T},
         axis::Dictionary{S, Int}
     ) where {T <: AbstractVector, S}
-    return FusedGradedVector{eltype(T), S, T}(undef, axis)
+    return FusedGradedVector{eltype(T)}(undef, axis)
 end
 
 # ========================  show  ========================

@@ -50,14 +50,20 @@ end
 TK.space(fm::FusionMap) = fm.space
 TensorAlgebra.matricize(fm::FusionMap) = fm.matricized
 
+# A diagonal-backed `FusionArray` (an SVD/eig factor) densifies to a `FusedGradedMatrix` at this seam:
+# `FusionMap`'s `subblock` reads strided dense blocks out of the buffer, which a diagonal-only buffer
+# cannot supply. The diagonal storage is preserved until a contraction actually forces this.
+function FusionMap(d::FusedGradedDiagonal, space::TK.TensorMapSpace)
+    return FusionMap(FusedGradedMatrix(d), space)
+end
+
 # The stored block for a coupled sector is exactly TensorKit's reduced block (same shape and
 # basis), so hand it over directly, zero-copy.
 TK.block(fm::FusionMap, c::TKS.Sector) = fm.matricized.blocks[SectorRange(c)]
 
-# A fusion tree pair occupies a strided sub-region of its coupled block. TensorKit's
-# `subblockstructure` gives the `(size, strides, offset)` into the whole flat data vector; the
-# block is contiguous, so its own base offset (from `blockstructure`) turns that into a
-# block-relative offset. The block is column-major, so the strides carry over unchanged.
+# A fusion tree pair occupies a strided sub-region of the flat data. TensorKit's `subblockstructure`
+# gives the `(size, strides, offset)` into the whole data vector, which is exactly `matricized.data`
+# (the contiguous buffer is laid out in TensorKit's `.data` order), so index it directly.
 function TK.subblock(
         fm::FusionMap{T, S, N₁, N₂}, (
             f₁,
@@ -68,19 +74,7 @@ function TK.subblock(
     @boundscheck found ||
         throw(TK.SectorMismatch("fusion tree pair $((f₁, f₂)) is not present"))
     sz, str, offset = gettokenvalue(fm.subblockstructure, token)
-    block = TK.block(fm, f₁.coupled)
-    _, range = fm.blockstructure[f₁.coupled]
-    block_offset = offset - (first(range) - 1)
-    # A non-dense block (e.g. a `Diagonal` factorization factor) has no strided sub-region: only the
-    # whole block is representable, which is the single fusion tree of a `1←1` sector. Hand it back
-    # as-is; a proper sub-region would require densifying, so error rather than copy silently. This
-    # mirrors TensorKit's `DiagonalTensorMap`, whose `subblock` only covers the diagonal tree.
-    if !(block isa DenseArray)
-        (block_offset == 0 && size(block) == sz) ||
-            error("cannot take a strided sub-region of a non-dense $(typeof(block)) block")
-        return block
-    end
-    return StridedView(vec(block), sz, str, block_offset)
+    return StridedView(fm.matricized.data, sz, str, offset)
 end
 
 # Allocate a fresh `FusionMap` (backed by its own `FusedGradedMatrix`) for the requested space,

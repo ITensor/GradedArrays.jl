@@ -96,8 +96,12 @@ function _blockdataaxes(a::FusedGradedMatrix, c)
     return (Base.OneTo(get(a.codomain, c, 0)), Base.OneTo(get(a.domain, c, 0)))
 end
 _blockdataaxes(a::FusedGradedVector, c) = (Base.OneTo(get(a.axis, c, 0)),)
+function _blockdataaxes(a::FusedGradedDiagonal, c)
+    n = Base.OneTo(get(a.diag.axis, c, 0))
+    return (n, n)
+end
 
-function foreachblock(f, A::FusedGradedVecOrMat, As::FusedGradedVecOrMat...)
+function foreachblock(f, A::AbstractFusedArray, As::AbstractFusedArray...)
     cs = union(map(keys ∘ Base.Fix2(getproperty, :blocks), (A, As...))...)
 
     for c in cs
@@ -188,12 +192,10 @@ MAK.one!(A::AbstractSectorDelta) = _matrix_op_error(MAK.one!, A)
 # since these might be present or missing
 # =====================================================================
 
-# helper
-function similar_diagonal(A::FusedGradedMatrix, ::Type{T}, V) where {T}
-    blocks = map(V) do d
-        return Diagonal(similar(Vector{T}, d))
-    end
-    return FusedGradedMatrix(blocks, V, V)
+# helper: a fresh diagonal factor (SVD singular values, eigenvalues) over the given per-sector
+# reduced/bond dimensions. `Diagonal` blocks, backed by a contiguous buffer.
+function similar_diagonal(A::FusedGradedMatrix, ::Type{T}, bond_dims::Dictionary) where {T}
+    return FusedGradedDiagonal{T}(undef, bond_dims)
 end
 
 # Singular value decomposition
@@ -397,15 +399,16 @@ function MAK.diagview(m::FusedGradedMatrix)
     return FusedGradedVector(diag_blocks, diag_axis)
 end
 
-# Inverse of `diagview`: wrap a FusedGradedVector as a block-diagonal FusedGradedMatrix
-# whose inner blocks are `Diagonal`. Keeps the structured form through
+# A `FusedGradedDiagonal` stores its diagonal as a `FusedGradedVector`, so `diagview` returns it
+# directly, sharing storage (writing the diagonal writes through to the factor).
+MAK.diagview(d::FusedGradedDiagonal) = d.diag
+
+# Inverse of `diagview`: wrap a `FusedGradedVector` as a block-diagonal `FusedGradedDiagonal`,
+# sharing storage. Keeps the structured form through
 # `pow_diag_safe(D) = MAK.diagonal(map(f, MAK.diagview(D)))`, so the next
 # `V * MAK.diagonal(...)` stays in the block-diagonal multiplication path instead of
 # falling through to LinearAlgebra's scalar-indexing `Diagonal*Matrix` impl.
-function MAK.diagonal(v::FusedGradedVector)
-    diag_blocks = map(Diagonal, v.blocks)
-    return FusedGradedMatrix(diag_blocks, v.axis, v.axis)
-end
+MAK.diagonal(v::FusedGradedVector) = FusedGradedDiagonal(v)
 
 # `pow_diag_safe!` for a block-diagonal graded matrix: clamp-power each reduced diagonal
 # block. Only the reduced (degeneracy) data is touched, and that is correct even in the
@@ -414,7 +417,7 @@ end
 # diagonal power is well defined here whereas a general element-wise `map!` on a graded
 # array is not.
 function TensorAlgebra.MatrixAlgebra.pow_diag_safe!(
-        Dp::FusedGradedMatrix, D::FusedGradedMatrix, p, tol
+        Dp::FusedGradedDiagonal, D::FusedGradedDiagonal, p, tol
     )
     foreachblock(MAK.diagview(Dp), MAK.diagview(D)) do _, (σp, σ)
         return map!(d -> _clamped_pow(d, p, tol), σp, σ)
@@ -555,7 +558,7 @@ end
 # `TensorMap` factorizations.
 function MAK.truncate(
         ::typeof(MAK.svd_trunc!),
-        (U, S, Vᴴ)::NTuple{3, FusedGradedMatrix},
+        (U, S, Vᴴ)::Tuple{FusedGradedMatrix, FusedGradedDiagonal, FusedGradedMatrix},
         strategy::MAK.TruncationStrategy
     )
     sv = MAK.diagview(S)
@@ -567,10 +570,8 @@ function MAK.truncate(
     # column count rather than `isempty(inds[i])`.
     U_blocks_all =
         [U.blocks[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
-    S_blocks_all = [
-        Diagonal(MAK.diagview(S.blocks[sectors_all[i]])[inds[i]])
-            for i in eachindex(inds)
-    ]
+    sv_blocks_all =
+        [sv.blocks[sectors_all[i]][inds[i]] for i in eachindex(inds)]
     Vᴴ_blocks_all =
         [Vᴴ.blocks[sectors_all[i]][inds[i], :] for i in eachindex(inds)]
 
@@ -578,28 +579,19 @@ function MAK.truncate(
     sectors_kept = sectors_all[keep]
     bond_dims = [size(U_blocks_all[i], 2) for i in keep]
 
-    # U: rows = input codomain (full), cols = bond (shrunk).
+    # U: rows = input codomain (full), cols = bond (shrunk). The sliced blocks are freshly allocated
+    # matrices, not buffer views, so let the block dictionary infer their type.
     U_cod = U.codomain
     U_dom = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
-    U_blks = Dictionary{eltype(sectors_kept), eltype(typeof(U.blocks))}(
-        sectors_kept, U_blocks_all[keep]
-    )
-    Ũ = FusedGradedMatrix(U_blks, U_cod, U_dom)
+    Ũ = FusedGradedMatrix(Dictionary(sectors_kept, U_blocks_all[keep]), U_cod, U_dom)
 
-    # S: both sides are the bond (shrunk).
-    S_side = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
-    S_blks = Dictionary{eltype(sectors_kept), eltype(typeof(S.blocks))}(
-        sectors_kept, S_blocks_all[keep]
-    )
-    S̃ = FusedGradedMatrix(S_blks, S_side, S_side)
+    # S: the diagonal factor over the shrunk bond.
+    S̃ = MAK.diagonal(FusedGradedVector(sv_blocks_all[keep], sectors_kept))
 
     # Vᴴ: rows = bond (shrunk), cols = input domain (full).
     Vᴴ_cod = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
     Vᴴ_dom = Vᴴ.domain
-    Vᴴ_blks = Dictionary{eltype(sectors_kept), eltype(typeof(Vᴴ.blocks))}(
-        sectors_kept, Vᴴ_blocks_all[keep]
-    )
-    Ṽᴴ = FusedGradedMatrix(Vᴴ_blks, Vᴴ_cod, Vᴴ_dom)
+    Ṽᴴ = FusedGradedMatrix(Dictionary(sectors_kept, Vᴴ_blocks_all[keep]), Vᴴ_cod, Vᴴ_dom)
 
     return (Ũ, S̃, Ṽᴴ), inds
 end
@@ -607,17 +599,21 @@ end
 for f! in (:eigh_trunc!, :eig_trunc!)
     @eval function MAK.truncate(
             ::typeof(MAK.$f!),
-            (D, V)::NTuple{2, FusedGradedMatrix},
+            (D, V)::Tuple{FusedGradedDiagonal, FusedGradedMatrix},
             strategy::MAK.TruncationStrategy
         )
         ev = MAK.diagview(D)
         inds = MAK.findtruncated(ev, strategy)
-        sectors = collect(keys(D.blocks))
-        D_blocks =
-            [Diagonal(MAK.diagview(D.blocks[s])[inds[i]]) for (i, s) in enumerate(sectors)]
-        V_blocks = [V.blocks[s][:, inds[i]] for (i, s) in enumerate(sectors)]
-        D̃ = FusedGradedMatrix(D_blocks, sectors)
-        Ṽ = FusedGradedMatrix(V_blocks, sectors)
+        sectors_all = collect(keys(D.blocks))
+
+        ev_blocks_all = [ev.blocks[sectors_all[i]][inds[i]] for i in eachindex(inds)]
+        V_blocks_all = [V.blocks[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
+
+        keep = [i for i in eachindex(inds) if length(ev_blocks_all[i]) > 0]
+        sectors_kept = sectors_all[keep]
+
+        D̃ = MAK.diagonal(FusedGradedVector(ev_blocks_all[keep], sectors_kept))
+        Ṽ = FusedGradedMatrix(V_blocks_all[keep], sectors_kept)
         return (D̃, Ṽ), inds
     end
 end

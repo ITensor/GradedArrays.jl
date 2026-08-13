@@ -17,14 +17,14 @@ the `matricized` backing is always over the fused-sorted coupled space, and the 
 permutation relates the two.
 """
 struct FusionArray{
-        T, S, N, NC, ND, M <: FusedGradedMatrix{T, S},
+        T, S, N, NC, ND, M <: AbstractFusedMatrix{T, S},
     } <: AbstractArray{T, N}
     matricized::M
     axes_codomain::NTuple{NC, GradedOneTo{S}}
     axes_domain::NTuple{ND, GradedOneTo{S}}
 
     function FusionArray(
-            matricized::FusedGradedMatrix{T, S},
+            matricized::AbstractFusedMatrix{T, S},
             axes_codomain::NTuple{NC, GradedOneTo{S}},
             axes_domain::NTuple{ND, GradedOneTo{S}}
         ) where {T, S, NC, ND}
@@ -588,6 +588,15 @@ function TensorAlgebra.unmatricize(
         axes_domain::Tuple
     )
     return FusionArray(m, axes_codomain, axes_domain)
+end
+
+# A diagonal factor (SVD singular values, eigenvalues) unmatricizes to a `FusionArray` wrapping the
+# `FusedGradedDiagonal` directly, keeping the diagonal storage rather than densifying it.
+function TensorAlgebra.unmatricize(
+        ::FusionArrayMatricizeStyle, d::FusedGradedDiagonal, axes_codomain::Tuple,
+        axes_domain::Tuple
+    )
+    return FusionArray(d, axes_codomain, axes_domain)
 end
 
 # ============================  contraction (SectorMatricize path)  ============================
