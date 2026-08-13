@@ -140,28 +140,14 @@ function Base.getindex(
     return mortar_axis(collect(dest))
 end
 
-# Equality and hashing. Empty graded ranges have no sectors and the `isdual`
-# flag has no observable effect, so any two empty graded ranges of the same
-# sector type compare equal.
-function Base.isequal(a::GradedOneTo, b::GradedOneTo)
-    isempty(a.sectors) && isempty(b.sectors) && return true
-    return isequal(a.sectors, b.sectors) &&
-        isequal(datalengths(a), datalengths(b)) &&
-        isequal(isdual(a), isdual(b))
-end
-Base.:(==)(a::GradedOneTo, b::GradedOneTo) = isequal(a, b)
-
 # Combining graded axes in a broadcast: graded arrays never mix mismatched blocking or
 # sectors, so the only valid combination is of equal axes, and the result is that axis.
 # This preserves the `GradedOneTo` type, which the generic `BlockArrays.combine_blockaxes`
-# would degrade to a plain blocked range (dropping the sectors and duality).
+# would degrade to a plain blocked range (dropping the sectors and duality). Equality and
+# hashing are shared via `AbstractGradedOneTo`.
 function BlockArrays.combine_blockaxes(a::GradedOneTo, b::GradedOneTo)
     a == b || throw(DimensionMismatch("cannot combine unequal graded axes: $a and $b"))
     return a
-end
-function Base.hash(g::GradedOneTo, h::UInt)
-    isempty(g.sectors) && return hash(GradedOneTo, h)
-    return hash(g.sectors, hash(datalengths(g), hash(isdual(g), h)))
 end
 
 # Show. Factor the `dual` to the outside — `dual(gradedrange([...]))` — rather

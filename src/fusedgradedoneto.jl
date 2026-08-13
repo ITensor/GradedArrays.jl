@@ -1,17 +1,13 @@
 """
     FusedGradedOneTo{S<:SectorRange}
 
-A graded axis whose sectors are **fused and sorted**: each sector appears once and the
-sectors are in sorted order, the canonical form matching the requirement TensorKit places on
-a `GradedSpace` and the coupled-sector axes of a [`FusedGradedMatrix`](@ref).
+A graded axis whose sectors are fused and sorted: each sector appears once and the
+sectors are in sorted order. This is the canonical form of the coupled-sector axes of a
+[`FusedGradedMatrix`](@ref), and it also matches the sorted-and-merged convention TensorKit
+uses for a `GradedSpace`.
 
 Stores a `Dictionary` mapping each (non-dual) `SectorRange` to its data length
-(multiplicity), plus a single `isdual` flag — the single-axis analog of a
-[`FusedGradedMatrix`](@ref)'s `codomain`/`domain` dictionaries. The dictionary keys are
-sorted and unique (the merged invariant is intrinsic to the dictionary; the sorted invariant
-is checked at construction). Unlike a [`GradedOneTo`](@ref), which may hold repeated or
-unsorted sectors (the intermediate state of a not-yet-merged fusion), a `FusedGradedOneTo`
-is always in canonical fused form.
+(multiplicity), plus a single `isdual` flag.
 """
 struct FusedGradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
     sector_datalengths::Dictionary{S, Int}
@@ -19,6 +15,11 @@ struct FusedGradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
     function FusedGradedOneTo(
             sector_datalengths::Dictionary{S, Int}, isdual::Bool
         ) where {S <: SectorRange}
+        all(s -> !TensorAlgebra.isdual(s), keys(sector_datalengths)) || throw(
+            ArgumentError(
+                "FusedGradedOneTo stores non-dual sectors; pass the arrow via `isdual`"
+            )
+        )
         issorted(keys(sector_datalengths)) || throw(
             ArgumentError(
                 "FusedGradedOneTo sectors must be sorted: $(keys(sector_datalengths))"
@@ -33,8 +34,8 @@ function FusedGradedOneTo(sector_datalengths::Dictionary{S, Int}) where {S <: Se
     return FusedGradedOneTo(sector_datalengths, false)
 end
 
-# Vector convenience: keys must already be unique (the `Dictionary` constructor enforces it)
-# and sorted (checked above).
+# Vector convenience; the `Dictionary` requires unique (merged) sectors, and the inner
+# constructor checks sorted and non-dual.
 function FusedGradedOneTo(
         sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
     ) where {S <: SectorRange}
@@ -69,22 +70,6 @@ function flip(g::FusedGradedOneTo)
     new_nondual = [SectorRange(dual(label(s))) for s in sectors(g)]
     perm = sortperm(new_nondual)
     return FusedGradedOneTo(new_nondual[perm], datalengths(g)[perm], !isdual(g))
-end
-
-# ========================  equality, hashing  ========================
-
-# Empty graded ranges have no sectors and the `isdual` flag has no observable effect, so any
-# two empty ranges of the same sector type compare equal.
-function Base.isequal(a::FusedGradedOneTo, b::FusedGradedOneTo)
-    isempty(a.sector_datalengths) && isempty(b.sector_datalengths) && return true
-    return isequal(sectors(a), sectors(b)) &&
-        isequal(datalengths(a), datalengths(b)) &&
-        isequal(isdual(a), isdual(b))
-end
-Base.:(==)(a::FusedGradedOneTo, b::FusedGradedOneTo) = isequal(a, b)
-function Base.hash(g::FusedGradedOneTo, h::UInt)
-    isempty(g.sector_datalengths) && return hash(FusedGradedOneTo, h)
-    return hash(sectors(g), hash(datalengths(g), hash(isdual(g), h)))
 end
 
 # ========================  show  ========================
@@ -139,14 +124,9 @@ function fusedgradedrange(xs::AbstractVector{<:Pair{S, <:Integer}}) where {S <: 
     return FusedGradedOneTo(sl, d)
 end
 
-# Convert a (possibly unmerged/unsorted) `GradedOneTo` into a `FusedGradedOneTo`. Repeated or
-# unsorted sectors are merged and sorted; the arrow is preserved.
-function fusedgradedrange(g::GradedOneTo)
-    prs = [(isdual(g) ? dual(s) : s) => m for (s, m) in zip(sectors(g), datalengths(g))]
-    return fusedgradedrange(prs)
-end
+# ========================  conversions between graded-axis types  ========================
 
-# Idempotent: already in canonical fused form.
-fusedgradedrange(g::FusedGradedOneTo) = g
+# Convert a `GradedOneTo` already in fused form; use `fusedgradedrange` to merge and sort.
+FusedGradedOneTo(g::GradedOneTo) = FusedGradedOneTo(sectors(g), datalengths(g), isdual(g))
 
-to_gradedrange(g::FusedGradedOneTo) = GradedOneTo(sectors(g), datalengths(g), isdual(g))
+GradedOneTo(g::FusedGradedOneTo) = GradedOneTo(sectors(g), datalengths(g), isdual(g))

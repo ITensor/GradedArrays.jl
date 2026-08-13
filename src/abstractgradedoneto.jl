@@ -57,3 +57,20 @@ flip_dual(g::AbstractGradedOneTo) = isdual(g) ? flip(g) : g
 
 # Bounds checking (needed for AbstractArray scalar indexing).
 Base.checkindex(::Type{Bool}, g::AbstractGradedOneTo, i::Int) = 1 <= i <= length(g)
+
+# ========================  equality, hashing  ========================
+# Compared by content (sectors, data lengths, arrow), so equal-content axes compare equal
+# across the concrete subtypes. `sectors` holds the non-dual sectors, so `isdual` carries the
+# arrow and is compared and hashed alongside them.
+function Base.isequal(a::AbstractGradedOneTo, b::AbstractGradedOneTo)
+    return isequal(sectors(a), sectors(b)) &&
+        isequal(datalengths(a), datalengths(b)) &&
+        isequal(isdual(a), isdual(b))
+end
+Base.:(==)(a::AbstractGradedOneTo, b::AbstractGradedOneTo) = isequal(a, b)
+function Base.hash(g::AbstractGradedOneTo, h::UInt)
+    return hash(
+        :AbstractGradedOneTo,
+        hash(sectors(g), hash(datalengths(g), hash(isdual(g), h)))
+    )
+end

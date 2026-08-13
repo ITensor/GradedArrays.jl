@@ -100,23 +100,27 @@ using Test: @test, @test_throws, @testset
         @test g == fusedgradedrange([U1(1) => 3, U1(0) => 2])   # order-independent input
         @test hash(g) == hash(fusedgradedrange([U1(0) => 2, U1(1) => 3]))
         @test g != dual(g)
-        # Empty axes of the same sector type compare equal regardless of arrow.
-        @test fusedgradedrange(U1[] .=> Int[]) == dual(fusedgradedrange(U1[] .=> Int[]))
+        # An empty axis still carries an arrow, so a dual and non-dual empty axis differ.
+        @test fusedgradedrange(U1[] .=> Int[]) != dual(fusedgradedrange(U1[] .=> Int[]))
     end
 
     @testset "conversion to/from GradedOneTo" begin
-        g = gradedrange([U1(1) => 3, U1(0) => 2, U1(1) => 1])   # unsorted + repeated
-        fg = fusedgradedrange(g)
+        g = gradedrange([U1(0) => 2, U1(1) => 3])   # already in fused form
+        fg = FusedGradedOneTo(g)
         @test fg isa FusedGradedOneTo{U1}
         @test sectors(fg) == [U1(0), U1(1)]
-        @test datalengths(fg) == [2, 4]
-        @test fusedgradedrange(fg) === fg                        # idempotent
+        @test datalengths(fg) == [2, 3]
 
-        back = GradedArrays.to_gradedrange(fg)
+        back = GradedOneTo(fg)
         @test back isa GradedOneTo{U1}
         @test sectors(back) == sectors(fg)
         @test datalengths(back) == datalengths(fg)
         @test isdual(back) == isdual(fg)
+
+        # The conversion checks rather than normalizes: a GradedOneTo that is not already in
+        # fused form is rejected. Use `fusedgradedrange` to merge and sort arbitrary pairs.
+        @test_throws ArgumentError FusedGradedOneTo(gradedrange([U1(1) => 3, U1(0) => 2]))  # unsorted
+        @test_throws Exception FusedGradedOneTo(gradedrange([U1(0) => 2, U1(0) => 1]))      # repeated
     end
 
     @testset "eachblockaxis / eachsectoraxis apply the arrow" begin
