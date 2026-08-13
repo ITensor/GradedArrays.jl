@@ -29,7 +29,7 @@ struct FusedGradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
     end
 end
 
-# Default to a non-dual axis.
+# Arrow defaults to non-dual (sectors assumed non-dual, checked by the inner constructor).
 function FusedGradedOneTo(sector_datalengths::Dictionary{S, Int}) where {S <: SectorRange}
     return FusedGradedOneTo(sector_datalengths, false)
 end
@@ -43,6 +43,7 @@ function FusedGradedOneTo(
         throw(ArgumentError("sectors and datalengths must have the same length"))
     return FusedGradedOneTo(Dictionary{S, Int}(sectors, datalengths), isdual)
 end
+# Arrow defaults to non-dual (sectors assumed non-dual, checked by the inner constructor).
 function FusedGradedOneTo(
         sectors::Vector{S},
         datalengths::Vector{Int}
@@ -104,29 +105,17 @@ end
 """
     fusedgradedrange(xs::AbstractVector{<:Pair{<:SectorRange, <:Integer}})
 
-Construct a [`FusedGradedOneTo`](@ref) from `sector => multiplicity` pairs, merging repeated
-sectors and sorting into the canonical fused order. All `SectorRange` keys must share the
-same `isdual` flag.
+Construct a non-dual [`FusedGradedOneTo`](@ref) from `sector => multiplicity` pairs. The sectors
+must be non-dual and already in canonical fused form (each once, in sorted order); non-canonical
+or dual input is rejected by the constructor. Wrap the result in `dual` for a dual axis.
 """
 function fusedgradedrange(xs::AbstractVector{<:Pair{S, <:Integer}}) where {S <: SectorRange}
-    isempty(xs) && return FusedGradedOneTo(Dictionary{S, Int}(), false)
-    d = isdual(first(first(xs)))
-    all(p -> isdual(first(p)) == d, xs) ||
-        throw(ArgumentError("All SectorRange inputs must have the same isdual flag"))
-    # Store non-dual sectors; merge multiplicities of repeated sectors, then sort.
-    merged = Dict{S, Int}()
-    for p in xs
-        s = d ? dual(first(p)) : first(p)
-        merged[s] = get(merged, s, 0) + last(p)
-    end
-    ss = sort!(collect(keys(merged)))
-    sl = Dictionary{S, Int}(ss, [merged[s] for s in ss])
-    return FusedGradedOneTo(sl, d)
+    return FusedGradedOneTo(S[first(p) for p in xs], Int[last(p) for p in xs], false)
 end
 
 # ========================  conversions between graded-axis types  ========================
 
-# Convert a `GradedOneTo` already in fused form; use `fusedgradedrange` to merge and sort.
+# Convert a `GradedOneTo` that is already in canonical fused form (checked by the constructor).
 FusedGradedOneTo(g::GradedOneTo) = FusedGradedOneTo(sectors(g), datalengths(g), isdual(g))
 
 GradedOneTo(g::FusedGradedOneTo) = GradedOneTo(sectors(g), datalengths(g), isdual(g))

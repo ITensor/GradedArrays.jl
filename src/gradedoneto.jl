@@ -18,9 +18,16 @@ struct GradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
         ) where {S <: SectorRange}
         length(sectors) == length(datalengths) ||
             throw(ArgumentError("sectors and datalengths must have the same length"))
+        all(s -> !TensorAlgebra.isdual(s), sectors) ||
+            throw(
+            ArgumentError(
+                "GradedOneTo stores non-dual sectors; pass the arrow via `isdual`"
+            )
+        )
         return new{S}(sectors, datalengths, isdual)
     end
 end
+# Arrow defaults to non-dual (sectors assumed non-dual, checked by the inner constructor).
 function GradedOneTo(
         sectors::Vector{S},
         datalengths::Vector{Int}
@@ -202,29 +209,20 @@ end
 """
     gradedrange(xs::AbstractVector{<:Pair{<:SectorRange, <:Integer}})
 
-Construct a `GradedOneTo` from pairs of `SectorRange` to multiplicities.
-All `SectorRange` values must have the same `isdual` flag.
-Non-dual inputs produce a non-dual axis; dual inputs produce a dual axis.
+Construct a non-dual `GradedOneTo` from `sector => multiplicity` pairs. The sectors must be
+non-dual; wrap the result in `dual` for a dual axis.
 
 # Examples
 
 ```julia
-gradedrange([U1(0) => 2, U1(1) => 3])     # non-dual
-gradedrange([conj(U1(0)) => 2, conj(U1(1)) => 3])   # dual
+gradedrange([U1(0) => 2, U1(1) => 3])          # non-dual
+dual(gradedrange([U1(0) => 2, U1(1) => 3]))    # dual
 ```
 """
 function gradedrange(
         xs::AbstractVector{<:Pair{S, <:Integer}}
     ) where {S <: SectorRange}
-    isempty(xs) && return GradedOneTo(S[], Int[])
-    d = isdual(first(first(xs)))
-    all(p -> isdual(first(p)) == d, xs) ||
-        throw(ArgumentError("All SectorRange inputs must have the same isdual flag"))
-    # Store non-dual sectors; apply isdual on the fly via dual()
-    ss = S[d ? dual(first(p)) : first(p) for p in xs]
-    ms = Int[last(p) for p in xs]
-    g = GradedOneTo(ss, ms)
-    return d ? dual(g) : g
+    return GradedOneTo(S[first(p) for p in xs], Int[last(p) for p in xs], false)
 end
 
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.

@@ -17,10 +17,9 @@ using Test: @test, @test_throws, @testset
         @test isdual(g) == false
     end
 
-    @testset "merges repeated and sorts unsorted sectors" begin
-        g = fusedgradedrange([U1(1) => 3, U1(0) => 2, U1(1) => 1])
-        @test sectors(g) == [U1(0), U1(1)]
-        @test datalengths(g) == [2, 4]
+    @testset "rejects non-canonical pairs" begin
+        @test_throws ArgumentError fusedgradedrange([U1(1) => 3, U1(0) => 2])   # unsorted
+        @test_throws Exception fusedgradedrange([U1(0) => 2, U1(0) => 1])       # repeated
     end
 
     @testset "empty" begin
@@ -30,22 +29,19 @@ using Test: @test, @test_throws, @testset
         @test length(g) == 0
     end
 
-    @testset "dual labels build a dual axis" begin
-        g = fusedgradedrange([conj(U1(0)) => 2, conj(U1(1)) => 3])
+    @testset "dual axis via dual; dual sectors rejected" begin
+        # `fusedgradedrange` builds a non-dual axis; the arrow is applied separately with `dual`.
+        g = dual(fusedgradedrange([U1(0) => 2, U1(1) => 3]))
         @test isdual(g) == true
-        # `sectors` reports the stored non-dual sectors.
-        @test sectors(g) == [U1(0), U1(1)]
+        @test sectors(g) == [U1(0), U1(1)]   # stored non-dual
         @test datalengths(g) == [2, 3]
-    end
-
-    @testset "mixed isdual throws" begin
-        @test_throws ArgumentError fusedgradedrange([U1(0) => 2, conj(U1(1)) => 3])
+        @test_throws ArgumentError fusedgradedrange([conj(U1(0)) => 2])   # dual sector rejected
     end
 
     @testset "constructors reject unsorted / accept a Dictionary" begin
         @test_throws ArgumentError FusedGradedOneTo([U1(1), U1(0)], [3, 2])
         d = Dictionary{U1, Int}([U1(0), U1(1)], [2, 3])
-        g = FusedGradedOneTo(d)            # defaults to non-dual
+        g = FusedGradedOneTo(d)            # arrow defaults to non-dual
         @test isdual(g) == false
         @test sectors(g) == [U1(0), U1(1)]
         @test isdual(FusedGradedOneTo(d, true))
@@ -97,7 +93,7 @@ using Test: @test, @test_throws, @testset
 
     @testset "equality and hashing" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
-        @test g == fusedgradedrange([U1(1) => 3, U1(0) => 2])   # order-independent input
+        @test g == fusedgradedrange([U1(0) => 2, U1(1) => 3])
         @test hash(g) == hash(fusedgradedrange([U1(0) => 2, U1(1) => 3]))
         @test g != dual(g)
         # An empty axis still carries an arrow, so a dual and non-dual empty axis differ.
@@ -117,8 +113,8 @@ using Test: @test, @test_throws, @testset
         @test datalengths(back) == datalengths(fg)
         @test isdual(back) == isdual(fg)
 
-        # The conversion checks rather than normalizes: a GradedOneTo that is not already in
-        # fused form is rejected. Use `fusedgradedrange` to merge and sort arbitrary pairs.
+        # The conversion checks rather than normalizes: a GradedOneTo not already in fused
+        # form is rejected.
         @test_throws ArgumentError FusedGradedOneTo(gradedrange([U1(1) => 3, U1(0) => 2]))  # unsorted
         @test_throws Exception FusedGradedOneTo(gradedrange([U1(0) => 2, U1(0) => 1]))      # repeated
     end

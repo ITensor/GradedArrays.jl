@@ -14,16 +14,14 @@ using Test: @test, @test_throws, @testset
         @test isdual(g) == false
     end
 
-    @testset "gradedrange from dual SectorRange labels" begin
-        g = gradedrange([conj(U1(0)) => 2, conj(U1(1)) => 3])
+    @testset "dual axis via dual; dual sectors rejected" begin
+        # `gradedrange` builds a non-dual axis; the arrow is applied separately with `dual`.
+        g = dual(gradedrange([U1(0) => 2, U1(1) => 3]))
         @test g isa GradedOneTo{U1}
-        @test sectors(g) == [U1(0), U1(1)]
+        @test sectors(g) == [U1(0), U1(1)]   # stored non-dual
         @test datalengths(g) == [2, 3]
         @test isdual(g) == true
-    end
-
-    @testset "gradedrange mixed isdual throws" begin
-        @test_throws ArgumentError gradedrange([U1(0) => 2, conj(U1(1)) => 3])
+        @test_throws ArgumentError gradedrange([conj(U1(0)) => 2])   # dual sector rejected
     end
 
     @testset "dual via conj (U1)" begin
@@ -183,6 +181,10 @@ using Test: @test, @test_throws, @testset
         )
     end
 
+    @testset "dual sectors rejected (arrow goes in the isdual flag)" begin
+        @test_throws ArgumentError GradedOneTo([dual(U1(0))], [2], false)
+    end
+
     @testset "tensor_product (abelian)" begin
         g1 = gradedrange([U1(0) => 2, U1(1) => 3])
         g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
@@ -239,14 +241,14 @@ using Test: @test, @test_throws, @testset
         @test g == gradedrange([SU2(0) => 1, SU2(1) => 2])
     end
 
-    # A shared dual flag on every key rides into the result as a dual range.
-    @testset "to_range carries the dual arrow" begin
-        g = TensorAlgebra.to_range([dual(SU2(0)) => 1, dual(SU2(1)) => 2])
-        @test g == dual(gradedrange([SU2(0) => 1, SU2(1) => 2]))
-    end
-
-    # A single-arrow range cannot hold mixed arrows.
-    @testset "to_range rejects mixed arrows" begin
+    # `to_range` delegates to `gradedrange`, so it is non-dual only; duality goes through `dual`.
+    @testset "to_range rejects dual sectors" begin
+        @test_throws ArgumentError TensorAlgebra.to_range(
+            [
+                dual(SU2(0)) => 1,
+                dual(SU2(1)) => 2,
+            ]
+        )
         @test_throws ArgumentError TensorAlgebra.to_range([SU2(0) => 1, dual(SU2(1)) => 2])
     end
 
