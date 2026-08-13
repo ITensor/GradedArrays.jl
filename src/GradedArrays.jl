@@ -56,7 +56,7 @@ include("uniquesectorarray.jl")
 include("sectoridentity.jl")
 include("sectoronesvector.jl")
 include("fusedsectormatrix.jl")
-include("abstractfusedarray.jl")
+include("abstractfusedgradedarray.jl")
 
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")

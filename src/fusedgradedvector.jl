@@ -126,7 +126,7 @@ struct FusedGradedVector{
         D <: AbstractVector{T},
         V <: DenseVector{T},
     } <:
-    AbstractFusedVector{T, S}
+    AbstractFusedGradedVector{T, S}
     data::V
     blocks::Dictionary{S, D}
     axis::Dictionary{S, Int}

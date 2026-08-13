@@ -101,7 +101,7 @@ function _blockdataaxes(a::FusedGradedDiagonal, c)
     return (n, n)
 end
 
-function foreachblock(f, A::AbstractFusedArray, As::AbstractFusedArray...)
+function foreachblock(f, A::AbstractFusedGradedArray, As::AbstractFusedGradedArray...)
     cs = union(map(keys ∘ Base.Fix2(getproperty, :blocks), (A, As...))...)
 
     for c in cs
@@ -184,7 +184,7 @@ function MAK.one!(A::FusedGradedMatrix)
     return A
 end
 MAK.one!(A::FusedSectorMatrix) = (MAK.one!(data(A)); A)
-MAK.one!(A::AbstractFusedVector) = _matrix_op_error(MAK.one!, A)
+MAK.one!(A::AbstractFusedGradedVector) = _matrix_op_error(MAK.one!, A)
 MAK.one!(A::AbstractSectorArray) = _matrix_op_error(MAK.one!, A)
 MAK.one!(A::AbstractSectorDelta) = _matrix_op_error(MAK.one!, A)
 

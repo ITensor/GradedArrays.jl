@@ -6,7 +6,7 @@ using Dictionaries: gettoken, gettokenvalue
 using LinearAlgebra: Diagonal
 
 """
-    FusedGradedDiagonal{T,S<:SectorRange,D<:AbstractVector{T},V<:DenseVector{T}} <: AbstractFusedMatrix{T,S}
+    FusedGradedDiagonal{T,S<:SectorRange,D<:AbstractVector{T},V<:DenseVector{T}} <: AbstractFusedGradedMatrix{T,S}
 
 Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, backed by a
 contiguous diagonal buffer (a [`FusedGradedVector`](@ref)). This is the diagonal factor produced by a
@@ -26,7 +26,7 @@ struct FusedGradedDiagonal{
         D <: AbstractVector{T},
         V <: DenseVector{T},
     } <:
-    AbstractFusedMatrix{T, S}
+    AbstractFusedGradedMatrix{T, S}
     diag::FusedGradedVector{T, S, D, V}
     blocks::Dictionary{S, Diagonal{T, D}}
 end

@@ -198,7 +198,8 @@ function TensorAlgebra.bipermutedimsopadd!(
 end
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractFusedArray{<:Any, <:Any, N}, op, x::AbstractFusedArray{<:Any, <:Any, N},
+        y::AbstractFusedGradedArray{<:Any, <:Any, N}, op,
+        x::AbstractFusedGradedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}

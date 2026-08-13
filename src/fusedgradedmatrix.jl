@@ -28,7 +28,7 @@ struct FusedGradedMatrix{
         D <: AbstractMatrix{T},
         V <: DenseVector{T},
     } <:
-    AbstractFusedMatrix{T, S}
+    AbstractFusedGradedMatrix{T, S}
     data::V
     blocks::Dictionary{S, D}
     codomain::Dictionary{S, Int}
@@ -327,8 +327,8 @@ end
 
 function TensorAlgebra.check_input(
         ::typeof(*),
-        A::AbstractFusedMatrix,
-        B::AbstractFusedMatrix
+        A::AbstractFusedGradedMatrix,
+        B::AbstractFusedGradedMatrix
     )
     axes(A, 2) == dual(axes(B, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
@@ -337,7 +337,7 @@ end
 
 function TensorAlgebra.check_input(
         ::typeof(mul!),
-        C::AbstractFusedMatrix, A::AbstractFusedMatrix, B::AbstractFusedMatrix
+        C::AbstractFusedGradedMatrix, A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix
     )
     check_input(*, A, B)
     axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
@@ -346,7 +346,7 @@ function TensorAlgebra.check_input(
 end
 
 function LinearAlgebra.mul!(
-        C::FusedGradedMatrix, A::AbstractFusedMatrix, B::AbstractFusedMatrix,
+        C::FusedGradedMatrix, A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix,
         α::Number, β::Number
     )
     check_input(mul!, C, A, B)
@@ -360,14 +360,18 @@ function LinearAlgebra.mul!(
     return C
 end
 
-function allocate_output(::typeof(*), A::AbstractFusedMatrix, B::AbstractFusedMatrix)
+function allocate_output(
+        ::typeof(*),
+        A::AbstractFusedGradedMatrix,
+        B::AbstractFusedGradedMatrix
+    )
     cod = A.codomain
     dom = B.domain
     Tout = Base.promote_op(*, eltype(A), eltype(B))
     return FusedGradedMatrix{Tout}(undef, cod, dom)
 end
 
-function Base.:(*)(A::AbstractFusedMatrix, B::AbstractFusedMatrix)
+function Base.:(*)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     check_input(*, A, B)
     C = allocate_output(*, A, B)
     return mul!(C, A, B)
@@ -383,14 +387,14 @@ end
 # `S` blocks the factorizations feed in. The `check_input(mul!, ...)` call validates the contracted
 # axes and that the product fits the mutated operand (the operand plays the role of the `mul!`
 # destination `C`: `B` for `lmul!`, `A` for `rmul!`), so the block sectors line up by construction.
-function LinearAlgebra.lmul!(A::AbstractFusedMatrix, B::FusedGradedMatrix)
+function LinearAlgebra.lmul!(A::AbstractFusedGradedMatrix, B::FusedGradedMatrix)
     check_input(mul!, B, A, B)
     for (s, b) in pairs(B.blocks)
         LinearAlgebra.lmul!(A.blocks[s], b)
     end
     return B
 end
-function LinearAlgebra.rmul!(A::FusedGradedMatrix, B::AbstractFusedMatrix)
+function LinearAlgebra.rmul!(A::FusedGradedMatrix, B::AbstractFusedGradedMatrix)
     check_input(mul!, A, A, B)
     for (s, a) in pairs(A.blocks)
         LinearAlgebra.rmul!(a, B.blocks[s])

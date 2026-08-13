@@ -17,14 +17,14 @@ the `matricized` backing is always over the fused-sorted coupled space, and the 
 permutation relates the two.
 """
 struct FusionArray{
-        T, S, N, NC, ND, M <: AbstractFusedMatrix{T, S},
+        T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S},
     } <: AbstractArray{T, N}
     matricized::M
     axes_codomain::NTuple{NC, GradedOneTo{S}}
     axes_domain::NTuple{ND, GradedOneTo{S}}
 
     function FusionArray(
-            matricized::AbstractFusedMatrix{T, S},
+            matricized::AbstractFusedGradedMatrix{T, S},
             axes_codomain::NTuple{NC, GradedOneTo{S}},
             axes_domain::NTuple{ND, GradedOneTo{S}}
         ) where {T, S, NC, ND}

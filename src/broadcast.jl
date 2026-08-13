@@ -145,11 +145,14 @@ end
 
 # Linear-combination arithmetic for the fused arrays. `FusionArray` defines its own
 # split-preserving versions in `fusionarray.jl`.
-function Base.copyto!(dest::AbstractFusedArray, bc::BC.Broadcasted{<:FusedGradedStyle})
+function Base.copyto!(
+        dest::AbstractFusedGradedArray,
+        bc::BC.Broadcasted{<:FusedGradedStyle}
+    )
     return copyto!(dest, flattenlinear(bc))
 end
-Base.:+(a::AbstractFusedArray, b::AbstractFusedArray) = a .+ b
-Base.:-(a::AbstractFusedArray, b::AbstractFusedArray) = a .- b
-Base.:*(a::AbstractFusedArray, x::Number) = a .* x
-Base.:*(x::Number, a::AbstractFusedArray) = x .* a
-Base.:/(a::AbstractFusedArray, x::Number) = a ./ x
+Base.:+(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .+ b
+Base.:-(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .- b
+Base.:*(a::AbstractFusedGradedArray, x::Number) = a .* x
+Base.:*(x::Number, a::AbstractFusedGradedArray) = x .* a
+Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
