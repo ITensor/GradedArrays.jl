@@ -73,7 +73,6 @@ include("cat.jl")
 include("matrixalgebrakit.jl")
 
 include("fusionarray.jl")
-include("fusionmap.jl")
 # Shared graded-array interface + `VectorInterface` (both name `FusionArray`, so they come after it).
 include("gradedarrayinterface.jl")
 include("vectorinterface.jl")

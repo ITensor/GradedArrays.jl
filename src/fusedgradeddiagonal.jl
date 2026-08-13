@@ -95,13 +95,6 @@ function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(d.diag, T))
 end
 
-# Densify to a `FusedGradedMatrix`, copying the `Diagonal` blocks into a packed dense buffer. Used at
-# the TensorKit-contraction seam (`FusionMap`), which needs strided dense subblocks that a
-# diagonal-only buffer cannot present. Diagonal storage is preserved everywhere else.
-function FusedGradedMatrix(d::FusedGradedDiagonal)
-    return FusedGradedMatrix(d.blocks, d.codomain, d.domain)
-end
-
 # Block-diagonal boolean queries delegate to the (diagonal) blocks, mirroring `FusedGradedMatrix`.
 function LinearAlgebra.isposdef(d::FusedGradedDiagonal)
     return all(LinearAlgebra.isposdef, values(d.blocks))

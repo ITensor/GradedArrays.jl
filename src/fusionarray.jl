@@ -5,7 +5,7 @@
 
 using LinearAlgebra: LinearAlgebra
 using Random: Random, AbstractRNG
-using TensorKit: TensorKit as TK
+using TensorKit: TensorKit as TK, ←
 
 """
     FusionArray{T,S,N,NC,ND,M} <: AbstractArray{T,N}
@@ -98,7 +98,7 @@ Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 
 # Rank-0 (scalar) access: a rank-0 `FusionArray` (e.g. a full contraction to a scalar) holds one
 # trivial-sector value in its 1×1 matricized block. Read it as a TensorKit scalar and write it into
-# that block; the generic block path indexes `FusionMap` by external sectors, of which a rank-0 array
+# that block; the generic block path indexes the `TensorMap` by external sectors, of which a rank-0 array
 # has none. Defined on the concrete type to take precedence over the `Vararg` block methods, which
 # also match a no-argument call at N=0.
 Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(tensormap(a))
@@ -515,10 +515,44 @@ function Base.copyto!(dest::FusionArray, bc::BC.Broadcasted{<:FusionArrayStyle})
     return copyto!(dest, flattenlinear(bc))
 end
 
+# ============================  TensorKit seam (real, zero-copy `TensorMap`)  ============================
+# `tensormap` views a `FusionArray` as a genuine `TensorMap` sharing the matricized contiguous buffer
+# (the buffer is laid out in TensorKit's `.data` order), so TensorKit's concrete-type kernels (permute,
+# `twist!`, projection) run natively and write back in place. `fusionarray` is the reverse: a
+# `FusionArray` over any `AbstractTensorMap`, copying block-wise.
+
+# The fused-sorted coupled `HomSpace` for the given external axes. Each leg's space is the
+# `sectormergesort` of its (possibly unfused/unsorted) axis; the rank-0 case resolves the trivial
+# space from the sector type since it has no legs.
+function tensormapspace(::Type{S}, axes_codomain::Tuple, axes_domain::Tuple) where {S}
+    Sp = typeof(ElementarySpace(trivial_gradedrange(S)))
+    codomain =
+        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_codomain; init = one(Sp))
+    domain =
+        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_domain; init = one(Sp))
+    return codomain ← domain
+end
+
+# `tensormap(m, axes_codomain, axes_domain)` is the storage-level seam: a general matricized backing
+# wraps as a `TensorMap` over its buffer; a diagonal factor wraps as a `DiagonalTensorMap` over its
+# contiguous diagonal buffer, keeping the bond diagonal through the seam (TensorKit's own `svd`/`eig`
+# produce a `DiagonalTensorMap`). Both share storage, no copy.
+tensormap(a::FusionArray) = tensormap(matricize(a), axes_codomain(a), axes_domain(a))
+function tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
+    return TK.TensorMap(m.data, tensormapspace(sectortype(m), axes_codomain, axes_domain))
+end
+function tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
+    return TK.DiagonalTensorMap(
+        d.diag.data, ElementarySpace(sectormergesort(only(axes_codomain)))
+    )
+end
+
+fusionarray(t::TK.AbstractTensorMap) = FusionArray(t)
+
 # ============================  bipermutedimsopadd! (permute primitive)  ============================
 # `y = α * op.(permute(x, …)) + β * y`, delegated to the `AbstractTensorMap` `bipermutedimsopadd!`
-# (fusion-tree recombination plus braiding/fermion signs). Wrapping `y`/`x` as `FusionMap`s shares
-# their blocks, so TensorKit writes the result into `y` in place.
+# (fusion-tree recombination plus braiding/fermion signs). Wrapping `y`/`x` as `TensorMap`s shares
+# their buffers, so TensorKit writes the result into `y` in place.
 
 function TensorAlgebra.bipermutedimsopadd!(
         y::FusionArray, op, x::FusionArray,
@@ -545,7 +579,7 @@ end
 
 # ============================  fermionic twist  ============================
 # The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
-# `FusionMap` shares its blocks, so `TK.twist!` scales them in place.
+# The `TensorMap` shares its buffer, so `TK.twist!` scales it in place.
 function twist!(a::FusionArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
     TK.twist!(tensormap(a), dims)
@@ -657,8 +691,8 @@ Base._cat(dims, as::FusionArray...) = TensorAlgebra.concatenate(dims, as...)
 # `ElementarySpace`s and wraps the resulting `TensorMap` with `FusionArray(t)`. `unproject` below is
 # the dense inverse used by `TA.project`'s verification.
 
-# In-place projection into a preallocated destination: view `dest` as a `FusionMap` (sharing its
-# blocks) and project the dense `src` straight into those blocks through TensorKit, which drops the
+# In-place projection into a preallocated destination: view `dest` as a `TensorMap` (sharing its
+# buffer) and project the dense `src` straight into those blocks through TensorKit, which drops the
 # forbidden regions and handles a lower-rank `src` reshaped into a flux-canceling aux leg. The generic
 # `AbstractArray` `projectto!` would scalar-`copyto!` and error mid-write on a forbidden block.
 function TensorAlgebra.projectto!(dest::FusionArray, src::AbstractArray)
@@ -667,7 +701,7 @@ function TensorAlgebra.projectto!(dest::FusionArray, src::AbstractArray)
 end
 
 # Dense form. The matricized backing has no `eachblockstoredindex` (the generic dense path), so
-# materialize through the zero-copy `FusionMap` view. The view is fused-sorted per leg, so for an
+# materialize through the zero-copy `TensorMap` view. The view is fused-sorted per leg, so for an
 # unfused/unsorted stored axis, move each leg's sector blocks back to the stored order (whole-block
 # moves preserve the array type, e.g. GPU).
 function Base.Array(fa::FusionArray{<:Any, <:Any, N}) where {N}
