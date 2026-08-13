@@ -288,6 +288,10 @@ function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
 end
 blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 
+sectordata(m::FusedGradedMatrix) = m.blocks
+sectordatalengths_codomain(m::FusedGradedMatrix) = m.codomain
+sectordatalengths_domain(m::FusedGradedMatrix) = m.domain
+
 function biaxes(m::FusedGradedMatrix)
     cod = gradedrange(collect(pairs(m.codomain)))
     dom = dual(gradedrange(collect(pairs(m.domain))))

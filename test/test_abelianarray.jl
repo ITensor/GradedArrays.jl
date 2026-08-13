@@ -3,8 +3,9 @@ using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractFusedGradedMatrix, AdjointFusedGradedArray,
     FusedGradedMatrix, FusedGradedVector, FusionArray, GradedOneTo, SU2, SectorRange, U1,
     UniqueSectorArray, blockstoredlength, data, datalengths, dual, eachblockstoredindex,
-    gradedrange, isdual, sectoraxes, sectors, sectortype, to_gradedrange,
-    with_block_indexing, with_scalar_indexing
+    gradedrange, isdual, sectoraxes, sectordata, sectordatalengths_codomain,
+    sectordatalengths_domain, sectors, sectortype, to_gradedrange, with_block_indexing,
+    with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored
@@ -495,10 +496,10 @@ end
 
     # Adjoint swaps codomain/domain dicts and adjoints each block.
     mh = m'
-    @test mh.codomain == m.domain
-    @test mh.domain == m.codomain
-    @test collect(keys(mh.blocks)) == collect(keys(m.blocks))
-    @test mh.blocks[U1(1)] == ones(3, 3)'
+    @test sectordatalengths_codomain(mh) == m.domain
+    @test sectordatalengths_domain(mh) == m.codomain
+    @test collect(keys(sectordata(mh))) == collect(keys(m.blocks))
+    @test sectordata(mh)[U1(1)] == ones(3, 3)'
     @test size(mh) == (size(m, 2), size(m, 1))
 
     # Multiplication: A's domain must match B's codomain (sectors and sizes).
@@ -1063,16 +1064,16 @@ end
     mh = m'
 
     # Adjoint swaps codomain/domain and dualizes the axes.
-    @test mh.codomain == m.domain
-    @test mh.domain == m.codomain
+    @test sectordatalengths_codomain(mh) == m.domain
+    @test sectordatalengths_domain(mh) == m.codomain
     @test axes(mh) == (dual(axes(m, 2)), dual(axes(m, 1)))
     @test size(mh) == (size(m, 2), size(m, 1))
 
     # Each block is the conjugate-transpose of the original (no per-sector sign), and for this
     # complex data conjugation genuinely differs from a plain transpose.
     for c in keys(m.blocks)
-        @test mh.blocks[c] == m.blocks[c]'
-        @test mh.blocks[c] != transpose(m.blocks[c])
+        @test sectordata(mh)[c] == m.blocks[c]'
+        @test sectordata(mh)[c] != transpose(m.blocks[c])
     end
 
     # Double adjoint is the identity.
@@ -1104,8 +1105,8 @@ end
     back = unmatricize(mh, (r1,), (r1, r2))
     @test LinearAlgebra.norm(back) ≈ LinearAlgebra.norm(a)
     remat = matricize(back, Val(1))
-    for c in keys(mh.blocks)
-        @test remat.blocks[c] ≈ mh.blocks[c]
+    for c in keys(sectordata(mh))
+        @test remat.blocks[c] ≈ sectordata(mh)[c]
     end
 end
 

@@ -17,6 +17,14 @@ datatype(::Type{T}) where {T <: AbstractFusedGradedArray} = datatype(blocktype(T
 datatype(a::AbstractFusedGradedArray) = datatype(typeof(a))
 sectortype(::Type{<:AbstractFusedGradedArray{T, S}}) where {T, S} = S
 
+# Storage accessors (internal, not a public interface yet): the sector → block-data map, and the
+# codomain/domain sector → reduced-data-length maps (the reduced/degeneracy dimension per sector, not
+# the sector's quantum dimension). Each storage variant implements these, so the shared matrix algebra
+# reads through them instead of raw fields, and a lazy adjoint or diagonal factor needs no faked fields.
+function sectordata end
+function sectordatalengths_codomain end
+function sectordatalengths_domain end
+
 function isblockdiagonal(A::AbstractFusedGradedMatrix)
     for bI in eachblockstoredindex(A)
         row, col = Tuple(bI)
@@ -246,10 +254,11 @@ function TensorAlgebra.similar_map(
 end
 
 # ============================  matrix algebra  ============================
-# Block-wise matrix operations on the abstract fused graded matrix. They read `.codomain`/`.domain`
-# and `.blocks` (which every storage variant provides), so a lazy adjoint or a diagonal factor works
-# as an operand without materializing. The mutated operand may be any fused graded matrix; an
-# incompatible one (e.g. a diagonal destination for a non-diagonal product) fails at the block level.
+# Block-wise matrix operations on the abstract fused graded matrix. They read the storage through the
+# `sectordata` / `sectordatalengths_codomain` / `sectordatalengths_domain` accessors (which every
+# storage variant provides), so a lazy adjoint or a diagonal factor works as an operand without
+# materializing. The mutated operand may be any fused graded matrix; an incompatible one (e.g. a
+# diagonal destination for a non-diagonal product) fails at the block level.
 
 function TensorAlgebra.check_input(
         ::typeof(*),
@@ -277,9 +286,10 @@ function LinearAlgebra.mul!(
         α::Number, β::Number
     )
     check_input(mul!, C, A, B)
-    for (s, c) in pairs(C.blocks)
-        if haskey(A.blocks, s) && haskey(B.blocks, s)
-            mul!(c, A.blocks[s], B.blocks[s], α, β)
+    dA, dB = sectordata(A), sectordata(B)
+    for (s, c) in pairs(sectordata(C))
+        if haskey(dA, s) && haskey(dB, s)
+            mul!(c, dA[s], dB[s], α, β)
         else
             iszero(β) ? fill!(c, β) : scale!(c, β)
         end
@@ -292,8 +302,8 @@ function allocate_output(
         A::AbstractFusedGradedMatrix,
         B::AbstractFusedGradedMatrix
     )
-    cod = A.codomain
-    dom = B.domain
+    cod = sectordatalengths_codomain(A)
+    dom = sectordatalengths_domain(B)
     Tout = Base.promote_op(*, eltype(A), eltype(B))
     return FusedGradedMatrix{Tout}(undef, cod, dom)
 end
@@ -314,15 +324,17 @@ end
 # for `rmul!`), so the block sectors line up by construction.
 function LinearAlgebra.lmul!(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     check_input(mul!, B, A, B)
-    for (s, b) in pairs(B.blocks)
-        LinearAlgebra.lmul!(A.blocks[s], b)
+    dA = sectordata(A)
+    for (s, b) in pairs(sectordata(B))
+        LinearAlgebra.lmul!(dA[s], b)
     end
     return B
 end
 function LinearAlgebra.rmul!(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     check_input(mul!, A, A, B)
-    for (s, a) in pairs(A.blocks)
-        LinearAlgebra.rmul!(a, B.blocks[s])
+    dB = sectordata(B)
+    for (s, a) in pairs(sectordata(A))
+        LinearAlgebra.rmul!(a, dB[s])
     end
     return A
 end
@@ -332,5 +344,6 @@ end
 # to compare a lazy adjoint or diagonal factor (whose blocks are lazy views).
 function Base.:(==)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     axes(A) == axes(B) || return false
-    return all(A.blocks[c] == B.blocks[c] for c in keys(A.blocks))
+    dA, dB = sectordata(A), sectordata(B)
+    return all(dA[c] == dB[c] for c in keys(dA))
 end

@@ -45,13 +45,11 @@ function FusedGradedDiagonal{T}(
     return FusedGradedDiagonal(FusedGradedVector{T}(undef, axis))
 end
 
-# A `Diagonal` matrix is square, so its codomain and domain are the same axis: the stored diagonal's.
-# Expose them as `.codomain`/`.domain` so the block-wise matrix-matrix operations (`mul!`, `lmul!`,
-# `rmul!`, `allocate_output`) that read those fields on a `FusedGradedMatrix` work here unchanged.
-function Base.getproperty(d::FusedGradedDiagonal, name::Symbol)
-    (name === :codomain || name === :domain) && return getfield(d, :diag).axis
-    return getfield(d, name)
-end
+# A `Diagonal` matrix is square, so its codomain and domain share the stored diagonal's axis. These
+# accessors let the shared block-wise matrix operations read a diagonal like any fused graded matrix.
+sectordata(d::FusedGradedDiagonal) = d.blocks
+sectordatalengths_codomain(d::FusedGradedDiagonal) = d.diag.axis
+sectordatalengths_domain(d::FusedGradedDiagonal) = d.diag.axis
 
 # ---- accessors ----
 
