@@ -108,6 +108,16 @@ function TensorAlgebra.unmatricize(
     )
 end
 
+# A lazy adjoint has no owned contiguous buffer to reshape; materialize it into a `FusedGradedMatrix`
+# first, then unmatricize that.
+function TensorAlgebra.unmatricize(
+        style::SectorMatricize, m::AdjointFusedGradedArray,
+        codomain_axes::Tuple{Vararg{GradedOneTo}},
+        domain_axes::Tuple{Vararg{GradedOneTo}}
+    )
+    return TensorAlgebra.unmatricize(style, copy(m), codomain_axes, domain_axes)
+end
+
 # ========================  Allowed block keys  ========================
 
 function allowedblocks(axs::NTuple{N, GradedOneTo}) where {N}

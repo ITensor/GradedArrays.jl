@@ -61,6 +61,7 @@ include("abstractfusedgradedarray.jl")
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
 include("fusedgradeddiagonal.jl")
+include("adjointfusedgradedarray.jl")
 include("fusedgradedblocks.jl")
 
 include("sectorproduct.jl")

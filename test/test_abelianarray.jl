@@ -1,9 +1,10 @@
 using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
-using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
-    GradedOneTo, SU2, SectorRange, U1, UniqueSectorArray, blockstoredlength, data,
-    datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectors,
-    sectortype, to_gradedrange, with_block_indexing, with_scalar_indexing
+using GradedArrays: GradedArrays, AbstractFusedGradedMatrix, AdjointFusedGradedArray,
+    FusedGradedMatrix, FusedGradedVector, FusionArray, GradedOneTo, SU2, SectorRange, U1,
+    UniqueSectorArray, blockstoredlength, data, datalengths, dual, eachblockstoredindex,
+    gradedrange, isdual, sectoraxes, sectors, sectortype, to_gradedrange,
+    with_block_indexing, with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored
@@ -1033,10 +1034,13 @@ end
     # Adjoint errors on a `FusionArray`, whether all-codomain (2, 0) or a (1, 1) split.
     @test_throws ErrorException randn(g, dual(g))'
     @test_throws ErrorException randn((g,), (g,))'
-    # On the matricized `FusedGradedMatrix` it works, conjugate-transposing through the blocks.
+    # On the matricized `FusedGradedMatrix` it is a lazy `AdjointFusedGradedArray` sharing the
+    # parent's buffer through per-block adjoint views.
     m = matricize(randn((g,), (g,)))
-    @test m' isa FusedGradedMatrix
-    @test (m')' == m                     # double adjoint is the identity
+    @test m' isa AdjointFusedGradedArray
+    @test m' isa AbstractFusedGradedMatrix
+    @test parent(m') === m               # lazy: shares the parent, no copy
+    @test (m')' === m                    # double adjoint unwraps to the parent
     @test Array(m') ≈ adjoint(Array(m))  # dense form is the plain conjugate transpose
     h = m * m'                           # Gram product is Hermitian
     @test h == h'

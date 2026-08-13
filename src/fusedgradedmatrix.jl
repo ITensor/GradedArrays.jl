@@ -404,11 +404,8 @@ end
 
 # ======================== LinearAlgebra ======================
 
-function Base.adjoint(A::FusedGradedMatrix)
-    new_blocks = map(adjoint, A.blocks)
-    return FusedGradedMatrix(new_blocks, A.domain, A.codomain)
-end
-# note: not defining transpose here since that has requirements on sectors
+# `adjoint` is the lazy `AdjointFusedGradedArray` wrapper (defined with that type). `transpose` stays
+# undefined here since it has requirements on sectors.
 
 # The full-matrix trace is the sum of the per-coupled-sector block traces, each weighted by the
 # sector's quantum dimension (the structural factor's trace). Reuse the block-level
@@ -427,8 +424,9 @@ LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, value
 Base.iszero(A::FusedGradedMatrix) = all(iszero, values(A.blocks))
 
 # Compare coupled-sector blocks directly instead of falling back to element-wise iteration (which
-# would index forbidden blocks). Equal axes guarantee the same stored (allowed) sectors.
-function Base.:(==)(A::FusedGradedMatrix, B::FusedGradedMatrix)
+# would index forbidden blocks). Equal axes guarantee the same stored (allowed) sectors. Broad enough
+# to compare against a lazy adjoint or diagonal factor (whose blocks are lazy views).
+function Base.:(==)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     axes(A) == axes(B) || return false
     return all(A.blocks[c] == B.blocks[c] for c in keys(A.blocks))
 end
