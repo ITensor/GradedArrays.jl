@@ -107,7 +107,7 @@ function _to_blockarray(a::AbstractFusedArray{T, <:Any, N}) where {T, N}
     for bI in eachblockstoredindex(a)
         blk = view(a, bI)
         blockmat[CartesianIndex(Int.(Tuple(bI)))] =
-            kron_nd(Array(sector(blk)), collect(data(blk)))
+            kron_nd(collect(data(blk)), Array(sector(blk)))
     end
     return mortar(blockmat)
 end
@@ -118,7 +118,7 @@ end
 function _to_blockarray(a::AbstractFusedArray{T, <:Any, 0}) where {T}
     for bI in eachblockstoredindex(a)
         blk = view(a, bI)
-        return kron_nd(Array(sector(blk)), collect(data(blk)))
+        return kron_nd(collect(data(blk)), Array(sector(blk)))
     end
     return fill(zero(T))
 end
@@ -128,7 +128,7 @@ function Base.print_array(io::IO, a::AbstractFusedArray)
 end
 
 # Materialize into a dense `Array` (the generic fallback copies elementwise, which scalar-indexes).
-# `_to_blockarray` reintroduces each block's structural factor (`I ⊗ reduced`), the identity for
+# `_to_blockarray` reintroduces each block's structural factor (`reduced ⊗ I`), the identity for
 # abelian sectors but a repeat over the irrep's quantum dimension for non-abelian ones.
 Base.Array(a::AbstractFusedArray) = Array(_to_blockarray(a))
 

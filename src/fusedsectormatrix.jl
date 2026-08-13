@@ -114,7 +114,7 @@ end
     )
 end
 
-# The dense block is `sector(a) ⊗ data(a)`: the quantum dimension `d` copies of the reduced data on the
+# The dense block is `data(a) ⊗ sector(a)`: the quantum dimension `d` copies of the reduced data on the
 # diagonal, with `length - storedlength` structural zeros off it. `sum` (zero-preserving `f` only for
 # now) weights the reduced sum by `d` and drops the structural zeros; `maximum`/`minimum` are unchanged
 # by the duplication and fold in a single `f(0)` when the block has structural zeros (`d > 1`).
