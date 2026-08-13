@@ -28,7 +28,7 @@ function AdjointFusedGradedArray(
     return AdjointFusedGradedArray{T, S, N, P}(parent)
 end
 
-Base.parent(a::AdjointFusedGradedArray) = getfield(a, :parent)
+Base.parent(a::AdjointFusedGradedArray) = a.parent
 
 # `adjoint` swaps codomain and domain and adjoints each block. All three are computed on demand from
 # the parent (like `LinearAlgebra.Adjoint`), so the wrapper stays a trivial parent-only type.
