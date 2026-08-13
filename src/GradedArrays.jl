@@ -3,7 +3,7 @@ module GradedArrays
 # exports
 # -------
 export TrivialSector, Z, Z2, U1, SU2
-export SectorRange, SectorOneTo, GradedOneTo
+export SectorRange, SectorOneTo, AbstractGradedOneTo, GradedOneTo, FusedGradedOneTo
 export AbstractSectorDelta, UniqueSectorDelta, SectorIdentity
 export AbstractSectorArray,
     UniqueSectorArray, UniqueSectorVector, UniqueSectorMatrix,
@@ -12,7 +12,7 @@ export FusedGradedMatrix, FusedGradedVector
 export GradedBlockAlgorithm
 
 export codomain, domain,
-    dual, flip, gradedrange, isdual,
+    dual, flip, gradedrange, fusedgradedrange, isdual,
     data, dataaxes, dataaxes1, datalength, datalengths,
     eachdataaxis, eachsectoraxis,
     sector, sectoraxes, sectoraxes1, sectorlength, sectorlengths,
@@ -45,7 +45,9 @@ include("blocksparseinterface.jl")
 include("sectorrange.jl")
 include("data.jl")
 include("sectoroneto.jl")
+include("abstractgradedoneto.jl")
 include("gradedoneto.jl")
+include("fusedgradedoneto.jl")
 include("tensorkit.jl")
 include("abstractsectordelta.jl")
 include("abstractsectorarray.jl")

@@ -2,6 +2,7 @@ using GradedArrays: GradedArrays
 using Test: @test, @testset
 @testset "Test exports" begin
     exports = [
+        :AbstractGradedOneTo,
         :AbstractSectorArray,
         :AbstractSectorDelta,
         :UniqueSectorArray,
@@ -10,6 +11,7 @@ using Test: @test, @testset
         :UniqueSectorVector,
         :Data,
         :FusedGradedMatrix,
+        :FusedGradedOneTo,
         :FusedGradedVector,
         :GradedArrays,
         :GradedBlockAlgorithm,
@@ -35,6 +37,7 @@ using Test: @test, @testset
         :Z2,
         :dual,
         :flip,
+        :fusedgradedrange,
         :gradedrange,
         :isdual,
         :sector,

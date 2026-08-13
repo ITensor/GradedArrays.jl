@@ -253,7 +253,7 @@ blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 
 function biaxes(m::FusedGradedMatrix)
     cod = gradedrange(collect(pairs(m.codomain)))
-    dom = gradedrange([dual(s) => l for (s, l) in pairs(m.domain)])
+    dom = dual(gradedrange(collect(pairs(m.domain))))
     return BiTuple((cod,), (dom,))
 end
 Base.axes(m::FusedGradedMatrix) = Tuple(biaxes(m))

@@ -84,16 +84,14 @@ function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::GradedOne
 end
 
 function sectormergesort(g::GradedOneTo)
-    # Use the dual-resolved per-block sectors so the rebuilt `gradedrange` keeps `g`'s duality.
-    glabels = eachsectoraxis(g)
-    slens = datalengths(g)
-    dict = Dict{eltype(glabels), eltype(slens)}()
-    for (l, m) in zip(glabels, slens)
-        dict[l] = get(dict, l, 0) + m
+    # Merge repeated sectors (summing their data lengths) and sort. The stored sectors are non-dual
+    # and the arrow is axis-level, so merge and sort them directly and carry `isdual` through.
+    dict = Dict{sectortype(g), Int}()
+    for (s, m) in zip(sectors(g), datalengths(g))
+        dict[s] = get(dict, s, 0) + m
     end
-
-    total = sort!(collect(pairs(dict)); by = first)
-    return gradedrange([c => m for (c, m) in total])
+    merged = sort!(collect(pairs(dict)); by = first)
+    return GradedOneTo(first.(merged), last.(merged), isdual(g))
 end
 
 # tensor_product produces a sorted, non-dual GradedOneTo
