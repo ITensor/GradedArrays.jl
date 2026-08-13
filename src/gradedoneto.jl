@@ -9,7 +9,7 @@ Stores non-dual `SectorRange` values in `sectors`, sector lengths, and a single
 duality separately with `isdual`. The dual flag is applied per block by `eachblockaxis`
 (and hence `eachsectoraxis`).
 """
-struct GradedOneTo{S <: SectorRange} <: AbstractBlockedUnitRange{Int, Vector{Int}}
+struct GradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
     sectors::Vector{S}
     datalengths::Vector{Int}
     isdual::Bool
@@ -28,35 +28,12 @@ function GradedOneTo(
     return GradedOneTo(sectors, datalengths, false)
 end
 
-# Primitive accessors
+# Primitive accessors. The derived range-interface methods (`sectorlengths`, `first`, `axes`,
+# `blocklength(s)`, `sectortype`, `FusionStyle`, `eachblockaxis`, ...) are shared via
+# `AbstractGradedOneTo`.
 datalengths(g::GradedOneTo) = g.datalengths
 TensorAlgebra.isdual(g::GradedOneTo) = g.isdual
-
-# Derived accessors
 sectors(g::GradedOneTo) = g.sectors
-sectorlengths(g::GradedOneTo) = length.(sectors(g))
-Base.first(::GradedOneTo) = 1
-# A `GradedOneTo` is 1-based and acts as its own axis, like `Base.OneTo`. Without this
-# `axes` falls back to the `AbstractBlockedUnitRange` default, which returns a plain
-# `BlockedOneTo` and drops the sectors — so e.g. `axes(view(dense, ::GradedOneTo...))`
-# would lose the grading. Mirrors `axes(::FusionArray)` returning its graded axes.
-Base.axes(g::GradedOneTo) = (g,)
-BlockArrays.blocklasts(g::GradedOneTo) = cumsum(blocklengths(g))
-BlockArrays.blocklength(g::GradedOneTo) = length(g.sectors)
-BlockArrays.eachblockaxes1(g::GradedOneTo) = eachblockaxis(g)
-
-# sectortype, FusionStyle
-sectortype(::Type{GradedOneTo{S}}) where {S} = S
-TKS.FusionStyle(g::GradedOneTo) = TKS.FusionStyle(typeof(g))
-TKS.FusionStyle(::Type{<:GradedOneTo{S}}) where {S} = TKS.FusionStyle(S)
-
-# blocklengths: total length of each block (length(sector) * multiplicity)
-function BlockArrays.blocklengths(g::GradedOneTo)
-    return [
-        length(s) * m for (s, m) in zip(g.sectors, datalengths(g))
-    ]
-end
-dataaxistype(::Type{<:GradedOneTo}) = Base.OneTo{Int}
 
 function trivial(::Type{GradedOneTo{S}}) where {S}
     return gradedrange([trivial(S) => 1])
@@ -87,16 +64,6 @@ function gradedrange(xs::AbstractVector{<:Pair})
 end
 
 # ========================  BlockSparseArrays interface  ========================
-
-function eachblockaxis(g::GradedOneTo)
-    block_sectors = isdual(g) ? dual.(sectors(g)) : sectors(g)
-    return [
-        SectorOneTo(s, m)
-            for (s, m) in zip(block_sectors, datalengths(g))
-    ]
-end
-eachdataaxis(g::GradedOneTo) = data.(eachblockaxis(g))
-eachsectoraxis(g::GradedOneTo) = sector.(eachblockaxis(g))
 
 function mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
     isempty(axs) && return GradedOneTo(S[], Int[])
@@ -138,9 +105,6 @@ function flip(g::GradedOneTo)
     new_nondual = [SectorRange(dual(label(s))) for s in g.sectors]
     return GradedOneTo(new_nondual, datalengths(g), !isdual(g))
 end
-flip_dual(g::GradedOneTo) = isdual(g) ? flip(g) : g
-Base.conj(g::GradedOneTo) = dual(g)
-
 to_gradedrange(g::GradedOneTo) = g
 
 # ========================  Block indexing on GradedOneTo  ========================
@@ -174,11 +138,6 @@ function Base.getindex(
         return SectorOneTo(sector(src), sub_mult)
     end
     return mortar_axis(collect(dest))
-end
-
-# Bounds checking (needed for AbstractArray scalar indexing)
-function Base.checkindex(::Type{Bool}, g::GradedOneTo, i::Int)
-    return 1 <= i <= length(g)
 end
 
 # Equality and hashing. Empty graded ranges have no sectors and the `isdual`
