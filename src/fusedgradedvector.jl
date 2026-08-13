@@ -110,15 +110,6 @@ end
 
 Block-structured 1-D graded array produced by a sector-preserving operation on
 a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`).
-
-Fields:
-
-  - `data::V` — one contiguous buffer holding every block, in sorted-sector order. The owner of the
-    storage.
-  - `blocks::Dictionary{S,D}` — per-sector `view`s into `data`, keyed by sector. Keys match
-    `keys(axis)` and `length(blocks[s]) == axis[s]`.
-  - `axis::Dictionary{S,Int}` — axis layout, mapping each sector to its block
-    size. Keys are sorted and unique. Stored non-dual (codomain convention).
 """
 struct FusedGradedVector{
         T,
@@ -278,8 +269,6 @@ end
 Base.axes(v::FusedGradedVector) = Tuple(biaxes(v))
 
 Base.size(v::FusedGradedVector) = map(length, axes(v))
-Base.eltype(::Type{FusedGradedVector{T}}) where {T} = T
-Base.eltype(::Type{<:FusedGradedVector{T}}) where {T} = T
 
 # Block-wise `mapreduce`: reduce each block locally (so GPU blocks stay on the device for
 # their reduction kernel) and combine per-block scalars on the CPU. Routes

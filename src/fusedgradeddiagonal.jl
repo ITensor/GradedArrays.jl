@@ -8,17 +8,9 @@ using LinearAlgebra: Diagonal
 """
     FusedGradedDiagonal{T,S<:SectorRange,D<:AbstractVector{T},V<:DenseVector{T}} <: AbstractFusedGradedMatrix{T,S}
 
-Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, backed by a
-contiguous diagonal buffer (a [`FusedGradedVector`](@ref)). This is the diagonal factor produced by a
-factorization (SVD singular values, eigenvalues), analogous to TensorKit's `DiagonalTensorMap`.
-`MatrixAlgebraKit.diagview` returns the stored diagonal, sharing storage.
-
-Fields:
-
-  - `diag::FusedGradedVector` — the stored diagonal, one value per basis vector of each coupled
-    sector's reduced (degeneracy) space. Owns the storage.
-  - `blocks::Dictionary{S,Diagonal}` — per-sector `Diagonal` views wrapping `diag`'s blocks, so
-    writing a block writes through to `diag` (no copy).
+Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
+factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
+`DiagonalTensorMap`.
 """
 struct FusedGradedDiagonal{
         T,
@@ -67,7 +59,6 @@ function biaxes(d::FusedGradedDiagonal)
 end
 Base.axes(d::FusedGradedDiagonal) = Tuple(biaxes(d))
 Base.size(d::FusedGradedDiagonal) = map(length, axes(d))
-Base.eltype(::Type{<:FusedGradedDiagonal{T}}) where {T} = T
 
 function Base.view(d::FusedGradedDiagonal, I::Block{2})
     i, j = Int.(Tuple(I))
@@ -92,12 +83,11 @@ function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(d.diag, T))
 end
 
-# Block-diagonal boolean queries delegate to the (diagonal) blocks, mirroring `FusedGradedMatrix`.
+# The generic `isposdef` misreads the block structure (returns `false` for a positive-definite
+# graded diagonal), so decide it block-wise: positive-definite iff every stored block is.
 function LinearAlgebra.isposdef(d::FusedGradedDiagonal)
     return all(LinearAlgebra.isposdef, values(d.blocks))
 end
-Base.iszero(d::FusedGradedDiagonal) = all(iszero, values(d.blocks))
-LinearAlgebra.isdiag(::FusedGradedDiagonal) = true
 
 # ---- show ----
 

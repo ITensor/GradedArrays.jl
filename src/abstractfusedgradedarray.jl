@@ -25,6 +25,11 @@ function sectordata end
 function sectordatalengths_codomain end
 function sectordatalengths_domain end
 
+# Codomain / domain axis groups, recovered from `biaxes` (the split `bispace` builds). Uniform across
+# the fused family, matching `FusionArray`'s external-axis accessors of the same name.
+axes_codomain(a::AbstractFusedGradedArray) = codomain(biaxes(a))
+axes_domain(a::AbstractFusedGradedArray) = domain(biaxes(a))
+
 function isblockdiagonal(A::AbstractFusedGradedMatrix)
     for bI in eachblockstoredindex(A)
         row, col = Tuple(bI)
@@ -77,6 +82,14 @@ function Base.fill!(a::AbstractFusedGradedArray, v)
     end
     return a
 end
+
+# Linear-combination arithmetic, as `.`-broadcasts over the stored blocks. `FusionArray` defines its
+# own split-preserving versions in `fusionarray.jl`.
+Base.:+(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .+ b
+Base.:-(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .- b
+Base.:*(a::AbstractFusedGradedArray, x::Number) = a .* x
+Base.:*(x::Number, a::AbstractFusedGradedArray) = x .* a
+Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
 
 # ---------------------------------------------------------------------------
 #  Display — render through a BlockArrays block array. BlockArrays draws the

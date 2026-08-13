@@ -7,11 +7,8 @@ using Dictionaries: gettoken, gettokenvalue
 """
     AdjointFusedGradedArray{T,S<:SectorRange,N,P<:AbstractFusedGradedArray{T,S,N}} <: AbstractFusedGradedArray{T,S,N}
 
-Lazy adjoint (conjugate transpose) of a fused graded array, mirroring TensorKit's `AdjointTensorMap`
-and `LinearAlgebra.Adjoint`. Stores only the parent (a trivial wrapper); each block, and the swapped
-codomain/domain, are computed on demand as lazy `adjoint` views, so the adjoint shares the parent's
-contiguous buffer (no copy). `adjoint`/`'` on a fused graded matrix produces this; a second `adjoint`
-unwraps to the parent.
+Lazy adjoint (conjugate transpose) of a fused graded array, produced by `adjoint`/`'` on a fused
+graded matrix. Analogous to TensorKit's `AdjointTensorMap` and `LinearAlgebra.Adjoint`.
 """
 struct AdjointFusedGradedArray{
         T,
@@ -46,7 +43,7 @@ BlockArrays.blocklength(a::AdjointFusedGradedArray) = blocklength(parent(a))
 
 # The block is the `adjoint` of the parent's block (its reduced data adjointed lazily).
 function blocktype(::Type{<:AdjointFusedGradedArray{T, S, N, P}}) where {T, S, N, P}
-    return FusedSectorMatrix{T, S, Base.promote_op(adjoint, datatype(blocktype(P)))}
+    return FusedSectorMatrix{T, S, Base.promote_op(adjoint, datatype(P))}
 end
 blocktype(a::AdjointFusedGradedArray) = blocktype(typeof(a))
 
@@ -58,7 +55,6 @@ function biaxes(a::AdjointFusedGradedArray)
 end
 Base.axes(a::AdjointFusedGradedArray) = Tuple(biaxes(a))
 Base.size(a::AdjointFusedGradedArray) = map(length, axes(a))
-Base.eltype(::Type{<:AdjointFusedGradedArray{T}}) where {T} = T
 
 function Base.view(a::AdjointFusedGradedArray, I::Block{2})
     i, j = Int.(Tuple(I))
@@ -90,9 +86,7 @@ function Base.copy(a::AdjointFusedGradedArray)
     )
 end
 function Base.similar(a::AdjointFusedGradedArray, ::Type{T}) where {T}
-    return FusedGradedMatrix{T}(
-        undef, sectordatalengths_codomain(a), sectordatalengths_domain(a)
-    )
+    return FusedGradedMatrix{T}(undef, only(axes_codomain(a)), only(axes_domain(a)))
 end
 
 # ---- show ----

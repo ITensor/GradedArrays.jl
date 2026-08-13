@@ -5,22 +5,8 @@
 """
     FusedGradedMatrix{T,S<:SectorRange,D<:AbstractMatrix{T},V<:DenseVector{T}}
 
-Block-diagonal matrix produced by matricizing a `FusionArray`.
-Each stored block corresponds to a coupled sector that lives on both the codomain and the domain.
-
-Fields:
-
-  - `data::V` — one contiguous buffer holding every stored block, in TensorKit's `.data` layout:
-    sorted coupled-sector order, column-major within each block. This is the owner of the storage.
-  - `blocks::Dictionary{S,D}` — per-coupled-sector `reshape`d views into `data`, keyed by sector.
-    Mutating a block mutates the buffer. Each key is in both `codomain` and `domain`, and
-    `size(blocks[s])` equals `(codomain[s], domain[s])`.
-  - `codomain::Dictionary{S,Int}` — codomain (row) axis, mapping each sector to
-    its row-block size. Keys are sorted and unique. Sectors are stored
-    non-dual (codomain convention).
-  - `domain::Dictionary{S,Int}` — domain (column) axis, mapping each sector to
-    its column-block size. Keys are sorted and unique. Stored non-dual; the
-    actual axis is dual (the keys are dualed by `axes(m, 2)`).
+Block-diagonal matrix produced by matricizing a `FusionArray`. Each stored block corresponds to a
+coupled sector that lives on both the codomain and the domain.
 """
 struct FusedGradedMatrix{
         T,
@@ -300,8 +286,6 @@ end
 Base.axes(m::FusedGradedMatrix) = Tuple(biaxes(m))
 
 Base.size(m::FusedGradedMatrix) = map(length, axes(m))
-Base.eltype(::Type{FusedGradedMatrix{T}}) where {T} = T
-Base.eltype(::Type{<:FusedGradedMatrix{T}}) where {T} = T
 
 # ========================  Block indexing (primitive)  ========================
 
