@@ -1,6 +1,21 @@
 using SplitApplyCombine: groupcount
 using StridedViews: StridedViews, StridedView, isstrided
 
+# ========================  bipartite-axes interface  ========================
+# The shared codomain/domain axis interface for `FusionArray` and the fused graded arrays (a candidate
+# to move to TensorAlgebra alongside `BiTuple`/`bispace`). A type implements the two primitives
+# `axes_codomain`/`axes_domain` — its codomain and domain axis groups in un-dualized (codomain-facing)
+# form — and these derived helpers follow. `biaxes` wraps the halves into the `bispace`/`BiTuple` form
+# (dualizing the domain), so an implementer never constructs a `BiTuple`; `axis_codomain`/`axis_domain`
+# are the single-axis form for a matrix-like array (one axis per side), and `axis` the single axis of a
+# one-dimensional array. Overloaded on `AbstractArray` because `FusionArray` shares the interface but is
+# not an `AbstractFusedGradedArray`.
+
+biaxes(a::AbstractArray) = bispace(axes_codomain(a), axes_domain(a))
+axis_codomain(a::AbstractArray) = only(axes_codomain(a))
+axis_domain(a::AbstractArray) = only(axes_domain(a))
+axis(a::AbstractArray) = only(axes(a))
+
 function tensor_product(r1, r2, r3, rs...)
     return tensor_product(tensor_product(r1, r2), r3, rs...)
 end
@@ -16,7 +31,7 @@ end
 # default to tensor_product
 unmerged_tensor_product(a1, a2) = tensor_product(a1, a2)
 
-function unmerged_tensor_product(a1::GradedOneTo, a2::GradedOneTo)
+function unmerged_tensor_product(a1::AbstractGradedOneTo, a2::AbstractGradedOneTo)
     ea1 = eachblockaxis(a1)
     ea2 = eachblockaxis(a2)
     T = Base.promote_op(tensor_product, eltype(ea1), eltype(ea2))
@@ -59,7 +74,7 @@ invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 # to its position (block + subrange) within the merged axis merged_ax, given the block
 # permutation blockperm used to sort and merge fine_ax into merged_ax.
 # Requires that blocks of fine_ax subdivide blocks of merged_ax.
-function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::GradedOneTo)
+function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::AbstractGradedOneTo)
     n = blocklength(fine_ax)
     fine_bls = blocklengths(fine_ax)
     merged_bls = blocklengths(merged_ax)
@@ -83,7 +98,9 @@ function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::GradedOne
     return J
 end
 
-function sectormergesort(g::GradedOneTo)
+# The result is fused-sorted (each sector once, in order) by construction, so return the type that
+# encodes that invariant rather than a plain `GradedOneTo`.
+function sectormergesort(g::AbstractGradedOneTo)
     # Merge repeated sectors (summing their data lengths) and sort. The stored sectors are non-dual
     # and the arrow is axis-level, so merge and sort them directly and carry `isdual` through.
     dict = Dict{sectortype(g), Int}()
@@ -91,13 +108,13 @@ function sectormergesort(g::GradedOneTo)
         dict[s] = get(dict, s, 0) + m
     end
     merged = sort!(collect(pairs(dict)); by = first)
-    return GradedOneTo(first.(merged), last.(merged), isdual(g))
+    return FusedGradedOneTo(first.(merged), last.(merged), isdual(g))
 end
 
-# tensor_product produces a sorted, non-dual GradedOneTo
-tensor_product(g::GradedOneTo) = sectormergesort(flip_dual(g))
+# tensor_product produces a fused-sorted, non-dual FusedGradedOneTo
+tensor_product(g::AbstractGradedOneTo) = sectormergesort(flip_dual(g))
 
-function tensor_product(g1::GradedOneTo, g2::GradedOneTo)
+function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
     return sectormergesort(unmerged_tensor_product(g1, g2))
 end
 
@@ -184,8 +201,8 @@ StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a
 # Permute-add a sector source into a plain (non-sector) destination. Under unique fusion the reduced
 # data is the full dense array, so forward to the dense primitive on `data(x)` rather than letting the
 # generic fall back to scalar reads of the sector source. The `y::AbstractSectorArray` method above is
-# strictly more specific, so a sector→sector call still takes the block-wise path. This is the seam that
-# lets `add!(dest::AbstractArray, ::AbstractSectorArray, α, β)` (via the generic `permutedimsopadd!`)
+# strictly more specific, so a sector→sector call still takes the block-wise path. This is what lets
+# `add!(dest::AbstractArray, ::AbstractSectorArray, α, β)` (via the generic `permutedimsopadd!`)
 # work without a bespoke `add!` overload.
 function TensorAlgebra.bipermutedimsopadd!(
         y::AbstractArray, op, x::AbstractSectorArray,
@@ -198,7 +215,8 @@ function TensorAlgebra.bipermutedimsopadd!(
 end
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractFusedArray{<:Any, <:Any, N}, op, x::AbstractFusedArray{<:Any, <:Any, N},
+        y::AbstractFusedGradedArray{<:Any, <:Any, N}, op,
+        x::AbstractFusedGradedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}

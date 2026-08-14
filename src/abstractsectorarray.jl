@@ -174,12 +174,13 @@ end
 
 # ========================  densification  ========================
 
-# Materialize the structural factor `sector(a) ⊗ data(a)` densely, the same per-block densification
-# a fused graded array uses (`I ⊗ reduced` for the identity/ones structural factor, repeating each
-# reduced value over the irrep's quantum dimension). The generic `AbstractArray` fallback can't be
-# used: `size` is the full (structural × reduced) extent while `data` is only the reduced block, so
-# copying elementwise scalar-indexes past the reduced data into garbage.
-Base.Array(a::AbstractSectorArray) = kron_nd(Array(sector(a)), Array(data(a)))
+# Materialize the block densely as `data(a) ⊗ sector(a)` (`reduced ⊗ I` for the identity/ones
+# structural factor), repeating each reduced value over the irrep's quantum dimension. The reduced
+# data is the outer (slower) index, matching TensorKit's dense block layout, so this agrees with the
+# `to_tensormap` conversion (`Array(::FusedGradedMatrix)` and `Array(::FusionArray)` coincide). The generic
+# `AbstractArray` fallback can't be used: `size` is the full (structural × reduced) extent while
+# `data` is only the reduced block, so copying elementwise scalar-indexes past it into garbage.
+Base.Array(a::AbstractSectorArray) = kron_nd(Array(data(a)), Array(sector(a)))
 
 # ========================  random fills  ========================
 

@@ -7,7 +7,7 @@ struct TwistedSectorMatricize <: MatricizeStyle end
 
 TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorDelta}) = SectorMatricize()
 TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorArray}) = SectorMatricize()
-TensorAlgebra.MatricizeStyle(::Type{<:AbstractFusedArray}) = SectorMatricize()
+TensorAlgebra.MatricizeStyle(::Type{<:AbstractFusedGradedArray}) = SectorMatricize()
 TensorAlgebra.MatricizeStyle(::Type{<:SectorOneTo}) = SectorMatricize()
 
 # ========================  trivial_gradedrange  ========================
@@ -16,7 +16,7 @@ function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
     return tensor_product(trivial.(t)...)
 end
 function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
-    return gradedrange([trivial(S) => 1])
+    return fusedgradedrange([trivial(S) => 1])
 end
 
 # ========================  unmerged_matricize_axes  ========================
@@ -106,6 +106,16 @@ function TensorAlgebra.unmatricize(
     return TensorAlgebra.unmatricizeperm!(
         SectorMatricize(), a, m, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
     )
+end
+
+# A lazy adjoint has no owned contiguous buffer to reshape; materialize it into a `FusedGradedMatrix`
+# first, then unmatricize that.
+function TensorAlgebra.unmatricize(
+        style::SectorMatricize, m::AdjointFusedGradedArray,
+        codomain_axes::Tuple{Vararg{GradedOneTo}},
+        domain_axes::Tuple{Vararg{GradedOneTo}}
+    )
+    return TensorAlgebra.unmatricize(style, copy(m), codomain_axes, domain_axes)
 end
 
 # ========================  Allowed block keys  ========================

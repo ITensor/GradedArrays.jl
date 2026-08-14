@@ -1,7 +1,7 @@
 # =============================================================================
 #  Shared block-indexing infrastructure.
 #
-#  `FusionArray` and the fused arrays (`AbstractFusedArray`) both implement the block-indexing
+#  `FusionArray` and the fused arrays (`AbstractFusedGradedArray`) both implement the block-indexing
 #  primitive `view(a, ::Block)`, and the rest of the block/scalar indexing surface is derived from
 #  it identically for both. That shared derivation is the reason to define it once here, by an
 #  `@eval` loop over the two types, rather than the definitions merely coinciding. The `FusionArray`
@@ -11,7 +11,7 @@
 
 using BlockArrays: Block, BlockIndexRange, block, blockindex, blocks, findblockindex
 
-for AT in (:FusionArray, :AbstractFusedArray)
+for AT in (:FusionArray, :AbstractFusedGradedArray)
     @eval begin
         # Whether a block is stored (allocated), following the `SparseArraysBase.isstored(a, ::Block)`
         # interface `BlockSparseArrays` uses: delegate to the block container's element `isstored`.

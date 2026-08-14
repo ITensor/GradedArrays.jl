@@ -1,6 +1,6 @@
 import MatrixAlgebraKit as MAK
-using GradedArrays: GradedArrays, FusedGradedMatrix, FusedGradedVector, FusionArray,
-    GradedBlockAlgorithm, U1, Z2, dual, gradedrange
+using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
+    FusionArray, GradedBlockAlgorithm, U1, Z2, dual, gradedrange, sectordata
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
@@ -69,9 +69,9 @@ end
         @testset "compact" begin
             U, S, Vᴴ = MAK.svd_compact(A_rect)
             @test U isa FusedGradedMatrix
-            @test S isa FusedGradedMatrix
+            @test S isa FusedGradedDiagonal
             @test Vᴴ isa FusedGradedMatrix
-            @test all(x -> x isa Diagonal, values(S.blocks))
+            @test all(x -> x isa Diagonal, values(sectordata(S)))
 
             # Reconstruction
             @test A_rect ≈ U * S * Vᴴ
@@ -94,7 +94,7 @@ end
             # Properties
             @test isunitary(U)
             @test isunitary(Vᴴ)
-            for s in values(S.blocks)
+            for s in values(sectordata(S))
                 @test all(isposdef, MAK.diagview(s))
             end
         end
@@ -102,14 +102,14 @@ end
         @testset "vals" begin
             S = MAK.svd_vals(A_rect)
             @test S isa FusedGradedVector
-            @test all(b isa AbstractVector for b in values(S.blocks))
-            @test all(all(>=(0), b) for b in values(S.blocks))
+            @test all(b isa AbstractVector for b in values(sectordata(S)))
+            @test all(all(>=(0), b) for b in values(sectordata(S)))
             # Singular values match those from compact SVD
             _, S2, _ = MAK.svd_compact(A_rect)
-            for sec in keys(S.blocks)
+            for sec in keys(sectordata(S))
                 @test isapprox(
-                    sort(S.blocks[sec]; rev = true),
-                    sort(MAK.diagview(S2.blocks[sec]); rev = true);
+                    sort(sectordata(S)[sec]; rev = true),
+                    sort(MAK.diagview(sectordata(S2)[sec]); rev = true);
                     atol = 1.0e-10
                 )
             end
@@ -204,9 +204,9 @@ end
     @testset "Eig" begin
         @testset "full" begin
             D, V = MAK.eig_full(A_sq)
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             @test V isa FusedGradedMatrix
-            @test all(x -> x isa Diagonal, values(D.blocks))
+            @test all(x -> x isa Diagonal, values(sectordata(D)))
 
             # Reconstruction via eigenvector equation
             @test A_sq * V ≈ V * D
@@ -215,17 +215,17 @@ end
         @testset "vals" begin
             D = MAK.eig_vals(A_sq)
             @test D isa FusedGradedVector
-            @test collect(keys(D.blocks)) == sectors_u1
+            @test collect(keys(sectordata(D))) == sectors_u1
             # One eigenvalue per row of each square block
-            for (i, sec) in enumerate(keys(D.blocks))
-                @test length(D.blocks[sec]) == sq_dims_u1[i]
+            for (i, sec) in enumerate(keys(sectordata(D)))
+                @test length(sectordata(D)[sec]) == sq_dims_u1[i]
             end
             # Eigenvalues match diagonal of eig_full
             D2, _ = MAK.eig_full(A_sq)
-            for sec in keys(D.blocks)
+            for sec in keys(sectordata(D))
                 @test isapprox(
-                    sort(D.blocks[sec]; by = real),
-                    sort(MAK.diagview(D2.blocks[sec]); by = real);
+                    sort(sectordata(D)[sec]; by = real),
+                    sort(MAK.diagview(sectordata(D2)[sec]); by = real);
                     atol = 1.0e-10
                 )
             end
@@ -236,9 +236,9 @@ end
     @testset "Eigh" begin
         @testset "full" begin
             D, V = MAK.eigh_full(A_herm)
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             @test V isa FusedGradedMatrix
-            @test all(x -> x isa Diagonal, values(D.blocks))
+            @test all(x -> x isa Diagonal, values(sectordata(D)))
 
             # Reconstruction
             @test A_herm ≈ V * D * V'
@@ -250,13 +250,13 @@ end
         @testset "vals" begin
             D = MAK.eigh_vals(A_herm)
             @test D isa FusedGradedVector
-            @test length(keys(D.blocks)) == length(sectors_u1)
+            @test length(keys(sectordata(D))) == length(sectors_u1)
             # Eigenvalues should be real and match eigh_full
             D2, _ = MAK.eigh_full(A_herm)
-            for sec in keys(D.blocks)
+            for sec in keys(sectordata(D))
                 @test isapprox(
-                    sort(real.(D.blocks[sec])),
-                    sort(real.(MAK.diagview(D2.blocks[sec])));
+                    sort(real.(sectordata(D)[sec])),
+                    sort(real.(MAK.diagview(sectordata(D2)[sec])));
                     atol = 1.0e-10
                 )
             end
@@ -298,7 +298,7 @@ end
         @testset "notrunc" begin
             U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = notrunc())
             @test U isa FusedGradedMatrix
-            @test S isa FusedGradedMatrix
+            @test S isa FusedGradedDiagonal
             @test Vᴴ isa FusedGradedMatrix
             @test ε ≈ 0 atol = precision(eltype(A_rect))
             @test A_rect ≈ U * S * Vᴴ
@@ -307,10 +307,10 @@ end
 
             # same sectors as compact SVD
             U0, S0, Vᴴ0 = MAK.svd_compact(A_rect)
-            @test keys(U.blocks) == keys(U0.blocks)
+            @test keys(sectordata(U)) == keys(sectordata(U0))
             @test all(
-                isapprox(S.blocks[s], S0.blocks[s])
-                    for s in keys(S.blocks)
+                isapprox(sectordata(S)[s], sectordata(S0)[s])
+                    for s in keys(sectordata(S))
             )
         end
 
@@ -319,7 +319,7 @@ end
             U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = truncrank(maxrank))
             @test U isa FusedGradedMatrix
             # total number of kept singular values ≤ maxrank
-            @test sum(size(b, 2) for b in values(U.blocks)) <= maxrank
+            @test sum(size(b, 2) for b in values(sectordata(U))) <= maxrank
             # reconstruction error ≈ reported truncation error
             @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
             @test isisometric(U)
@@ -331,7 +331,7 @@ end
             U, S, Vᴴ, ε = MAK.svd_trunc(A_rect; trunc = trunctol(; atol))
             @test U isa FusedGradedMatrix
             # all kept singular values are above the tolerance
-            for b in values(S.blocks)
+            for b in values(sectordata(S))
                 @test all(≥(atol), MAK.diagview(b))
             end
             @test norm(A_rect - U * S * Vᴴ) ≈ ε atol = precision(eltype(A_rect))
@@ -349,8 +349,8 @@ end
             U, S, Vᴴ, ε =
                 MAK.svd_trunc(A_rect; trunc = truncrank(3) & trunctol(; atol = 0.3))
             @test U isa FusedGradedMatrix
-            @test sum(size(b, 2) for b in values(U.blocks)) <= 3
-            for b in values(S.blocks)
+            @test sum(size(b, 2) for b in values(sectordata(U))) <= 3
+            for b in values(sectordata(S))
                 @test all(≥(0.3), MAK.diagview(b))
             end
         end
@@ -358,7 +358,7 @@ end
         @testset "svd_trunc_no_error" begin
             U, S, Vᴴ = MAK.svd_trunc_no_error(A_rect; trunc = truncrank(3))
             @test U isa FusedGradedMatrix
-            @test sum(size(b, 2) for b in values(U.blocks)) <= 3
+            @test sum(size(b, 2) for b in values(sectordata(U))) <= 3
         end
 
         @testset "drops fully truncated sectors from the bond" begin
@@ -370,9 +370,9 @@ end
                 [U1(0), U1(1)]
             )
             U, S, Vᴴ, ε = MAK.svd_trunc(A; trunc = trunctol(; atol = 1.0e-2))
-            @test collect(keys(U.blocks)) == [U1(0)]
-            @test collect(keys(S.blocks)) == [U1(0)]
-            @test collect(keys(Vᴴ.blocks)) == [U1(0)]
+            @test collect(keys(sectordata(U))) == [U1(0)]
+            @test collect(keys(sectordata(S))) == [U1(0)]
+            @test collect(keys(sectordata(Vᴴ))) == [U1(0)]
             # The dropped sector's weight shows up as the truncation error.
             @test ε ≈ norm(1.0e-3 * Matrix(1.0I, 2, 2)) atol = precision(eltype(A))
         end
@@ -384,27 +384,27 @@ end
 
         @testset "notrunc" begin
             D, V, ε = MAK.eigh_trunc(A_herm; trunc = notrunc())
-            @test D isa FusedGradedMatrix
+            @test D isa FusedGradedDiagonal
             @test V isa FusedGradedMatrix
             @test ε ≈ 0 atol = precision(eltype(A_herm))
             @test A_herm ≈ V * D * V'
             D0, V0 = MAK.eigh_full(A_herm)
-            @test keys(D.blocks) == keys(D0.blocks)
+            @test keys(sectordata(D)) == keys(sectordata(D0))
         end
 
         @testset "truncrank" begin
             maxrank = 5
             D, V, ε = MAK.eigh_trunc(A_herm; trunc = truncrank(maxrank))
-            @test D isa FusedGradedMatrix
-            @test sum(size(b, 2) for b in values(V.blocks)) <= maxrank
+            @test D isa FusedGradedDiagonal
+            @test sum(size(b, 2) for b in values(sectordata(V))) <= maxrank
             @test isisometric(V)
         end
 
         @testset "trunctol (keep largest by abs)" begin
             atol = 0.3
             D, V, ε = MAK.eigh_trunc(A_herm; trunc = trunctol(; atol))
-            @test D isa FusedGradedMatrix
-            for b in values(D.blocks)
+            @test D isa FusedGradedDiagonal
+            for b in values(sectordata(D))
                 @test all(≥(atol) ∘ abs, MAK.diagview(b))
             end
         end
@@ -430,15 +430,16 @@ end
     @testset "lmul! / rmul! (block-wise matrix-matrix)" begin
         rng = StableRNG(1234)
         dims = [3, 4, 2]
-        Sblocks = [Diagonal(randn(rng, n)) for n in dims]
-        S = FusedGradedMatrix(Sblocks, sectors_u1)
+        svals = [randn(rng, n) for n in dims]
+        Sblocks = [Diagonal(v) for v in svals]
+        S = FusedGradedDiagonal(FusedGradedVector(svals, sectors_u1))
 
         # `lmul!(S, C)`: `C <- S * C` block-wise, `S` square (diagonal, as singular values).
         Cblocks = [randn(rng, dims[i], d) for (i, d) in enumerate([2, 3, 5])]
         C = FusedGradedMatrix(copy.(Cblocks), sectors_u1)
         @test lmul!(S, C) === C
         for (i, s) in enumerate(sectors_u1)
-            @test C.blocks[s] ≈ Sblocks[i] * Cblocks[i]
+            @test sectordata(C)[s] ≈ Sblocks[i] * Cblocks[i]
         end
 
         # `rmul!(A, S)`: `A <- A * S` block-wise.
@@ -446,7 +447,7 @@ end
         A = FusedGradedMatrix(copy.(Ablocks), sectors_u1)
         @test rmul!(A, S) === A
         for (i, s) in enumerate(sectors_u1)
-            @test A.blocks[s] ≈ Ablocks[i] * Sblocks[i]
+            @test sectordata(A)[s] ≈ Ablocks[i] * Sblocks[i]
         end
     end
 
@@ -480,7 +481,9 @@ end
 
         @testset "svd_compact / svd_full" begin
             U, S, Vᴴ = MAK.svd_compact(m_rect)
-            @test all(x -> x isa FusedGradedMatrix, (U, S, Vᴴ))
+            @test U isa FusedGradedMatrix
+            @test S isa FusedGradedDiagonal
+            @test Vᴴ isa FusedGradedMatrix
             @test axes(U, 1) == axes(m_rect, 1)
             @test axes(Vᴴ, 2) == axes(m_rect, 2)
             @test U * S * Vᴴ ≈ m_rect

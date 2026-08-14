@@ -1,8 +1,10 @@
 using BlockArrays: Block, blocklengths
-using GradedArrays: GradedArrays, FusedGradedMatrix, FusionArray, SU2, SectorRange, U1,
-    UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain, ndims_domain,
-    sector, with_block_indexing, with_scalar_indexing
+using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusionArray, SU2,
+    SectorRange, U1, UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain,
+    ndims_domain, sector, sectordata, to_tensormap, with_block_indexing,
+    with_scalar_indexing
 using LinearAlgebra: Diagonal
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, bipermutedims, contract, matricize, svd_compact
 using TensorKit: TensorKit, @tensor
@@ -55,6 +57,32 @@ end
         t = TensorKit.TensorMap(a)
         b = FusionArray(t)
         @test TensorKit.TensorMap(b) ≈ t
+    end
+
+    # The invariant the buffer redesign rests on: the matricized buffer is laid out exactly as
+    # TensorKit's `.data`, so `to_tensormap` is a genuine zero-copy `TensorMap` view over it whose dense
+    # form equals the copy-based reference conversion. (We compare against TensorKit's own dense form,
+    # not `Array(::FusedGradedMatrix)`, because our `_to_blockarray` and TensorKit order the
+    # degeneracy/multiplicity index differently within a non-abelian block, see the plan note.)
+    @testset "to_tensormap is a zero-copy TensorMap ($G)" for (G, g) in (
+            ("U1", gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])),
+            ("SU2", gradedrange([SU2(0) => 3, SU2(1 // 2) => 2, SU2(1) => 1])),
+        )
+        a = randn_fusionarray((g,), (g,))
+        t = to_tensormap(a)
+        @test t isa TensorKit.TensorMap
+        @test t.data === matricize(a).buffer                                # shares the buffer
+        @test convert(Array, t) ≈ convert(Array, TensorKit.TensorMap(a))  # == copy-based reference
+        @test convert(Array, to_tensormap(FusionArray(t))) ≈ convert(Array, t)  # round-trip
+
+        # A diagonal factor maps to a zero-copy `DiagonalTensorMap` over its diagonal buffer.
+        U, S, Vᴴ = MAK.svd_compact(matricize(a))
+        Sa = FusionArray(S, (g,), (g,))
+        ts = to_tensormap(Sa)
+        @test ts isa TensorKit.DiagonalTensorMap
+        @test ts.data === S.diag.buffer
+        @test collect(MAK.diagview(ts)) ≈ S.diag.buffer
+        @test convert(Array, ts) ≈ convert(Array, TensorKit.TensorMap(Sa))
     end
 
     @testset "external axes may be unfused or unsorted" begin
@@ -177,9 +205,9 @@ end
         @test axes(ra) == axes(a)
         # Forwarded to the matricized fused matrix, so real/imag act block-wise on the reduced data.
         ma = matricize(a)
-        for c in keys(ma.blocks)
-            @test matricize(ra).blocks[c] == real.(ma.blocks[c])
-            @test matricize(ia).blocks[c] == imag.(ma.blocks[c])
+        for c in keys(sectordata(ma))
+            @test sectordata(matricize(ra))[c] == real.(sectordata(ma)[c])
+            @test sectordata(matricize(ia))[c] == imag.(sectordata(ma)[c])
         end
     end
 

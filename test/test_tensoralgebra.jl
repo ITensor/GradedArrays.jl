@@ -2,9 +2,10 @@ import GradedArrays
 using BlockArrays: Block, blocklength
 using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, FusionArray,
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
-    UniqueSectorDelta, data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
-    gradedrange, isdual, sector, sectoraxes, sectormergesort, sectors, sectortype,
-    tensor_product, with_block_indexing, with_scalar_indexing
+    UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths, dual,
+    eachblockstoredindex, eachsectoraxis, flip, gradedrange, isdual, sector, sectoraxes,
+    sectordata, sectormergesort, sectors, sectortype, tensor_product, with_block_indexing,
+    with_scalar_indexing
 using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,
@@ -182,9 +183,9 @@ end
     @test fsm isa FusedGradedMatrix{Float64}
     # Each stored N-D block lands in the coupled sector pairing its row charge with
     # the dual of its column charge: (U1(0), U1(0)) → U1(0), (U1(1), U1(-1)) → U1(1).
-    @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
-    @test blocklength(fsm, 1) == 2
-    @test blocklength(fsm, 2) == 2
+    @test collect(keys(sectordata(fsm))) == [U1(0), U1(1)]
+    @test blocklength(axes(fsm, 1)) == 2
+    @test blocklength(axes(fsm, 2)) == 2
     @test data(fsm[Block(1, 1)]) ≈ block_11
     @test data(fsm[Block(2, 2)]) ≈ block_22
 end
@@ -205,9 +206,9 @@ end
 
     fsm = matricizeperm(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
-    @test collect(keys(fsm.blocks)) == [U1(0), U1(1), U1(2)]
-    @test blocklength(fsm, 1) == 3
-    @test blocklength(fsm, 2) == 3
+    @test collect(keys(sectordata(fsm))) == [U1(0), U1(1), U1(2)]
+    @test blocklength(axes(fsm, 1)) == 3
+    @test blocklength(axes(fsm, 2)) == 3
 
     @test data(fsm[Block(1, 1)]) ≈ ones(1, 1)
     @test data(fsm[Block(2, 2)]) ≈ zeros(2, 2)
@@ -245,9 +246,9 @@ end
     @test fsm isa FusedGradedMatrix{Float64}
     # Codomain carries all three sectors, domain only the two that exist on
     # the contracted leg — the new asymmetric design.
-    @test collect(keys(fsm.codomain)) == [U1(0), U1(1), U1(2)]
-    @test collect(keys(fsm.domain)) == [U1(0), U1(1)]
-    @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
+    @test sectors(axis_codomain(fsm)) == [U1(0), U1(1), U1(2)]
+    @test sectors(axis_domain(fsm)) == [U1(0), U1(1)]
+    @test collect(keys(sectordata(fsm))) == [U1(0), U1(1)]
 
     # Round-trip through `unmatricize` recovers the original blocks. The domain axes are
     # passed codomain-facing (un-dualized), so the original `dual(r)` domain axis is given

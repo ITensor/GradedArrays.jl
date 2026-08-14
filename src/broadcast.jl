@@ -143,13 +143,10 @@ function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{2}}, elt::Type)
     return FusedGradedMatrix{elt}(undef, axes(flattenlinear(bc)))
 end
 
-# Linear-combination arithmetic for the fused arrays. `FusionArray` defines its own
-# split-preserving versions in `fusionarray.jl`.
-function Base.copyto!(dest::AbstractFusedArray, bc::BC.Broadcasted{<:FusedGradedStyle})
+# Fused-array linear broadcasts fold to the leaf via `flattenlinear` and apply block-wise.
+function Base.copyto!(
+        dest::AbstractFusedGradedArray,
+        bc::BC.Broadcasted{<:FusedGradedStyle}
+    )
     return copyto!(dest, flattenlinear(bc))
 end
-Base.:+(a::AbstractFusedArray, b::AbstractFusedArray) = a .+ b
-Base.:-(a::AbstractFusedArray, b::AbstractFusedArray) = a .- b
-Base.:*(a::AbstractFusedArray, x::Number) = a .* x
-Base.:*(x::Number, a::AbstractFusedArray) = x .* a
-Base.:/(a::AbstractFusedArray, x::Number) = a ./ x

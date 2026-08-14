@@ -1,6 +1,6 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorRange, U1, datalengths, dual,
-    flip, gradedrange, isdual, label, sectors, sectortype, tensor_product
+using GradedArrays: GradedArrays, FusedGradedOneTo, GradedOneTo, SU2, SectorRange, U1,
+    datalengths, dual, flip, gradedrange, isdual, label, sectors, sectortype, tensor_product
 using TensorAlgebra: TensorAlgebra
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -190,7 +190,7 @@ using Test: @test, @test_throws, @testset
         g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
 
         tp = tensor_product(g1, g2)
-        @test tp isa GradedOneTo
+        @test tp isa FusedGradedOneTo
         @test !isdual(tp)
         @test sectors(tp) == sort(sectors(tp))
 
@@ -203,16 +203,16 @@ using Test: @test, @test_throws, @testset
 
         g_small = gradedrange([U1(0) => 1, U1(1) => 1])
         tp3 = tensor_product(g_small, g_small, g_small)
-        @test tp3 isa GradedOneTo
+        @test tp3 isa FusedGradedOneTo
         @test !isdual(tp3)
         tp4 = tensor_product(g_small, g_small, g_small, g_small)
-        @test tp4 isa GradedOneTo
+        @test tp4 isa FusedGradedOneTo
     end
 
     @testset "tensor_product (non-abelian)" begin
         g = gradedrange([SU2(0) => 1, SU2(1 // 2) => 1])
         tp = tensor_product(g, g)
-        @test tp isa GradedOneTo
+        @test tp isa FusedGradedOneTo
         @test !isdual(tp)
     end
 

@@ -8,7 +8,7 @@ export AbstractSectorDelta, UniqueSectorDelta, SectorIdentity
 export AbstractSectorArray,
     UniqueSectorArray, UniqueSectorVector, UniqueSectorMatrix,
     FusedSectorMatrix, FusedSectorVector
-export FusedGradedMatrix, FusedGradedVector
+export FusedGradedMatrix, FusedGradedVector, FusedGradedDiagonal
 export GradedBlockAlgorithm
 
 export codomain, domain,
@@ -39,6 +39,10 @@ using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, MatricizeStyle
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 
+# Self-alias for calling our own functions qualified where a local argument shadows the bare name
+# (e.g. a `sectordata` constructor argument shadowing the `sectordata` accessor).
+const GA = GradedArrays
+
 include("indexingguards.jl")
 include("kron.jl")
 include("blocksparseinterface.jl")
@@ -56,10 +60,13 @@ include("uniquesectorarray.jl")
 include("sectoridentity.jl")
 include("sectoronesvector.jl")
 include("fusedsectormatrix.jl")
-include("abstractfusedarray.jl")
+include("abstractfusedgradedarray.jl")
 
+include("sectordata.jl")
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
+include("fusedgradeddiagonal.jl")
+include("adjointfusedgradedarray.jl")
 include("fusedgradedblocks.jl")
 
 include("sectorproduct.jl")
@@ -72,7 +79,6 @@ include("cat.jl")
 include("matrixalgebrakit.jl")
 
 include("fusionarray.jl")
-include("fusionmap.jl")
 # Shared graded-array interface + `VectorInterface` (both name `FusionArray`, so they come after it).
 include("gradedarrayinterface.jl")
 include("vectorinterface.jl")

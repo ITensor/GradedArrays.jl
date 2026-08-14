@@ -6,11 +6,13 @@
 # its `blocks` view is a sparse array over the allocated (symmetry-allowed) blocks, mirroring
 # `AbelianBlocks`. A stored entry is `view(parent, Block(I)...)` (shares data); an unstored entry
 # is a symmetry-forbidden block and errors.
-struct FusedGradedMatrixBlocks{T, S, D, A <: FusedGradedMatrix{T, S, D}} <:
+struct FusedGradedMatrixBlocks{T, S, D, A <: FusedGradedMatrix{T, S}} <:
     AbstractSparseMatrix{FusedSectorMatrix{T, S, D}}
     parent::A
 end
-BlockArrays.blocks(m::FusedGradedMatrix) = FusedGradedMatrixBlocks(m)
+function BlockArrays.blocks(m::FusedGradedMatrix)
+    return FusedGradedMatrixBlocks{eltype(m), sectortype(m), datatype(m), typeof(m)}(m)
+end
 
 Base.size(b::FusedGradedMatrixBlocks) = blocklength.(axes(b.parent))
 
@@ -27,11 +29,13 @@ end
 # Block `(i, j)` is stored only when its codomain and domain sectors coincide and that sector has
 # an allocated block.
 function SparseArraysBase.isstored(b::FusedGradedMatrixBlocks, i::Int, j::Int)
-    m = b.parent
-    (i in 1:length(m.codomain) && j in 1:length(m.domain)) || return false
-    s_cod = gettokenvalue(keys(m.codomain), i)
-    s_dom = gettokenvalue(keys(m.domain), j)
-    return s_cod == s_dom && haskey(m.blocks, s_cod)
+    cod, dom = axis_codomain(b.parent), axis_domain(b.parent)
+    (i in 1:blocklength(cod) && j in 1:blocklength(dom)) || return false
+    s_cod = sectors(cod)[i]
+    s_dom = sectors(dom)[j]
+    # Stored iff codomain and domain share the sector: `s_cod` is a codomain sector by construction,
+    # so a stored block needs it in the domain too.
+    return s_cod == s_dom && haskey(sectordatalengths(dom), s_cod)
 end
 
 # A stored entry is the block view, sharing data with the parent.
@@ -58,11 +62,13 @@ end
 
 # A `FusedGradedVector` allocates one block per axis sector, so its blocks are dense: the view is
 # a plain `AbstractVector` of block views (sharing data), with no forbidden entries.
-struct FusedGradedVectorBlocks{T, S, D, A <: FusedGradedVector{T, S, D}} <:
+struct FusedGradedVectorBlocks{T, S, D, A <: FusedGradedVector{T, S}} <:
     AbstractVector{FusedSectorVector{T, S, D}}
     parent::A
 end
-BlockArrays.blocks(v::FusedGradedVector) = FusedGradedVectorBlocks(v)
+function BlockArrays.blocks(v::FusedGradedVector)
+    return FusedGradedVectorBlocks{eltype(v), sectortype(v), datatype(v), typeof(v)}(v)
+end
 
 Base.size(b::FusedGradedVectorBlocks) = (blocklength(only(axes(b.parent))),)
 Base.getindex(b::FusedGradedVectorBlocks, i::Int) = view(b.parent, Block(i))

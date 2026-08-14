@@ -31,7 +31,7 @@ Base.@propagate_inbounds function Base.getindex(
     return ifelse(i == j, one(T), zero(T))
 end
 
-biaxes(A::SectorIdentity) = BiTuple((A.sector,), (conj(A.sector),))
+biaxes(A::SectorIdentity) = bispace((A.sector,), (A.sector,))
 Base.axes(A::SectorIdentity) = Tuple(biaxes(A))
 
 # Structural inner product: the identity contracts to its dimension, the quantum dimension.

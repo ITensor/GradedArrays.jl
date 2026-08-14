@@ -52,11 +52,13 @@ function FusedGradedOneTo(
 end
 
 # Primitive accessors. `sectors`/`datalengths` return vectors (in fused/sorted order) to
-# match the `GradedOneTo` interface; the underlying storage is a `Dictionary`. The remaining
-# range-interface methods are shared via `AbstractGradedOneTo`.
+# match the `GradedOneTo` interface; `sectordatalengths` exposes the underlying sector-to-length
+# `Dictionary` for keyed per-sector lookups. The remaining range-interface methods are shared via
+# `AbstractGradedOneTo`.
 TensorAlgebra.isdual(g::FusedGradedOneTo) = g.isdual
 sectors(g::FusedGradedOneTo) = collect(keys(g.sector_datalengths))
 datalengths(g::FusedGradedOneTo) = collect(values(g.sector_datalengths))
+sectordatalengths(g::FusedGradedOneTo) = g.sector_datalengths
 
 # ========================  dual, flip  ========================
 
@@ -115,7 +117,10 @@ end
 
 # ========================  conversions between graded-axis types  ========================
 
+FusedGradedOneTo(g::FusedGradedOneTo) = g
+
 # Convert a `GradedOneTo` that is already in canonical fused form (checked by the constructor).
 FusedGradedOneTo(g::GradedOneTo) = FusedGradedOneTo(sectors(g), datalengths(g), isdual(g))
 
+GradedOneTo(g::GradedOneTo) = g
 GradedOneTo(g::FusedGradedOneTo) = GradedOneTo(sectors(g), datalengths(g), isdual(g))
