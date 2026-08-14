@@ -98,7 +98,7 @@ end
 # ========================  Graded-array broadcasting  ========================
 #
 # The graded layer mirrors the sector layer: linear machinery shared via `AbstractGradedStyle`, and
-# each concrete graded array reconstructs the broadcast result from its own style (`FusionArray` and
+# each concrete graded array reconstructs the broadcast result from its own style (`GradedArray` and
 # the fused `FusedGraded*` matrices/vectors each define their own `similar`).
 
 abstract type AbstractGradedStyle{N} <: BC.AbstractArrayStyle{N} end

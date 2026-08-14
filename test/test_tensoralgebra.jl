@@ -1,6 +1,6 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
-using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, FusionArray,
+using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, GradedArray,
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths, dual,
     eachblockstoredindex, eachsectoraxis, flip, gradedrange, isdual, sector, sectoraxes,
@@ -97,7 +97,7 @@ end
     end
 
     ap = permutedims(a, (2, 1))
-    @test ap isa FusionArray
+    @test ap isa GradedArray
     @test axes(ap, 1) == g2
     @test axes(ap, 2) == g1
 
@@ -125,7 +125,7 @@ end
     α = 2.0
     β = -3.0
     c = α .* a .+ β .* b
-    @test c isa FusionArray
+    @test c isa GradedArray
     with_block_indexing() do
         c_block = c[Block(2, 2)]
         @test Array(c_block) ≈ α .* block_a .+ β .* block_b
@@ -133,7 +133,7 @@ end
 end
 
 @testset "sectormergesort on a graded array" begin
-    # `FusionArray` represents unfused (unsorted, repeated-sector) external axes directly (`U1(1)` at
+    # `GradedArray` represents unfused (unsorted, repeated-sector) external axes directly (`U1(1)` at
     # blocks 1 and 3 here). `sectormergesort` sorts and merges them; since the fused storage is already
     # canonical, it is a pure external-axis relabel over the same data.
     g1 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 3])
@@ -254,7 +254,7 @@ end
     # passed codomain-facing (un-dualized), so the original `dual(r)` domain axis is given
     # as `r`.
     a_back = unmatricize(fsm, (r, r), (r,))
-    @test a_back isa FusionArray
+    @test a_back isa GradedArray
     @test ndims(a_back) == 3
     @test Array(a_back) ≈ Array(a)
 end
@@ -262,7 +262,7 @@ end
 @testset "Off-diagonal block setindex! errors" begin
     ax = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, ax, dual(ax))
-    # A forbidden off-diagonal block is rejected (a `FusionArray` throws a TensorKit `SectorMismatch`).
+    # A forbidden off-diagonal block is rejected (a `GradedArray` throws a TensorKit `SectorMismatch`).
     with_block_indexing() do
         @test_throws Exception (
             a[Block(1, 2)] =
@@ -291,7 +291,7 @@ end
     end
 
     result, dimnames = contract(a, (1, -1), b, (-1, 2))
-    @test result isa FusionArray{Float64, <:Any, 2}
+    @test result isa GradedArray{Float64, <:Any, 2}
     with_block_indexing() do
         @test data(result[Block(1, 1)]) ≈ a_11 * b_11
         @test data(result[Block(2, 2)]) ≈ a_22 * b_22
@@ -310,7 +310,7 @@ end
 
     result = contract((), a, (1, 2), b, (1, 2))
     # A rank-0 contraction result is a graded array.
-    @test result isa FusionArray{elt, <:Any, 0}
+    @test result isa GradedArray{elt, <:Any, 0}
     @test ndims(result) == 0
     @test sectortype(result) === U1
     @test result[] ≈ sum(Array(a) .* Array(b))
@@ -327,7 +327,7 @@ end
 
     # A rank-0 graded array matricizes to a 1×1 trivial-sector `FusedGradedMatrix`,
     # and unmatricizing back recovers the scalar as a rank-0 graded array.
-    a = FusionArray{Float64, U1}(undef, (), ())
+    a = GradedArray{Float64, U1}(undef, (), ())
     a[] = 4.0
     m = matricize(GradedArrays.SectorMatricize(), a, Val(0))
     @test m isa FusedGradedMatrix{Float64}
@@ -336,7 +336,7 @@ end
 
     # `unmatricize` allocates a rank-0 graded array, like the higher-rank path.
     back = unmatricize(GradedArrays.SectorMatricize(), m, (), ())
-    @test back isa FusionArray{Float64, <:Any, 0}
+    @test back isa GradedArray{Float64, <:Any, 0}
     @test back[] == 4.0
 end
 
@@ -375,7 +375,7 @@ end
 
     # Contract: a[1, -1, 2, -2] * b[2, -3, 1, -4] (permutes + contracts).
     result, dimnames = contract(a, (1, -1, 2, -2), b, (2, -3, 1, -4))
-    @test result isa FusionArray
+    @test result isa GradedArray
 
     # Verify numerics against the dense contraction of the same data.
     result_dense, _ = contract(Array(a), (1, -1, 2, -2), Array(b), (2, -3, 1, -4))
@@ -452,7 +452,7 @@ end
     )
     # `conj` would dualize each coupled sector, flipping the first axis to dual, which the fused
     # storage types disallow. The dotted form is rejected by the constructor invariant when it
-    # allocates the dual-keyed result. Conjugate the `FusionArray` (or matricize) instead.
+    # allocates the dual-keyed result. Conjugate the `GradedArray` (or matricize) instead.
     m = randn!(FusedGradedMatrix{ComplexF64}(undef, sectorpairs))
     @test_throws ErrorException conj(m)
     @test_throws ArgumentError conj.(m)
@@ -479,7 +479,7 @@ end
 @testset "FusedGradedVector conj is disallowed" begin
     # `conj` would dualize the sectors, flipping the first axis to dual, which the fused storage
     # types disallow. The dotted form is rejected by the constructor invariant when it allocates the
-    # dual-keyed result. Conjugate the `FusionArray` (or matricize) instead.
+    # dual-keyed result. Conjugate the `GradedArray` (or matricize) instead.
     v = randn!(
         FusedGradedVector{ComplexF64}(
             undef,
@@ -543,5 +543,5 @@ end
     b_ok = zeros(Float64, g, dual(g))
     randn!(b_ok)
     result, = contract(a, (1, -1), b_ok, (-1, 2))
-    @test result isa FusionArray
+    @test result isa GradedArray
 end

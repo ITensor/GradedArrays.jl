@@ -3,9 +3,9 @@
 # `AbstractArray` fallbacks broadcast a function over the elements, which the graded/sector broadcast
 # styles reject, so the in-place methods forward to the block-wise `TensorAlgebra` methods instead.
 # The definitions are identical for the graded arrays and the structural sector blocks, so they
-# share one `@eval` loop over the graded types (`FusionArray`, `AbstractFusedGradedArray`) and the sector
+# share one `@eval` loop over the graded types (`GradedArray`, `AbstractFusedGradedArray`) and the sector
 # blocks (`AbstractSectorArray`).
-for AT in (:FusionArray, :AbstractFusedGradedArray, :AbstractSectorArray)
+for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
     @eval begin
         function VI.zerovector(a::$AT, ::Type{S}) where {S <: Number}
             return VI.zerovector!(similar(a, S))

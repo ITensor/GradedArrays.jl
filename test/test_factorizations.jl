@@ -1,6 +1,6 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
-    FusionArray, GradedBlockAlgorithm, U1, Z2, dual, gradedrange, sectordata
+    GradedArray, GradedBlockAlgorithm, U1, Z2, dual, gradedrange, sectordata
 using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!

@@ -5,7 +5,7 @@ Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus o
 per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
 Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker product of the
 structural [`UniqueSectorDelta`](@ref) (`sector`) with the data array (reduced matrix elements).
-The all-codomain case (`NC == N`) is the block a `FusionArray` yields (via `fa[Block]`).
+The all-codomain case (`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`).
 """
 struct UniqueSectorArray{T, S <: SectorRange, N, NC, ND, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, S, N}
@@ -141,7 +141,7 @@ end
 
 # ========================  conj  ========================
 
-# Conjugate while keeping the codomain/domain split, mirroring `conj(::FusionArray)` (the generic
+# Conjugate while keeping the codomain/domain split, mirroring `conj(::GradedArray)` (the generic
 # `conj.(a)` broadcast collapses to all-codomain). A same-split destination with every stored sector
 # dualized is filled by a single `op = conj` permute-add over the identity biperm; the fermionic
 # leg-reversal sign rides `bipermutedimsopadd!` (folded in by `fermion_permutation_phase`), which a

@@ -13,5 +13,5 @@ function isblockdiagonal end
 
 # The number of stored (symmetry-allowed) blocks. Counted from the stored block indices directly
 # rather than via `storedlength(blocks(a))`, whose generic `length(storedvalues(...))` would
-# materialize a view of every block (disabled by the block-indexing guard on a `FusionArray`).
+# materialize a view of every block (disabled by the block-indexing guard on a `GradedArray`).
 blockstoredlength(a) = length(eachblockstoredindex(a))

@@ -32,7 +32,7 @@ function sectordata end
 
 # Each concrete type implements the bipartite-axes primitives `axes_codomain`/`axes_domain` (its
 # codomain and domain axis groups, un-dualized). The derived `biaxes`/`axis_codomain`/`axis_domain`
-# generics live in `tensoralgebra.jl` (overloaded on `AbstractArray`, since `FusionArray` shares them
+# generics live in `tensoralgebra.jl` (overloaded on `AbstractArray`, since `GradedArray` shares them
 # but is not an `AbstractFusedGradedArray`).
 
 function isblockdiagonal(A::AbstractFusedGradedMatrix)
@@ -271,8 +271,8 @@ function Base.fill!(a::AbstractFusedGradedArray, v)
     return a
 end
 
-# Linear-combination arithmetic, as `.`-broadcasts over the stored blocks. `FusionArray` defines its
-# own split-preserving versions in `fusionarray.jl`.
+# Linear-combination arithmetic, as `.`-broadcasts over the stored blocks. `GradedArray` defines its
+# own split-preserving versions in `gradedarray.jl`.
 Base.:+(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .+ b
 Base.:-(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .- b
 Base.:*(a::AbstractFusedGradedArray, x::Number) = a .* x
@@ -366,7 +366,7 @@ function LinearAlgebra.normalize(a::AbstractFusedGradedArray, p::Real = 2)
 end
 
 # `conj` would dualize the sectors and axes, flipping the first axis to dual, which the fused storage
-# types disallow. Conjugate the `FusionArray` (or matricize) instead.
+# types disallow. Conjugate the `GradedArray` (or matricize) instead.
 Base.conj(a::AbstractFusedGradedArray) = throw_flips_first_axis(conj, a)
 
 # `real`/`imag` act on the reduced data of each stored block, leaving the (real) structural sector
@@ -419,7 +419,7 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
 end
 
 # ============================  similar_map  ============================
-# A split-axes `similar_map` off a fused prototype reproduces a `FusionArray` (the external-axis
+# A split-axes `similar_map` off a fused prototype reproduces a `GradedArray` (the external-axis
 # array), the same target the graded constructors allocate. Three anchored entries: codomain-led,
 # empty-codomain domain-led, and the fully empty rank-0 case (whose sector type is read from the
 # prototype, since the empty axes carry none).
@@ -428,19 +428,19 @@ function TensorAlgebra.similar_map(
         axes_codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
         axes_domain::Tuple{Vararg{GradedOneTo}}
     ) where {T}
-    return FusionArray{T}(undef, axes_codomain, axes_domain)
+    return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
 function TensorAlgebra.similar_map(
         ::AbstractFusedGradedArray, ::Type{T},
         axes_codomain::Tuple{}, axes_domain::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     ) where {T}
-    return FusionArray{T}(undef, axes_codomain, axes_domain)
+    return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
 function TensorAlgebra.similar_map(
         prototype::AbstractFusedGradedArray, ::Type{T},
         axes_codomain::Tuple{}, axes_domain::Tuple{}
     ) where {T}
-    return FusionArray{T, sectortype(prototype)}(undef, axes_codomain, axes_domain)
+    return GradedArray{T, sectortype(prototype)}(undef, axes_codomain, axes_domain)
 end
 
 # ============================  matrix algebra  ============================

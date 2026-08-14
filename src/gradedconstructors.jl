@@ -2,7 +2,7 @@
 #  Graded-array construction and projection surface
 # ===========================================================================
 # The public `rand`/`randn`/`zeros`/`ones`/`fill` constructors over graded axes, and the projection
-# hooks (`unchecked_project`/`infer_aux_space`), all build the concrete graded array (`FusionArray`).
+# hooks (`unchecked_project`/`infer_aux_space`), all build the concrete graded array (`GradedArray`).
 # Kept type-agnostic (dispatched on the axes, not on the array type) so the construction API is
 # independent of the concrete array.
 
@@ -16,7 +16,7 @@
 # zero-argument and `Integer`/`Dims` calls.
 
 # Two anchored `*_map` entries — codomain-led and empty-codomain domain-led — each building the
-# `FusionArray` directly, mirroring the `unchecked_project` / `allocate_project` split below. A
+# `GradedArray` directly, mirroring the `unchecked_project` / `allocate_project` split below. A
 # fully empty `((), ())` matches neither.
 for f in (:rand, :randn)
     fmap, fbang = Symbol(f, :_map), Symbol(f, :!)
@@ -25,13 +25,13 @@ for f in (:rand, :randn)
                 rng::AbstractRNG, ::Type{T},
                 cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
             ) where {T}
-            return $fbang(rng, FusionArray{T}(undef, cod, dom))
+            return $fbang(rng, GradedArray{T}(undef, cod, dom))
         end
         function TA.$fmap(
                 rng::AbstractRNG, ::Type{T},
                 cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
             ) where {T}
-            return $fbang(rng, FusionArray{T}(undef, cod, dom))
+            return $fbang(rng, GradedArray{T}(undef, cod, dom))
         end
     end
 end
@@ -42,13 +42,13 @@ for (f, fill_block) in ((:zeros, :(zero!(a))), (:ones, :(fill!(a, one(T)))))
                 ::Type{T},
                 cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
             ) where {T}
-            a = FusionArray{T}(undef, cod, dom)
+            a = GradedArray{T}(undef, cod, dom)
             return $fill_block
         end
         function TA.$fmap(
                 ::Type{T}, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
             ) where {T}
-            a = FusionArray{T}(undef, cod, dom)
+            a = GradedArray{T}(undef, cod, dom)
             return $fill_block
         end
     end
@@ -56,10 +56,10 @@ end
 function TA.fill_map(
         value, cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
     )
-    return fill!(FusionArray{typeof(value)}(undef, cod, dom), value)
+    return fill!(GradedArray{typeof(value)}(undef, cod, dom), value)
 end
 function TA.fill_map(value, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}})
-    return fill!(FusionArray{typeof(value)}(undef, cod, dom), value)
+    return fill!(GradedArray{typeof(value)}(undef, cod, dom), value)
 end
 
 # Public `Base` constructors: normalize pairs-vector axes with `to_range` and route to `*_map`.
@@ -464,7 +464,7 @@ end
     zeros([T=Float64,] (codomain...)[, (domain...)])
     zeros([T=Float64,] flux, (codomain...)[, (domain...)])
 
-Construct a graded array (`FusionArray{T}`) over the given graded axes with every symmetry-allowed
+Construct a graded array (`GradedArray{T}`) over the given graded axes with every symmetry-allowed
 (zero-flux) block allocated and filled with zeros. Each axis may be a `GradedOneTo` or a vector
 of `sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map,
 storing the domain axes dual; a leading `flux` sector appends a multiplicity-1 leg carrying it,
@@ -515,14 +515,14 @@ function TA.unchecked_project(
     )
     return unchecked_project_graded(raw, codomain_axes, domain_axes)
 end
-# Project a dense array into the symmetry-allowed subspace as a `FusionArray`, delegating the
+# Project a dense array into the symmetry-allowed subspace as a `GradedArray`, delegating the
 # projection to TensorKit over the equivalent `ElementarySpace`s and wrapping the resulting
 # `TensorMap`. Unfused / unsorted external axes are first reordered per leg into sorted order (a
 # whole-block permutation, so equal sectors become contiguous and the array type is preserved) to
 # match the fused-sorted `GradedSpace` TensorKit needs, then wrapped carrying the original axes.
 function unchecked_project_graded(raw, codomain_axes, domain_axes)
     # `TA.unchecked_project` always allocates a fresh result, so both branches wrap it as a zero-copy
-    # `to_fusionarray` view rather than copying it again.
+    # `to_gradedarray` view rather than copying it again.
     all_axes = (codomain_axes..., domain_axes...)
     if ndims(raw) == length(all_axes) && !all(is_fused_sorted, all_axes)
         N = length(all_axes)
@@ -534,12 +534,12 @@ function unchecked_project_graded(raw, codomain_axes, domain_axes)
             map(ElementarySpace ∘ sectormergesort, codomain_axes),
             map(ElementarySpace ∘ sectormergesort, domain_axes)
         )
-        return FusionArray(matricize(to_fusionarray(t)), codomain_axes, domain_axes)
+        return GradedArray(matricize(to_gradedarray(t)), codomain_axes, domain_axes)
     end
     t = TA.unchecked_project(
         raw, map(ElementarySpace, codomain_axes), map(ElementarySpace, domain_axes)
     )
-    return to_fusionarray(t)
+    return to_gradedarray(t)
 end
 
 # `infer_aux_space` is the only projection hook a graded backend adds beyond `similar_map`:
@@ -612,7 +612,7 @@ end
 """
     getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
 
-Construct a graded array (`FusionArray`) by projecting the dense data of `a` onto the
+Construct a graded array (`GradedArray`) by projecting the dense data of `a` onto the
 symmetry-allowed blocks of the graded axes `(ax1, axs...)`, via
 `TA.project` (which errors if `a` has weight outside
 the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a

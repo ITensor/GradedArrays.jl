@@ -2,7 +2,7 @@
 # concat-order (`cat_axis` / `mortar_axis`): the arguments' sectors are kept in order and
 # block-appended, never merged or sorted, so a sector can repeat (an unfused axis). Both backends
 # place whole symmetry-allowed blocks through the sparse block containers; on the fusion backend the
-# unfused result axis is carried by the `FusionArray` while its blocks scatter into the fused-sorted
+# unfused result axis is carried by the `GradedArray` while its blocks scatter into the fused-sorted
 # backing (via `viewblock`).
 
 using BlockArrays: blocks

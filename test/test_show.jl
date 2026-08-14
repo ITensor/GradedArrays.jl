@@ -121,8 +121,8 @@ end
     @test sprint(show, dual(g)) == "dual(gradedrange([U1(0) => 2, U1(1) => 2]))"
 end
 
-@testset "FusionArray text/plain display" begin
-    # A `FusionArray` prints a codomain/domain header, one axis line per leg, then the matricized
+@testset "GradedArray text/plain display" begin
+    # A `GradedArray` prints a codomain/domain header, one axis line per leg, then the matricized
     # `FusedGradedMatrix`.
     g = gradedrange([U1(0) => 2, U1(1) => 2])
     a = zeros(Float64, (g,), (g,))
@@ -131,7 +131,7 @@ end
     end
 
     s = sprint(show, MIME("text/plain"), a)
-    @test occursin("FusionArray (codomain 1, domain 1)", s)
+    @test occursin("GradedArray (codomain 1, domain 1)", s)
     @test occursin("Codomain Dim 1: gradedrange([U1(0) => 2, U1(1) => 2])", s)
     @test occursin("Domain Dim 1: gradedrange([U1(0) => 2, U1(1) => 2])", s)
     # The matricized `FusedGradedMatrix` is shown below the header.
@@ -141,7 +141,7 @@ end
     @test occursin("1.0", s) # stored value
 
     # The compact one-line `show` is the summary header.
-    @test sprint(show, a) == "4×4 FusionArray (codomain 1, domain 1)"
+    @test sprint(show, a) == "4×4 GradedArray (codomain 1, domain 1)"
 end
 
 @testset "FusedGradedMatrix text/plain display" begin

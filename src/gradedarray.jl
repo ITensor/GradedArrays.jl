@@ -1,5 +1,5 @@
 # =============================================================================
-#  FusionArray — always-fused symmetric array backed by a matricized
+#  GradedArray — always-fused symmetric array backed by a matricized
 #  `FusedGradedMatrix`.
 # =============================================================================
 
@@ -8,7 +8,7 @@ using Random: Random, AbstractRNG
 using TensorKit: TensorKit as TK, ←
 
 """
-    FusionArray{T,S,N,NC,ND,M} <: AbstractArray{T,N}
+    GradedArray{T,S,N,NC,ND,M} <: AbstractArray{T,N}
 
 Always-fused symmetric array: an `N`-dimensional graded array split into `NC` codomain and `ND`
 domain legs (`NC + ND == N`), backed by a matricized [`FusedGradedMatrix`](@ref). The external axes
@@ -16,14 +16,14 @@ are `GradedOneTo` and may be unfused or unsorted (a sector repeated, or out of `
 the `matricized` backing is always over the fused-sorted coupled space, and the per-leg sort
 permutation relates the two.
 """
-struct FusionArray{
+struct GradedArray{
         T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S},
     } <: AbstractArray{T, N}
     matricized::M
     axes_codomain::NTuple{NC, GradedOneTo{S}}
     axes_domain::NTuple{ND, GradedOneTo{S}}
 
-    function FusionArray(
+    function GradedArray(
             matricized::AbstractFusedGradedMatrix{T, S},
             axes_codomain::NTuple{NC, AbstractGradedOneTo{S}},
             axes_domain::NTuple{ND, AbstractGradedOneTo{S}}
@@ -40,11 +40,11 @@ end
 # generically (in `tensoralgebra.jl`). Domain axes are stored codomain-facing (TensorKit's `domain`
 # convention); the derived `biaxes` dualizes the domain half, so a domain leg reads as a dual axis
 # (matching TensorKit's `space(t, i)`), and `axes` is the flat form.
-axes_codomain(fa::FusionArray) = fa.axes_codomain
-axes_domain(fa::FusionArray) = fa.axes_domain
+axes_codomain(fa::GradedArray) = fa.axes_codomain
+axes_domain(fa::GradedArray) = fa.axes_domain
 
-Base.axes(fa::FusionArray) = Tuple(biaxes(fa))
-Base.size(fa::FusionArray) = map(length, axes(fa))
+Base.axes(fa::GradedArray) = Tuple(biaxes(fa))
+Base.size(fa::GradedArray) = map(length, axes(fa))
 
 # Build a codomain/domain `BiTuple` from the two halves in codomain-facing (un-dualized) form,
 # dualizing the domain half for storage; `codomain`/`domain` recover them. Internal, analogous to
@@ -54,12 +54,12 @@ bispace(codomain, domain) = BiTuple(codomain, map(conj, domain))
 codomain(bt::BiTuple) = bt.t1
 domain(bt::BiTuple) = map(conj, bt.t2)
 
-ndims_codomain(fa::FusionArray) = length(axes_codomain(fa))
-ndims_domain(fa::FusionArray) = length(axes_domain(fa))
+ndims_codomain(fa::GradedArray) = length(axes_codomain(fa))
+ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
-# matrix directly (see `matricize(::FusionArrayMatricizeStyle, …)` for re-splitting to another).
-TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
+# matrix directly (see `matricize(::GradedArrayMatricizeStyle, …)` for re-splitting to another).
+TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
 # ============================  block indexing (unique fusion)  ============================
 # Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
@@ -67,7 +67,7 @@ TensorAlgebra.matricize(fa::FusionArray) = fa.matricized
 # back in place.
 
 function viewblock(
-        a::FusionArray{T, S, N, NC, ND},
+        a::GradedArray{T, S, N, NC, ND},
         I::Block{N}
     ) where {T, S, N, NC, ND}
     assert_block_indexing()
@@ -95,40 +95,40 @@ function viewblock(
     return UniqueSectorArray(view(blockdata, ranges...), cod, dom)
 end
 
-Base.view(a::FusionArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
+Base.view(a::GradedArray{T, <:Any, N}, I::Block{N}) where {T, N} = viewblock(a, I)
 # Disambiguate the N=1 case against the `Vararg{Block{1}, N}` method.
-Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
+Base.view(a::GradedArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 
-# Rank-0 (scalar) access: a rank-0 `FusionArray` (e.g. a full contraction to a scalar) holds one
+# Rank-0 (scalar) access: a rank-0 `GradedArray` (e.g. a full contraction to a scalar) holds one
 # trivial-sector value in its 1×1 matricized block. Read it as a TensorKit scalar and write it into
 # that block; the generic block path indexes the `TensorMap` by external sectors, of which a rank-0 array
 # has none. Defined on the concrete type to take precedence over the `Vararg` block methods, which
 # also match a no-argument call at N=0.
-Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(to_tensormap(a))
-function Base.setindex!(a::FusionArray{<:Any, <:Any, 0}, value)
+Base.getindex(a::GradedArray{<:Any, <:Any, 0}) = TK.scalar(to_tensormap(a))
+function Base.setindex!(a::GradedArray{<:Any, <:Any, 0}, value)
     only(values(sectordata(matricize(a))))[begin] = value
     return a
 end
 
-# A `FusionArray` block is the same unique-fusion `UniqueSectorArray` the abelian backend returns.
+# A `GradedArray` block is the same unique-fusion `UniqueSectorArray` the abelian backend returns.
 # TODO: derive the block data type from the `FusedGradedMatrix` block type (its `D`) rather than
 # hardcoding `Array{T, N}`, so non-`Array` storage (GPU, etc.) is preserved — e.g. via
 # `Base.promote_op` on `view(A, ::Block)` (the actual returned block type). Also only well-defined
 # for unique fusion (blocks are `UniqueSectorArray` only then); tie it to that guard.
-function blocktype(::Type{<:FusionArray{T, S, N, NC, ND}}) where {T, S, N, NC, ND}
+function blocktype(::Type{<:GradedArray{T, S, N, NC, ND}}) where {T, S, N, NC, ND}
     return UniqueSectorArray{T, S, N, NC, ND, Array{T, N}}
 end
-blocktype(a::FusionArray) = blocktype(typeof(a))
+blocktype(a::GradedArray) = blocktype(typeof(a))
 
 # The block storage type is the datatype of the blocks, so only `blocktype` is type-specific.
-datatype(::Type{T}) where {T <: FusionArray} = datatype(blocktype(T))
-datatype(a::FusionArray) = datatype(typeof(a))
-sectortype(::Type{<:FusionArray{T, S}}) where {T, S} = S
+datatype(::Type{T}) where {T <: GradedArray} = datatype(blocktype(T))
+datatype(a::GradedArray) = datatype(typeof(a))
+sectortype(::Type{<:GradedArray{T, S}}) where {T, S} = S
 
 # ============================  block storage interface (unique fusion)  ============================
-# Unique fusion only: the symmetry-allowed blocks, computed from the axes since a `FusionArray` holds
+# Unique fusion only: the symmetry-allowed blocks, computed from the axes since a `GradedArray` holds
 # the coupled matrix, not per-block data.
-function eachblockstoredindex(a::FusionArray)
+function eachblockstoredindex(a::GradedArray)
     require_unique_fusion(a)
     return allowedblocks(axes(a))
 end
@@ -137,63 +137,63 @@ end
 # `FusedGradedMatrixBlocks` / `AbelianBlocks`. `blockstoredlength`, `isstored(a, ::Block)`, and scalar
 # `getindex`/`setindex!` all derive from this generically. A stored entry shares data via `viewblock`;
 # an unstored entry is a symmetry-forbidden block and errors.
-struct FusionArrayBlocks{T, S, N, A <: FusionArray{T, S, N}} <:
+struct GradedArrayBlocks{T, S, N, A <: GradedArray{T, S, N}} <:
     AbstractSparseArray{UniqueSectorArray{T, S, N}, N}
     parent::A
 end
-BlockArrays.blocks(a::FusionArray) = FusionArrayBlocks(a)
-Base.size(b::FusionArrayBlocks) = blocklength.(axes(b.parent))
+BlockArrays.blocks(a::GradedArray) = GradedArrayBlocks(a)
+Base.size(b::GradedArrayBlocks) = blocklength.(axes(b.parent))
 
-function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusionArrayBlocks)
+function SparseArraysBase.eachstoredindex(::IndexCartesian, b::GradedArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
 end
-function SparseArraysBase.storedvalues(b::FusionArrayBlocks)
+function SparseArraysBase.storedvalues(b::GradedArrayBlocks)
     return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
 end
 function SparseArraysBase.isstored(
-        b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
+        b::GradedArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
     return Block(I...) in eachblockstoredindex(b.parent)
 end
 function SparseArraysBase.getstoredindex(
-        b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
+        b::GradedArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
     return view(b.parent, Block(I...))
 end
 function SparseArraysBase.setstoredindex!(
-        b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
+        b::GradedArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
     copy_sector!(view(b.parent, Block(I...)), value)
     return b
 end
 function SparseArraysBase.getunstoredindex(
-        b::FusionArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
+        b::GradedArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
     return error("Block $(I) is not stored.")
 end
 function SparseArraysBase.setunstoredindex!(
-        b::FusionArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
+        b::GradedArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
     return error("Block $(I) is not stored.")
 end
 
 # ============================  similar  ============================
-# `similar` must build a `FusionArray`. Without explicit axes, preserve the prototype's own
+# `similar` must build a `GradedArray`. Without explicit axes, preserve the prototype's own
 # codomain/domain split (like `copy`); with explicit flat axes the split is unrecoverable (see the
 # `copy` note), so put all axes in the codomain, matching the broadcast `similar`.
-function Base.similar(a::FusionArray, ::Type{T}) where {T}
-    return FusionArray(similar(matricize(a), T), axes_codomain(a), axes_domain(a))
+function Base.similar(a::GradedArray, ::Type{T}) where {T}
+    return GradedArray(similar(matricize(a), T), axes_codomain(a), axes_domain(a))
 end
 function Base.similar(
-        a::FusionArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+        a::GradedArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
     ) where {T, S}
     return TensorAlgebra.similar_map(a, T, axes, ())
 end
-# Empty axes build a rank-0 `FusionArray`; the sector type is read from the prototype (it cannot
+# Empty axes build a rank-0 `GradedArray`; the sector type is read from the prototype (it cannot
 # be inferred from the empty axes). Without this, `similar(fa, T, ())` falls through to Base and
 # returns a plain rank-0 `Array`.
-function Base.similar(a::FusionArray, ::Type{T}, ::Tuple{}) where {T}
-    return FusionArray{T, sectortype(a)}(undef, (), ())
+function Base.similar(a::GradedArray, ::Type{T}, ::Tuple{}) where {T}
+    return GradedArray{T, sectortype(a)}(undef, (), ())
 end
 
 # ============================  copyto!  ============================
@@ -201,7 +201,7 @@ end
 # `bipermutedims!` bends `src` when the two splits differ and validates the external axes. The generic
 # `AbstractArray` `copyto!` scalar-indexes, which errors on forbidden (symmetry-disallowed) blocks.
 # `Base.copy!` rides on this: it checks `axes` equality and forwards here.
-function Base.copyto!(dest::FusionArray, src::FusionArray)
+function Base.copyto!(dest::GradedArray, src::GradedArray)
     bipermutedims!(
         dest, src,
         ntuple(identity, Val(ndims_codomain(dest))),
@@ -211,21 +211,21 @@ function Base.copyto!(dest::FusionArray, src::FusionArray)
 end
 
 # ============================  ==  ============================
-# Compare the shared array contents, not the internal matricization: a `FusionArray` is an array
+# Compare the shared array contents, not the internal matricization: a `GradedArray` is an array
 # whose `axes` are the flat external legs, so two with equal `axes` are equal iff their data matches.
 # Rematricize `b` to `a`'s codomain/domain split, then compare coupled blocks (unlike a `TensorMap`,
 # whose split is part of its identity). This also avoids Base's element-wise fallback, which would
 # index forbidden blocks.
-function Base.:(==)(a::FusionArray, b::FusionArray)
+function Base.:(==)(a::GradedArray, b::GradedArray)
     axes(a) == axes(b) || return false
     return matricize(a) == matricize(b, Val(ndims_codomain(a)))
 end
 
 # ============================  dot  ============================
 # Sum the coupled-block inner products of the (norm-preserving) matricized forms, rather than the
-# block-walk that iterates `eachblockstoredindex` (unique-fusion-only for `FusionArray`)
+# block-walk that iterates `eachblockstoredindex` (unique-fusion-only for `GradedArray`)
 # and scalar-indexes. `b` is rematricized to `a`'s split so the coupled blocks line up.
-function LinearAlgebra.dot(a::FusionArray, b::FusionArray)
+function LinearAlgebra.dot(a::GradedArray, b::GradedArray)
     axes(a) == axes(b) ||
         throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
     ma = matricize(a)
@@ -239,20 +239,20 @@ end
 
 # `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`, which scalar-indexes
 # opaque block storage; route through the graded `/` instead.
-function LinearAlgebra.normalize(a::FusionArray, p::Real = 2)
+function LinearAlgebra.normalize(a::GradedArray, p::Real = 2)
     return a / LinearAlgebra.norm(a, p)
 end
 
 # ============================  permutedims  ============================
-# Route through `permutedimsopadd!` (which forwards to the `FusionArray` `bipermutedimsopadd!`), so
+# Route through `permutedimsopadd!` (which forwards to the `GradedArray` `bipermutedimsopadd!`), so
 # the fermion braiding/bend signs are applied by TensorKit. Without this, Base's generic
 # `permutedims` allocates via `similar` and scalar-permutes the data, dropping the sign.
-function Base.permutedims(a::FusionArray{<:Any, <:Any, N}, perm) where {N}
+function Base.permutedims(a::GradedArray{<:Any, <:Any, N}, perm) where {N}
     dest_axes = ntuple(i -> axes(a)[perm[i]], Val(N))
     return permutedims!(similar(a, dest_axes), a, perm)
 end
 function Base.permutedims!(
-        y::FusionArray{<:Any, <:Any, N}, x::FusionArray{<:Any, <:Any, N}, perm
+        y::GradedArray{<:Any, <:Any, N}, x::GradedArray{<:Any, <:Any, N}, perm
     ) where {N}
     TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
     return y
@@ -264,7 +264,7 @@ end
 # same-split destination (per-leg axes dualized) with a single `op = conj` permute-add over the
 # identity biperm, so the TensorKit-backed transform folds in the leg-reversal fermion sign and the
 # non-abelian recoupling that a bare block conjugation would drop.
-function Base.conj(fa::FusionArray{<:Any, <:Any, <:Any, NC, ND}) where {NC, ND}
+function Base.conj(fa::GradedArray{<:Any, <:Any, <:Any, NC, ND}) where {NC, ND}
     dest = TensorAlgebra.similar_map(
         fa, map(dual, axes_codomain(fa)), map(dual, axes_domain(fa))
     )
@@ -276,33 +276,33 @@ end
 
 # ============================  matrix operations (guarded)  ============================
 # Matrix / linear-algebra operations live only on the matrix storage type `FusedGradedMatrix`. On a
-# `FusionArray` they would otherwise fall through to the generic `AbstractArray` methods, which
+# `GradedArray` they would otherwise fall through to the generic `AbstractArray` methods, which
 # scalar-index into a dense, non-graded result. Error instead; matricize to a `FusedGradedMatrix`
 # first (`matricize(a)`).
-Base.adjoint(A::FusionArray) = _matrix_op_error(adjoint, A)
-Base.transpose(A::FusionArray) = _matrix_op_error(transpose, A)
-Base.:*(A::FusionArray, B::FusionArray) = _matrix_op_error(*, A)
-LinearAlgebra.tr(A::FusionArray) = _matrix_op_error(LinearAlgebra.tr, A)
-MAK.one!(A::FusionArray) = _matrix_op_error(MAK.one!, A)
-# The matrix predicates (`FusedGradedMatrix` defines these) are matrix concepts too: on a `FusionArray`
+Base.adjoint(A::GradedArray) = _matrix_op_error(adjoint, A)
+Base.transpose(A::GradedArray) = _matrix_op_error(transpose, A)
+Base.:*(A::GradedArray, B::GradedArray) = _matrix_op_error(*, A)
+LinearAlgebra.tr(A::GradedArray) = _matrix_op_error(LinearAlgebra.tr, A)
+MAK.one!(A::GradedArray) = _matrix_op_error(MAK.one!, A)
+# The matrix predicates (`FusedGradedMatrix` defines these) are matrix concepts too: on a `GradedArray`
 # they would otherwise fall through to a dense elementwise scan.
-LinearAlgebra.isdiag(A::FusionArray) = _matrix_op_error(LinearAlgebra.isdiag, A)
-LinearAlgebra.istriu(A::FusionArray) = _matrix_op_error(LinearAlgebra.istriu, A)
-LinearAlgebra.istril(A::FusionArray) = _matrix_op_error(LinearAlgebra.istril, A)
-LinearAlgebra.isposdef(A::FusionArray) = _matrix_op_error(LinearAlgebra.isposdef, A)
+LinearAlgebra.isdiag(A::GradedArray) = _matrix_op_error(LinearAlgebra.isdiag, A)
+LinearAlgebra.istriu(A::GradedArray) = _matrix_op_error(LinearAlgebra.istriu, A)
+LinearAlgebra.istril(A::GradedArray) = _matrix_op_error(LinearAlgebra.istril, A)
+LinearAlgebra.isposdef(A::GradedArray) = _matrix_op_error(LinearAlgebra.isposdef, A)
 for f in TensorAlgebra.MATRIX_FUNCTIONS
-    @eval Base.$f(A::FusionArray) = _matrix_op_error($f, A)
+    @eval Base.$f(A::GradedArray) = _matrix_op_error($f, A)
 end
 
 # ============================  TensorMap conversion  ============================
 
 """
-    TK.TensorMap(fa::FusionArray)
+    TK.TensorMap(fa::GradedArray)
 
-Convert a `FusionArray` to a `TK.TensorMap`, building the codomain/domain product
+Convert a `GradedArray` to a `TK.TensorMap`, building the codomain/domain product
 spaces from the per-leg axes and copying each coupled-sector block.
 """
-function TK.TensorMap(fa::FusionArray)
+function TK.TensorMap(fa::GradedArray)
     # Derive the space type from the sector type (not a leg) so the rank-0 case, with no legs, still
     # resolves the trivial `one(Sp)` codomain/domain. The `matricized` backing is over the fused-sorted
     # coupled space, so build each leg's space from `sectormergesort` of the (possibly unsorted) stored
@@ -321,18 +321,18 @@ function TK.TensorMap(fa::FusionArray)
 end
 
 """
-    FusionArray(t::TK.AbstractTensorMap)
+    GradedArray(t::TK.AbstractTensorMap)
 
-Build a `FusionArray` from a `TensorMap`, taking the per-leg external axes from its codomain
-and domain spaces. This copies the data; `to_fusionarray` is the zero-copy view counterpart.
+Build a `GradedArray` from a `TensorMap`, taking the per-leg external axes from its codomain
+and domain spaces. This copies the data; `to_gradedarray` is the zero-copy view counterpart.
 """
-function FusionArray(t::TK.AbstractTensorMap)
+function GradedArray(t::TK.AbstractTensorMap)
     axes_codomain = map(GradedOneTo, Tuple(TK.codomain(t)))
     axes_domain = map(GradedOneTo, Tuple(TK.domain(t)))
-    return copy!(FusionArray{eltype(t)}(undef, axes_codomain, axes_domain), t)
+    return copy!(GradedArray{eltype(t)}(undef, axes_codomain, axes_domain), t)
 end
 # A plain `TensorMap` has a zero-copy view, so its copying constructor is `copy` of that view.
-FusionArray(t::TK.TensorMap) = copy(to_fusionarray(t))
+GradedArray(t::TK.TensorMap) = copy(to_gradedarray(t))
 
 # Copy a matrix `TensorMap` (one codomain and one domain leg) block-wise into a `FusedGradedMatrix`.
 function Base.copy!(m::FusedGradedMatrix, t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1})
@@ -351,10 +351,10 @@ function Base.copy!(t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1}, m::FusedGradedM
     return t
 end
 
-# Copy a `TensorMap` into a `FusionArray` with matching codomain and domain (same coupled blocks).
-function Base.copy!(a::FusionArray, t::TK.AbstractTensorMap)
+# Copy a `TensorMap` into a `GradedArray` with matching codomain and domain (same coupled blocks).
+function Base.copy!(a::GradedArray, t::TK.AbstractTensorMap)
     (TK.numout(t) == ndims_codomain(a) && TK.numin(t) == ndims_domain(a)) ||
-        throw(DimensionMismatch("TensorMap codomain/domain does not match the FusionArray"))
+        throw(DimensionMismatch("TensorMap codomain/domain does not match the GradedArray"))
     asd = sectordata(matricize(a))
     for c in TK.blocksectors(t)
         copy!(asd[SectorRange(c)], TK.block(t, c))
@@ -362,10 +362,10 @@ function Base.copy!(a::FusionArray, t::TK.AbstractTensorMap)
     return a
 end
 
-# Copy a `FusionArray` into a `TensorMap` with matching codomain and domain (same coupled blocks).
-function Base.copy!(t::TK.AbstractTensorMap, a::FusionArray)
+# Copy a `GradedArray` into a `TensorMap` with matching codomain and domain (same coupled blocks).
+function Base.copy!(t::TK.AbstractTensorMap, a::GradedArray)
     (TK.numout(t) == ndims_codomain(a) && TK.numin(t) == ndims_domain(a)) ||
-        throw(DimensionMismatch("TensorMap codomain/domain does not match the FusionArray"))
+        throw(DimensionMismatch("TensorMap codomain/domain does not match the GradedArray"))
     for (c, b) in pairs(sectordata(matricize(a)))
         copy!(TK.block(t, label(c)), b)
     end
@@ -377,157 +377,157 @@ end
 # Axes are given codomain-facing (un-dualized), the same convention they are stored in,
 # matching `similar_map`/`unmatricize`. The sector type is read from the axes, so at least one leg
 # must be present; the rank-0 (both-empty) case takes `S` explicitly through the method below.
-function FusionArray{T}(
+function GradedArray{T}(
         ::UndefInitializer, axes_codomain::Tuple, axes_domain::Tuple
     ) where {T}
     S = sectortype(first((axes_codomain..., axes_domain...)))
-    return FusionArray{T, S}(undef, axes_codomain, axes_domain)
+    return GradedArray{T, S}(undef, axes_codomain, axes_domain)
 end
 
 # Fuse each side's per-leg axes into its coupled `GradedOneTo` (through the GradedArrays interface,
 # which uses the TensorKitSectors fusion rules), seeding empty groups with the trivial sector.
 # `FusedGradedMatrix{T}(undef, …)` then allocates the reduced blocks. With `S` given as a type
 # parameter this also covers rank-0: both groups fuse to the trivial sector, giving a 1×1 scalar.
-function FusionArray{T, S}(
+function GradedArray{T, S}(
         ::UndefInitializer, axes_codomain::Tuple, axes_domain::Tuple
     ) where {T, S}
     init = trivial_gradedrange(S)
     coupled_codomain = reduce(tensor_product, axes_codomain; init)
     coupled_domain = reduce(tensor_product, axes_domain; init)
     m = FusedGradedMatrix{T}(undef, coupled_codomain, coupled_domain)
-    return FusionArray(m, axes_codomain, axes_domain)
+    return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# A `FusionArray` source reproduces a `FusionArray`, routing straight to its `undef` constructor.
+# A `GradedArray` source reproduces a `GradedArray`, routing straight to its `undef` constructor.
 function TensorAlgebra.similar_map(
-        ::FusionArray, ::Type{T},
+        ::GradedArray, ::Type{T},
         axes_codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
         axes_domain::Tuple{Vararg{GradedOneTo}}
     ) where {T}
-    return FusionArray{T}(undef, axes_codomain, axes_domain)
+    return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
 function TensorAlgebra.similar_map(
-        ::FusionArray, ::Type{T},
+        ::GradedArray, ::Type{T},
         axes_codomain::Tuple{}, axes_domain::Tuple{GradedOneTo, Vararg{GradedOneTo}}
     ) where {T}
-    return FusionArray{T}(undef, axes_codomain, axes_domain)
+    return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
-# Rank-0: the empty axes carry no sector type, so read it from the `FusionArray` prototype.
+# Rank-0: the empty axes carry no sector type, so read it from the `GradedArray` prototype.
 function TensorAlgebra.similar_map(
-        fa::FusionArray, ::Type{T}, axes_codomain::Tuple{}, axes_domain::Tuple{}
+        fa::GradedArray, ::Type{T}, axes_codomain::Tuple{}, axes_domain::Tuple{}
     ) where {T}
-    return FusionArray{T, sectortype(fa)}(undef, axes_codomain, axes_domain)
+    return GradedArray{T, sectortype(fa)}(undef, axes_codomain, axes_domain)
 end
 
 # Fill the reduced coupled-sector blocks in place, forwarding to the matricized `FusedGradedMatrix`
-# (which fills via `eachblockstoredindex`). Construct with `FusionArray{T}(undef, …)` first.
+# (which fills via `eachblockstoredindex`). Construct with `GradedArray{T}(undef, …)` first.
 for f! in (:rand!, :randn!)
     @eval begin
-        Random.$f!(rng::AbstractRNG, fa::FusionArray) = (Random.$f!(rng, matricize(fa)); fa)
-        Random.$f!(fa::FusionArray) = Random.$f!(Random.default_rng(), fa)
+        Random.$f!(rng::AbstractRNG, fa::GradedArray) = (Random.$f!(rng, matricize(fa)); fa)
+        Random.$f!(fa::GradedArray) = Random.$f!(Random.default_rng(), fa)
     end
 end
 
 # ============================  in-place primitives / algebra  ============================
 # `zero!`/`scale!`/`norm`/`real`/`imag` are a block-walk over `eachblockstoredindex` on the fused
-# arrays; `FusionArray`'s own `eachblockstoredindex` is unique-fusion-only, so forward to the
+# arrays; `GradedArray`'s own `eachblockstoredindex` is unique-fusion-only, so forward to the
 # matricized `FusedGradedMatrix` instead. `+`/`-` are left to the `AbstractArray` broadcast machinery.
 
-TensorAlgebra.zero!(fa::FusionArray) = (zero!(matricize(fa)); fa)
-TensorAlgebra.scale!(fa::FusionArray, α::Number) = (scale!(matricize(fa), α); fa)
-LinearAlgebra.norm(fa::FusionArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
-Base.fill!(fa::FusionArray, v) = (fill!(matricize(fa), v); fa)
-Base.iszero(fa::FusionArray) = iszero(matricize(fa))
+TensorAlgebra.zero!(fa::GradedArray) = (zero!(matricize(fa)); fa)
+TensorAlgebra.scale!(fa::GradedArray, α::Number) = (scale!(matricize(fa), α); fa)
+LinearAlgebra.norm(fa::GradedArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
+Base.fill!(fa::GradedArray, v) = (fill!(matricize(fa), v); fa)
+Base.iszero(fa::GradedArray) = iszero(matricize(fa))
 
 # ============================  reductions  ============================
-# `sum`/`maximum`/`minimum`/`extrema` are not defined on a `FusionArray`: the intended reduction is
+# `sum`/`maximum`/`minimum`/`extrema` are not defined on a `GradedArray`: the intended reduction is
 # ambiguous. The reduction over the dense array `Array(a)` and the reduction over the fused matrix
 # `matricize(a)` differ for non-abelian fusion (the Clebsch-Gordan recoupling mixes the dense entries),
 # so require the caller to pick one explicitly rather than silently committing to a split-dependent
 # densification. `FusedGradedMatrix` defines the fused-matrix reductions, and `Array` gives the dense
 # ones.
-@noinline function _reduction_error(op, ::FusionArray)
+@noinline function _reduction_error(op, ::GradedArray)
     return error(
-        "`$op` is not defined for a `FusionArray`: reduce explicitly over `Array(a)` for the " *
+        "`$op` is not defined for a `GradedArray`: reduce explicitly over `Array(a)` for the " *
             "dense array, or over `matricize(a)` for the fused matrix (these differ for non-abelian " *
             "fusion)."
     )
 end
 for op in (:sum, :maximum, :minimum, :extrema)
     @eval begin
-        Base.$op(a::FusionArray; kwargs...) = _reduction_error($op, a)
-        Base.$op(f, a::FusionArray; kwargs...) = _reduction_error($op, a)
+        Base.$op(a::GradedArray; kwargs...) = _reduction_error($op, a)
+        Base.$op(f, a::GradedArray; kwargs...) = _reduction_error($op, a)
     end
 end
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
 # because a generic `similar` over flat axes cannot recover the
-# codomain/domain split a `FusionArray` needs; `copy` must preserve it (e.g. `one!!(copy(A), …)`
+# codomain/domain split a `GradedArray` needs; `copy` must preserve it (e.g. `one!!(copy(A), …)`
 # relies on the copy keeping `A`'s split so the identity fill lands in the stored matrix).
-function Base.copy(fa::FusionArray)
-    return FusionArray(copy(matricize(fa)), axes_codomain(fa), axes_domain(fa))
+function Base.copy(fa::GradedArray)
+    return GradedArray(copy(matricize(fa)), axes_codomain(fa), axes_domain(fa))
 end
 
 # Sort each external axis by sector and merge repeated sectors. The internal fused storage is already
 # canonical (blocks are keyed by coupled sector), so the data is unchanged: only the external axes are
 # re-labeled to their merged-sorted form, which re-slices the same coupled blocks into the merged
 # external blocks. Copies the matricized matrix so the result is an independent array.
-function sectormergesort(a::FusionArray)
-    return FusionArray(
+function sectormergesort(a::GradedArray)
+    return GradedArray(
         copy(matricize(a)),
         map(sectormergesort, axes_codomain(a)),
         map(sectormergesort, axes_domain(a))
     )
 end
 
-function Base.real(fa::FusionArray)
-    return FusionArray(real(matricize(fa)), axes_codomain(fa), axes_domain(fa))
+function Base.real(fa::GradedArray)
+    return GradedArray(real(matricize(fa)), axes_codomain(fa), axes_domain(fa))
 end
-function Base.imag(fa::FusionArray)
-    return FusionArray(imag(matricize(fa)), axes_codomain(fa), axes_domain(fa))
+function Base.imag(fa::GradedArray)
+    return GradedArray(imag(matricize(fa)), axes_codomain(fa), axes_domain(fa))
 end
 
-function Base.:*(a::FusionArray, x::Number)
-    return FusionArray(matricize(a) * x, axes_codomain(a), axes_domain(a))
+function Base.:*(a::GradedArray, x::Number)
+    return GradedArray(matricize(a) * x, axes_codomain(a), axes_domain(a))
 end
-Base.:*(x::Number, a::FusionArray) = a * x
-Base.:-(a::FusionArray) = (-one(eltype(a))) * a
-function Base.:/(a::FusionArray, x::Number)
-    return FusionArray(matricize(a) / x, axes_codomain(a), axes_domain(a))
+Base.:*(x::Number, a::GradedArray) = a * x
+Base.:-(a::GradedArray) = (-one(eltype(a))) * a
+function Base.:/(a::GradedArray, x::Number)
+    return GradedArray(matricize(a) / x, axes_codomain(a), axes_domain(a))
 end
-Base.:+(a::FusionArray, b::FusionArray) = a .+ b
-Base.:-(a::FusionArray, b::FusionArray) = a .- b
+Base.:+(a::GradedArray, b::GradedArray) = a .+ b
+Base.:-(a::GradedArray, b::GradedArray) = a .- b
 
 # ============================  broadcasting  ============================
 # Opt in to the graded linear-broadcast machinery so linear combinations (`a + b`, `2a - b`, …)
 # materialize through `bipermutedimsopadd!`. The shared graded `copyto!` and the
-# `LinearBroadcasted` fold do the work; only allocation is `FusionArray`-specific.
+# `LinearBroadcasted` fold do the work; only allocation is `GradedArray`-specific.
 
-struct FusionArrayStyle{N} <: AbstractGradedStyle{N} end
-FusionArrayStyle{N}(::Val{M}) where {N, M} = FusionArrayStyle{M}()
+struct GradedArrayStyle{N} <: AbstractGradedStyle{N} end
+GradedArrayStyle{N}(::Val{M}) where {N, M} = GradedArrayStyle{M}()
 
-function BC.BroadcastStyle(::Type{<:FusionArray{<:Any, <:Any, N}}) where {N}
-    return FusionArrayStyle{N}()
+function BC.BroadcastStyle(::Type{<:GradedArray{<:Any, <:Any, N}}) where {N}
+    return GradedArrayStyle{N}()
 end
 
 # Build the result with all axes in the codomain (matching TensorKit's move-to-codomain convention
 # for `+`/`-`), so operands with any codomain/domain split are bent into it by the fold.
 # TODO: This picks the default block data type and so does not preserve non-`Array` block types
-# (e.g. GPU arrays). Carry the block data type on `FusionArrayStyle` and use it here, as
+# (e.g. GPU arrays). Carry the block data type on `GradedArrayStyle` and use it here, as
 # BlockSparseArrays does for its broadcast style.
-function Base.similar(bc::BC.Broadcasted{<:FusionArrayStyle}, elt::Type)
-    return FusionArray{elt}(undef, axes(flattenlinear(bc)), ())
+function Base.similar(bc::BC.Broadcasted{<:GradedArrayStyle}, elt::Type)
+    return GradedArray{elt}(undef, axes(flattenlinear(bc)), ())
 end
 
-function Base.copyto!(dest::FusionArray, bc::BC.Broadcasted{<:FusionArrayStyle})
+function Base.copyto!(dest::GradedArray, bc::BC.Broadcasted{<:GradedArrayStyle})
     return copyto!(dest, flattenlinear(bc))
 end
 
 # ============================  TensorKit conversion (real, zero-copy `TensorMap`)  ============================
-# `to_tensormap` views a `FusionArray` as a genuine `TensorMap` sharing the matricized contiguous buffer
+# `to_tensormap` views a `GradedArray` as a genuine `TensorMap` sharing the matricized contiguous buffer
 # (the buffer is laid out in TensorKit's `.data` order), so TensorKit's concrete-type kernels (permute,
-# `twist!`, projection) run natively and write back in place. `to_fusionarray` is the reverse view: a
-# `FusionArray` sharing a `TensorMap`'s `.data`. The `FusionArray(t)` / `TK.TensorMap(a)` constructors
+# `twist!`, projection) run natively and write back in place. `to_gradedarray` is the reverse view: a
+# `GradedArray` sharing a `TensorMap`'s `.data`. The `GradedArray(t)` / `TK.TensorMap(a)` constructors
 # are the copying counterparts.
 
 # The fused-sorted coupled `HomSpace` for the given external axes. Each leg's space is the
@@ -546,7 +546,7 @@ end
 # backing wraps as a `TensorMap` over its buffer; a diagonal factor wraps as a `DiagonalTensorMap` over
 # its contiguous diagonal buffer, keeping the bond diagonal through the conversion (TensorKit's own
 # `svd`/`eig` produce a `DiagonalTensorMap`). Both share storage, no copy.
-to_tensormap(a::FusionArray) = to_tensormap(matricize(a), axes_codomain(a), axes_domain(a))
+to_tensormap(a::GradedArray) = to_tensormap(matricize(a), axes_codomain(a), axes_domain(a))
 function to_tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.TensorMap(m.buffer, tensormapspace(sectortype(m), axes_codomain, axes_domain))
 end
@@ -558,8 +558,8 @@ end
 
 # Zero-copy reverse of `to_tensormap`: share the `TensorMap`'s `.data` (already in the matricized
 # buffer's contiguous layout) as a `FusedGradedMatrix`, then wrap it with the per-leg external axes.
-# Mirrors the `undef` constructor but over borrowed storage; `FusionArray(t)` is the copying form.
-function to_fusionarray(t::TK.TensorMap)
+# Mirrors the `undef` constructor but over borrowed storage; `GradedArray(t)` is the copying form.
+function to_gradedarray(t::TK.TensorMap)
     axes_codomain = map(GradedOneTo, Tuple(TK.codomain(t)))
     axes_domain = map(GradedOneTo, Tuple(TK.domain(t)))
     S = sectortype(first((axes_codomain..., axes_domain...)))
@@ -567,7 +567,7 @@ function to_fusionarray(t::TK.TensorMap)
     coupled_codomain = reduce(tensor_product, axes_codomain; init)
     coupled_domain = reduce(tensor_product, axes_domain; init)
     m = FusedGradedMatrix(t.data, coupled_codomain, coupled_domain)
-    return FusionArray(m, axes_codomain, axes_domain)
+    return GradedArray(m, axes_codomain, axes_domain)
 end
 
 # ============================  bipermutedimsopadd! (permute primitive)  ============================
@@ -576,7 +576,7 @@ end
 # their buffers, so TensorKit writes the result into `y` in place.
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::FusionArray, op, x::FusionArray,
+        y::GradedArray, op, x::GradedArray,
         perm_codomain, perm_domain, α::Number, β::Number
     )
     TensorAlgebra.bipermutedimsopadd!(
@@ -585,23 +585,23 @@ function TensorAlgebra.bipermutedimsopadd!(
     return y
 end
 
-# A `FusedGradedMatrix` source (e.g. a matricized factorization output permuted into a `FusionArray`
-# destination) is wrapped zero-copy as a one-codomain/one-domain `FusionArray` — its stored matrix is
-# already the `FusionArray` matricized form — and forwarded to the method above. Without this the
-# generic block-wise permute-add would block-index the `FusionArray` destination, which it
+# A `FusedGradedMatrix` source (e.g. a matricized factorization output permuted into a `GradedArray`
+# destination) is wrapped zero-copy as a one-codomain/one-domain `GradedArray` — its stored matrix is
+# already the `GradedArray` matricized form — and forwarded to the method above. Without this the
+# generic block-wise permute-add would block-index the `GradedArray` destination, which it
 # does not support.
 function TensorAlgebra.bipermutedimsopadd!(
-        y::FusionArray, op, x::FusedGradedMatrix,
+        y::GradedArray, op, x::FusedGradedMatrix,
         perm_codomain, perm_domain, α::Number, β::Number
     )
-    x_fa = FusionArray(x, (axes(x, 1),), (dual(axes(x, 2)),))
+    x_fa = GradedArray(x, (axes(x, 1),), (dual(axes(x, 2)),))
     return TensorAlgebra.bipermutedimsopadd!(y, op, x_fa, perm_codomain, perm_domain, α, β)
 end
 
 # ============================  fermionic twist  ============================
 # The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
 # The `TensorMap` shares its buffer, so `TK.twist!` scales it in place.
-function twist!(a::FusionArray, dims)
+function twist!(a::GradedArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
     TK.twist!(to_tensormap(a), dims)
     return a
@@ -612,24 +612,24 @@ end
 # `FusedGradedMatrix` already has `mul!` and block-wise factorizations, contraction and
 # factorizations ride the generic `TensorAlgebra` machinery with no high-level overloads.
 
-struct FusionArrayMatricizeStyle <: MatricizeStyle end
+struct GradedArrayMatricizeStyle <: MatricizeStyle end
 
-TensorAlgebra.MatricizeStyle(::Type{<:FusionArray}) = FusionArrayMatricizeStyle()
+TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedArrayMatricizeStyle()
 
 # When the requested split matches the stored split this is the stored matrix. Otherwise it is a
 # leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
-# legs stay in order and only the codomain/domain boundary moves), which for a `FusionArray` is
+# legs stay in order and only the codomain/domain boundary moves), which for a `GradedArray` is
 # not a free reshape. Re-split with the array's own `bipermutedims`, then take its 1-arg
 # `matricize`. This is what lets a contraction over a subset of legs matricize a factor whose
 # stored split differs.
 function TensorAlgebra.matricize(
-        ::FusionArrayMatricizeStyle,
-        fa::FusionArray,
+        ::GradedArrayMatricizeStyle,
+        fa::GradedArray,
         ::Val{K}
     ) where {K}
     K == ndims_codomain(fa) && return matricize(fa)
     N = ndims(fa)
-    # TODO: Once `permutedims` on a `FusionArray` routes to `bipermutedimsopadd!`, bend with the
+    # TODO: Once `permutedims` on a `GradedArray` routes to `bipermutedimsopadd!`, bend with the
     # identity-permutation `permutedims` directly (ideally a `[bi]permutedims(fa, Val(K))` split-only
     # spelling). See the "Unified `permutedims` surface" follow-up.
     fa_bent = TensorAlgebra.bipermutedims(
@@ -639,42 +639,42 @@ function TensorAlgebra.matricize(
 end
 
 function TensorAlgebra.unmatricize(
-        ::FusionArrayMatricizeStyle, m::FusedGradedMatrix, axes_codomain::Tuple,
+        ::GradedArrayMatricizeStyle, m::FusedGradedMatrix, axes_codomain::Tuple,
         axes_domain::Tuple
     )
-    return FusionArray(m, axes_codomain, axes_domain)
+    return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# A diagonal factor (SVD singular values, eigenvalues) unmatricizes to a `FusionArray` wrapping the
+# A diagonal factor (SVD singular values, eigenvalues) unmatricizes to a `GradedArray` wrapping the
 # `FusedGradedDiagonal` directly, keeping the diagonal storage rather than densifying it.
 function TensorAlgebra.unmatricize(
-        ::FusionArrayMatricizeStyle, d::FusedGradedDiagonal, axes_codomain::Tuple,
+        ::GradedArrayMatricizeStyle, d::FusedGradedDiagonal, axes_codomain::Tuple,
         axes_domain::Tuple
     )
-    return FusionArray(d, axes_codomain, axes_domain)
+    return GradedArray(d, axes_codomain, axes_domain)
 end
 
 # ============================  contraction (SectorMatricize path)  ============================
-# Contraction dispatches through `default_contract_algorithm(::FusionArray, …)`, which
-# fixes the `SectorMatricize`/`TwistedSectorMatricize` styles, so a `FusionArray` contraction rides
-# that path rather than `FusionArrayMatricizeStyle`.
+# Contraction dispatches through `default_contract_algorithm(::GradedArray, …)`, which
+# fixes the `SectorMatricize`/`TwistedSectorMatricize` styles, so a `GradedArray` contraction rides
+# that path rather than `GradedArrayMatricizeStyle`.
 
 # Twist only the right factor; the left factor and the output use plain `SectorMatricize`.
 function TensorAlgebra.default_contract_algorithm(
-        ::Type{<:FusionArray},
-        ::Type{<:FusionArray}
+        ::Type{<:GradedArray},
+        ::Type{<:GradedArray}
     )
     return TensorAlgebra.Matricize(
         SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
     )
 end
 
-function TensorAlgebra.matricize(::SectorMatricize, fa::FusionArray, ndims_cod::Val)
-    return matricize(FusionArrayMatricizeStyle(), fa, ndims_cod)
+function TensorAlgebra.matricize(::SectorMatricize, fa::GradedArray, ndims_cod::Val)
+    return matricize(GradedArrayMatricizeStyle(), fa, ndims_cod)
 end
 
 function TensorAlgebra.unmatricizeperm!(
-        ::SectorMatricize, a_dest::FusionArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
+        ::SectorMatricize, a_dest::GradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
     ) where {N}
     # Permute `a_dest` into the matricized leg order to get the matricized-order axes with correct
@@ -682,7 +682,7 @@ function TensorAlgebra.unmatricizeperm!(
     # TODO: Switch to `permutedims` once it routes through `bipermutedimsopadd!` (see the "Unified
     # `permutedims` surface" follow-up), as in the `matricize` leg-bend above.
     template = TensorAlgebra.bipermutedims(a_dest, invperm_codomain, invperm_domain)
-    tmp = FusionArray(m, axes_codomain(template), axes_domain(template))
+    tmp = GradedArray(m, axes_codomain(template), axes_domain(template))
     perm_dest = invperm((invperm_codomain..., invperm_domain...))
     ndims_cod_dest = ndims_codomain(a_dest)
     perm_codomain = ntuple(i -> perm_dest[i], Val(ndims_cod_dest))
@@ -694,29 +694,29 @@ end
 
 # ============================  concatenation  ============================
 # Place whole blocks (no scalar indexing) with the inner `concatenate!` on the block containers. That
-# works because `FusionArrayBlocks` is an `AbstractSparseArray`, so the placement visits only the
+# works because `GradedArrayBlocks` is an `AbstractSparseArray`, so the placement visits only the
 # stored (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions. The block
 # placement goes through the guarded block views, so opt into block indexing for its extent.
-function TensorAlgebra.concatenate!(dest::FusionArray, dims, args...)
+function TensorAlgebra.concatenate!(dest::GradedArray, dims, args...)
     with_block_indexing() do
         return TensorAlgebra.concatenate!(blocks(dest), dims, blocks.(args)...)
     end
     return dest
 end
 # Route `Base.cat` through the same machinery so it uses the graded destination and placement.
-Base._cat(dims, as::FusionArray...) = TensorAlgebra.concatenate(dims, as...)
+Base._cat(dims, as::GradedArray...) = TensorAlgebra.concatenate(dims, as...)
 
 # ============================  project (dense -> symmetric)  ============================
-# The dense-to-symmetric projection for the `FusionArray` backend is delegated to TensorKit in the
+# The dense-to-symmetric projection for the `GradedArray` backend is delegated to TensorKit in the
 # shared `unchecked_project_graded` worker (`gradedconstructors.jl`): it projects over the equivalent
-# `ElementarySpace`s and wraps the resulting `TensorMap` with `FusionArray(t)`. `unproject` below is
+# `ElementarySpace`s and wraps the resulting `TensorMap` with `GradedArray(t)`. `unproject` below is
 # the dense inverse used by `TA.project`'s verification.
 
 # In-place projection into a preallocated destination: view `dest` as a `TensorMap` (sharing its
 # buffer) and project the dense `src` straight into those blocks through TensorKit, which drops the
 # forbidden regions and handles a lower-rank `src` reshaped into a flux-canceling aux leg. The generic
 # `AbstractArray` `projectto!` would scalar-`copyto!` and error mid-write on a forbidden block.
-function TensorAlgebra.projectto!(dest::FusionArray, src::AbstractArray)
+function TensorAlgebra.projectto!(dest::GradedArray, src::AbstractArray)
     TensorAlgebra.projectto!(to_tensormap(dest), src)
     return dest
 end
@@ -725,7 +725,7 @@ end
 # materialize through the zero-copy `TensorMap` view. The view is fused-sorted per leg, so for an
 # unfused/unsorted stored axis, move each leg's sector blocks back to the stored order (whole-block
 # moves preserve the array type, e.g. GPU).
-function Base.Array(fa::FusionArray{<:Any, <:Any, N}) where {N}
+function Base.Array(fa::GradedArray{<:Any, <:Any, N}) where {N}
     dense = convert(Array, to_tensormap(fa))
     all(is_fused_sorted, axes(fa)) && return dense
     sortedlengths = map(g -> Vector(blocklengths(g))[sortperm(sectors(g))], axes(fa))
@@ -734,14 +734,14 @@ function Base.Array(fa::FusionArray{<:Any, <:Any, N}) where {N}
 end
 # Rank-0: TensorKit's `convert(Array, ::rank-0 TensorMap)` hits a VectorInterface `add!` gap for some
 # eltypes (e.g. `Float32`), so build the 0-dim array from the scalar directly.
-Base.Array(fa::FusionArray{<:Any, <:Any, 0}) = fill(fa[])
+Base.Array(fa::GradedArray{<:Any, <:Any, 0}) = fill(fa[])
 
 # `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification, and the dense
 # form at an arbitrary codomain split `Val{K}` used to compare tensors across backends (which agree
 # only at a common split). When `K` is the array's own split the `TensorMap` conversion undoes the
 # domain-leg bend directly; otherwise bend the legs to a `K`-codomain split first. The bend carries
 # the fermion signs.
-function TensorAlgebra.unproject(fa::FusionArray, ::Val{K}) where {K}
+function TensorAlgebra.unproject(fa::GradedArray, ::Val{K}) where {K}
     N = ndims(fa)
     0 <= K <= N ||
         throw(
@@ -758,7 +758,7 @@ end
 
 # ============================  show  ============================
 
-function Base.summary(io::IO, fa::FusionArray)
+function Base.summary(io::IO, fa::GradedArray)
     print(
         io, Base.dims2string(size(fa)), " ", nameof(typeof(fa)),
         " (codomain ", ndims_codomain(fa), ", domain ", ndims_domain(fa), ")"
@@ -766,9 +766,9 @@ function Base.summary(io::IO, fa::FusionArray)
     return nothing
 end
 
-Base.show(io::IO, fa::FusionArray) = summary(io, fa)
+Base.show(io::IO, fa::GradedArray) = summary(io, fa)
 
-function Base.show(io::IO, ::MIME"text/plain", fa::FusionArray)
+function Base.show(io::IO, ::MIME"text/plain", fa::GradedArray)
     summary(io, fa)
     println(io, ":")
     # Show the per-leg axes as stored (domain axes codomain-facing), so the printed duality reflects

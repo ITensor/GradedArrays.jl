@@ -14,6 +14,7 @@ using Test: @test, @testset
         :FusedGradedMatrix,
         :FusedGradedOneTo,
         :FusedGradedVector,
+        :GradedArray,
         :GradedArrays,
         :GradedBlockAlgorithm,
         :GradedOneTo,
