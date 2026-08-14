@@ -23,13 +23,14 @@ for f in (:rand, :randn)
     @eval begin
         function TA.$fmap(
                 rng::AbstractRNG, ::Type{T},
-                cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
+                cod::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+                dom::Tuple{Vararg{AbstractGradedOneTo}}
             ) where {T}
             return $fbang(rng, GradedArray{T}(undef, cod, dom))
         end
         function TA.$fmap(
                 rng::AbstractRNG, ::Type{T},
-                cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+                cod::Tuple{}, dom::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
             ) where {T}
             return $fbang(rng, GradedArray{T}(undef, cod, dom))
         end
@@ -40,13 +41,15 @@ for (f, fill_block) in ((:zeros, :(zero!(a))), (:ones, :(fill!(a, one(T)))))
     @eval begin
         function TA.$fmap(
                 ::Type{T},
-                cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
+                cod::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+                dom::Tuple{Vararg{AbstractGradedOneTo}}
             ) where {T}
             a = GradedArray{T}(undef, cod, dom)
             return $fill_block
         end
         function TA.$fmap(
-                ::Type{T}, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+                ::Type{T}, cod::Tuple{},
+                dom::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
             ) where {T}
             a = GradedArray{T}(undef, cod, dom)
             return $fill_block
@@ -54,11 +57,16 @@ for (f, fill_block) in ((:zeros, :(zero!(a))), (:ones, :(fill!(a, one(T)))))
     end
 end
 function TA.fill_map(
-        value, cod::Tuple{GradedOneTo, Vararg{GradedOneTo}}, dom::Tuple{Vararg{GradedOneTo}}
+        value, cod::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+        dom::Tuple{Vararg{AbstractGradedOneTo}}
     )
     return fill!(GradedArray{typeof(value)}(undef, cod, dom), value)
 end
-function TA.fill_map(value, cod::Tuple{}, dom::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+function TA.fill_map(
+        value,
+        cod::Tuple{},
+        dom::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
+    )
     return fill!(GradedArray{typeof(value)}(undef, cod, dom), value)
 end
 
@@ -67,7 +75,7 @@ end
 # by a bare `TensorKitSectors.Sector` is not accepted, since overloading `Base` constructors on a
 # purely TensorKitSectors signature would be type piracy. Wrap such sectors with `SectorRange`.
 for axis_type in (
-        :GradedOneTo,
+        :AbstractGradedOneTo,
         :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
     )
     axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
@@ -202,7 +210,7 @@ end
 # accepting a bare sector is not type piracy. The axis-less flux-only forms below stay
 # `SectorRange`-only, where a bare-sector method would be piracy.
 for axis_type in (
-        :GradedOneTo,
+        :AbstractGradedOneTo,
         :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
     )
     axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
@@ -470,7 +478,7 @@ of `sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a
 storing the domain axes dual; a leading `flux` sector appends a multiplicity-1 leg carrying it,
 so the physical axes fuse to that total charge.
 """
-Base.zeros(::Type{T}, ::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+Base.zeros(::Type{T}, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}) where {T}
 
 """
     ones([T=Float64,] axs::GradedOneTo...)
@@ -479,7 +487,7 @@ Base.zeros(::Type{T}, ::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
 
 Like [`zeros`](@ref), but filling every symmetry-allowed block with ones.
 """
-Base.ones(::Type{T}, ::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
+Base.ones(::Type{T}, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}) where {T}
 
 """
     fill(v, axs::GradedOneTo...)
@@ -489,7 +497,7 @@ Base.ones(::Type{T}, ::Tuple{GradedOneTo, Vararg{GradedOneTo}}) where {T}
 Like [`zeros`](@ref), but filling every symmetry-allowed block with `v`
 (the element type is taken from `v`).
 """
-Base.fill(::Any, ::Tuple{GradedOneTo, Vararg{GradedOneTo}})
+Base.fill(::Any, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}})
 
 # Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
 
@@ -505,13 +513,14 @@ function check_project_size(sz1::Dims, sz2::Dims)
 end
 
 function TA.unchecked_project(
-        raw, codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-        domain_axes::Tuple{Vararg{GradedOneTo}}
+        raw, codomain_axes::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+        domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
     )
     return unchecked_project_graded(raw, codomain_axes, domain_axes)
 end
 function TA.unchecked_project(
-        raw, codomain_axes::Tuple{}, domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+        raw, codomain_axes::Tuple{},
+        domain_axes::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
     )
     return unchecked_project_graded(raw, codomain_axes, domain_axes)
 end
@@ -548,13 +557,14 @@ end
 # through the graded `similar_map`. Both the codomain-led and the (empty-codomain) domain-led cases
 # route to `infer_aux_space_graded`.
 function TA.infer_aux_space(
-        raw, codomain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-        domain_axes::Tuple{Vararg{GradedOneTo}}
+        raw, codomain_axes::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+        domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
     )
     return infer_aux_space_graded(raw, codomain_axes, domain_axes)
 end
 function TA.infer_aux_space(
-        raw, codomain_axes::Tuple{}, domain_axes::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+        raw, codomain_axes::Tuple{},
+        domain_axes::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
     )
     return infer_aux_space_graded(raw, codomain_axes, domain_axes)
 end
@@ -619,7 +629,11 @@ the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a
 trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
 so index with `dual`/`conj` axes to set duality.
 """
-function Base.getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
+function Base.getindex(
+        a::AbstractArray,
+        ax1::AbstractGradedOneTo,
+        axs::AbstractGradedOneTo...
+    )
     dest_axes = (ax1, axs...)
     # Match `a` to the requested axes up to trailing length-1 axes: indexing selects exactly these
     # axes, so the surplus-axis derivation branch of `project` must not trigger, and a genuine
@@ -630,6 +644,9 @@ end
 # Disambiguate the single-axis case for a concrete `Array`: `Base.getindex(::Array,
 # ::AbstractUnitRange{<:Integer})` and the projection method above are otherwise equally
 # specific, so `dense[graded_axis]` (e.g. building a one-leg graded tensor) is ambiguous.
-function Base.getindex(a::Array, ax1::GradedOneTo)
-    return invoke(getindex, Tuple{AbstractArray, GradedOneTo, Vararg{GradedOneTo}}, a, ax1)
+function Base.getindex(a::Array, ax1::AbstractGradedOneTo)
+    return invoke(
+        getindex, Tuple{AbstractArray, AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}, a,
+        ax1
+    )
 end

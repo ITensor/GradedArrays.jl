@@ -1,8 +1,8 @@
 using BlockArrays: Block, blocklengths
-using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, GradedArray, SU2,
-    SectorRange, U1, UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain,
-    ndims_domain, sector, sectordata, to_tensormap, with_block_indexing,
-    with_scalar_indexing
+using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
+    GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2, data, dual, gradedrange,
+    isdual, ndims_codomain, ndims_domain, sector, sectordata, to_tensormap,
+    with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -387,6 +387,18 @@ end
         av, = contract(m, (:i, :k), v, (:k, :b))
         vd, = contract(v, (:i, :b), d, (:b, :c))
         @test av ≈ vd
+    end
+
+    @testset "construct from a factorization bond axis (FusedGradedOneTo)" begin
+        g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
+        m = randn_gradedarray((g,), (g,))
+        d, v = eig_full(m, (1,), (2,))
+        # A factorization exposes `FusedGradedOneTo` bond axes; the public construction surface takes
+        # any `AbstractGradedOneTo`, so feeding one back in builds a `GradedArray`.
+        bond = axes(d, 1)
+        @test bond isa FusedGradedOneTo
+        @test zeros(Float64, (bond,), (bond,)) isa GradedArray
+        @test randn(Float64, (bond,), (bond,)) isa GradedArray
     end
 
     @testset "broadcasting (linear combinations)" begin

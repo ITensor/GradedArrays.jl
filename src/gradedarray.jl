@@ -189,7 +189,8 @@ function Base.similar(a::GradedArray, ::Type{T}) where {T}
     return GradedArray(similar(matricize(a), T), axes_codomain(a), axes_domain(a))
 end
 function Base.similar(
-        a::GradedArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+        a::GradedArray, ::Type{T},
+        axes::Tuple{AbstractGradedOneTo{S}, Vararg{AbstractGradedOneTo{S}}}
     ) where {T, S}
     return TensorAlgebra.similar_map(a, T, axes, ())
 end
