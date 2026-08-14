@@ -39,6 +39,10 @@ using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, MatricizeStyle
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 
+# Self-alias for calling our own functions qualified where a local argument shadows the bare name
+# (e.g. a `sectordata` constructor argument shadowing the `sectordata` accessor).
+const GA = GradedArrays
+
 include("indexingguards.jl")
 include("kron.jl")
 include("blocksparseinterface.jl")
@@ -58,6 +62,7 @@ include("sectoronesvector.jl")
 include("fusedsectormatrix.jl")
 include("abstractfusedgradedarray.jl")
 
+include("sectordata.jl")
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
 include("fusedgradeddiagonal.jl")

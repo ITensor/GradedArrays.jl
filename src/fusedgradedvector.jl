@@ -106,79 +106,62 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    FusedGradedVector{T,S<:SectorRange,D<:AbstractVector{T},V<:DenseVector{T}}
+    FusedGradedVector{T,S<:SectorRange,V<:DenseVector{T}}
 
 Block-structured 1-D graded array produced by a sector-preserving operation on
-a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`).
+a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`). Stores a contiguous
+`buffer` plus the fused axis; the per-sector blocks are the lazy `sectordata(v)` view carved from the
+buffer on demand.
 """
-struct FusedGradedVector{
-        T,
-        S <: SectorRange,
-        D <: AbstractVector{T},
-        V <: DenseVector{T},
-    } <:
+struct FusedGradedVector{T, S <: SectorRange, V <: DenseVector{T}} <:
     AbstractFusedGradedVector{T, S}
     buffer::V
-    sectordata::Dictionary{S, D}
     axis::FusedGradedOneTo{S}
 
-    # Primitive constructor: wrap a contiguous buffer, carving per-sector `view`s (shares, no copy).
-    # The axis is a non-dual `FusedGradedOneTo` (its constructor enforces sorted, non-dual sectors).
-    function FusedGradedVector{T, S, D, V}(
+    # Primitive constructor: wrap a contiguous buffer (shared, not copied); the per-sector blocks are
+    # the lazy `sectordata` view over it. The axis is a non-dual `FusedGradedOneTo` (its constructor
+    # enforces sorted, non-dual sectors).
+    function FusedGradedVector{T, S, V}(
             data::V, axis::FusedGradedOneTo{S}
-        ) where {T, S <: SectorRange, D <: AbstractVector{T}, V <: DenseVector{T}}
+        ) where {T, S <: SectorRange, V <: DenseVector{T}}
         isdual(axis) && throw(
             ArgumentError("FusedGradedVector stores a non-dual axis")
         )
-        blocks = carve_blocks(D, data, sectordatalengths(axis))
-        return new{T, S, D, V}(data, blocks, axis)
-    end
-end
-
-# Carve a contiguous buffer into per-sector blocks as `view`s, in sorted-sector order.
-function carve_blocks(::Type{D}, data, axis::Dictionary{S, Int}) where {D, S}
-    total = sum(values(axis); init = 0)
-    length(data) == total ||
-        throw(
-        DimensionMismatch(
-            "buffer length $(length(data)) does not match block total $total"
+        # Validate the buffer length against the block total (SectorData does the same check on access).
+        total = sum(values(sectordatalengths(axis)); init = 0)
+        length(data) == total ||
+            throw(
+            DimensionMismatch(
+                "buffer length $(length(data)) does not match block total $total"
+            )
         )
-    )
-    blocks = Dictionary{S, D}()
-    offset = 0
-    for s in keys(axis)
-        len = axis[s]
-        insert!(blocks, s, view(data, (offset + 1):(offset + len)))
-        offset += len
+        return new{T, S, V}(data, axis)
     end
-    return blocks
 end
 
-# The `view` block type of a 1-D buffer (a `view` over a contiguous range), inferred from the buffer
-# type rather than built from a dummy instance.
-blockviewtype1(data::AbstractVector) = Base.promote_op(view, typeof(data), UnitRange{Int})
-
-# Primitive constructor deriving the block-view type from the buffer.
+# Primitive constructor deriving the parameters from the buffer.
 function FusedGradedVector(
         data::V, axis::FusedGradedOneTo{S}
     ) where {T, S <: SectorRange, V <: DenseVector{T}}
-    return FusedGradedVector{T, S, blockviewtype1(data), V}(data, axis)
+    return FusedGradedVector{T, S, V}(data, axis)
 end
 
 # Data constructor: allocate a fresh buffer and copy each given block into its view.
 function FusedGradedVector(
-        blocks::Dictionary{S, <:AbstractVector}, axis::FusedGradedOneTo{S}
+        sectordata::Dictionary{S, <:AbstractVector}, axis::FusedGradedOneTo{S}
     ) where {S <: SectorRange}
     ax = sectordatalengths(axis)
-    issetequal(keys(ax), keys(blocks)) || throw(ArgumentError("invalid blocks"))
-    for (s, b) in pairs(blocks)
+    issetequal(keys(ax), keys(sectordata)) || throw(ArgumentError("invalid blocks"))
+    for (s, b) in pairs(sectordata)
         length(b) == ax[s] ||
             throw(DimensionMismatch("invalid block for sector $s"))
     end
-    T = eltype(eltype(blocks))
+    T = eltype(eltype(sectordata))
     v = FusedGradedVector{T}(undef, axis)
-    for (s, b) in pairs(blocks)
-        copyto!(v.sectordata[s], b)
+    # The `sectordata` argument shadows the accessor here, so reach it through the module alias.
+    dest = GA.sectordata(v)
+    for (s, b) in pairs(sectordata)
+        copyto!(dest[s], b)
     end
     return v
 end
@@ -245,30 +228,16 @@ end
 
 # ========================  Accessors  ========================
 
-# Blockwise copyto!: the generic `AbstractArray` fallback copies elementwise, which
-# scalar-indexes (disallowed for graded arrays). Also the write path for mutating a
-# `MAK.diagview(::FusedGradedMatrix)` (whose blocks alias the matrix diagonals).
-function Base.copyto!(dest::FusedGradedVector, src::FusedGradedVector)
-    keys(dest.sectordata) == keys(src.sectordata) ||
-        throw(ArgumentError("`copyto!` requires matching sectors"))
-    for s in keys(src.sectordata)
-        copyto!(dest.sectordata[s], src.sectordata[s])
-    end
-    return dest
+# Each block is a 1-D `view` into the buffer (see `_dataview`); infer that type.
+function datatype(::Type{<:FusedGradedVector{T, S, V}}) where {T, S, V}
+    return Base.promote_op(view, V, UnitRange{Int})
 end
 
-function blocktype(::Type{<:FusedGradedVector{T, S, D}}) where {T, S, D}
-    return FusedSectorVector{T, S, D}
-end
-blocktype(v::FusedGradedVector) = blocktype(typeof(v))
+sectordata(v::FusedGradedVector) = SectorData(v, sectordatalengths(v.axis))
 
-sectordata(v::FusedGradedVector) = v.sectordata
-
-# The stored axis is the fused range; a vector has no domain half to dualize.
+# The stored axis is the fused range; a vector has no domain half to dualize. `biaxes` is the core
+# axis accessor (the one place `v.axis` is read directly); `axes`/`size` derive from it generically.
 biaxes(v::FusedGradedVector) = bispace((v.axis,), ())
-Base.axes(v::FusedGradedVector) = Tuple(biaxes(v))
-
-Base.size(v::FusedGradedVector) = map(length, axes(v))
 
 # Block-wise `mapreduce`: reduce each block locally (so GPU blocks stay on the device for
 # their reduction kernel) and combine per-block scalars on the CPU. Routes
@@ -277,7 +246,7 @@ Base.size(v::FusedGradedVector) = map(length, axes(v))
 # cross-block fold; double-applying `init` per block would be wrong for non-idempotent
 # reductions (e.g. `sum(v; init=10)`).
 function Base.mapreduce(f, op, v::FusedGradedVector; kwargs...)
-    return mapfoldl(b -> mapreduce(f, op, b), op, values(v.sectordata); kwargs...)
+    return mapfoldl(b -> mapreduce(f, op, b), op, sectordata(v); kwargs...)
 end
 
 # Block-wise `map`: returns a `FusedGradedVector` with the same axis and `f` applied to
@@ -285,8 +254,8 @@ end
 # scalar-setindex! into a fresh array. Each per-block `map`
 # dispatches to the storage backend's `map` (e.g. GPU kernel for `CuVector` blocks).
 function Base.map(f, v::FusedGradedVector)
-    blocks = dictionary(s => map(f, b) for (s, b) in pairs(v.sectordata))
-    return FusedGradedVector(blocks, v.axis)
+    blockdata = dictionary(s => map(f, b) for (s, b) in pairs(sectordata(v)))
+    return FusedGradedVector(blockdata, v.axis)
 end
 
 # ========================  Block indexing (primitive)  ========================
@@ -297,20 +266,20 @@ function Base.view(v::FusedGradedVector, I::Block{1})
         i in 1:blocklength(v.axis) || throw(BoundsError(v, I))
     end
     s = sectors(v.axis)[i]
-    return FusedSectorVector(v.sectordata[s], s)
+    return FusedSectorVector(sectordata(v)[s], s)
 end
 
 # ========================  eachblockstoredindex  ========================
 
 function eachblockstoredindex(v::FusedGradedVector)
     ax = sectordatalengths(v.axis)
-    return (Block(gettoken(ax, c)[2][2]) for c in keys(v.sectordata))
+    return (Block(gettoken(ax, c)[2][2]) for c in keys(sectordata(v)))
 end
 
 # ========================  similar  ========================
 
 function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
-    data = similar(v.buffer, T, length(v.buffer))
+    data = similar(v.buffer, T)
     return FusedGradedVector(data, v.axis)
 end
 function Base.similar(v::FusedGradedVector, axis::FusedGradedOneTo{S}) where {S}
@@ -333,18 +302,19 @@ end
 # ========================  show  ========================
 
 function Base.summary(io::IO, v::FusedGradedVector)
+    sd = sectordata(v)
     print(
         io, blocklength(v.axis), "-block ", summary_typename(typeof(v)),
-        " with ", length(v.sectordata), " stored block",
-        length(v.sectordata) == 1 ? "" : "s", " at sectors ["
+        " with ", length(sd), " stored block",
+        length(sd) == 1 ? "" : "s", " at sectors ["
     )
-    join(io, keys(v.sectordata), ", ")
+    join(io, keys(sd), ", ")
     print(io, "]")
     return nothing
 end
 
 function Base.print_array(io::IO, v::FusedGradedVector)
-    for (s, b) in pairs(v.sectordata)
+    for (s, b) in pairs(sectordata(v))
         print(io, "  ", s, ": ")
         show(io, b)
         println(io)
@@ -358,7 +328,7 @@ function Base.show(io::IO, ::MIME"text/plain", v::FusedGradedVector)
     print(io, "  Dim 1: ")
     show_axis(io, axes(v, 1))
     println(io)
-    isempty(v.sectordata) && return nothing
+    isempty(sectordata(v)) && return nothing
     Base.print_array(io, v)
     return nothing
 end
@@ -366,15 +336,9 @@ end
 function Base.show(io::IO, v::FusedGradedVector)
     print(
         io, blocklength(v.axis), "-block ", summary_typename(typeof(v)),
-        " (", length(v.sectordata), " stored)"
+        " (", length(sectordata(v)), " stored)"
     )
     return nothing
-end
-
-# ========================  copy  ========================
-
-function Base.copy(v::FusedGradedVector)
-    return FusedGradedVector(map(copy, v.sectordata), v.axis)
 end
 
 # ========================  FusedGradedVecOrMat  ========================

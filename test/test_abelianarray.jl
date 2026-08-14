@@ -1,10 +1,10 @@
 using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractFusedGradedMatrix, AdjointFusedGradedArray,
-    FusedGradedMatrix, FusedGradedVector, FusionArray, GradedOneTo, SU2, SectorRange, U1,
-    UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data, datalengths,
-    dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectordata, sectors,
-    sectortype, to_gradedrange, with_block_indexing, with_scalar_indexing
+    FusedGradedMatrix, FusedGradedOneTo, FusedGradedVector, FusionArray, GradedOneTo, SU2,
+    SectorRange, U1, UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data,
+    datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectordata,
+    sectors, sectortype, to_gradedrange, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using SparseArraysBase: isstored

@@ -2,8 +2,6 @@
 #  AdjointFusedGradedArray — lazy adjoint of a fused graded array
 # ===========================================================================
 
-using Dictionaries: gettoken, gettokenvalue
-
 """
     AdjointFusedGradedArray{T,S<:SectorRange,N,P<:AbstractFusedGradedArray{T,S,N}} <: AbstractFusedGradedArray{T,S,N}
 
@@ -37,48 +35,20 @@ Base.adjoint(a::AdjointFusedGradedArray) = parent(a)
 
 # ---- accessors ----
 
-# The block is the `adjoint` of the parent's block (its reduced data adjointed lazily).
-function blocktype(::Type{<:AdjointFusedGradedArray{T, S, N, P}}) where {T, S, N, P}
-    return FusedSectorMatrix{T, S, Base.promote_op(adjoint, datatype(P))}
+# The block-data type is the `adjoint` of the parent's block data (adjointed lazily).
+function datatype(::Type{<:AdjointFusedGradedArray{T, S, N, P}}) where {T, S, N, P}
+    return Base.promote_op(adjoint, datatype(P))
 end
-blocktype(a::AdjointFusedGradedArray) = blocktype(typeof(a))
 
 # The adjoint swaps codomain and domain: its codomain is the parent's domain and its domain is the
-# parent's codomain (`axes(m') == (dual(axes(m, 2)), dual(axes(m, 1)))`).
+# parent's codomain (`axes(m') == (dual(axes(m, 2)), dual(axes(m, 1)))`). `biaxes` is the core axis
+# accessor; block indexing, reductions, `copy`, and the like derive from it and `sectordata`
+# generically on `AbstractFusedGradedMatrix`.
 function biaxes(a::AdjointFusedGradedArray)
     b = biaxes(parent(a))
     return bispace(domain(b), codomain(b))
 end
-Base.axes(a::AdjointFusedGradedArray) = Tuple(biaxes(a))
-Base.size(a::AdjointFusedGradedArray) = map(length, axes(a))
 
-function Base.view(a::AdjointFusedGradedArray, I::Block{2})
-    i, j = Int.(Tuple(I))
-    cod = axis_codomain(a)
-    dom = axis_domain(a)
-    @boundscheck begin
-        i in 1:blocklength(cod) && j in 1:blocklength(dom) || throw(BoundsError(a, I))
-    end
-    s_cod = sectors(cod)[i]
-    s_dom = sectors(dom)[j]
-    s_cod == s_dom ||
-        error("Off-diagonal access not supported for AdjointFusedGradedArray")
-    return FusedSectorMatrix(adjoint(sectordata(parent(a))[s_cod]), s_cod)
-end
-
-function eachblockstoredindex(a::AdjointFusedGradedArray)
-    cod = sectordatalengths(axis_codomain(a))
-    dom = sectordatalengths(axis_domain(a))
-    return (
-        Block(gettoken(cod, c)[2][2], gettoken(dom, c)[2][2]) for
-            c in keys(sectordata(parent(a)))
-    )
-end
-
-# Materialize into an owned `FusedGradedMatrix`, copying each adjoint block into a fresh buffer.
-function Base.copy(a::AdjointFusedGradedArray)
-    return FusedGradedMatrix(sectordata(a), axis_codomain(a), axis_domain(a))
-end
 function Base.similar(a::AdjointFusedGradedArray, ::Type{T}) where {T}
     return FusedGradedMatrix{T}(undef, axis_codomain(a), axis_domain(a))
 end

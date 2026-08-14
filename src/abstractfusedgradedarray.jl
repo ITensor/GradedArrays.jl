@@ -11,11 +11,19 @@ const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}
 using BlockArrays: mortar
 using FillArrays: Zeros
 
-# The block storage type is the datatype of the blocks, so a concrete fused array only needs to
-# define `blocktype`.
-datatype(::Type{T}) where {T <: AbstractFusedGradedArray} = datatype(blocktype(T))
+# `datatype` (the per-sector block-data array type) is the primitive each concrete fused array
+# defines; `blocktype` wraps it in the sector-block wrapper (`FusedSectorMatrix` for a matrix,
+# `FusedSectorVector` for a vector), uniform across the family.
 datatype(a::AbstractFusedGradedArray) = datatype(typeof(a))
 sectortype(::Type{<:AbstractFusedGradedArray{T, S}}) where {T, S} = S
+
+function blocktype(::Type{A}) where {A <: AbstractFusedGradedMatrix}
+    return FusedSectorMatrix{eltype(A), sectortype(A), datatype(A)}
+end
+function blocktype(::Type{A}) where {A <: AbstractFusedGradedVector}
+    return FusedSectorVector{eltype(A), sectortype(A), datatype(A)}
+end
+blocktype(a::AbstractFusedGradedArray) = blocktype(typeof(a))
 
 # The one storage accessor each variant overloads: the sector → block-data map. The shared matrix
 # algebra reads through it instead of raw fields, so a lazy adjoint or diagonal factor needs no faked
@@ -50,6 +58,189 @@ function LinearAlgebra.isdiag(A::AbstractFusedGradedMatrix)
         (row == col && LinearAlgebra.isdiag(view(A, bI))) || return false
     end
     return true
+end
+
+# ---------------------------------------------------------------------------
+#  axes / size — derived from the per-variant `biaxes` core
+# ---------------------------------------------------------------------------
+
+Base.axes(a::AbstractFusedGradedArray) = Tuple(biaxes(a))
+Base.size(a::AbstractFusedGradedArray) = map(length, axes(a))
+
+# ---------------------------------------------------------------------------
+#  Block indexing — one stored block per coupled sector (block-diagonal)
+#
+#  A fused graded matrix is block-diagonal in sector space: block (i, j) is stored only when the
+#  codomain sector at `i` equals the domain sector at `j`. Both the block view and the stored-index
+#  set read through the `sectordata` / `axis_codomain` / `axis_domain` accessors, so every matrix
+#  variant (dense, diagonal, lazy adjoint) is covered by these.
+# ---------------------------------------------------------------------------
+
+function Base.view(m::AbstractFusedGradedMatrix, I::Block{2})
+    i, j = Int.(Tuple(I))
+    cod, dom = axis_codomain(m), axis_domain(m)
+    @boundscheck begin
+        i in 1:blocklength(cod) && j in 1:blocklength(dom) || throw(BoundsError(m, I))
+    end
+    s_cod = sectors(cod)[i]
+    s_dom = sectors(dom)[j]
+    s_cod == s_dom ||
+        error("Off-diagonal access not supported for block-sparse fused graded matrix")
+    return FusedSectorMatrix(sectordata(m)[s_cod], s_cod)
+end
+
+function eachblockstoredindex(m::AbstractFusedGradedMatrix)
+    cod = sectordatalengths(axis_codomain(m))
+    dom = sectordatalengths(axis_domain(m))
+    return (
+        Block(gettoken(cod, c)[2][2], gettoken(dom, c)[2][2]) for
+            c in keys(sectordata(m))
+    )
+end
+
+# ---------------------------------------------------------------------------
+#  Block-diagonal reductions and predicates
+#
+#  Fold over the stored blocks (each a `FusedSectorMatrix` that already carries its coupled sector's
+#  quantum-dimension weight and within-block structural zeros). The remaining structural zeros are the
+#  off-sector (symmetry-forbidden) positions.
+# ---------------------------------------------------------------------------
+
+# Sum the per-block stored counts; the rest of `length` are structural zeros. Without this the
+# `AbstractArray` fallback reports `length` (i.e. fully dense).
+function SparseArraysBase.storedlength(A::AbstractFusedGradedMatrix)
+    return sum(B -> storedlength(view(A, B)), eachblockstoredindex(A); init = 0)
+end
+
+# `sum` restricts to zero-preserving `f` (the forbidden positions would each add `f(0)`);
+# `maximum`/`minimum` fold a single `f(0)` when any forbidden position is present.
+Base.sum(A::AbstractFusedGradedMatrix) = sum(identity, A)
+function Base.sum(f, A::AbstractFusedGradedMatrix)
+    z = f(zero(eltype(A)))
+    iszero(z) || throw_not_zero_preserving_sum(z)
+    return sum(B -> sum(f, view(A, B)), eachblockstoredindex(A); init = z)
+end
+
+Base.maximum(A::AbstractFusedGradedMatrix) = maximum(identity, A)
+function Base.maximum(f, A::AbstractFusedGradedMatrix)
+    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
+    m = maximum(B -> maximum(f, view(A, B)), eachblockstoredindex(A))
+    return length(A) > storedlength(A) ? max(m, f(zero(eltype(A)))) : m
+end
+
+Base.minimum(A::AbstractFusedGradedMatrix) = minimum(identity, A)
+function Base.minimum(f, A::AbstractFusedGradedMatrix)
+    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
+    m = minimum(B -> minimum(f, view(A, B)), eachblockstoredindex(A))
+    return length(A) > storedlength(A) ? min(m, f(zero(eltype(A)))) : m
+end
+
+Base.extrema(A::AbstractFusedGradedMatrix) = extrema(identity, A)
+Base.extrema(f, A::AbstractFusedGradedMatrix) = (minimum(f, A), maximum(f, A))
+
+# The full-matrix trace is the sum of the per-coupled-sector block traces (each `FusedSectorMatrix`
+# trace carries the sector's quantum-dimension weight), matching `tr(Array(A))` without scalar-indexing.
+function LinearAlgebra.tr(A::AbstractFusedGradedMatrix)
+    return sum(
+        bI -> LinearAlgebra.tr(view(A, bI)), eachblockstoredindex(A);
+        init = zero(eltype(A))
+    )
+end
+
+# Block-wise predicates over the stored (block-diagonal) blocks.
+function LinearAlgebra.istriu(A::AbstractFusedGradedMatrix)
+    return all(LinearAlgebra.istriu, sectordata(A))
+end
+function LinearAlgebra.istril(A::AbstractFusedGradedMatrix)
+    return all(LinearAlgebra.istril, sectordata(A))
+end
+function LinearAlgebra.isposdef(A::AbstractFusedGradedMatrix)
+    return all(LinearAlgebra.isposdef, sectordata(A))
+end
+Base.iszero(A::AbstractFusedGradedMatrix) = all(iszero, sectordata(A))
+
+# ---------------------------------------------------------------------------
+#  copy / copyto! — block-wise (the generic AbstractArray fallbacks scalar-index)
+# ---------------------------------------------------------------------------
+
+# `copyto!` is also the write path for mutating a `MAK.diagview(::FusedGradedMatrix)` (whose blocks
+# alias the matrix diagonals). Matching sectors are required (equal axes guarantee them).
+function Base.copyto!(dest::AbstractFusedGradedArray, src::AbstractFusedGradedArray)
+    dsd, ssd = sectordata(dest), sectordata(src)
+    keys(dsd) == keys(ssd) || throw(ArgumentError("`copyto!` requires matching sectors"))
+    for c in keys(ssd)
+        copyto!(dsd[c], ssd[c])
+    end
+    return dest
+end
+
+Base.copy(a::AbstractFusedGradedArray) = copyto!(similar(a), a)
+
+# ---------------------------------------------------------------------------
+#  Matrix display — `N×M` block grid with the stored coupled sectors listed
+# ---------------------------------------------------------------------------
+
+function Base.summary(io::IO, m::AbstractFusedGradedMatrix)
+    sd = sectordata(m)
+    print(
+        io, blocklength(axis_codomain(m)), "×", blocklength(axis_domain(m)), " ",
+        summary_typename(typeof(m)),
+        " with ", length(sd), " stored block", length(sd) == 1 ? "" : "s", " at sectors ["
+    )
+    join(io, keys(sd), ", ")
+    print(io, "]")
+    return nothing
+end
+
+function Base.show(io::IO, ::MIME"text/plain", m::AbstractFusedGradedMatrix)
+    summary(io, m)
+    println(io, ":")
+    for (d, g) in pairs(axes(m))
+        print(io, "  Dim $d: ")
+        show_axis(io, g)
+        println(io)
+    end
+    isempty(sectordata(m)) && return nothing
+    Base.print_array(io, m)
+    return nothing
+end
+
+function Base.show(io::IO, m::AbstractFusedGradedMatrix)
+    print(
+        io, blocklength(axis_codomain(m)), "×", blocklength(axis_domain(m)), " ",
+        summary_typename(typeof(m)), " (", length(sectordata(m)), " stored)"
+    )
+    return nothing
+end
+
+# ---------------------------------------------------------------------------
+#  Matrix functions — block-diagonal, so `f(A) = blkdiag(f(blk_i))`
+#
+#  Any matrix function applies block-wise (`sqrt`, `exp`, `log`, …), routing around the generic
+#  `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection. Returns a
+#  materialized `FusedGradedMatrix`. Per-block result eltypes may differ (e.g. `sqrt(::Matrix{Float64})`
+#  returns `Matrix{ComplexF64}` via Schur even when each block is real-PSD), so unify to the
+#  `promote_type` of all returned blocks before reconstructing.
+# ---------------------------------------------------------------------------
+
+# The target eltype `T` is passed through a type-parameter barrier so the `convert` target is concrete
+# to inference. Splicing a runtime `T` straight into `convert(AbstractMatrix{T}, b)` makes older Julia
+# widen the block dictionary to an abstract `AbstractMatrix`, and the reconstruction then throws a
+# `TypeError`.
+function unify_block_eltype(blocks, ::Type{T}) where {T}
+    return map(b -> convert(AbstractMatrix{T}, b), blocks)
+end
+
+for f in TensorAlgebra.MATRIX_FUNCTIONS
+    @eval function Base.$f(A::AbstractFusedGradedMatrix)
+        raw = map(Base.$f, sectordata(A))
+        T = mapreduce(eltype, promote_type, raw; init = eltype(A))
+        return FusedGradedMatrix(
+            unify_block_eltype(raw, T),
+            axis_codomain(A),
+            axis_domain(A)
+        )
+    end
 end
 
 # ---------------------------------------------------------------------------
@@ -100,10 +291,10 @@ Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
 #  block grid; unstored blocks become `Zeros`, which print as `⋅`.
 # ---------------------------------------------------------------------------
 
-# Compact type name for the summary line. The buffer-backed fused arrays carry `{T,S,D,V}` — element,
-# sector, block-view, and storage-buffer types. Only the element `T` and the storage buffer `V` are
-# informative in the header (the sector is spelled out in the `Dim` lines below, and the block-view `D`
-# is a derived reshape/view of the buffer), so keep those two and elide the middle to `…`.
+# Compact type name for the summary line. The buffer-backed fused arrays carry `{T,S,V}` — element,
+# sector, and storage-buffer types. Only the element `T` and the storage buffer `V` are informative in
+# the header (the sector is spelled out in the `Dim` lines below), so keep the first and last type
+# parameters and elide the middle to `…`.
 function summary_typename(type::Type{<:AbstractFusedGradedArray})
     alias = Base.make_typealias(type)
     base, params = if isnothing(alias)

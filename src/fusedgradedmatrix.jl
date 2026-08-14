@@ -3,169 +3,73 @@
 # ===========================================================================
 
 """
-    FusedGradedMatrix{T,S<:SectorRange,D<:AbstractMatrix{T},V<:DenseVector{T}}
+    FusedGradedMatrix{T,S<:SectorRange,V<:DenseVector{T}}
 
-Block-diagonal matrix produced by matricizing a `FusionArray`. Each stored block corresponds to a
-coupled sector that lives on both the codomain and the domain.
+Block-diagonal matrix produced by matricizing a `FusionArray`. Stores a contiguous `buffer` in
+TensorKit `.data` layout plus the fused codomain/domain axes; the per-coupled-sector blocks are the
+lazy `sectordata(m)` view carved from the buffer on demand.
 """
-struct FusedGradedMatrix{
-        T,
-        S <: SectorRange,
-        D <: AbstractMatrix{T},
-        V <: DenseVector{T},
-    } <:
+struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
     AbstractFusedGradedMatrix{T, S}
     buffer::V
-    sectordata::Dictionary{S, D}
     axis_codomain::FusedGradedOneTo{S}
     axis_domain::FusedGradedOneTo{S}
 
-    # Primitive constructor: wrap a contiguous buffer already in TensorKit `.data` layout. `blocks`
-    # are carved from `data` as reshaped views, so this shares (does not copy) the buffer. The axes
-    # are non-dual `FusedGradedOneTo`s (their constructor enforces sorted, non-dual sectors); the
-    # domain's dual arrow is implicit in `axes` (see `biaxes`).
-    function FusedGradedMatrix{T, S, D, V}(
+    # Primitive constructor: wrap a contiguous buffer already in TensorKit `.data` layout (shared, not
+    # copied). The blocks are the lazy `sectordata` view over the buffer, so nothing block-shaped is
+    # stored. The axes are non-dual `FusedGradedOneTo`s (their constructor enforces sorted, non-dual
+    # sectors); the domain's dual arrow is implicit in `axes` (see `biaxes`).
+    function FusedGradedMatrix{T, S, V}(
             data::V, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
-        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}, V <: DenseVector{T}}
+        ) where {T, S <: SectorRange, V <: DenseVector{T}}
         (isdual(codomain) || isdual(domain)) && throw(
             ArgumentError(
                 "FusedGradedMatrix stores non-dual codomain/domain axes; the domain's dual arrow is implicit in `axes` (see `biaxes`)"
             )
         )
-        blocks =
-            carve_blocks(D, data, sectordatalengths(codomain), sectordatalengths(domain))
-        return new{T, S, D, V}(data, blocks, codomain, domain)
-    end
-end
-
-# Carve a contiguous buffer into per-coupled-sector blocks as reshaped views, in sorted coupled-sector
-# order and column-major within each block (TensorKit's `.data` layout). The block type `D` is fixed by
-# the buffer type, so pass it explicitly to type the (possibly empty) block dictionary.
-function carve_blocks(
-        ::Type{D}, data, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
-    ) where {D, S}
-    coupled = intersect(keys(codomain), keys(domain))
-    total = sum(c -> codomain[c] * domain[c], coupled; init = 0)
-    length(data) == total ||
-        throw(
-        DimensionMismatch(
-            "buffer length $(length(data)) does not match block total $total"
+        # Validate the buffer length against the block total (SectorData does the same check on access).
+        cod, dom = sectordatalengths(codomain), sectordatalengths(domain)
+        coupled = intersect(keys(cod), keys(dom))
+        total = sum(c -> cod[c] * dom[c], coupled; init = 0)
+        length(data) == total ||
+            throw(
+            DimensionMismatch(
+                "buffer length $(length(data)) does not match block total $total"
+            )
         )
-    )
-    blocks = Dictionary{S, D}()
-    offset = 0
-    for c in coupled
-        len = codomain[c] * domain[c]
-        block = reshape(view(data, (offset + 1):(offset + len)), (codomain[c], domain[c]))
-        insert!(blocks, c, block)
-        offset += len
+        return new{T, S, V}(data, codomain, domain)
     end
-    return blocks
 end
 
-# The reshaped-view block type is fixed by the buffer type `V` (a 1-D `view` reshaped to a 2-D block);
-# infer it from the buffer type rather than building a dummy instance.
-function blockviewtype(data::AbstractVector)
-    return Base.promote_op(reshape, blockviewtype1(data), Tuple{Int, Int})
-end
-
-# Primitive constructor deriving the block-view type from the buffer.
+# Primitive constructor deriving the parameters from the buffer.
 function FusedGradedMatrix(
         data::V, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
     ) where {T, S <: SectorRange, V <: DenseVector{T}}
-    return FusedGradedMatrix{T, S, blockviewtype(data), V}(data, codomain, domain)
+    return FusedGradedMatrix{T, S, V}(data, codomain, domain)
 end
 
 # Data constructor: allocate a fresh buffer and copy each given block into its view. Used by `copy`,
 # `adjoint`, the matrix-function loop, and the vector-of-blocks form below, none of which need to
 # share the passed blocks.
 function FusedGradedMatrix(
-        blocks::Dictionary{S, <:AbstractMatrix},
+        sectordata::Dictionary{S, <:AbstractMatrix},
         codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
     ) where {S <: SectorRange}
     cod, dom = sectordatalengths(codomain), sectordatalengths(domain)
     blocksectors = intersect(keys(cod), keys(dom))
-    issetequal(blocksectors, keys(blocks)) || throw(ArgumentError("invalid blocks"))
-    for (c, b) in pairs(blocks)
+    issetequal(blocksectors, keys(sectordata)) || throw(ArgumentError("invalid blocks"))
+    for (c, b) in pairs(sectordata)
         size(b) == (cod[c], dom[c]) ||
             throw(DimensionMismatch("invalid block for sector $c"))
     end
-    T = eltype(eltype(blocks))
+    T = eltype(eltype(sectordata))
     m = FusedGradedMatrix{T}(undef, codomain, domain)
-    for (c, b) in pairs(blocks)
-        copyto!(m.sectordata[c], b)
+    # The `sectordata` argument shadows the accessor here, so reach it through the module alias.
+    dest = GA.sectordata(m)
+    for (c, b) in pairs(sectordata)
+        copyto!(dest[c], b)
     end
     return m
-end
-
-# Block-diagonal by construction (one block per sector), so just check each block.
-# Sum the per-block stored counts over the stored (symmetry-allowed) blocks; each block view is a
-# `FusedSectorMatrix`, whose count folds in the sector's quantum dimension. The rest of `length` are
-# structural zeros. Without this, the `AbstractArray` fallback reports `length` (i.e. fully dense).
-function SparseArraysBase.storedlength(A::FusedGradedMatrix)
-    return sum(B -> storedlength(view(A, B)), eachblockstoredindex(A); init = 0)
-end
-
-LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.sectordata)
-
-# Reductions over `Array(A)` without densifying, folding through the per-block `FusedSectorMatrix`
-# reductions (each block already accounts for its quantum dimension and its within-block structural
-# zeros). The remaining structural zeros are the off-sector (symmetry-forbidden) positions: for
-# `maximum`/`minimum` a single `f(0)` folds them in when any is present (`length > storedlength`); for
-# `sum` they would each add `f(0)`, so we restrict to zero-preserving `f` for now and reduce only the
-# stored blocks. These return a scalar and take no keyword arguments (`dims` is not meaningful for a
-# graded reduction, and `init` is just `x + sum(A)` at the call site).
-Base.sum(A::FusedGradedMatrix) = sum(identity, A)
-function Base.sum(f, A::FusedGradedMatrix)
-    z = f(zero(eltype(A)))
-    iszero(z) || throw_not_zero_preserving_sum(z)
-    return sum(B -> sum(f, view(A, B)), eachblockstoredindex(A); init = z)
-end
-
-Base.maximum(A::FusedGradedMatrix) = maximum(identity, A)
-function Base.maximum(f, A::FusedGradedMatrix)
-    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
-    m = maximum(B -> maximum(f, view(A, B)), eachblockstoredindex(A))
-    return length(A) > storedlength(A) ? max(m, f(zero(eltype(A)))) : m
-end
-
-Base.minimum(A::FusedGradedMatrix) = minimum(identity, A)
-function Base.minimum(f, A::FusedGradedMatrix)
-    iszero(blockstoredlength(A)) && return f(zero(eltype(A)))
-    m = minimum(B -> minimum(f, view(A, B)), eachblockstoredindex(A))
-    return length(A) > storedlength(A) ? min(m, f(zero(eltype(A)))) : m
-end
-
-Base.extrema(A::FusedGradedMatrix) = extrema(identity, A)
-Base.extrema(f, A::FusedGradedMatrix) = (minimum(f, A), maximum(f, A))
-
-# Blockwise copy: the generic `AbstractArray` fallback copies elementwise, which
-# scalar-indexes (disallowed for graded arrays).
-function Base.copy(A::FusedGradedMatrix)
-    return FusedGradedMatrix(map(copy, A.sectordata), A.axis_codomain, A.axis_domain)
-end
-
-# Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
-# each stored block — covers `sqrt`, `exp`, `log`, etc. Routes around the generic
-# `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection.
-# Per-block result eltypes may differ (e.g. `sqrt(::Matrix{Float64})` returns
-# `Matrix{ComplexF64}` via Schur even when each block is real-PSD), so unify to the
-# `promote_type` of all returned blocks before reconstructing.
-#
-# The target eltype `T` is passed through a type-parameter barrier so the `convert`
-# target is concrete to inference. Splicing a runtime `T` straight into
-# `convert(AbstractMatrix{T}, b)` makes older Julia widen the block dictionary to an
-# abstract `AbstractMatrix`, and the reconstruction then throws a `TypeError`.
-function unify_block_eltype(blocks, ::Type{T}) where {T}
-    return map(b -> convert(AbstractMatrix{T}, b), blocks)
-end
-
-for f in TensorAlgebra.MATRIX_FUNCTIONS
-    @eval function Base.$f(A::FusedGradedMatrix)
-        raw = map(Base.$f, A.sectordata)
-        T = mapreduce(eltype, promote_type, raw; init = eltype(A))
-        return FusedGradedMatrix(unify_block_eltype(raw, T), A.axis_codomain, A.axis_domain)
-    end
 end
 
 """
@@ -271,73 +175,32 @@ end
 # `blocklength(m)` / `blocksize(m)` / `blocksize(m, dim)` derive from `axes(m)` (BlockArrays), and the
 # stored (block-diagonal) count is `blockstoredlength(m)`, so no custom overrides are needed here.
 
-function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
-    return FusedSectorMatrix{T, S, D}
+# Each block is a reshaped 2-D `view` into the buffer (see `_dataview`); infer that type.
+function datatype(::Type{<:FusedGradedMatrix{T, S, V}}) where {T, S, V}
+    return Base.promote_op(
+        reshape,
+        Base.promote_op(view, V, UnitRange{Int}),
+        Tuple{Int, Int}
+    )
 end
-blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 
-sectordata(m::FusedGradedMatrix) = m.sectordata
+function sectordata(m::FusedGradedMatrix)
+    return SectorData(
+        m, sectordatalengths(axis_codomain(m)), sectordatalengths(axis_domain(m))
+    )
+end
 
-# `biaxes` is the core axis accessor; `axes`, `axes_codomain`, `axis_codomain`, ... derive from it.
-# The stored axes are the fused codomain/domain ranges; `bispace` dualizes the domain half.
+# `biaxes` is the core axis accessor (the one place these fields are read directly); `axes`,
+# `axes_codomain`, `axis_codomain`, `view`, the reductions, and the display all derive from it and
+# `sectordata` generically on `AbstractFusedGradedMatrix`. The stored axes are the fused
+# codomain/domain ranges; `bispace` dualizes the domain half.
 biaxes(m::FusedGradedMatrix) = bispace((m.axis_codomain,), (m.axis_domain,))
-Base.axes(m::FusedGradedMatrix) = Tuple(biaxes(m))
-
-Base.size(m::FusedGradedMatrix) = map(length, axes(m))
-
-# ========================  Block indexing (primitive)  ========================
-
-function Base.view(m::FusedGradedMatrix, I::Block{2})
-    i, j = Int.(Tuple(I))
-    @boundscheck begin
-        i in 1:blocklength(m.axis_codomain) && j in 1:blocklength(m.axis_domain) ||
-            throw(BoundsError(m, I))
-    end
-    s_cod = sectors(m.axis_codomain)[i]
-    s_dom = sectors(m.axis_domain)[j]
-    s_cod == s_dom ||
-        error("Off-diagonal access not supported for block-sparse FusedGradedMatrix")
-    return FusedSectorMatrix(m.sectordata[s_cod], s_cod)
-end
-
-# ========================  eachblockstoredindex  ========================
-
-function eachblockstoredindex(m::FusedGradedMatrix)
-    cod, dom = sectordatalengths(m.axis_codomain), sectordatalengths(m.axis_domain)
-    return (
-        Block(gettoken(cod, c)[2][2], gettoken(dom, c)[2][2]) for
-            c in keys(m.sectordata)
-    )
-end
-
-# ======================== LinearAlgebra ======================
-
-# `adjoint` is the lazy `AdjointFusedGradedArray` wrapper (defined with that type). `transpose` stays
-# undefined here since it has requirements on sectors.
-
-# The full-matrix trace is the sum of the per-coupled-sector block traces, each weighted by the
-# sector's quantum dimension (the structural factor's trace). Reuse the block-level
-# `tr(::FusedSectorMatrix)`, which carries that weighting, so this matches `tr(Array(A))` without
-# scalar-indexing the generic `AbstractMatrix` fallback.
-function LinearAlgebra.tr(A::FusedGradedMatrix)
-    return sum(
-        bI -> LinearAlgebra.tr(view(A, bI)), eachblockstoredindex(A);
-        init = zero(eltype(A))
-    )
-end
-
-LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.sectordata))
-LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.sectordata))
-function LinearAlgebra.isposdef(A::FusedGradedMatrix)
-    return all(LinearAlgebra.isposdef, values(A.sectordata))
-end
-Base.iszero(A::FusedGradedMatrix) = all(iszero, values(A.sectordata))
 
 # ========================  similar  ========================
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
-    data = similar(m.buffer, T, length(m.buffer))
-    return FusedGradedMatrix(data, m.axis_codomain, m.axis_domain)
+    data = similar(m.buffer, T)
+    return FusedGradedMatrix(data, axis_codomain(m), axis_domain(m))
 end
 function Base.similar(
         m::FusedGradedMatrix,
@@ -366,40 +229,4 @@ function Base.similar(
         axis::FusedGradedOneTo{S}
     ) where {T <: AbstractVector, S}
     return FusedGradedVector{eltype(T)}(undef, axis)
-end
-
-# ========================  show  ========================
-
-function Base.summary(io::IO, m::FusedGradedMatrix)
-    print(
-        io, blocklength(m.axis_codomain), "×", blocklength(m.axis_domain), " ",
-        summary_typename(typeof(m)),
-        " with ", length(m.sectordata), " stored block",
-        length(m.sectordata) == 1 ? "" : "s", " at sectors ["
-    )
-    join(io, keys(m.sectordata), ", ")
-    print(io, "]")
-    return nothing
-end
-
-function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
-    summary(io, m)
-    println(io, ":")
-    for (d, g) in pairs(axes(m))
-        print(io, "  Dim $d: ")
-        show_axis(io, g)
-        println(io)
-    end
-    isempty(m.sectordata) && return nothing
-    Base.print_array(io, m)
-    return nothing
-end
-
-function Base.show(io::IO, m::FusedGradedMatrix)
-    print(
-        io, blocklength(m.axis_codomain), "×", blocklength(m.axis_domain), " ",
-        summary_typename(typeof(m)),
-        " (", length(m.sectordata), " stored)"
-    )
-    return nothing
 end
