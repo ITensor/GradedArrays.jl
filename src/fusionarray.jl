@@ -25,11 +25,11 @@ struct FusionArray{
 
     function FusionArray(
             matricized::AbstractFusedGradedMatrix{T, S},
-            axes_codomain::NTuple{NC, GradedOneTo{S}},
-            axes_domain::NTuple{ND, GradedOneTo{S}}
+            axes_codomain::NTuple{NC, AbstractGradedOneTo{S}},
+            axes_domain::NTuple{ND, AbstractGradedOneTo{S}}
         ) where {T, S, NC, ND}
         return new{T, S, NC + ND, NC, ND, typeof(matricized)}(
-            matricized, axes_codomain, axes_domain
+            matricized, map(GradedOneTo, axes_codomain), map(GradedOneTo, axes_domain)
         )
     end
 end

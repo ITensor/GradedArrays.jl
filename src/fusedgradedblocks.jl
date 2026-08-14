@@ -28,9 +28,9 @@ end
 # an allocated block.
 function SparseArraysBase.isstored(b::FusedGradedMatrixBlocks, i::Int, j::Int)
     m = b.parent
-    (i in 1:length(m.codomain) && j in 1:length(m.domain)) || return false
-    s_cod = gettokenvalue(keys(m.codomain), i)
-    s_dom = gettokenvalue(keys(m.domain), j)
+    (i in 1:blocklength(m.codomain) && j in 1:blocklength(m.domain)) || return false
+    s_cod = sectors(m.codomain)[i]
+    s_dom = sectors(m.domain)[j]
     return s_cod == s_dom && haskey(m.blocks, s_cod)
 end
 

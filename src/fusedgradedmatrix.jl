@@ -17,19 +17,23 @@ struct FusedGradedMatrix{
     AbstractFusedGradedMatrix{T, S}
     data::V
     blocks::Dictionary{S, D}
-    codomain::Dictionary{S, Int}
-    domain::Dictionary{S, Int}
+    codomain::FusedGradedOneTo{S}
+    domain::FusedGradedOneTo{S}
 
     # Primitive constructor: wrap a contiguous buffer already in TensorKit `.data` layout. `blocks`
-    # are carved from `data` as reshaped views, so this shares (does not copy) the buffer.
+    # are carved from `data` as reshaped views, so this shares (does not copy) the buffer. The axes
+    # are non-dual `FusedGradedOneTo`s (their constructor enforces sorted, non-dual sectors); the
+    # domain's dual arrow is implicit in `axes` (see `biaxes`).
     function FusedGradedMatrix{T, S, D, V}(
-            data::V, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+            data::V, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
         ) where {T, S <: SectorRange, D <: AbstractMatrix{T}, V <: DenseVector{T}}
-        issorted(keys(codomain)) || throw(ArgumentError("codomain sectors must be sorted"))
-        issorted(keys(domain)) || throw(ArgumentError("domain sectors must be sorted"))
-        all(!isdual, keys(codomain)) ||
-            throw(ArgumentError("`FusedGradedMatrix` requires non-dual codomain sectors"))
-        blocks = carve_blocks(D, data, codomain, domain)
+        (isdual(codomain) || isdual(domain)) && throw(
+            ArgumentError(
+                "FusedGradedMatrix stores non-dual codomain/domain axes; the domain's dual arrow is implicit in `axes` (see `biaxes`)"
+            )
+        )
+        blocks =
+            carve_blocks(D, data, sectordatalengths(codomain), sectordatalengths(domain))
         return new{T, S, D, V}(data, blocks, codomain, domain)
     end
 end
@@ -65,7 +69,7 @@ blockviewtype(data::AbstractVector) = typeof(reshape(view(data, 1:0), (0, 0)))
 
 # Primitive constructor deriving the block-view type from the buffer.
 function FusedGradedMatrix(
-        data::V, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+        data::V, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
     ) where {T, S <: SectorRange, V <: DenseVector{T}}
     return FusedGradedMatrix{T, S, blockviewtype(data), V}(data, codomain, domain)
 end
@@ -75,12 +79,13 @@ end
 # share the passed blocks.
 function FusedGradedMatrix(
         blocks::Dictionary{S, <:AbstractMatrix},
-        codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+        codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
     ) where {S <: SectorRange}
-    blocksectors = intersect(keys(codomain), keys(domain))
+    cod, dom = sectordatalengths(codomain), sectordatalengths(domain)
+    blocksectors = intersect(keys(cod), keys(dom))
     issetequal(blocksectors, keys(blocks)) || throw(ArgumentError("invalid blocks"))
     for (c, b) in pairs(blocks)
-        size(b) == (codomain[c], domain[c]) ||
+        size(b) == (cod[c], dom[c]) ||
             throw(DimensionMismatch("invalid block for sector $c"))
     end
     T = eltype(eltype(blocks))
@@ -179,28 +184,26 @@ function FusedGradedMatrix(
     issorted(rs) || throw(ArgumentError("sectors must be sorted"))
     allunique(rs) || throw(ArgumentError("sectors must be unique"))
     S = eltype(rs)
-    cod = Dictionary{S, Int}(rs, [size(b, 1) for b in blocks])
-    dom = Dictionary{S, Int}(rs, [size(b, 2) for b in blocks])
+    cod = FusedGradedOneTo(rs, [size(b, 1) for b in blocks])
+    dom = FusedGradedOneTo(rs, [size(b, 2) for b in blocks])
     blks = Dictionary{S, D}(rs, collect(blocks))
     return FusedGradedMatrix(blks, cod, dom)
 end
 
 function FusedGradedMatrix{T}(
-        ::UndefInitializer, codomain::Dictionary{S, Int}, domain::Dictionary{S, Int}
+        ::UndefInitializer, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
     ) where {T, S <: SectorRange}
-    coupled = intersect(keys(codomain), keys(domain))
-    total = sum(c -> codomain[c] * domain[c], coupled; init = 0)
+    cod, dom = sectordatalengths(codomain), sectordatalengths(domain)
+    coupled = intersect(keys(cod), keys(dom))
+    total = sum(c -> cod[c] * dom[c], coupled; init = 0)
     return FusedGradedMatrix(Vector{T}(undef, total), codomain, domain)
 end
 
-# Build from the codomain and domain graded ranges, both in the stored (non-dual codomain)
-# convention. TODO: Supersede this graded-range→dictionary rebuild with a `FusedGradedOneTo` axis.
+# Build from the codomain and domain graded ranges, both in the stored (non-dual, fused) convention.
 function FusedGradedMatrix{T}(
         ::UndefInitializer, codomain::GradedOneTo, domain::GradedOneTo
     ) where {T}
-    cod = Dictionary(collect(eachsectoraxis(codomain)), collect(Int, datalengths(codomain)))
-    dom = Dictionary(collect(eachsectoraxis(domain)), collect(Int, datalengths(domain)))
-    return FusedGradedMatrix{T}(undef, cod, dom)
+    return FusedGradedMatrix{T}(undef, FusedGradedOneTo(codomain), FusedGradedOneTo(domain))
 end
 # A single graded range sets the domain equal to the codomain (square blocks), mirroring the
 # single-argument pairs form below.
@@ -209,9 +212,13 @@ function FusedGradedMatrix{T}(::UndefInitializer, codomain::GradedOneTo) where {
 end
 # Build from the axes as `axes(m)` returns them: `axes(m, 2)` dualizes the domain, so undo it.
 function FusedGradedMatrix{T}(
-        ::UndefInitializer, axs::Tuple{<:GradedOneTo, <:GradedOneTo}
+        ::UndefInitializer, axs::Tuple{<:AbstractGradedOneTo, <:AbstractGradedOneTo}
     ) where {T}
-    return FusedGradedMatrix{T}(undef, axs[1], dual(axs[2]))
+    return FusedGradedMatrix{T}(
+        undef,
+        FusedGradedOneTo(axs[1]),
+        FusedGradedOneTo(dual(axs[2]))
+    )
 end
 
 """
@@ -234,9 +241,8 @@ function FusedGradedMatrix{T}(
         sectors::AbstractVector, rowlengths::AbstractVector, collengths::AbstractVector
     ) where {T}
     rs = map(SectorRange, sectors)
-    S = eltype(rs)
-    codomain = Dictionary{S, Int}(rs, collect(Int, rowlengths))
-    domain = Dictionary{S, Int}(rs, collect(Int, collengths))
+    codomain = FusedGradedOneTo(rs, collect(Int, rowlengths))
+    domain = FusedGradedOneTo(rs, collect(Int, collengths))
     return FusedGradedMatrix{T}(undef, codomain, domain)
 end
 # A single `lengths` vector sets the domain equal to the codomain (square blocks).
@@ -258,16 +264,8 @@ end
 
 # ========================  Accessors  ========================
 
-BlockArrays.blocklength(m::FusedGradedMatrix) = length(m.blocks)
-function BlockArrays.blocklength(m::FusedGradedMatrix, dim::Integer)
-    return if dim == 1
-        length(m.codomain)
-    elseif dim == 2
-        length(m.domain)
-    else
-        throw(BoundsError(m, dim))
-    end
-end
+# `blocklength(m)` / `blocksize(m)` / `blocksize(m, dim)` derive from `axes(m)` (BlockArrays), and the
+# stored (block-diagonal) count is `blockstoredlength(m)`, so no custom overrides are needed here.
 
 function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
     return FusedSectorMatrix{T, S, D}
@@ -275,14 +273,10 @@ end
 blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 
 sectordata(m::FusedGradedMatrix) = m.blocks
-sectordatalengths_codomain(m::FusedGradedMatrix) = m.codomain
-sectordatalengths_domain(m::FusedGradedMatrix) = m.domain
 
-function biaxes(m::FusedGradedMatrix)
-    cod = gradedrange(collect(pairs(m.codomain)))
-    dom = gradedrange(collect(pairs(m.domain)))
-    return bispace((cod,), (dom,))
-end
+# `biaxes` is the core axis accessor; `axes`, `axes_codomain`, `axis_codomain`, ... derive from it.
+# The stored axes are the fused codomain/domain ranges; `bispace` dualizes the domain half.
+biaxes(m::FusedGradedMatrix) = bispace((m.codomain,), (m.domain,))
 Base.axes(m::FusedGradedMatrix) = Tuple(biaxes(m))
 
 Base.size(m::FusedGradedMatrix) = map(length, axes(m))
@@ -292,11 +286,11 @@ Base.size(m::FusedGradedMatrix) = map(length, axes(m))
 function Base.view(m::FusedGradedMatrix, I::Block{2})
     i, j = Int.(Tuple(I))
     @boundscheck begin
-        i in 1:length(m.codomain) && j in 1:length(m.domain) ||
+        i in 1:blocklength(m.codomain) && j in 1:blocklength(m.domain) ||
             throw(BoundsError(m, I))
     end
-    s_cod = gettokenvalue(keys(m.codomain), i)
-    s_dom = gettokenvalue(keys(m.domain), j)
+    s_cod = sectors(m.codomain)[i]
+    s_dom = sectors(m.domain)[j]
     s_cod == s_dom ||
         error("Off-diagonal access not supported for block-sparse FusedGradedMatrix")
     return FusedSectorMatrix(m.blocks[s_cod], s_cod)
@@ -305,8 +299,9 @@ end
 # ========================  eachblockstoredindex  ========================
 
 function eachblockstoredindex(m::FusedGradedMatrix)
+    cod, dom = sectordatalengths(m.codomain), sectordatalengths(m.domain)
     return (
-        Block(gettoken(m.codomain, c)[2][2], gettoken(m.domain, c)[2][2]) for
+        Block(gettoken(cod, c)[2][2], gettoken(dom, c)[2][2]) for
             c in keys(m.blocks)
     )
 end
@@ -340,16 +335,16 @@ function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
 end
 function Base.similar(
         m::FusedGradedMatrix,
-        codomain::Dictionary{S, Int},
-        domain::Dictionary{S, Int}
+        codomain::FusedGradedOneTo{S},
+        domain::FusedGradedOneTo{S}
     ) where {S}
     return FusedGradedMatrix{eltype(m)}(undef, codomain, domain)
 end
 function Base.similar(
         m::FusedGradedMatrix,
         ::Type{T},
-        codomain::Dictionary{S, Int},
-        domain::Dictionary{S, Int}
+        codomain::FusedGradedOneTo{S},
+        domain::FusedGradedOneTo{S}
     ) where {T, S}
     if T <: Number
         return FusedGradedMatrix{T}(undef, codomain, domain)
@@ -362,7 +357,7 @@ end
 function Base.similar(
         m::FusedGradedMatrix,
         ::Type{T},
-        axis::Dictionary{S, Int}
+        axis::FusedGradedOneTo{S}
     ) where {T <: AbstractVector, S}
     return FusedGradedVector{eltype(T)}(undef, axis)
 end
@@ -371,7 +366,8 @@ end
 
 function Base.summary(io::IO, m::FusedGradedMatrix)
     print(
-        io, length(m.codomain), "×", length(m.domain), " ", summary_typename(typeof(m)),
+        io, blocklength(m.codomain), "×", blocklength(m.domain), " ",
+        summary_typename(typeof(m)),
         " with ", length(m.blocks), " stored block",
         length(m.blocks) == 1 ? "" : "s", " at sectors ["
     )
@@ -395,7 +391,8 @@ end
 
 function Base.show(io::IO, m::FusedGradedMatrix)
     print(
-        io, length(m.codomain), "×", length(m.domain), " ", summary_typename(typeof(m)),
+        io, blocklength(m.codomain), "×", blocklength(m.domain), " ",
+        summary_typename(typeof(m)),
         " (", length(m.blocks), " stored)"
     )
     return nothing

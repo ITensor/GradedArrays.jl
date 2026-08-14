@@ -31,8 +31,8 @@ for f in [
 
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
         return FusedGradedMatrix(
-            map(Base.Fix1(MAK.copy_input, MAK.$f), A.blocks),
-            A.codomain, A.domain
+            map(Base.Fix1(MAK.copy_input, MAK.$f), sectordata(A)),
+            axis_codomain(A), axis_domain(A)
         )
     end
 end
@@ -93,21 +93,24 @@ end
 # -----------------------
 # utility function to do something with each block
 function _blockdataaxes(a::FusedGradedMatrix, c)
-    return (Base.OneTo(get(a.codomain, c, 0)), Base.OneTo(get(a.domain, c, 0)))
+    cod, dom = sectordatalengths(axis_codomain(a)), sectordatalengths(axis_domain(a))
+    return (Base.OneTo(get(cod, c, 0)), Base.OneTo(get(dom, c, 0)))
 end
-_blockdataaxes(a::FusedGradedVector, c) = (Base.OneTo(get(a.axis, c, 0)),)
+function _blockdataaxes(a::FusedGradedVector, c)
+    return (Base.OneTo(get(sectordatalengths(only(axes(a))), c, 0)),)
+end
 function _blockdataaxes(a::FusedGradedDiagonal, c)
-    n = Base.OneTo(get(a.diag.axis, c, 0))
+    n = Base.OneTo(get(sectordatalengths(axis_codomain(a)), c, 0))
     return (n, n)
 end
 
 function foreachblock(f, A::AbstractFusedGradedArray, As::AbstractFusedGradedArray...)
-    cs = union(map(keys ∘ Base.Fix2(getproperty, :blocks), (A, As...))...)
+    cs = union(map(keys ∘ sectordata, (A, As...))...)
 
     for c in cs
         bs = map((A, As...)) do a
-            get(a.blocks, c) do
-                return similar(valtype(a.blocks), _blockdataaxes(a, c))
+            get(sectordata(a), c) do
+                return similar(valtype(sectordata(a)), _blockdataaxes(a, c))
             end
         end
         f(c, bs)
@@ -170,7 +173,7 @@ for f in [
         :ishermitian, :isantihermitian,
     ]
     @eval function MAK.$f(A::FusedGradedMatrix; kwargs...)
-        return all(x -> MAK.$f(x; kwargs...), A.blocks)
+        return all(x -> MAK.$f(x; kwargs...), sectordata(A))
     end
 end
 
@@ -194,7 +197,11 @@ MAK.one!(A::AbstractSectorDelta) = _matrix_op_error(MAK.one!, A)
 
 # helper: a fresh diagonal factor (SVD singular values, eigenvalues) over the given per-sector
 # reduced/bond dimensions. `Diagonal` blocks, backed by a contiguous buffer.
-function similar_diagonal(A::FusedGradedMatrix, ::Type{T}, bond_dims::Dictionary) where {T}
+function similar_diagonal(
+        A::FusedGradedMatrix,
+        ::Type{T},
+        bond_dims::FusedGradedOneTo
+    ) where {T}
     return FusedGradedDiagonal{T}(undef, bond_dims)
 end
 
@@ -205,9 +212,9 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    U = similar(A, A.codomain, A.codomain)
-    S = similar(A, real(eltype(A)), A.codomain, A.domain)
-    Vᴴ = similar(A, A.domain, A.domain)
+    U = similar(A, axis_codomain(A), axis_codomain(A))
+    S = similar(A, real(eltype(A)), axis_codomain(A), axis_domain(A))
+    Vᴴ = similar(A, axis_domain(A), axis_domain(A))
     return U, S, Vᴴ
 end
 function MAK.initialize_output(
@@ -215,11 +222,11 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_S = map(diaglength, A.blocks)
-    U = similar(A, A.codomain, V_S)
+    V_S = FusedGradedOneTo(map(diaglength, sectordata(A)))
+    U = similar(A, axis_codomain(A), V_S)
     Tr = real(eltype(A))
     S = similar_diagonal(A, Tr, V_S)
-    Vᴴ = similar(A, V_S, A.domain)
+    Vᴴ = similar(A, V_S, axis_domain(A))
     return U, S, Vᴴ
 end
 function MAK.initialize_output(
@@ -227,7 +234,7 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_S = map(diaglength, A.blocks)
+    V_S = FusedGradedOneTo(map(diaglength, sectordata(A)))
     Tr = real(eltype(A))
     return similar(A, Vector{Tr}, V_S) # TODO: don't hardcode type
 end
@@ -240,7 +247,7 @@ function MAK.initialize_output(
         alg::GradedBlockAlgorithm
     )
     Tc = complex(eltype(A))
-    D = similar_diagonal(A, Tc, A.domain)
+    D = similar_diagonal(A, Tc, axis_domain(A))
     V = similar(A, Tc)
     return D, V
 end
@@ -250,7 +257,7 @@ function MAK.initialize_output(
         alg::GradedBlockAlgorithm
     )
     Tc = complex(eltype(A))
-    return similar(A, Vector{Tc}, A.domain) # TODO: don't hardcode type
+    return similar(A, Vector{Tc}, axis_domain(A)) # TODO: don't hardcode type
 end
 
 function MAK.initialize_output(
@@ -259,7 +266,7 @@ function MAK.initialize_output(
         alg::GradedBlockAlgorithm
     )
     Tr = real(eltype(A))
-    D = similar_diagonal(A, Tr, A.domain)
+    D = similar_diagonal(A, Tr, axis_domain(A))
     V = similar(A)
     return D, V
 end
@@ -269,7 +276,7 @@ function MAK.initialize_output(
         alg::GradedBlockAlgorithm
     )
     Tr = real(eltype(A))
-    return similar(A, Vector{Tr}, A.domain) # TODO: don't hardcode type
+    return similar(A, Vector{Tr}, axis_domain(A)) # TODO: don't hardcode type
 end
 
 # QR decomposition
@@ -279,8 +286,8 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    Q = similar(A, A.codomain, A.codomain)
-    R = similar(A, A.codomain, A.domain)
+    Q = similar(A, axis_codomain(A), axis_codomain(A))
+    R = similar(A, axis_codomain(A), axis_domain(A))
     return Q, R
 end
 function MAK.initialize_output(
@@ -288,9 +295,9 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_Q = map(diaglength, A.blocks)
-    Q = similar(A, A.codomain, V_Q)
-    R = similar(A, V_Q, A.domain)
+    V_Q = FusedGradedOneTo(map(diaglength, sectordata(A)))
+    Q = similar(A, axis_codomain(A), V_Q)
+    R = similar(A, V_Q, axis_domain(A))
     return Q, R
 end
 function MAK.initialize_output(
@@ -298,13 +305,13 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_N = copy(A.codomain)
+    V_N = copy(sectordatalengths(axis_codomain(A)))
+    dom = sectordatalengths(axis_domain(A))
     for (c, d₁) in pairs(V_N)
-        d₂ = get(A.domain, c, 0)
-        V_N[c] = max(d₁ - d₂, 0)
+        V_N[c] = max(d₁ - get(dom, c, 0), 0)
     end
     filter!(!iszero, V_N)
-    return similar(A, A.codomain, V_N)
+    return similar(A, axis_codomain(A), FusedGradedOneTo(V_N))
 end
 
 # LQ decomposition
@@ -314,8 +321,8 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    L = similar(A, A.codomain, A.domain)
-    Q = similar(A, A.domain, A.domain)
+    L = similar(A, axis_codomain(A), axis_domain(A))
+    Q = similar(A, axis_domain(A), axis_domain(A))
     return L, Q
 end
 function MAK.initialize_output(
@@ -323,9 +330,9 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_Q = map(diaglength, A.blocks)
-    L = similar(A, A.codomain, V_Q)
-    Q = similar(A, V_Q, A.domain)
+    V_Q = FusedGradedOneTo(map(diaglength, sectordata(A)))
+    L = similar(A, axis_codomain(A), V_Q)
+    Q = similar(A, V_Q, axis_domain(A))
     return L, Q
 end
 function MAK.initialize_output(
@@ -333,13 +340,13 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    V_N = copy(A.domain)
+    V_N = copy(sectordatalengths(axis_domain(A)))
+    cod = sectordatalengths(axis_codomain(A))
     for (c, d₂) in pairs(V_N)
-        d₁ = get(A.codomain, c, 0)
-        V_N[c] = max(d₂ - d₁, 0)
+        V_N[c] = max(d₂ - get(cod, c, 0), 0)
     end
     filter!(!iszero, V_N)
-    return similar(A, V_N, A.domain)
+    return similar(A, FusedGradedOneTo(V_N), axis_domain(A))
 end
 
 # Polar decomposition
@@ -350,7 +357,7 @@ function MAK.initialize_output(
         alg::GradedBlockAlgorithm
     )
     W = similar(A)
-    P = similar(A, A.domain, A.domain)
+    P = similar(A, axis_domain(A), axis_domain(A))
     return W, P
 end
 function MAK.initialize_output(
@@ -358,7 +365,7 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::GradedBlockAlgorithm
     )
-    P = similar(A, A.codomain, A.codomain)
+    P = similar(A, axis_codomain(A), axis_codomain(A))
     Wᴴ = similar(A)
     return P, Wᴴ
 end
@@ -394,7 +401,7 @@ end
 
 # diagview for FusedGradedMatrix: extracts per-block diagonals as a FusedGradedVector
 function MAK.diagview(m::FusedGradedMatrix)
-    diag_blocks = map(MAK.diagview, m.blocks)
+    diag_blocks = map(MAK.diagview, sectordata(m))
     diag_axis = map(length, diag_blocks)
     return FusedGradedVector(diag_blocks, diag_axis)
 end
@@ -438,7 +445,7 @@ _count_kept(ind::AbstractVector, _) = length(ind)
 # truncation_error! for FusedGradedVector
 # Zeroes out kept values (ind[i]) in each block; returns 2-norm of discarded values.
 function MAK.truncation_error!(v::FusedGradedVector, ind::AbstractVector)
-    foreach(MAK.truncation_error!, v.blocks, ind)
+    foreach(MAK.truncation_error!, sectordata(v), ind)
     return LinearAlgebra.norm(v)
 end
 function MAK.truncation_error(v::FusedGradedVector, ind::AbstractVector)
@@ -449,7 +456,7 @@ end
 # Both return a Vector where entry i gives the kept indices for block i.
 
 function MAK.findtruncated(v::FusedGradedVector, ::MAK.NoTruncation)
-    return [Colon() for _ in v.blocks]
+    return [Colon() for _ in sectordata(v)]
 end
 
 # Default: findtruncated_svd falls back to findtruncated (overridden below for some strategies)
@@ -457,38 +464,39 @@ function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationStr
     return MAK.findtruncated(v, strategy)
 end
 function MAK.findtruncated_svd(v::FusedGradedVector, ::MAK.NoTruncation)
-    return [Colon() for _ in v.blocks]
+    return [Colon() for _ in sectordata(v)]
 end
 
 # TruncationByFilter: apply independently per block
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByFilter)
-    return [MAK.findtruncated(b, strategy) for b in v.blocks]
+    return [MAK.findtruncated(b, strategy) for b in sectordata(v)]
 end
 
 # TruncationByValue (trunctol): compute global norm for rtol, then apply per block
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByValue)
     atol = max(strategy.atol, strategy.rtol * LinearAlgebra.norm(v, strategy.p))
     per_block = MAK.trunctol(; atol, strategy.by, strategy.keep_below, strategy.p)
-    return [MAK.findtruncated(b, per_block) for b in v.blocks]
+    return [MAK.findtruncated(b, per_block) for b in sectordata(v)]
 end
 function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByValue)
     atol = max(strategy.atol, strategy.rtol * LinearAlgebra.norm(v, strategy.p))
     per_block = MAK.trunctol(; atol, strategy.by, strategy.keep_below, strategy.p)
-    return [MAK.findtruncated_svd(b, per_block) for b in v.blocks]
+    return [MAK.findtruncated_svd(b, per_block) for b in sectordata(v)]
 end
 
 # TruncationByOrder (truncrank k): global top-k across all blocks
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder)
     all_entries = [
         (strategy.by(val), i, j)
-            for (i, b) in enumerate(v.blocks)
+            for (i, b) in enumerate(sectordata(v))
             for (j, val) in enumerate(b)
     ]
     sort!(all_entries; by = first, strategy.rev)
-    kept = [Int[] for _ in v.blocks]
+    axsectors = sectors(only(axes(v)))
+    kept = [Int[] for _ in sectordata(v)]
     number_kept = 0
     for (_, i, j) in all_entries
-        number_kept += length(gettokenvalue(keys(v.axis), i))
+        number_kept += length(axsectors[i])
         number_kept > strategy.howmany && break
         push!(kept[i], j)
     end
@@ -511,16 +519,17 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     # Sort all values ascending by abs (smallest first = most likely discarded)
     all_entries = [
         (abs(val), i, j)
-            for (i, b) in enumerate(v.blocks)
+            for (i, b) in enumerate(sectordata(v))
             for (j, val) in enumerate(b)
     ]
     sort!(all_entries; by = first, rev = true)
 
     # Greedily keep until error budget is exhausted
-    kept = [Int[] for _ in v.blocks]
+    axsectors = sectors(only(axes(v)))
+    kept = [Int[] for _ in sectordata(v)]
     total_err_p = total_norm_p
     for (absval, i, j) in all_entries
-        total_err_p -= absval^p * length(gettokenvalue(keys(v.axis), i))
+        total_err_p -= absval^p * length(axsectors[i])
         push!(kept[i], j)
         total_err_p > ϵᵖmax || break
     end
@@ -538,14 +547,14 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationInterse
     inds = map(s -> MAK.findtruncated(v, s), strategy.components)
     return [
         mapreduce(Base.Fix2(getindex, i), MAK._ind_intersect, inds)
-            for i in 1:length(v.blocks)
+            for i in 1:length(sectordata(v))
     ]
 end
 function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationIntersection)
     inds = map(s -> MAK.findtruncated_svd(v, s), strategy.components)
     return [
         mapreduce(Base.Fix2(getindex, i), MAK._ind_intersect, inds)
-            for i in 1:length(v.blocks)
+            for i in 1:length(sectordata(v))
     ]
 end
 
@@ -563,17 +572,17 @@ function MAK.truncate(
     )
     sv = MAK.diagview(S)
     inds = MAK.findtruncated_svd(sv, strategy)
-    sectors_all = collect(keys(U.blocks))
+    sectors_all = collect(keys(sectordata(U)))
 
     # Slice every sector's blocks first. `inds[i]` may be `Colon()` (notrunc) or a
     # `Vector{Int}` (rank/tol/error truncations), so check emptiness via the resulting
     # column count rather than `isempty(inds[i])`.
     U_blocks_all =
-        [U.blocks[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
+        [sectordata(U)[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
     sv_blocks_all =
-        [sv.blocks[sectors_all[i]][inds[i]] for i in eachindex(inds)]
+        [sectordata(sv)[sectors_all[i]][inds[i]] for i in eachindex(inds)]
     Vᴴ_blocks_all =
-        [Vᴴ.blocks[sectors_all[i]][inds[i], :] for i in eachindex(inds)]
+        [sectordata(Vᴴ)[sectors_all[i]][inds[i], :] for i in eachindex(inds)]
 
     keep = [i for i in eachindex(inds) if size(U_blocks_all[i], 2) > 0]
     sectors_kept = sectors_all[keep]
@@ -581,16 +590,16 @@ function MAK.truncate(
 
     # U: rows = input codomain (full), cols = bond (shrunk). The sliced blocks are freshly allocated
     # matrices, not buffer views, so let the block dictionary infer their type.
-    U_cod = U.codomain
-    U_dom = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
+    U_cod = axis_codomain(U)
+    U_dom = FusedGradedOneTo(sectors_kept, bond_dims)
     Ũ = FusedGradedMatrix(Dictionary(sectors_kept, U_blocks_all[keep]), U_cod, U_dom)
 
     # S: the diagonal factor over the shrunk bond.
     S̃ = MAK.diagonal(FusedGradedVector(sv_blocks_all[keep], sectors_kept))
 
     # Vᴴ: rows = bond (shrunk), cols = input domain (full).
-    Vᴴ_cod = Dictionary{eltype(sectors_kept), Int}(sectors_kept, bond_dims)
-    Vᴴ_dom = Vᴴ.domain
+    Vᴴ_cod = FusedGradedOneTo(sectors_kept, bond_dims)
+    Vᴴ_dom = axis_domain(Vᴴ)
     Ṽᴴ = FusedGradedMatrix(Dictionary(sectors_kept, Vᴴ_blocks_all[keep]), Vᴴ_cod, Vᴴ_dom)
 
     return (Ũ, S̃, Ṽᴴ), inds
@@ -604,10 +613,10 @@ for f! in (:eigh_trunc!, :eig_trunc!)
         )
         ev = MAK.diagview(D)
         inds = MAK.findtruncated(ev, strategy)
-        sectors_all = collect(keys(D.blocks))
+        sectors_all = collect(keys(sectordata(D)))
 
-        ev_blocks_all = [ev.blocks[sectors_all[i]][inds[i]] for i in eachindex(inds)]
-        V_blocks_all = [V.blocks[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
+        ev_blocks_all = [sectordata(ev)[sectors_all[i]][inds[i]] for i in eachindex(inds)]
+        V_blocks_all = [sectordata(V)[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
 
         keep = [i for i in eachindex(inds) if length(ev_blocks_all[i]) > 0]
         sectors_kept = sectors_all[keep]

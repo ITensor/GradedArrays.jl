@@ -17,18 +17,22 @@ datatype(::Type{T}) where {T <: AbstractFusedGradedArray} = datatype(blocktype(T
 datatype(a::AbstractFusedGradedArray) = datatype(typeof(a))
 sectortype(::Type{<:AbstractFusedGradedArray{T, S}}) where {T, S} = S
 
-# Storage accessors (internal, not a public interface yet): the sector → block-data map, and the
-# codomain/domain sector → reduced-data-length maps (the reduced/degeneracy dimension per sector, not
-# the sector's quantum dimension). Each storage variant implements these, so the shared matrix algebra
-# reads through them instead of raw fields, and a lazy adjoint or diagonal factor needs no faked fields.
+# The one storage accessor each variant overloads: the sector → block-data map. The shared matrix
+# algebra reads through it instead of raw fields, so a lazy adjoint or diagonal factor needs no faked
+# fields. Everything axis-related derives from `biaxes` (the per-variant core), below.
 function sectordata end
-function sectordatalengths_codomain end
-function sectordatalengths_domain end
 
 # Codomain / domain axis groups, recovered from `biaxes` (the split `bispace` builds). Uniform across
 # the fused family, matching `FusionArray`'s external-axis accessors of the same name.
 axes_codomain(a::AbstractFusedGradedArray) = codomain(biaxes(a))
 axes_domain(a::AbstractFusedGradedArray) = domain(biaxes(a))
+
+# The single fused codomain/domain axis (a fused matrix has one of each), also derived from `biaxes`.
+# `axes_domain` un-conjs the domain half (`domain(::BiTuple)`), so both are non-dual, matching the
+# stored axes; `axes(m, 2)` stays dual because it reads the raw conj'd `bispace` slot. The generic
+# block algebra builds new matrices straight from these.
+axis_codomain(a::AbstractFusedGradedMatrix) = only(axes_codomain(a))
+axis_domain(a::AbstractFusedGradedMatrix) = only(axes_domain(a))
 
 function isblockdiagonal(A::AbstractFusedGradedMatrix)
     for bI in eachblockstoredindex(A)
@@ -268,10 +272,10 @@ end
 
 # ============================  matrix algebra  ============================
 # Block-wise matrix operations on the abstract fused graded matrix. They read the storage through the
-# `sectordata` / `sectordatalengths_codomain` / `sectordatalengths_domain` accessors (which every
-# storage variant provides), so a lazy adjoint or a diagonal factor works as an operand without
-# materializing. The mutated operand may be any fused graded matrix; an incompatible one (e.g. a
-# diagonal destination for a non-diagonal product) fails at the block level.
+# `sectordata` / `axis_codomain` / `axis_domain` accessors (which every storage variant provides), so
+# a lazy adjoint or a diagonal factor works as an operand without materializing. The mutated operand
+# may be any fused graded matrix; an incompatible one (e.g. a diagonal destination for a non-diagonal
+# product) fails at the block level.
 
 function TensorAlgebra.check_input(
         ::typeof(*),
@@ -315,8 +319,8 @@ function allocate_output(
         A::AbstractFusedGradedMatrix,
         B::AbstractFusedGradedMatrix
     )
-    cod = sectordatalengths_codomain(A)
-    dom = sectordatalengths_domain(B)
+    cod = axis_codomain(A)
+    dom = axis_domain(B)
     Tout = Base.promote_op(*, eltype(A), eltype(B))
     return FusedGradedMatrix{Tout}(undef, cod, dom)
 end
