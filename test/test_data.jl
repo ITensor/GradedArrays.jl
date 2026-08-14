@@ -1,7 +1,7 @@
 using BlockArrays: Block, blockedrange
 using GradedArrays: GradedArrays, Data, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
     U1, UniqueSectorArray, data, dual, eachblockstoredindex, gradedrange, sectoraxes,
-    sectors, with_block_indexing
+    sectordata, sectors, with_block_indexing
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin
@@ -15,7 +15,7 @@ using Test: @test, @test_throws, @testset
             @test d == ones(2, 3)
             # Verify it's a copy, not a view
             d[1, 1] = 999.0
-            @test m.blocks[U1(0)][1, 1] == 1.0
+            @test sectordata(m)[U1(0)][1, 1] == 1.0
         end
 
         @testset "Data getindex second block" begin
@@ -28,10 +28,10 @@ using Test: @test, @test_throws, @testset
             m2 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
             new_data = 7 * ones(2, 3)
             m2[Data(1, 1)] = new_data
-            @test m2.blocks[U1(0)] == new_data
+            @test sectordata(m2)[U1(0)] == new_data
             # Verify it's a copy, not aliased
             new_data[1, 1] = 0.0
-            @test m2.blocks[U1(0)][1, 1] == 7.0
+            @test sectordata(m2)[U1(0)][1, 1] == 7.0
         end
 
         @testset "Data setindex! size mismatch errors" begin
@@ -49,7 +49,7 @@ using Test: @test, @test_throws, @testset
             m4 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
             sm = FusedSectorMatrix(7 * ones(2, 3), U1(0))
             m4[Block(1, 1)] = sm
-            @test m4.blocks[U1(0)] == 7 * ones(2, 3)
+            @test sectordata(m4)[U1(0)] == 7 * ones(2, 3)
         end
 
         @testset "Block setindex! verifies sector" begin
@@ -75,9 +75,9 @@ using Test: @test, @test_throws, @testset
             m = FusedGradedMatrix(blocks, [U1(0), U1(1)])
             fm = f(m)
             @test fm isa FusedGradedMatrix{Float64}
-            @test isconcretetype(typeof(fm.blocks[U1(0)]))
-            @test fm.blocks[U1(0)] ≈ f(blocks[1])
-            @test fm.blocks[U1(1)] ≈ f(blocks[2])
+            @test isconcretetype(typeof(sectordata(fm)[U1(0)]))
+            @test sectordata(fm)[U1(0)] ≈ f(blocks[1])
+            @test sectordata(fm)[U1(1)] ≈ f(blocks[2])
         end
     end
 

@@ -28,10 +28,11 @@ end
 # an allocated block.
 function SparseArraysBase.isstored(b::FusedGradedMatrixBlocks, i::Int, j::Int)
     m = b.parent
-    (i in 1:blocklength(m.codomain) && j in 1:blocklength(m.domain)) || return false
-    s_cod = sectors(m.codomain)[i]
-    s_dom = sectors(m.domain)[j]
-    return s_cod == s_dom && haskey(m.blocks, s_cod)
+    (i in 1:blocklength(m.axis_codomain) && j in 1:blocklength(m.axis_domain)) ||
+        return false
+    s_cod = sectors(m.axis_codomain)[i]
+    s_dom = sectors(m.axis_domain)[j]
+    return s_cod == s_dom && haskey(m.sectordata, s_cod)
 end
 
 # A stored entry is the block view, sharing data with the parent.

@@ -15,10 +15,10 @@ struct FusedGradedMatrix{
         V <: DenseVector{T},
     } <:
     AbstractFusedGradedMatrix{T, S}
-    data::V
-    blocks::Dictionary{S, D}
-    codomain::FusedGradedOneTo{S}
-    domain::FusedGradedOneTo{S}
+    buffer::V
+    sectordata::Dictionary{S, D}
+    axis_codomain::FusedGradedOneTo{S}
+    axis_domain::FusedGradedOneTo{S}
 
     # Primitive constructor: wrap a contiguous buffer already in TensorKit `.data` layout. `blocks`
     # are carved from `data` as reshaped views, so this shares (does not copy) the buffer. The axes
@@ -91,7 +91,7 @@ function FusedGradedMatrix(
     T = eltype(eltype(blocks))
     m = FusedGradedMatrix{T}(undef, codomain, domain)
     for (c, b) in pairs(blocks)
-        copyto!(m.blocks[c], b)
+        copyto!(m.sectordata[c], b)
     end
     return m
 end
@@ -104,7 +104,7 @@ function SparseArraysBase.storedlength(A::FusedGradedMatrix)
     return sum(B -> storedlength(view(A, B)), eachblockstoredindex(A); init = 0)
 end
 
-LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.blocks)
+LinearAlgebra.isdiag(A::FusedGradedMatrix) = all(LinearAlgebra.isdiag, A.sectordata)
 
 # Reductions over `Array(A)` without densifying, folding through the per-block `FusedSectorMatrix`
 # reductions (each block already accounts for its quantum dimension and its within-block structural
@@ -140,7 +140,7 @@ Base.extrema(f, A::FusedGradedMatrix) = (minimum(f, A), maximum(f, A))
 # Blockwise copy: the generic `AbstractArray` fallback copies elementwise, which
 # scalar-indexes (disallowed for graded arrays).
 function Base.copy(A::FusedGradedMatrix)
-    return FusedGradedMatrix(map(copy, A.blocks), A.codomain, A.domain)
+    return FusedGradedMatrix(map(copy, A.sectordata), A.axis_codomain, A.axis_domain)
 end
 
 # Block-diagonal by construction, so any matrix function `f(A) = blkdiag(f(blk_i))` for
@@ -160,9 +160,9 @@ end
 
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval function Base.$f(A::FusedGradedMatrix)
-        raw = map(Base.$f, A.blocks)
+        raw = map(Base.$f, A.sectordata)
         T = mapreduce(eltype, promote_type, raw; init = eltype(A))
-        return FusedGradedMatrix(unify_block_eltype(raw, T), A.codomain, A.domain)
+        return FusedGradedMatrix(unify_block_eltype(raw, T), A.axis_codomain, A.axis_domain)
     end
 end
 
@@ -272,11 +272,11 @@ function blocktype(::Type{<:FusedGradedMatrix{T, S, D}}) where {T, S, D}
 end
 blocktype(m::FusedGradedMatrix) = blocktype(typeof(m))
 
-sectordata(m::FusedGradedMatrix) = m.blocks
+sectordata(m::FusedGradedMatrix) = m.sectordata
 
 # `biaxes` is the core axis accessor; `axes`, `axes_codomain`, `axis_codomain`, ... derive from it.
 # The stored axes are the fused codomain/domain ranges; `bispace` dualizes the domain half.
-biaxes(m::FusedGradedMatrix) = bispace((m.codomain,), (m.domain,))
+biaxes(m::FusedGradedMatrix) = bispace((m.axis_codomain,), (m.axis_domain,))
 Base.axes(m::FusedGradedMatrix) = Tuple(biaxes(m))
 
 Base.size(m::FusedGradedMatrix) = map(length, axes(m))
@@ -286,23 +286,23 @@ Base.size(m::FusedGradedMatrix) = map(length, axes(m))
 function Base.view(m::FusedGradedMatrix, I::Block{2})
     i, j = Int.(Tuple(I))
     @boundscheck begin
-        i in 1:blocklength(m.codomain) && j in 1:blocklength(m.domain) ||
+        i in 1:blocklength(m.axis_codomain) && j in 1:blocklength(m.axis_domain) ||
             throw(BoundsError(m, I))
     end
-    s_cod = sectors(m.codomain)[i]
-    s_dom = sectors(m.domain)[j]
+    s_cod = sectors(m.axis_codomain)[i]
+    s_dom = sectors(m.axis_domain)[j]
     s_cod == s_dom ||
         error("Off-diagonal access not supported for block-sparse FusedGradedMatrix")
-    return FusedSectorMatrix(m.blocks[s_cod], s_cod)
+    return FusedSectorMatrix(m.sectordata[s_cod], s_cod)
 end
 
 # ========================  eachblockstoredindex  ========================
 
 function eachblockstoredindex(m::FusedGradedMatrix)
-    cod, dom = sectordatalengths(m.codomain), sectordatalengths(m.domain)
+    cod, dom = sectordatalengths(m.axis_codomain), sectordatalengths(m.axis_domain)
     return (
         Block(gettoken(cod, c)[2][2], gettoken(dom, c)[2][2]) for
-            c in keys(m.blocks)
+            c in keys(m.sectordata)
     )
 end
 
@@ -322,16 +322,18 @@ function LinearAlgebra.tr(A::FusedGradedMatrix)
     )
 end
 
-LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.blocks))
-LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.blocks))
-LinearAlgebra.isposdef(A::FusedGradedMatrix) = all(LinearAlgebra.isposdef, values(A.blocks))
-Base.iszero(A::FusedGradedMatrix) = all(iszero, values(A.blocks))
+LinearAlgebra.istriu(A::FusedGradedMatrix) = all(LinearAlgebra.istriu, values(A.sectordata))
+LinearAlgebra.istril(A::FusedGradedMatrix) = all(LinearAlgebra.istril, values(A.sectordata))
+function LinearAlgebra.isposdef(A::FusedGradedMatrix)
+    return all(LinearAlgebra.isposdef, values(A.sectordata))
+end
+Base.iszero(A::FusedGradedMatrix) = all(iszero, values(A.sectordata))
 
 # ========================  similar  ========================
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
-    data = similar(m.data, T, length(m.data))
-    return FusedGradedMatrix(data, m.codomain, m.domain)
+    data = similar(m.buffer, T, length(m.buffer))
+    return FusedGradedMatrix(data, m.axis_codomain, m.axis_domain)
 end
 function Base.similar(
         m::FusedGradedMatrix,
@@ -366,12 +368,12 @@ end
 
 function Base.summary(io::IO, m::FusedGradedMatrix)
     print(
-        io, blocklength(m.codomain), "×", blocklength(m.domain), " ",
+        io, blocklength(m.axis_codomain), "×", blocklength(m.axis_domain), " ",
         summary_typename(typeof(m)),
-        " with ", length(m.blocks), " stored block",
-        length(m.blocks) == 1 ? "" : "s", " at sectors ["
+        " with ", length(m.sectordata), " stored block",
+        length(m.sectordata) == 1 ? "" : "s", " at sectors ["
     )
-    join(io, keys(m.blocks), ", ")
+    join(io, keys(m.sectordata), ", ")
     print(io, "]")
     return nothing
 end
@@ -384,16 +386,16 @@ function Base.show(io::IO, ::MIME"text/plain", m::FusedGradedMatrix)
         show_axis(io, g)
         println(io)
     end
-    isempty(m.blocks) && return nothing
+    isempty(m.sectordata) && return nothing
     Base.print_array(io, m)
     return nothing
 end
 
 function Base.show(io::IO, m::FusedGradedMatrix)
     print(
-        io, blocklength(m.codomain), "×", blocklength(m.domain), " ",
+        io, blocklength(m.axis_codomain), "×", blocklength(m.axis_domain), " ",
         summary_typename(typeof(m)),
-        " (", length(m.blocks), " stored)"
+        " (", length(m.sectordata), " stored)"
     )
     return nothing
 end

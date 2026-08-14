@@ -183,7 +183,7 @@ end
     @test fsm isa FusedGradedMatrix{Float64}
     # Each stored N-D block lands in the coupled sector pairing its row charge with
     # the dual of its column charge: (U1(0), U1(0)) → U1(0), (U1(1), U1(-1)) → U1(1).
-    @test collect(keys(fsm.blocks)) == [U1(0), U1(1)]
+    @test collect(keys(sectordata(fsm))) == [U1(0), U1(1)]
     @test blocklength(axes(fsm, 1)) == 2
     @test blocklength(axes(fsm, 2)) == 2
     @test data(fsm[Block(1, 1)]) ≈ block_11
@@ -206,7 +206,7 @@ end
 
     fsm = matricizeperm(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
-    @test collect(keys(fsm.blocks)) == [U1(0), U1(1), U1(2)]
+    @test collect(keys(sectordata(fsm))) == [U1(0), U1(1), U1(2)]
     @test blocklength(axes(fsm, 1)) == 3
     @test blocklength(axes(fsm, 2)) == 3
 

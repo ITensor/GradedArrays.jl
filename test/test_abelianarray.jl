@@ -402,7 +402,7 @@ end
         [SU2(0), SU2(1 // 2), SU2(1)]
     )
     @test m_su2 isa FusedGradedMatrix{Float64, SU2}
-    @test collect(keys(m_su2.blocks)) == [SU2(0), SU2(1 // 2), SU2(1)]
+    @test collect(keys(sectordata(m_su2))) == [SU2(0), SU2(1 // 2), SU2(1)]
     @test data(m_su2[Block(1, 1)]) == [1.0;;]
     @test data(m_su2[Block(2, 2)]) == [1.0 2.0; 3.0 4.0]
     # Block(2, 2) lives in SU2(1/2), which has dim 2 → 4×4 in dense view.
@@ -414,7 +414,7 @@ end
         a = FusedGradedMatrix([[2.0;;], [1.0 2.0; 3.0 4.0]], [U1(0), U1(1)])
         b = FusedGradedMatrix([[3.0;;], [0.0 1.0; 1.0 0.0]], [U1(0), U1(1)])
         c = a * b
-        @test collect(keys(c.blocks)) == [U1(0), U1(1)]
+        @test collect(keys(sectordata(c))) == [U1(0), U1(1)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
@@ -422,7 +422,7 @@ end
         a = FusedGradedMatrix([[2.0;;], [1.0 2.0; 3.0 4.0]], [SU2(0), SU2(1 // 2)])
         b = FusedGradedMatrix([[3.0;;], [0.0 1.0; 1.0 0.0]], [SU2(0), SU2(1 // 2)])
         c = a * b
-        @test collect(keys(c.blocks)) == [SU2(0), SU2(1 // 2)]
+        @test collect(keys(sectordata(c))) == [SU2(0), SU2(1 // 2)]
         @test data(c[Block(1, 1)]) == [6.0;;]
         @test data(c[Block(2, 2)]) == [1.0 2.0; 3.0 4.0] * [0.0 1.0; 1.0 0.0]
     end
@@ -441,15 +441,15 @@ end
     @testset "allocates blocks as views into one contiguous buffer" begin
         m = FusedGradedMatrix{Float64}(undef, cod, dom)
         @test m isa FusedGradedMatrix{Float64, U1}
-        @test m.data isa Vector{Float64}
-        @test length(m.data) == 2 * 1 + 3 * 2
-        @test length(m.blocks) == 2
-        @test collect(keys(m.blocks)) == sectors
-        @test size(m.blocks[U1(0)]) == (2, 1)
-        @test size(m.blocks[U1(1)]) == (3, 2)
+        @test m.buffer isa Vector{Float64}
+        @test length(m.buffer) == 2 * 1 + 3 * 2
+        @test length(sectordata(m)) == 2
+        @test collect(keys(sectordata(m))) == sectors
+        @test size(sectordata(m)[U1(0)]) == (2, 1)
+        @test size(sectordata(m)[U1(1)]) == (3, 2)
         # Each block aliases the single buffer, so mutating a block mutates the buffer.
-        m.blocks[U1(0)][1, 1] = 7.0
-        @test m.data[1] == 7.0
+        sectordata(m)[U1(0)][1, 1] = 7.0
+        @test m.buffer[1] == 7.0
     end
 
     @testset "Rejects unsorted sectors" begin
@@ -480,11 +480,11 @@ end
     @test size(m) == (9, 12)            # 2+3+4 = 9, 3+4+5 = 12
     @test sectors(axes(m, 1)) == [U1(0), U1(1), U1(2)]
     @test sectors(axes(m, 2)) == [U1(1), U1(2), U1(3)]
-    @test collect(keys(m.blocks)) == [U1(1), U1(2)]
+    @test collect(keys(sectordata(m))) == [U1(1), U1(2)]
 
     # Stored block access by sector key.
-    @test m.blocks[U1(1)] == ones(3, 3)
-    @test m.blocks[U1(2)] == 2 * ones(4, 4)
+    @test sectordata(m)[U1(1)] == ones(3, 3)
+    @test sectordata(m)[U1(2)] == 2 * ones(4, 4)
 
     # eachblockstoredindex maps sectors to (cod_pos, dom_pos): U1(1) is
     # cod position 2, dom position 1; U1(2) is cod 3, dom 2.
@@ -514,13 +514,13 @@ end
     C = A * B
     @test sectors(axes(C, 1)) == [U1(0), U1(1)]
     @test sectors(axes(C, 2)) == [U1(0), U1(1)]
-    # Every allowed block of C is allocated. U1(0) lives in both C.codomain
-    # and C.domain so it gets a (zero) block — no contraction path through
-    # U1(0) since neither A.domain nor B.codomain carries it. U1(1) carries
+    # Every allowed block of C is allocated. U1(0) lives in both axis_codomain(C)
+    # and axis_domain(C) so it gets a (zero) block — no contraction path through
+    # U1(0) since neither axis_domain(A) nor axis_codomain(B) carries it. U1(1) carries
     # the full matrix product.
-    @test collect(keys(C.blocks)) == [U1(0), U1(1)]
-    @test all(iszero, C.blocks[U1(0)])
-    @test C.blocks[U1(1)] ≈ ones(3, 3) * (2 * ones(3, 3))
+    @test collect(keys(sectordata(C))) == [U1(0), U1(1)]
+    @test all(iszero, sectordata(C)[U1(0)])
+    @test sectordata(C)[U1(1)] ≈ ones(3, 3) * (2 * ones(3, 3))
 end
 
 @testset "FusedGradedMatrix invariant: allowed blocks must be allocated" begin
@@ -537,20 +537,20 @@ end
         [ones(2, 4), ones(3, 5)]
     )
     m = FusedGradedMatrix(blks_full, cod, dom)
-    @test collect(keys(m.blocks)) == [U1(0), U1(1)]
+    @test collect(keys(sectordata(m))) == [U1(0), U1(1)]
 
     # Sectors with zero size on either side are not "allowed" — no block needed.
     cod_z = FusedGradedOneTo([U1(1)], [3])
     dom_z = FusedGradedOneTo([U1(0), U1(1)], [4, 5])
     blks_z = Dictionary{U1, Matrix{Float64}}([U1(1)], [ones(3, 5)])
     m_z = FusedGradedMatrix{Float64}(undef, cod_z, dom_z)
-    @test collect(keys(m_z.blocks)) == [U1(1)]
+    @test collect(keys(sectordata(m_z))) == [U1(1)]
 
     # `undef` constructor allocates all allowed blocks automatically.
     m_undef = FusedGradedMatrix{Float64}(undef, cod, dom)
-    @test collect(keys(m_undef.blocks)) == [U1(0), U1(1)]
-    @test size(m_undef.blocks[U1(0)]) == (2, 4)
-    @test size(m_undef.blocks[U1(1)]) == (3, 5)
+    @test collect(keys(sectordata(m_undef))) == [U1(0), U1(1)]
+    @test size(sectordata(m_undef)[U1(0)]) == (2, 4)
+    @test size(sectordata(m_undef)[U1(1)]) == (3, 5)
 end
 
 @testset "Block-aware random fills and iszero" begin
@@ -1069,15 +1069,15 @@ end
 
     # Each block is the conjugate-transpose of the original (no per-sector sign), and for this
     # complex data conjugation genuinely differs from a plain transpose.
-    for c in keys(m.blocks)
-        @test sectordata(mh)[c] == m.blocks[c]'
-        @test sectordata(mh)[c] != transpose(m.blocks[c])
+    for c in keys(sectordata(m))
+        @test sectordata(mh)[c] == sectordata(m)[c]'
+        @test sectordata(mh)[c] != transpose(sectordata(m)[c])
     end
 
     # Double adjoint is the identity.
     mhh = mh'
     @test axes(mhh) == axes(m)
-    @test all(c -> mhh.blocks[c] == m.blocks[c], keys(m.blocks))
+    @test all(c -> sectordata(mhh)[c] == sectordata(m)[c], keys(sectordata(m)))
 end
 
 # The adjoint also composes with the matricize/unmatricize round-trip. This path is abelian-only, so
@@ -1104,7 +1104,7 @@ end
     @test LinearAlgebra.norm(back) ≈ LinearAlgebra.norm(a)
     remat = matricize(back, Val(1))
     for c in keys(sectordata(mh))
-        @test remat.blocks[c] ≈ sectordata(mh)[c]
+        @test sectordata(remat)[c] ≈ sectordata(mh)[c]
     end
 end
 
@@ -1144,9 +1144,9 @@ end
     @test rm isa FusedGradedMatrix
     @test eltype(rm) == Float64
     @test axes(rm) == axes(m)
-    for c in keys(m.blocks)
-        @test rm.blocks[c] == real.(m.blocks[c])
-        @test imm.blocks[c] == imag.(m.blocks[c])
-        @test real.(m.blocks[c]) + im * imag.(m.blocks[c]) ≈ m.blocks[c]
+    for c in keys(sectordata(m))
+        @test sectordata(rm)[c] == real.(sectordata(m)[c])
+        @test sectordata(imm)[c] == imag.(sectordata(m)[c])
+        @test real.(sectordata(m)[c]) + im * imag.(sectordata(m)[c]) ≈ sectordata(m)[c]
     end
 end

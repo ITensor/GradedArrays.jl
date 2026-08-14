@@ -1,7 +1,7 @@
 using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusionArray, SU2,
     SectorRange, U1, UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain,
-    ndims_domain, sector, tensormap, with_block_indexing, with_scalar_indexing
+    ndims_domain, sector, sectordata, tensormap, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -70,7 +70,7 @@ end
         a = randn_fusionarray((g,), (g,))
         t = tensormap(a)
         @test t isa TensorKit.TensorMap
-        @test t.data === matricize(a).data                                # shares the buffer
+        @test t.data === matricize(a).buffer                                # shares the buffer
         @test convert(Array, t) ≈ convert(Array, TensorKit.TensorMap(a))  # == copy-based reference
         @test convert(Array, tensormap(FusionArray(t))) ≈ convert(Array, t)  # round-trip
 
@@ -79,8 +79,8 @@ end
         Sa = FusionArray(S, (g,), (g,))
         ts = tensormap(Sa)
         @test ts isa TensorKit.DiagonalTensorMap
-        @test ts.data === S.diag.data
-        @test collect(MAK.diagview(ts)) ≈ S.diag.data
+        @test ts.data === S.diag.buffer
+        @test collect(MAK.diagview(ts)) ≈ S.diag.buffer
         @test convert(Array, ts) ≈ convert(Array, TensorKit.TensorMap(Sa))
     end
 
@@ -204,9 +204,9 @@ end
         @test axes(ra) == axes(a)
         # Forwarded to the matricized fused matrix, so real/imag act block-wise on the reduced data.
         ma = matricize(a)
-        for c in keys(ma.blocks)
-            @test matricize(ra).blocks[c] == real.(ma.blocks[c])
-            @test matricize(ia).blocks[c] == imag.(ma.blocks[c])
+        for c in keys(sectordata(ma))
+            @test sectordata(matricize(ra))[c] == real.(sectordata(ma)[c])
+            @test sectordata(matricize(ia))[c] == imag.(sectordata(ma)[c])
         end
     end
 

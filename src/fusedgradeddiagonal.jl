@@ -20,13 +20,13 @@ struct FusedGradedDiagonal{
     } <:
     AbstractFusedGradedMatrix{T, S}
     diag::FusedGradedVector{T, S, D, V}
-    blocks::Dictionary{S, Diagonal{T, D}}
+    sectordata::Dictionary{S, Diagonal{T, D}}
 end
 
 # Wrap a `FusedGradedVector` as its block-diagonal matrix, sharing storage: each block is a
 # `Diagonal` over that sector's view into the contiguous diagonal buffer.
 function FusedGradedDiagonal(diag::FusedGradedVector{T, S, D, V}) where {T, S, D, V}
-    blocks = map(Diagonal, diag.blocks)
+    blocks = map(Diagonal, diag.sectordata)
     return FusedGradedDiagonal{T, S, D, V}(diag, blocks)
 end
 
@@ -40,7 +40,7 @@ end
 # A `Diagonal` matrix is square, so its codomain and domain share the stored diagonal's axis.
 # `sectordata` lets the shared block-wise matrix operations read a diagonal like any fused graded
 # matrix; the axes derive from `biaxes` below.
-sectordata(d::FusedGradedDiagonal) = d.blocks
+sectordata(d::FusedGradedDiagonal) = d.sectordata
 
 # ---- accessors ----
 
@@ -62,14 +62,14 @@ function Base.view(d::FusedGradedDiagonal, I::Block{2})
     end
     i == j || error("Off-diagonal access not supported for FusedGradedDiagonal")
     s = sectors(d.diag.axis)[i]
-    return FusedSectorMatrix(d.blocks[s], s)
+    return FusedSectorMatrix(d.sectordata[s], s)
 end
 
 function eachblockstoredindex(d::FusedGradedDiagonal)
     ax = sectordatalengths(d.diag.axis)
     return (
         Block(gettoken(ax, c)[2][2], gettoken(ax, c)[2][2]) for
-            c in keys(d.blocks)
+            c in keys(d.sectordata)
     )
 end
 
@@ -81,7 +81,7 @@ end
 # The generic `isposdef` misreads the block structure (returns `false` for a positive-definite
 # graded diagonal), so decide it block-wise: positive-definite iff every stored block is.
 function LinearAlgebra.isposdef(d::FusedGradedDiagonal)
-    return all(LinearAlgebra.isposdef, values(d.blocks))
+    return all(LinearAlgebra.isposdef, values(d.sectordata))
 end
 
 # ---- show ----
@@ -89,10 +89,10 @@ end
 function Base.summary(io::IO, d::FusedGradedDiagonal)
     print(
         io, blocklength(d.diag.axis), "-block ", summary_typename(typeof(d)),
-        " with ", length(d.blocks), " stored block",
-        length(d.blocks) == 1 ? "" : "s", " at sectors ["
+        " with ", length(d.sectordata), " stored block",
+        length(d.sectordata) == 1 ? "" : "s", " at sectors ["
     )
-    join(io, keys(d.blocks), ", ")
+    join(io, keys(d.sectordata), ", ")
     print(io, "]")
     return nothing
 end
@@ -107,7 +107,7 @@ end
 function Base.show(io::IO, d::FusedGradedDiagonal)
     print(
         io, blocklength(d.diag.axis), "-block ", summary_typename(typeof(d)),
-        " (", length(d.blocks), " stored)"
+        " (", length(d.sectordata), " stored)"
     )
     return nothing
 end

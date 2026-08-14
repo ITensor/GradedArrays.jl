@@ -106,7 +106,7 @@ Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 # also match a no-argument call at N=0.
 Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(tensormap(a))
 function Base.setindex!(a::FusionArray{<:Any, <:Any, 0}, value)
-    only(values(matricize(a).blocks))[begin] = value
+    only(values(matricize(a).sectordata))[begin] = value
     return a
 end
 
@@ -231,8 +231,8 @@ function LinearAlgebra.dot(a::FusionArray, b::FusionArray)
     ma = matricize(a)
     mb = matricize(b, Val(ndims_codomain(a)))
     init = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
-    return sum(keys(ma.blocks); init) do c
-        return LinearAlgebra.dot(ma.blocks[c], mb.blocks[c])
+    return sum(keys(ma.sectordata); init) do c
+        return LinearAlgebra.dot(ma.sectordata[c], mb.sectordata[c])
     end
 end
 
@@ -334,14 +334,14 @@ end
 # Copy a matrix `TensorMap` (one codomain and one domain leg) block-wise into a `FusedGradedMatrix`.
 function Base.copy!(m::FusedGradedMatrix, t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1})
     for c in TK.blocksectors(t)
-        copy!(m.blocks[SectorRange(c)], TK.block(t, c))
+        copy!(m.sectordata[SectorRange(c)], TK.block(t, c))
     end
     return m
 end
 
 # Copy a `FusedGradedMatrix` block-wise into a matrix `TensorMap` (one codomain and one domain leg).
 function Base.copy!(t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1}, m::FusedGradedMatrix)
-    for (c, b) in pairs(m.blocks)
+    for (c, b) in pairs(m.sectordata)
         copy!(TK.block(t, label(c)), b)
     end
     return t
@@ -352,7 +352,7 @@ function Base.copy!(a::FusionArray, t::TK.AbstractTensorMap)
     (TK.numout(t) == ndims_codomain(a) && TK.numin(t) == ndims_domain(a)) ||
         throw(DimensionMismatch("TensorMap codomain/domain does not match the FusionArray"))
     for c in TK.blocksectors(t)
-        copy!(matricize(a).blocks[SectorRange(c)], TK.block(t, c))
+        copy!(matricize(a).sectordata[SectorRange(c)], TK.block(t, c))
     end
     return a
 end
@@ -361,7 +361,7 @@ end
 function Base.copy!(t::TK.AbstractTensorMap, a::FusionArray)
     (TK.numout(t) == ndims_codomain(a) && TK.numin(t) == ndims_domain(a)) ||
         throw(DimensionMismatch("TensorMap codomain/domain does not match the FusionArray"))
-    for (c, b) in pairs(matricize(a).blocks)
+    for (c, b) in pairs(matricize(a).sectordata)
         copy!(TK.block(t, label(c)), b)
     end
     return t
@@ -542,11 +542,11 @@ end
 # produce a `DiagonalTensorMap`). Both share storage, no copy.
 tensormap(a::FusionArray) = tensormap(matricize(a), axes_codomain(a), axes_domain(a))
 function tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
-    return TK.TensorMap(m.data, tensormapspace(sectortype(m), axes_codomain, axes_domain))
+    return TK.TensorMap(m.buffer, tensormapspace(sectortype(m), axes_codomain, axes_domain))
 end
 function tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.DiagonalTensorMap(
-        d.diag.data, ElementarySpace(sectormergesort(only(axes_codomain)))
+        d.diag.buffer, ElementarySpace(sectormergesort(only(axes_codomain)))
     )
 end
 
