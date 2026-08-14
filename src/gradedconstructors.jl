@@ -521,6 +521,8 @@ end
 # whole-block permutation, so equal sectors become contiguous and the array type is preserved) to
 # match the fused-sorted `GradedSpace` TensorKit needs, then wrapped carrying the original axes.
 function unchecked_project_graded(raw, codomain_axes, domain_axes)
+    # `TA.unchecked_project` always allocates a fresh result, so both branches wrap it as a zero-copy
+    # `to_fusionarray` view rather than copying it again.
     all_axes = (codomain_axes..., domain_axes...)
     if ndims(raw) == length(all_axes) && !all(is_fused_sorted, all_axes)
         N = length(all_axes)
@@ -532,12 +534,12 @@ function unchecked_project_graded(raw, codomain_axes, domain_axes)
             map(ElementarySpace ∘ sectormergesort, codomain_axes),
             map(ElementarySpace ∘ sectormergesort, domain_axes)
         )
-        return FusionArray(matricize(FusionArray(t)), codomain_axes, domain_axes)
+        return FusionArray(matricize(to_fusionarray(t)), codomain_axes, domain_axes)
     end
     t = TA.unchecked_project(
         raw, map(ElementarySpace, codomain_axes), map(ElementarySpace, domain_axes)
     )
-    return FusionArray(t)
+    return to_fusionarray(t)
 end
 
 # `infer_aux_space` is the only projection hook a graded backend adds beyond `similar_map`:
