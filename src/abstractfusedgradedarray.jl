@@ -101,7 +101,7 @@ end
 
 # Sum the per-block stored counts; the rest of `length` are structural zeros. Without this the
 # `AbstractArray` fallback reports `length` (i.e. fully dense).
-function SparseArraysBase.storedlength(A::AbstractFusedGradedMatrix)
+function storedlength(A::AbstractFusedGradedMatrix)
     return sum(B -> storedlength(view(A, B)), eachblockstoredindex(A); init = 0)
 end
 

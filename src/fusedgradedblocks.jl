@@ -7,7 +7,7 @@
 # `AbelianBlocks`. A stored entry is `view(parent, Block(I)...)` (shares data); an unstored entry
 # is a symmetry-forbidden block and errors.
 struct FusedGradedMatrixBlocks{T, S, D, A <: FusedGradedMatrix{T, S}} <:
-    AbstractSparseMatrix{FusedSectorMatrix{T, S, D}}
+    AbstractMatrix{FusedSectorMatrix{T, S, D}}
     parent::A
 end
 function BlockArrays.blocks(m::FusedGradedMatrix)
@@ -15,20 +15,23 @@ function BlockArrays.blocks(m::FusedGradedMatrix)
 end
 
 Base.size(b::FusedGradedMatrixBlocks) = blocklength.(axes(b.parent))
+Base.getindex(b::FusedGradedMatrixBlocks, I::Int...) = getindex_sparse(b, I...)
+function Base.setindex!(b::FusedGradedMatrixBlocks, value, I::Int...)
+    return setindex!_sparse(b, value, I...)
+end
 
-# Return `Vector`s (not lazy generators): the `SubArray` wrapper path in SparseArraysBase
-# `filter`s over these, and `filter` is not defined for `Base.Generator`.
-# TODO: make these lazy once the SparseArraysBase `filter` path handles generators.
-function SparseArraysBase.eachstoredindex(::IndexCartesian, b::FusedGradedMatrixBlocks)
+# Return materialized `Vector`s (not lazy generators), paired in the same block order, so
+# `storedvalues` satisfies the `AbstractVector` guard and `concatenate_sparse!` can zip the two.
+function eachstoredindex(::IndexCartesian, b::FusedGradedMatrixBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
 end
-function SparseArraysBase.storedvalues(b::FusedGradedMatrixBlocks)
+function storedvalues(b::FusedGradedMatrixBlocks)
     return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
 end
 
 # Block `(i, j)` is stored only when its codomain and domain sectors coincide and that sector has
 # an allocated block.
-function SparseArraysBase.isstored(b::FusedGradedMatrixBlocks, i::Int, j::Int)
+function isstored(b::FusedGradedMatrixBlocks, i::Int, j::Int)
     cod, dom = axis_codomain(b.parent), axis_domain(b.parent)
     (i in 1:blocklength(cod) && j in 1:blocklength(dom)) || return false
     s_cod = sectors(cod)[i]
@@ -39,19 +42,19 @@ function SparseArraysBase.isstored(b::FusedGradedMatrixBlocks, i::Int, j::Int)
 end
 
 # A stored entry is the block view, sharing data with the parent.
-function SparseArraysBase.getstoredindex(b::FusedGradedMatrixBlocks, i::Int, j::Int)
+function getstoredindex(b::FusedGradedMatrixBlocks, i::Int, j::Int)
     return view(b.parent, Block(i), Block(j))
 end
-function SparseArraysBase.setstoredindex!(b::FusedGradedMatrixBlocks, value, i::Int, j::Int)
+function setstoredindex!(b::FusedGradedMatrixBlocks, value, i::Int, j::Int)
     copy_sector!(view(b.parent, Block(i), Block(j)), value)
     return b
 end
 # An unstored index is a symmetry-forbidden block, not a lazily-omitted zero, so reading or
 # writing one is a structural error.
-function SparseArraysBase.getunstoredindex(b::FusedGradedMatrixBlocks, i::Int, j::Int)
+function getunstoredindex(b::FusedGradedMatrixBlocks, i::Int, j::Int)
     return error("Block ($(i), $(j)) is not stored.")
 end
-function SparseArraysBase.setunstoredindex!(
+function setunstoredindex!(
         b::FusedGradedMatrixBlocks,
         value,
         i::Int,

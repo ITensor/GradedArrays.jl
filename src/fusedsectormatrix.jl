@@ -98,7 +98,7 @@ Base.conj(a::FusedSectorMatrix) = throw_flips_first_axis(conj, a)
 # The stored element count factorizes the same way: the structural factor contributes its quantum
 # dimension (the length of its diagonal), the reduced data its full size. Abelian sectors have quantum
 # dimension 1, so this is just `length(data(a))`.
-function SparseArraysBase.storedlength(a::FusedSectorMatrix)
+function storedlength(a::FusedSectorMatrix)
     return storedlength(sector(a)) * length(data(a))
 end
 

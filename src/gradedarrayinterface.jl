@@ -13,10 +13,10 @@ using BlockArrays: Block, BlockIndexRange, block, blockindex, blocks, findblocki
 
 for AT in (:GradedArray, :AbstractFusedGradedArray)
     @eval begin
-        # Whether a block is stored (allocated), following the `SparseArraysBase.isstored(a, ::Block)`
+        # Whether a block is stored (allocated), following the `isstored(a, ::Block)`
         # interface `BlockSparseArrays` uses: delegate to the block container's element `isstored`.
-        function SparseArraysBase.isstored(a::$AT{<:Any, <:Any, N}, I::Block{N}) where {N}
-            return SparseArraysBase.isstored(blocks(a), Int.(Tuple(I))...)
+        function isstored(a::$AT{<:Any, <:Any, N}, I::Block{N}) where {N}
+            return isstored(blocks(a), Int.(Tuple(I))...)
         end
 
         # Scalar indexing is well-defined only for unique (abelian) fusion, where the trivial
@@ -28,7 +28,7 @@ for AT in (:GradedArray, :AbstractFusedGradedArray)
             @boundscheck checkbounds(a, I...)
             bis = map(findblockindex, axes(a), I)
             b = Block(map(bi -> Int(block(bi)), bis))
-            SparseArraysBase.isstored(a, b) || return zero(eltype(a))
+            isstored(a, b) || return zero(eltype(a))
             # Scalar access reaches its element through the block view; allow that internal block
             # indexing even when block indexing is otherwise disabled.
             return with_block_indexing() do
@@ -42,7 +42,7 @@ for AT in (:GradedArray, :AbstractFusedGradedArray)
             @boundscheck checkbounds(a, I...)
             bis = map(findblockindex, axes(a), I)
             b = Block(map(bi -> Int(block(bi)), bis))
-            SparseArraysBase.isstored(a, b) ||
+            isstored(a, b) ||
                 error("cannot set element at $(I): it lies in a symmetry-forbidden block.")
             with_block_indexing() do
                 return view(a, b)[map(blockindex, bis)...] = v
