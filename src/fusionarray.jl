@@ -521,7 +521,7 @@ function Base.copyto!(dest::FusionArray, bc::BC.Broadcasted{<:FusionArrayStyle})
     return copyto!(dest, flattenlinear(bc))
 end
 
-# ============================  TensorKit seam (real, zero-copy `TensorMap`)  ============================
+# ============================  TensorKit conversion (real, zero-copy `TensorMap`)  ============================
 # `tensormap` views a `FusionArray` as a genuine `TensorMap` sharing the matricized contiguous buffer
 # (the buffer is laid out in TensorKit's `.data` order), so TensorKit's concrete-type kernels (permute,
 # `twist!`, projection) run natively and write back in place. `fusionarray` is the reverse: a
@@ -539,17 +539,17 @@ function tensormapspace(::Type{S}, axes_codomain::Tuple, axes_domain::Tuple) whe
     return codomain ← domain
 end
 
-# `tensormap(m, axes_codomain, axes_domain)` is the storage-level seam: a general matricized backing
-# wraps as a `TensorMap` over its buffer; a diagonal factor wraps as a `DiagonalTensorMap` over its
-# contiguous diagonal buffer, keeping the bond diagonal through the seam (TensorKit's own `svd`/`eig`
-# produce a `DiagonalTensorMap`). Both share storage, no copy.
+# `tensormap(m, axes_codomain, axes_domain)` is the storage-level conversion: a general matricized
+# backing wraps as a `TensorMap` over its buffer; a diagonal factor wraps as a `DiagonalTensorMap` over
+# its contiguous diagonal buffer, keeping the bond diagonal through the conversion (TensorKit's own
+# `svd`/`eig` produce a `DiagonalTensorMap`). Both share storage, no copy.
 tensormap(a::FusionArray) = tensormap(matricize(a), axes_codomain(a), axes_domain(a))
 function tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.TensorMap(m.buffer, tensormapspace(sectortype(m), axes_codomain, axes_domain))
 end
 function tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.DiagonalTensorMap(
-        d.diag.buffer, ElementarySpace(sectormergesort(only(axes_codomain)))
+        MAK.diagview(d).buffer, ElementarySpace(sectormergesort(only(axes_codomain)))
     )
 end
 

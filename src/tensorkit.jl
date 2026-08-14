@@ -13,7 +13,7 @@ end
 # A TensorKit `GradedSpace` holds each sector once, in sorted order: fused (no sector repeats) and
 # sorted in `SectorRange` order (which matches TensorKit's), so a fused-sorted range maps to a
 # `GradedSpace` with no reordering. `FusionArray` axes may be unfused/unsorted, and the `project` / `Array`
-# seams block-permute the dense data into this form at the TensorKit boundary.
+# conversions block-permute the dense data into this form at the TensorKit boundary.
 is_fused_sorted(g::AbstractGradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
 
 # Throwing wrapper: `ElementarySpace` demands a fused-sorted range.

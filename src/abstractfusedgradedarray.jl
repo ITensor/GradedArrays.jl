@@ -157,10 +157,12 @@ Base.iszero(A::AbstractFusedGradedMatrix) = all(iszero, sectordata(A))
 # ---------------------------------------------------------------------------
 
 # `copyto!` is also the write path for mutating a `MAK.diagview(::FusedGradedMatrix)` (whose blocks
-# alias the matrix diagonals). Matching sectors are required (equal axes guarantee them).
+# alias the matrix diagonals). It conservatively requires equal axes, so it is self-guarding on a
+# direct call; Base's generic `copy!(::AbstractArray, ::AbstractArray)` also checks axes before
+# delegating here, so `copy!` is available for free with the same contract.
 function Base.copyto!(dest::AbstractFusedGradedArray, src::AbstractFusedGradedArray)
+    axes(dest) == axes(src) || throw(DimensionMismatch("`copyto!` requires matching axes"))
     dsd, ssd = sectordata(dest), sectordata(src)
-    keys(dsd) == keys(ssd) || throw(ArgumentError("`copyto!` requires matching sectors"))
     for c in keys(ssd)
         copyto!(dsd[c], ssd[c])
     end
@@ -216,20 +218,12 @@ end
 #  `promote_type` of all returned blocks before reconstructing.
 # ---------------------------------------------------------------------------
 
-# The target eltype `T` is passed through a type-parameter barrier so the `convert` target is concrete
-# to inference. Splicing a runtime `T` straight into `convert(AbstractMatrix{T}, b)` makes older Julia
-# widen the block dictionary to an abstract `AbstractMatrix`, and the reconstruction then throws a
-# `TypeError`.
-function unify_block_eltype(blocks, ::Type{T}) where {T}
-    return map(b -> convert(AbstractMatrix{T}, b), blocks)
-end
-
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval function Base.$f(A::AbstractFusedGradedMatrix)
         raw = map(Base.$f, sectordata(A))
         T = mapreduce(eltype, promote_type, raw; init = eltype(A))
         return FusedGradedMatrix(
-            unify_block_eltype(raw, T),
+            map(b -> convert(AbstractMatrix{T}, b), raw),
             axis_codomain(A),
             axis_domain(A)
         )
@@ -319,17 +313,6 @@ function _to_blockarray(a::AbstractFusedGradedArray{T, <:Any, N}) where {T, N}
             kron_nd(collect(data(blk)), Array(sector(blk)))
     end
     return mortar(blockmat)
-end
-
-# A rank-0 graded array is a single trivial-sector scalar block. There is no block structure to
-# `mortar` (it does not support a 0-dimensional block array), so materialize the one (possibly
-# unstored) block directly.
-function _to_blockarray(a::AbstractFusedGradedArray{T, <:Any, 0}) where {T}
-    for bI in eachblockstoredindex(a)
-        blk = view(a, bI)
-        return kron_nd(collect(data(blk)), Array(sector(blk)))
-    end
-    return fill(zero(T))
 end
 
 function Base.print_array(io::IO, a::AbstractFusedGradedArray)

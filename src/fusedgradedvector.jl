@@ -233,11 +233,11 @@ function datatype(::Type{<:FusedGradedVector{T, S, V}}) where {T, S, V}
     return Base.promote_op(view, V, UnitRange{Int})
 end
 
-sectordata(v::FusedGradedVector) = SectorData(v, sectordatalengths(v.axis))
+sectordata(v::FusedGradedVector) = SectorData(v, sectordatalengths(axis(v)))
 
-# The stored axis is the fused codomain range; a vector has an empty domain. `axes_codomain`/
-# `axes_domain` are the core axis accessors (the one place `v.axis` is read directly); `biaxes`,
-# `axes`, and `size` derive from them generically.
+# The stored axis is the fused codomain range; a vector has an empty domain. `axes_codomain` is the
+# core axis accessor (the one place `v.axis` is read directly); `biaxes`, `axes`, `size`, and the
+# single-axis `axis(v)` all derive from it generically, and every other site reads `axis(v)`.
 axes_codomain(v::FusedGradedVector) = (v.axis,)
 axes_domain(v::FusedGradedVector) = ()
 
@@ -257,7 +257,7 @@ end
 # dispatches to the storage backend's `map` (e.g. GPU kernel for `CuVector` blocks).
 function Base.map(f, v::FusedGradedVector)
     blockdata = dictionary(s => map(f, b) for (s, b) in pairs(sectordata(v)))
-    return FusedGradedVector(blockdata, v.axis)
+    return FusedGradedVector(blockdata, axis(v))
 end
 
 # ========================  Block indexing (primitive)  ========================
@@ -265,16 +265,16 @@ end
 function Base.view(v::FusedGradedVector, I::Block{1})
     i = Int(I)
     @boundscheck begin
-        i in 1:blocklength(v.axis) || throw(BoundsError(v, I))
+        i in 1:blocklength(axis(v)) || throw(BoundsError(v, I))
     end
-    s = sectors(v.axis)[i]
+    s = sectors(axis(v))[i]
     return FusedSectorVector(sectordata(v)[s], s)
 end
 
 # ========================  eachblockstoredindex  ========================
 
 function eachblockstoredindex(v::FusedGradedVector)
-    ax = sectordatalengths(v.axis)
+    ax = sectordatalengths(axis(v))
     return (Block(gettoken(ax, c)[2][2]) for c in keys(sectordata(v)))
 end
 
@@ -282,7 +282,7 @@ end
 
 function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
     data = similar(v.buffer, T)
-    return FusedGradedVector(data, v.axis)
+    return FusedGradedVector(data, axis(v))
 end
 function Base.similar(v::FusedGradedVector, axis::FusedGradedOneTo{S}) where {S}
     return FusedGradedVector{eltype(v)}(undef, axis)
@@ -306,7 +306,7 @@ end
 function Base.summary(io::IO, v::FusedGradedVector)
     sd = sectordata(v)
     print(
-        io, blocklength(v.axis), "-block ", summary_typename(typeof(v)),
+        io, blocklength(axis(v)), "-block ", summary_typename(typeof(v)),
         " with ", length(sd), " stored block",
         length(sd) == 1 ? "" : "s", " at sectors ["
     )
@@ -337,7 +337,7 @@ end
 
 function Base.show(io::IO, v::FusedGradedVector)
     print(
-        io, blocklength(v.axis), "-block ", summary_typename(typeof(v)),
+        io, blocklength(axis(v)), "-block ", summary_typename(typeof(v)),
         " (", length(sectordata(v)), " stored)"
     )
     return nothing
