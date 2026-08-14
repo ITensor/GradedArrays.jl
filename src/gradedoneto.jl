@@ -74,7 +74,7 @@ end
 
 function mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
     isempty(axs) && return GradedOneTo(S[], Int[])
-    allequal(isdual, axs) ||
+    allequal_compat(isdual, axs) ||
         throw(ArgumentError("Cannot combine sectors with different arrows"))
     d = isdual(first(axs))
     # Store non-dual sectors; apply isdual via dual() if needed
@@ -263,7 +263,7 @@ end
 # `dual` on the resulting space are defined in `src/tensorkit.jl`.
 function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: SectorRange}
     arrows = isdual.(first.(space))
-    allequal(arrows) ||
+    allequal_compat(arrows) ||
         throw(ArgumentError("All sectors must have the same isdual flag"))
     labels_space = [label(first(p)) => last(p) for p in space]
     nondual_space = to_tensorkit_space(labels_space)

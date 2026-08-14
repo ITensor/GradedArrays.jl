@@ -3,11 +3,11 @@ using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractFusedGradedMatrix, AdjointFusedGradedArray,
     FusedGradedMatrix, FusedGradedOneTo, FusedGradedVector, GradedArray, GradedOneTo, SU2,
     SectorRange, U1, UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data,
-    datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectordata,
-    sectors, sectortype, to_gradedrange, with_block_indexing, with_scalar_indexing
+    datalengths, dual, eachblockstoredindex, gradedrange, isdual, isstored, sectoraxes,
+    sectordata, sectors, sectortype, to_gradedrange, with_block_indexing,
+    with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
-using SparseArraysBase: isstored
 using TensorAlgebra: TensorAlgebra, fill_map, matricize, ones_map, rand_map, randn_map,
     unmatricize, zeros_map
 using TensorKitSectors: TensorKitSectors as TKS

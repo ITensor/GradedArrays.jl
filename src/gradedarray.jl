@@ -133,45 +133,47 @@ function eachblockstoredindex(a::GradedArray)
     return allowedblocks(axes(a))
 end
 
-# Sparse view of the stored (symmetry-allowed) external blocks, the N-dim analog of
-# `FusedGradedMatrixBlocks` / `AbelianBlocks`. `blockstoredlength`, `isstored(a, ::Block)`, and scalar
-# `getindex`/`setindex!` all derive from this generically. A stored entry shares data via `viewblock`;
-# an unstored entry is a symmetry-forbidden block and errors.
+# View of the stored (symmetry-allowed) external blocks, the N-dim analog of `FusedGradedMatrixBlocks`.
+# Implements GradedArrays' stored-entry interface; `blockstoredlength` and the array's scalar
+# `getindex`/`setindex!` read through `isstored(blocks(a), …)`. A stored entry shares data via
+# `viewblock`; an unstored entry is a symmetry-forbidden block and errors.
 struct GradedArrayBlocks{T, S, N, A <: GradedArray{T, S, N}} <:
-    AbstractSparseArray{UniqueSectorArray{T, S, N}, N}
+    AbstractArray{UniqueSectorArray{T, S, N}, N}
     parent::A
 end
 BlockArrays.blocks(a::GradedArray) = GradedArrayBlocks(a)
 Base.size(b::GradedArrayBlocks) = blocklength.(axes(b.parent))
+Base.getindex(b::GradedArrayBlocks, I::Int...) = getindex_sparse(b, I...)
+Base.setindex!(b::GradedArrayBlocks, value, I::Int...) = setindex!_sparse(b, value, I...)
 
-function SparseArraysBase.eachstoredindex(::IndexCartesian, b::GradedArrayBlocks)
+function eachstoredindex(::IndexCartesian, b::GradedArrayBlocks)
     return [CartesianIndex(Int.(Tuple(bI))) for bI in eachblockstoredindex(b.parent)]
 end
-function SparseArraysBase.storedvalues(b::GradedArrayBlocks)
+function storedvalues(b::GradedArrayBlocks)
     return [view(b.parent, bI) for bI in eachblockstoredindex(b.parent)]
 end
-function SparseArraysBase.isstored(
+function isstored(
         b::GradedArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
     return Block(I...) in eachblockstoredindex(b.parent)
 end
-function SparseArraysBase.getstoredindex(
+function getstoredindex(
         b::GradedArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
     return view(b.parent, Block(I...))
 end
-function SparseArraysBase.setstoredindex!(
+function setstoredindex!(
         b::GradedArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
     copy_sector!(view(b.parent, Block(I...)), value)
     return b
 end
-function SparseArraysBase.getunstoredindex(
+function getunstoredindex(
         b::GradedArrayBlocks{<:Any, <:Any, N}, I::Vararg{Int, N}
     ) where {N}
     return error("Block $(I) is not stored.")
 end
-function SparseArraysBase.setunstoredindex!(
+function setunstoredindex!(
         b::GradedArrayBlocks{<:Any, <:Any, N}, value, I::Vararg{Int, N}
     ) where {N}
     return error("Block $(I) is not stored.")
@@ -693,13 +695,17 @@ function TensorAlgebra.unmatricizeperm!(
 end
 
 # ============================  concatenation  ============================
-# Place whole blocks (no scalar indexing) with the inner `concatenate!` on the block containers. That
-# works because `GradedArrayBlocks` is an `AbstractSparseArray`, so the placement visits only the
-# stored (symmetry-allowed) blocks, whereas a dense path would touch forbidden positions. The block
-# placement goes through the guarded block views, so opt into block indexing for its extent.
+# Place whole symmetry-allowed blocks (no scalar indexing) via `concatenate_sparse!` on the block
+# containers. When the containers subtyped `AbstractSparseArray` this went through the generic
+# `TensorAlgebra.concatenate!` (which slices the destination); `concatenate_sparse!` is the
+# whole-block stand-in that needs only the stored-entry interface. The block views are guarded, so
+# opt into block indexing for the placement.
+#
+# Abelian-only stand-in: `cat` / `directsum` will be reimplemented for non-abelian fusion, superseding
+# this path.
 function TensorAlgebra.concatenate!(dest::GradedArray, dims, args...)
     with_block_indexing() do
-        return TensorAlgebra.concatenate!(blocks(dest), dims, blocks.(args)...)
+        return concatenate_sparse!(blocks(dest), dims, blocks.(args)...)
     end
     return dest
 end

@@ -54,7 +54,7 @@ function LinearAlgebra.tr(a::SectorIdentity)
 end
 
 # The stored (nonzero) entries of the identity are its diagonal.
-SparseArraysBase.storedlength(a::SectorIdentity) = diaglength(a)
+storedlength(a::SectorIdentity) = diaglength(a)
 
 # Only the identity permutation is supported: a transposing `permutedims` would flip the first axis
 # to dual, which the fused storage types disallow.

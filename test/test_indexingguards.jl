@@ -1,6 +1,6 @@
 using BlockArrays: Block, blocks
-using GradedArrays: U1, dual, gradedrange, with_block_indexing, with_scalar_indexing
-using SparseArraysBase: storedvalues
+using GradedArrays:
+    U1, dual, gradedrange, storedvalues, with_block_indexing, with_scalar_indexing
 using Test: @test, @test_throws, @testset
 
 @testset "indexing guards" begin
