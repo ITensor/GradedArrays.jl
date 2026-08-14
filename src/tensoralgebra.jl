@@ -285,16 +285,3 @@ function TensorAlgebra.matricizeopperm(
     contraction_twist!(a_perm, length(perm_codomain))
     return matricize(SectorMatricize(), a_perm, Val(length(perm_codomain)))
 end
-
-# The codomain is non-dual by invariant, so the right-factor twist is a no-op.
-function TensorAlgebra.matricizeopperm(
-        ::TwistedSectorMatricize, op, a::AbstractFusedGradedMatrix,
-        perm_codomain::Tuple{Int}, perm_domain::Tuple{Int}
-    )
-    (op === identity && perm_codomain == (1,) && perm_domain == (2,)) || throw(
-        ArgumentError(
-            "twisted matricize of a matrix-level fused array supports only the identity split"
-        )
-    )
-    return a
-end

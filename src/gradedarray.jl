@@ -672,10 +672,10 @@ end
 for A in (:GradedArray, :AbstractFusedGradedArray),
         B in (:GradedArray, :AbstractFusedGradedArray)
 
+    # A matrix-level right factor has a non-dual codomain, so it needs no twist.
+    right = B === :GradedArray ? :TwistedSectorMatricize : :SectorMatricize
     @eval function TensorAlgebra.default_contract_algorithm(::Type{<:$A}, ::Type{<:$B})
-        return TensorAlgebra.Matricize(
-            SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
-        )
+        return TensorAlgebra.Matricize(SectorMatricize(), $right(), SectorMatricize())
     end
 end
 
