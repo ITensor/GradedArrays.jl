@@ -286,11 +286,7 @@ function TensorAlgebra.matricizeopperm(
     return matricize(SectorMatricize(), a_perm, Val(length(perm_codomain)))
 end
 
-# A matrix-level fused array (e.g. a `FusedGradedDiagonal` factorization output) is already the
-# two-index matricized form, so the generic permute-then-matricize path above would only densify it.
-# The right-factor twist acts only on dual codomain legs, and an `AbstractFusedGradedMatrix` has a
-# non-dual codomain by invariant, so the twist is always a no-op here (bosonic and fermionic alike)
-# and the already-matricized operand is returned untouched.
+# The codomain is non-dual by invariant, so the right-factor twist is a no-op.
 function TensorAlgebra.matricizeopperm(
         ::TwistedSectorMatricize, op, a::AbstractFusedGradedMatrix,
         perm_codomain::Tuple{Int}, perm_domain::Tuple{Int}

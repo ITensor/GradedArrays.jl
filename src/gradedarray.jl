@@ -7,6 +7,8 @@ using LinearAlgebra: LinearAlgebra
 using Random: Random, AbstractRNG
 using TensorKit: TensorKit as TK, ←
 
+const GA = GradedArrays
+
 """
     GradedArray{T,S,N,NC,ND,M} <: AbstractArray{T,N}
 
@@ -648,14 +650,16 @@ function TensorAlgebra.unmatricize(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# A diagonal factor (SVD singular values, eigenvalues) unmatricizes to the bare `FusedGradedDiagonal`,
-# the public return type for `S`/`D` (analogous to TensorKit returning a `DiagonalTensorMap`), so a
-# spectrum is a true diagonal matrix to read off. It is already a square two-index fused matrix whose
-# codomain and domain are the bond, matching the `axes_codomain`/`axes_domain` a diagonal factor is
-# unmatricized with, and it contracts as an operand through its `SectorMatricize` style.
+# Keep the diagonal factor (`S`/`D`) bare so a spectrum is a true diagonal matrix.
 function TensorAlgebra.unmatricize(
         ::GradedArrayMatricizeStyle, d::FusedGradedDiagonal, axes_codomain::Tuple,
         axes_domain::Tuple
+    )
+    (GA.axes_codomain(d) == axes_codomain && GA.axes_domain(d) == axes_domain) ||
+        throw(
+        ArgumentError(
+            "a `FusedGradedDiagonal` unmatricizes only to its own square bond axis"
+        )
     )
     return d
 end
@@ -665,24 +669,26 @@ end
 # fixes the `SectorMatricize`/`TwistedSectorMatricize` styles, so a `GradedArray` contraction rides
 # that path rather than `GradedArrayMatricizeStyle`.
 
-# Any pair of graded operands rides the graded path, including a mixed pair like a `GradedArray`
-# against a matrix-level factorization output (`FusedGradedDiagonal`), so reconstructing `U * S * Vᴴ`
-# stays on the block algorithm instead of falling back to the dense generic. Twist only the right
-# factor; the left factor and the output use plain `SectorMatricize`.
-const GradedContractOperand = Union{GradedArray, AbstractFusedGradedArray}
-function TensorAlgebra.default_contract_algorithm(
-        ::Type{<:GradedContractOperand},
-        ::Type{<:GradedContractOperand}
-    )
-    return TensorAlgebra.Matricize(
-        SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
-    )
+for A in (:GradedArray, :AbstractFusedGradedArray),
+        B in (:GradedArray, :AbstractFusedGradedArray)
+
+    @eval function TensorAlgebra.default_contract_algorithm(::Type{<:$A}, ::Type{<:$B})
+        return TensorAlgebra.Matricize(
+            SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
+        )
+    end
 end
 
-# A matrix-level fused array (a `FusedGradedMatrix`, or a factorization output like
-# `FusedGradedDiagonal`) is already its own two-index matricized form, so matricizing it in the
-# contraction path is the identity.
-TensorAlgebra.matricize(::SectorMatricize, m::AbstractFusedGradedMatrix, ::Val{1}) = m
+function TensorAlgebra.matricize(
+        ::SectorMatricize, m::AbstractFusedGradedMatrix, ::Val{K}
+    ) where {K}
+    K == 1 || throw(
+        ArgumentError(
+            "a matrix-level fused array matricizes only with a single codomain leg"
+        )
+    )
+    return m
+end
 
 function TensorAlgebra.matricize(::SectorMatricize, fa::GradedArray, ndims_cod::Val)
     return matricize(GradedArrayMatricizeStyle(), fa, ndims_cod)
