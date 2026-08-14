@@ -1,7 +1,7 @@
 using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractFusedGradedMatrix, AdjointFusedGradedArray,
-    FusedGradedMatrix, FusedGradedOneTo, FusedGradedVector, FusionArray, GradedOneTo, SU2,
+    FusedGradedMatrix, FusedGradedOneTo, FusedGradedVector, GradedArray, GradedOneTo, SU2,
     SectorRange, U1, UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data,
     datalengths, dual, eachblockstoredindex, gradedrange, isdual, sectoraxes, sectordata,
     sectors, sectortype, to_gradedrange, with_block_indexing, with_scalar_indexing
@@ -13,14 +13,14 @@ using TensorAlgebra: TensorAlgebra, fill_map, matricize, ones_map, rand_map, ran
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_broken, @test_throws, @testset
 
-@testset "FusionArray (graded array)" begin
+@testset "GradedArray (graded array)" begin
     # Helper: build U1 axes
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
 
     @testset "Construction" begin
         a = zeros(Float64, g1, g2)
-        @test a isa FusionArray{Float64, U1, 2}
+        @test a isa GradedArray{Float64, U1, 2}
         @test a isa AbstractArray{Float64, 2}
         @test size(a) == (5, 3)
         @test ndims(a) == 2
@@ -113,7 +113,7 @@ using Test: @test, @test_broken, @test_throws, @testset
         # `blockstoredlength` derive from them through `blocks`.
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = randn(g, dual(g))
-        @test a isa FusionArray
+        @test a isa GradedArray
         @test issetequal(eachblockstoredindex(a), GradedArrays.allowedblocks(axes(a)))
         @test blockstoredlength(a) == length(collect(eachblockstoredindex(a)))
         @test isstored(a, Block(1, 1))
@@ -130,7 +130,7 @@ using Test: @test, @test_broken, @test_throws, @testset
         # `require_unique_fusion`) and goes through `blocks`.
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         a = zeros(g, dual(g))
-        @test a isa FusionArray
+        @test a isa GradedArray
         with_scalar_indexing() do
             a[1, 1] = 5.0
             @test a[1, 1] == 5.0
@@ -228,13 +228,13 @@ using Test: @test, @test_broken, @test_throws, @testset
         @test_throws ErrorException a ≈ dense
         @test_throws ErrorException a - dense
         # Broadcasting with a scalar still works.
-        @test 2 .* a isa FusionArray
+        @test 2 .* a isa GradedArray
     end
 
     @testset "rank-0 (scalar) array" begin
         # A rank-0 graded array holds a single trivial-sector value. `S` can't be
         # inferred from the empty axes, so the undef constructor takes it explicitly.
-        a = FusionArray{Float64, U1}(undef, (), ())
+        a = GradedArray{Float64, U1}(undef, (), ())
         @test ndims(a) == 0
         @test size(a) == ()
         @test axes(a) == ()
@@ -245,13 +245,13 @@ using Test: @test, @test_broken, @test_throws, @testset
         # indexing.
         a[] = 3.5
         @test a[] == 3.5
-        # TODO: `view(a, Block())` on a rank-0 `FusionArray` is not yet supported (the rank-0 block
+        # TODO: `view(a, Block())` on a rank-0 `GradedArray` is not yet supported (the rank-0 block
         # view hits an undefined `FusionMap` path); tracked as a parity follow-up.
 
         # `similar` with empty axes builds a rank-0 graded array carrying the
         # prototype's sector type, even from a higher-rank prototype.
         s = similar(zeros(Float64, g1, g2), ComplexF64, ())
-        @test s isa FusionArray{ComplexF64, <:Any, 0}
+        @test s isa GradedArray{ComplexF64, <:Any, 0}
         @test sectortype(s) === U1
     end
 
@@ -278,13 +278,13 @@ using Test: @test, @test_broken, @test_throws, @testset
         end
 
         a2 = similar(a)
-        @test a2 isa FusionArray{Float64, <:Any, 2}
+        @test a2 isa GradedArray{Float64, <:Any, 2}
         @test size(a2) == size(a)
         # similar now allocates all allowed blocks (same as constructor)
         @test length(collect(eachblockstoredindex(a2))) == 2
 
         a3 = similar(a, ComplexF64)
-        @test a3 isa FusionArray{ComplexF64, <:Any, 2}
+        @test a3 isa GradedArray{ComplexF64, <:Any, 2}
         @test size(a3) == size(a)
     end
 
@@ -332,7 +332,7 @@ using Test: @test, @test_broken, @test_throws, @testset
             return a[Block(1, 1)] = ones(2, 1)
         end
         s = sprint(show, MIME("text/plain"), a)
-        @test occursin("FusionArray", s)
+        @test occursin("GradedArray", s)
         @test occursin("5×3", s)
         @test occursin("codomain 2", s)  # the codomain/domain split is shown
     end
@@ -577,11 +577,11 @@ end
     # Constructor form: `rand(T, axes)` / `randn(T, axes)` for graded axes
     # builds a graded array with the right block structure.
     r = randn(rng, Float64, (g1, dual(g1)))
-    @test r isa FusionArray{Float64, <:Any, 2}
+    @test r isa GradedArray{Float64, <:Any, 2}
     @test axes(r) == (g1, dual(g1))
     @test !iszero(r)
     u = rand(rng, Float64, (g1, dual(g1)))
-    @test u isa FusionArray{Float64, <:Any, 2}
+    @test u isa GradedArray{Float64, <:Any, 2}
     @test !iszero(u)
 end
 
@@ -595,30 +595,30 @@ end
     @testset "ones" begin
         for o in
             (ones(g1, g2), ones(Float64, g1, g2), ones((g1, g2)), ones(Float64, (g1, g2)))
-            @test o isa FusionArray{Float64, <:Any, 2}
+            @test o isa GradedArray{Float64, <:Any, 2}
             @test axes(o) == (g1, g2)
             @test Array(o) == Array(reference1(1.0))
         end
-        @test ones(ComplexF64, g1, g2) isa FusionArray{ComplexF64, <:Any, 2}
+        @test ones(ComplexF64, g1, g2) isa GradedArray{ComplexF64, <:Any, 2}
     end
     @testset "fill" begin
         for a in (fill(2.5, g1, g2), fill(2.5, (g1, g2)))
-            @test a isa FusionArray{Float64, <:Any, 2}
+            @test a isa GradedArray{Float64, <:Any, 2}
             @test axes(a) == (g1, g2)
             @test Array(a) == Array(reference1(2.5))
         end
-        @test fill(1.0im, g1, g2) isa FusionArray{ComplexF64, <:Any, 2}
+        @test fill(1.0im, g1, g2) isa GradedArray{ComplexF64, <:Any, 2}
     end
 
     # rand/randn shorthands forward to the canonical `(rng, T, tuple)` form, so a seeded
     # shorthand matches a seeded canonical call. All non-canonical arg shapes are covered.
     @testset "$f shorthands" for f in (rand, randn)
-        @test f(g1, g2) isa FusionArray{Float64, <:Any, 2}
-        @test f(ComplexF64, g1, g2) isa FusionArray{ComplexF64, <:Any, 2}
-        @test f((g1, g2)) isa FusionArray{Float64, <:Any, 2}
-        @test f(ComplexF64, (g1, g2)) isa FusionArray{ComplexF64, <:Any, 2}
-        @test f(Random.Xoshiro(1), g1, g2) isa FusionArray{Float64, <:Any, 2}
-        @test f(Random.Xoshiro(1), (g1, g2)) isa FusionArray{Float64, <:Any, 2}
+        @test f(g1, g2) isa GradedArray{Float64, <:Any, 2}
+        @test f(ComplexF64, g1, g2) isa GradedArray{ComplexF64, <:Any, 2}
+        @test f((g1, g2)) isa GradedArray{Float64, <:Any, 2}
+        @test f(ComplexF64, (g1, g2)) isa GradedArray{ComplexF64, <:Any, 2}
+        @test f(Random.Xoshiro(1), g1, g2) isa GradedArray{Float64, <:Any, 2}
+        @test f(Random.Xoshiro(1), (g1, g2)) isa GradedArray{Float64, <:Any, 2}
         # Seeded shorthand == seeded canonical, for every shape that fills in defaults.
         @test Array(f(Random.Xoshiro(1), Float64, g1, g2)) ==
             Array(f(Random.Xoshiro(1), Float64, (g1, g2)))
@@ -644,7 +644,7 @@ end
     a = randn(ComplexF64, (g, dual(g)))
 
     ca = conj(a)
-    @test ca isa FusionArray
+    @test ca isa GradedArray
     # Each axis flips its duality, mirroring `conj` on the axis types.
     @test isdual(axes(ca, 1)) == !isdual(axes(a, 1))
     @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
@@ -659,7 +659,7 @@ end
     # A dense source already in the allowed subspace round-trips through the checked `project`.
     src_allowed = Array(TensorAlgebra.unchecked_project(randn(5, 5), (g,), (g,)))
     dest_ok = TensorAlgebra.project(src_allowed, (g,), (g,))
-    @test dest_ok isa FusionArray
+    @test dest_ok isa GradedArray
     @test Array(dest_ok) ≈ src_allowed
 
     # A source carrying significant forbidden-block weight is rejected; the unchecked projection
@@ -673,7 +673,7 @@ end
     # the charge that keeps the otherwise-forbidden `U1(1)` component in the allowed subspace.
     site = gradedrange([U1(0) => 1, U1(1) => 1])
     aux = gradedrange([U1(0) => 1])
-    @test TensorAlgebra.project([1.0, 0.0], (site, aux)) isa FusionArray
+    @test TensorAlgebra.project([1.0, 0.0], (site, aux)) isa GradedArray
 end
 
 @testset "projectto! (in-place into a preallocated destination)" begin
@@ -710,13 +710,13 @@ end
 
     # `project` projects into exactly the given axes; a trailing surplus axis is an error, not a
     # silently derived aux. `project_aux` is the deriving entry point.
-    @test TensorAlgebra.project(Sz, (g,), (g,)) isa FusionArray
+    @test TensorAlgebra.project(Sz, (g,), (g,)) isa GradedArray
     @test_throws ArgumentError TensorAlgebra.project(reshape(Splus, 2, 2, 1), (g,), (g,))
 
     # A physical-rank operator gets a length-1 aux carrying its single flux; a bare (unreshaped)
     # operator is reshaped up to the same result. The result's shape matches the input.
     t = TensorAlgebra.project_aux(reshape(Splus, 2, 2, 1), (g,), (g,))
-    @test t isa FusionArray
+    @test t isa GradedArray
     @test size(t) == (2, 2, 1)
     @test blockstoredlength(t) == 1
     @test Array(t)[:, :, 1] == Splus
@@ -729,7 +729,7 @@ end
     # including arbitrary order and mixed neutral/charged slices.
     stack = cat(reshape.((Splus, Sz, Sminus), 2, 2, 1)...; dims = 3)
     ts = TensorAlgebra.project_aux(stack, (g,), (g,))
-    @test ts isa FusionArray
+    @test ts isa GradedArray
     @test sectors(axes(ts, 3)) == [U1(2), U1(0), U1(-2)]
     @test Array(ts) == stack
 
@@ -772,7 +772,7 @@ end
     # `tryproject` branches on whether the data is invariant in the given axes; fall back to
     # `project_aux` to derive the flux-carrying leg.
     v_inv, v_chg = [1.0, 0.0], [0.0, 1.0]
-    @test TensorAlgebra.tryproject(v_inv, (site,)) isa FusionArray
+    @test TensorAlgebra.tryproject(v_inv, (site,)) isa GradedArray
     @test isnothing(TensorAlgebra.tryproject(v_chg, (site,)))
     t_chg = @something TensorAlgebra.tryproject(v_chg, (site,)) TensorAlgebra.project_aux(
         v_chg, (site,)
@@ -801,7 +801,7 @@ end
     # `c`, dualized (in the domain) and dangling last, and forces the physical legs to `+c`.
     flat = randn(Random.Xoshiro(1), Float64, c, (r1, r2))
     @test flat == randn_map(Random.Xoshiro(1), Float64, (r1, r2), (to_gradedrange(c),))
-    @test flat isa FusionArray{Float64}
+    @test flat isa GradedArray{Float64}
     @test ndims(flat) == 3
     @test blockstoredlength(flat) > 0                 # a real, non-empty flux tensor
     aux = axes(flat, 3)
@@ -942,7 +942,7 @@ end
     TensorAlgebra.projectto!(ref, randn(5, 5))
     src = Array(ref)
     a = src[g, dual(g)]
-    @test a isa FusionArray{Float64, <:Any, 2}
+    @test a isa GradedArray{Float64, <:Any, 2}
     @test axes(a) == (g, dual(g))
     @test Array(a) ≈ src
 
@@ -955,7 +955,7 @@ end
     # matrix is reshaped up before projecting.
     aux = gradedrange([U1(0) => 1])
     a3 = src[g, dual(g), aux]
-    @test a3 isa FusionArray{Float64, <:Any, 3}
+    @test a3 isa GradedArray{Float64, <:Any, 3}
     @test size(a3) == (5, 5, 1)
 
     # A single graded axis is disambiguated against `Base.getindex(::Array,
@@ -963,7 +963,7 @@ end
     vsrc = zeros(5)
     vsrc[1:2] .= randn(2)              # weight only in the trivial (U1(0)) block
     av = vsrc[g]
-    @test av isa FusionArray{Float64, <:Any, 1}
+    @test av isa GradedArray{Float64, <:Any, 1}
     @test Array(av) ≈ vsrc
 end
 
@@ -982,8 +982,8 @@ end
     @test_throws DimensionMismatch LinearAlgebra.dot(a, c)
 end
 
-@testset "reductions error on a FusionArray" begin
-    # An elementwise reduction on a `FusionArray` is ambiguous (dense array vs fused matrix, which
+@testset "reductions error on a GradedArray" begin
+    # An elementwise reduction on a `GradedArray` is ambiguous (dense array vs fused matrix, which
     # differ for non-abelian fusion), so it errors by design; reduce `Array(a)` or `matricize(a)`.
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(ComplexF64, g, dual(g))
@@ -1026,11 +1026,11 @@ end
 end
 
 # Adjoint (and matrix multiplication) are matrix operations, defined only on the matricized
-# `FusedGradedMatrix`, not on the graded array (`FusionArray`), which errors by design regardless of
+# `FusedGradedMatrix`, not on the graded array (`GradedArray`), which errors by design regardless of
 # split. Matricize first.
 @testset "graded matrix adjoint" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
-    # Adjoint errors on a `FusionArray`, whether all-codomain (2, 0) or a (1, 1) split.
+    # Adjoint errors on a `GradedArray`, whether all-codomain (2, 0) or a (1, 1) split.
     @test_throws ErrorException randn(g, dual(g))'
     @test_throws ErrorException randn((g,), (g,))'
     # On the matricized `FusedGradedMatrix` it is a lazy `AdjointFusedGradedArray` sharing the
@@ -1115,7 +1115,7 @@ end
 
     ra = real(a)
     ia = imag(a)
-    @test ra isa FusionArray
+    @test ra isa GradedArray
     @test eltype(ra) == Float64
     # `real` / `imag` act element-wise on the data and keep the axes (unlike `conj`, which dualizes).
     @test axes(ra) == axes(a)

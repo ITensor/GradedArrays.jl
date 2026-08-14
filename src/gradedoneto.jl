@@ -2,7 +2,7 @@
     GradedOneTo{S<:SectorRange}
 
 Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
-This is the axis type for `FusionArray`.
+This is the axis type for `GradedArray`.
 
 Stores non-dual `SectorRange` values in `sectors`, sector lengths, and a single
 `isdual` flag. The `sectors` accessor returns those stored non-dual sectors; query the
@@ -227,7 +227,7 @@ end
 
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
 # `to_range([U1(0) => 2, U1(1) => 3])`. Both abelian and non-abelian sectors build a `GradedOneTo`
-# (`FusionArray` represents non-abelian sectors via its coupled `FusedGradedMatrix`). Defined over
+# (`GradedArray` represents non-abelian sectors via its coupled `FusedGradedMatrix`). Defined over
 # each key type separately rather than a `Union` so each method stays specific enough not to capture
 # unrelated `Pair` vectors. The bare `TensorKitSectors.Sector` key is deliberate type piracy
 # (GradedArrays owns neither `to_range` nor `TKS.Sector`), kept for now so raw sectors work as

@@ -234,7 +234,7 @@ using Test: @test, @test_throws, @testset
     end
 
     # Non-abelian sectors have no native-`GradedSpace` detour: `to_range` keeps them a `GradedOneTo`,
-    # which `FusionArray` represents through its coupled matrix.
+    # which `GradedArray` represents through its coupled matrix.
     @testset "to_range keeps non-abelian sectors a GradedOneTo" begin
         g = TensorAlgebra.to_range([SU2(0) => 1, SU2(1) => 2])
         @test g isa GradedOneTo

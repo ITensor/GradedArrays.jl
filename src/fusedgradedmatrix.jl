@@ -5,7 +5,7 @@
 """
     FusedGradedMatrix{T,S<:SectorRange,V<:DenseVector{T}}
 
-Block-diagonal matrix produced by matricizing a `FusionArray`. Stores a contiguous `buffer` in
+Block-diagonal matrix produced by matricizing a `GradedArray`. Stores a contiguous `buffer` in
 TensorKit `.data` layout plus the fused codomain/domain axes; the per-coupled-sector blocks are the
 lazy `sectordata(m)` view carved from the buffer on demand.
 """

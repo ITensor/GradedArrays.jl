@@ -1,10 +1,10 @@
-using GradedArrays: FusionArray, U1, dual, gradedrange, isdual, mortar_axis, sectors
+using GradedArrays: GradedArray, U1, dual, gradedrange, isdual, mortar_axis, sectors
 using TensorAlgebra: TensorAlgebra, cat_axes, cat_similar, cat_style
 using Test: @test, @test_throws, @testset
 
 # Concatenation produces a block-appended (mortar) result axis, in which a sector can repeat: an
 # unfused axis. Both backends support this; the fusion backend carries the unfused result axis on the
-# `FusionArray` and scatters its blocks into the fused-sorted backing.
+# `GradedArray` and scatters its blocks into the fused-sorted backing.
 
 @testset "cat / directsum" begin
     g1 = gradedrange([U1(0) => 2, U1(1) => 3])
@@ -39,7 +39,7 @@ using Test: @test, @test_throws, @testset
         a2 = randn(g2, g2)
         ax = cat_axes(Val((1, 2)), a1, a2)
         d = cat_similar(cat_style(Val((1, 2)), a1, a2), Float64, ax, a1, a2)
-        @test d isa FusionArray
+        @test d isa GradedArray
         @test eltype(d) == Float64
         @test axes(d) == (mortar_axis([g1, g2]), mortar_axis([g1, g2]))
     end

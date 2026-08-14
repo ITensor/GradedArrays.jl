@@ -1,6 +1,6 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: FusionArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
+using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
     UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
     isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using Random: randn!
@@ -12,7 +12,7 @@ using Test: @test, @test_throws, @testset
 const fP0 = SectorRange(TKS.FermionParity(false))  # even parity
 const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
 
-# `Array(::FusionArray)` matches TensorKit's `convert(Array, ::TensorMap)`: split-dependent, with no
+# `Array(::GradedArray)` matches TensorKit's `convert(Array, ::TensorMap)`: split-dependent, with no
 # fermion domain-bend sign baked into the dense entries.
 
 @testset "fermionparity / twist" begin
@@ -226,7 +226,7 @@ end
     b = randn_blockdiagonal(elt, (g, dual(g)))
 
     ca = conj.(a)
-    @test ca isa FusionArray
+    @test ca isa GradedArray
     @test isdual(axes(ca, 1)) == !isdual(axes(a, 1))
     @test isdual(axes(ca, 2)) == !isdual(axes(a, 2))
 
@@ -383,12 +383,12 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
 
         parallel = contract((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
         # Rank-0 result is a graded array.
-        @test parallel isa FusionArray{elt, <:Any, 0}
+        @test parallel isa GradedArray{elt, <:Any, 0}
         @test Array(parallel) ≈
             contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
 
         crossed = contract((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
-        @test crossed isa FusionArray{elt, <:Any, 0}
+        @test crossed isa GradedArray{elt, <:Any, 0}
         @test Array(crossed) ≈
             -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
     end
