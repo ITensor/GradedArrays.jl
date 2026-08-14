@@ -6,7 +6,8 @@ using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, Graded
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, bipermutedims, contract, matricize, svd_compact
+using TensorAlgebra:
+    TensorAlgebra, bipermutedims, contract, eig_full, matricize, svd_compact
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -368,10 +369,24 @@ end
         j = gradedrange([SU2(0) => 1, SU2(1 // 2) => 2])
         m = randn_gradedarray((i,), (j,))
         u, s, v = svd_compact(m, (1,), (2,))
-        @test all(x -> x isa GradedArray, (u, s, v))
+        @test u isa GradedArray
+        @test s isa FusedGradedDiagonal
+        @test v isa GradedArray
         us, = contract(u, (:i, :b), s, (:b, :c))
         rec, = contract(us, (:i, :c), v, (:c, :j))
-        @test TensorKit.TensorMap(rec) ≈ TensorKit.TensorMap(m)
+        @test rec ≈ m
+    end
+
+    @testset "factorization (eig_full)" begin
+        g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
+        m = randn_gradedarray((g,), (g,))
+        d, v = eig_full(m, (1,), (2,))
+        @test d isa FusedGradedDiagonal
+        @test v isa GradedArray
+        # The diagonal factor contracts back as a matrix-level operand: A V ≈ V D.
+        av, = contract(m, (:i, :k), v, (:k, :b))
+        vd, = contract(v, (:i, :b), d, (:b, :c))
+        @test av ≈ vd
     end
 
     @testset "broadcasting (linear combinations)" begin

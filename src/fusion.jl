@@ -97,8 +97,8 @@ end
 
 function TensorAlgebra.unmatricize(
         ::SectorMatricize, m::FusedGradedMatrix,
-        codomain_axes::Tuple{Vararg{GradedOneTo}},
-        domain_axes::Tuple{Vararg{GradedOneTo}}
+        codomain_axes::Tuple{Vararg{AbstractGradedOneTo}},
+        domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
     )
     K = length(codomain_axes)
     N = K + length(domain_axes)

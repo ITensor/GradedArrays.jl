@@ -425,14 +425,15 @@ end
 # prototype, since the empty axes carry none).
 function TensorAlgebra.similar_map(
         ::AbstractFusedGradedArray, ::Type{T},
-        axes_codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-        axes_domain::Tuple{Vararg{GradedOneTo}}
+        axes_codomain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+        axes_domain::Tuple{Vararg{AbstractGradedOneTo}}
     ) where {T}
     return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
 function TensorAlgebra.similar_map(
         ::AbstractFusedGradedArray, ::Type{T},
-        axes_codomain::Tuple{}, axes_domain::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+        axes_codomain::Tuple{},
+        axes_domain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
     ) where {T}
     return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
