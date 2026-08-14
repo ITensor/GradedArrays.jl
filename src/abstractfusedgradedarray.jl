@@ -218,14 +218,20 @@ end
 #  `promote_type` of all returned blocks before reconstructing.
 # ---------------------------------------------------------------------------
 
+# `T` must arrive as a type parameter so the `convert` target is concrete. Splicing a runtime `T`
+# straight into the `convert` (inlining this into the loop body below) makes Julia 1.10 widen the
+# block container to an abstract `AbstractArray` and reconstruction throws a `TypeError` (#175), so
+# this stays a separate `::Type{T}` method.
+function convert_eltypes(::Type{T}, arrays) where {T}
+    return map(array -> convert(AbstractArray{T}, array), arrays)
+end
+
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval function Base.$f(A::AbstractFusedGradedMatrix)
         raw = map(Base.$f, sectordata(A))
         T = mapreduce(eltype, promote_type, raw; init = eltype(A))
         return FusedGradedMatrix(
-            map(b -> convert(AbstractMatrix{T}, b), raw),
-            axis_codomain(A),
-            axis_domain(A)
+            convert_eltypes(T, raw), axis_codomain(A), axis_domain(A)
         )
     end
 end
