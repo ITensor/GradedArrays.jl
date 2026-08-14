@@ -14,17 +14,17 @@ end
 # sorted in `SectorRange` order (which matches TensorKit's), so a fused-sorted range maps to a
 # `GradedSpace` with no reordering. `FusionArray` axes may be unfused/unsorted, and the `project` / `Array`
 # seams block-permute the dense data into this form at the TensorKit boundary.
-is_fused_sorted(g::GradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
+is_fused_sorted(g::AbstractGradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
 
 # Throwing wrapper: `ElementarySpace` demands a fused-sorted range.
-function check_fused_sorted(g::GradedOneTo)
+function check_fused_sorted(g::AbstractGradedOneTo)
     is_fused_sorted(g) || throw(ArgumentError("axis sectors must be fused and sorted"))
     return g
 end
 
 # `GradedOneTo` <-> `ElementarySpace` converters. `sectors` gives the non-dual sector labels
 # (duality is a separate flag), so build the non-dual side and apply the arrow.
-function TK.ElementarySpace(g::GradedOneTo)
+function TK.ElementarySpace(g::AbstractGradedOneTo)
     check_fused_sorted(g)
     sp = to_tensorkit_space([c => m for (c, m) in zip(sectors(g), datalengths(g))])
     return isdual(g) ? dual(sp) : sp

@@ -16,7 +16,7 @@ function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
     return tensor_product(trivial.(t)...)
 end
 function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
-    return gradedrange([trivial(S) => 1])
+    return fusedgradedrange([trivial(S) => 1])
 end
 
 # ========================  unmerged_matricize_axes  ========================

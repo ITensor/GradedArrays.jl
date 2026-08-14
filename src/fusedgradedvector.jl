@@ -154,8 +154,9 @@ function carve_blocks(::Type{D}, data, axis::Dictionary{S, Int}) where {D, S}
     return blocks
 end
 
-# The `view` block type of a 1-D buffer, derived from a zero-length view.
-blockviewtype1(data::AbstractVector) = typeof(view(data, 1:0))
+# The `view` block type of a 1-D buffer (a `view` over a contiguous range), inferred from the buffer
+# type rather than built from a dummy instance.
+blockviewtype1(data::AbstractVector) = Base.promote_op(view, typeof(data), UnitRange{Int})
 
 # Primitive constructor deriving the block-view type from the buffer.
 function FusedGradedVector(

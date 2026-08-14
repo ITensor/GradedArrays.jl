@@ -16,7 +16,7 @@ end
 # default to tensor_product
 unmerged_tensor_product(a1, a2) = tensor_product(a1, a2)
 
-function unmerged_tensor_product(a1::GradedOneTo, a2::GradedOneTo)
+function unmerged_tensor_product(a1::AbstractGradedOneTo, a2::AbstractGradedOneTo)
     ea1 = eachblockaxis(a1)
     ea2 = eachblockaxis(a2)
     T = Base.promote_op(tensor_product, eltype(ea1), eltype(ea2))
@@ -59,7 +59,7 @@ invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 # to its position (block + subrange) within the merged axis merged_ax, given the block
 # permutation blockperm used to sort and merge fine_ax into merged_ax.
 # Requires that blocks of fine_ax subdivide blocks of merged_ax.
-function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::GradedOneTo)
+function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::AbstractGradedOneTo)
     n = blocklength(fine_ax)
     fine_bls = blocklengths(fine_ax)
     merged_bls = blocklengths(merged_ax)
@@ -83,7 +83,9 @@ function invblockmergeperm(fine_ax::GradedOneTo, blockperm, merged_ax::GradedOne
     return J
 end
 
-function sectormergesort(g::GradedOneTo)
+# The result is fused-sorted (each sector once, in order) by construction, so return the type that
+# encodes that invariant rather than a plain `GradedOneTo`.
+function sectormergesort(g::AbstractGradedOneTo)
     # Merge repeated sectors (summing their data lengths) and sort. The stored sectors are non-dual
     # and the arrow is axis-level, so merge and sort them directly and carry `isdual` through.
     dict = Dict{sectortype(g), Int}()
@@ -91,13 +93,13 @@ function sectormergesort(g::GradedOneTo)
         dict[s] = get(dict, s, 0) + m
     end
     merged = sort!(collect(pairs(dict)); by = first)
-    return GradedOneTo(first.(merged), last.(merged), isdual(g))
+    return FusedGradedOneTo(first.(merged), last.(merged), isdual(g))
 end
 
-# tensor_product produces a sorted, non-dual GradedOneTo
-tensor_product(g::GradedOneTo) = sectormergesort(flip_dual(g))
+# tensor_product produces a fused-sorted, non-dual FusedGradedOneTo
+tensor_product(g::AbstractGradedOneTo) = sectormergesort(flip_dual(g))
 
-function tensor_product(g1::GradedOneTo, g2::GradedOneTo)
+function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
     return sectormergesort(unmerged_tensor_product(g1, g2))
 end
 

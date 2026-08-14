@@ -63,9 +63,11 @@ function carve_blocks(
     return blocks
 end
 
-# The reshaped-view block type is fixed by the buffer type `V`; derive it from a zero-length view so
-# callers never spell it out.
-blockviewtype(data::AbstractVector) = typeof(reshape(view(data, 1:0), (0, 0)))
+# The reshaped-view block type is fixed by the buffer type `V` (a 1-D `view` reshaped to a 2-D block);
+# infer it from the buffer type rather than building a dummy instance.
+function blockviewtype(data::AbstractVector)
+    return Base.promote_op(reshape, blockviewtype1(data), Tuple{Int, Int})
+end
 
 # Primitive constructor deriving the block-view type from the buffer.
 function FusedGradedMatrix(
@@ -200,14 +202,16 @@ function FusedGradedMatrix{T}(
 end
 
 # Build from the codomain and domain graded ranges, both in the stored (non-dual, fused) convention.
+# `AbstractGradedOneTo` so either a `GradedOneTo` or an already-fused `FusedGradedOneTo` works (the
+# `tensor_product`-fused coupled axes arrive as the latter); both normalize to `FusedGradedOneTo`.
 function FusedGradedMatrix{T}(
-        ::UndefInitializer, codomain::GradedOneTo, domain::GradedOneTo
+        ::UndefInitializer, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
     ) where {T}
     return FusedGradedMatrix{T}(undef, FusedGradedOneTo(codomain), FusedGradedOneTo(domain))
 end
 # A single graded range sets the domain equal to the codomain (square blocks), mirroring the
 # single-argument pairs form below.
-function FusedGradedMatrix{T}(::UndefInitializer, codomain::GradedOneTo) where {T}
+function FusedGradedMatrix{T}(::UndefInitializer, codomain::AbstractGradedOneTo) where {T}
     return FusedGradedMatrix{T}(undef, codomain, codomain)
 end
 # Build from the axes as `axes(m)` returns them: `axes(m, 2)` dualizes the domain, so undo it.
