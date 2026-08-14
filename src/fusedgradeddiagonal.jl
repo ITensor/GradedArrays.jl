@@ -37,11 +37,12 @@ function datatype(::Type{<:FusedGradedDiagonal{T, S, V}}) where {T, S, V}
     return Diagonal{T, Base.promote_op(view, V, UnitRange{Int})}
 end
 
-# Square: codomain and domain share the diagonal's axis; `bispace` dualizes the domain half. `biaxes`
-# is the core axis accessor (the one place `d.diag.axis` is read directly); the block indexing,
-# reductions, predicates, and display all derive from it and `sectordata` generically on
-# `AbstractFusedGradedMatrix`.
-biaxes(d::FusedGradedDiagonal) = bispace((d.diag.axis,), (d.diag.axis,))
+# Square: codomain and domain share the diagonal's axis. `axes_codomain`/`axes_domain` are the core
+# axis accessors (the one place `d.diag.axis` is read directly); the derived `biaxes` dualizes the
+# domain half, and the block indexing, reductions, predicates, and display all derive from them and
+# `sectordata` generically on `AbstractFusedGradedMatrix`.
+axes_codomain(d::FusedGradedDiagonal) = (d.diag.axis,)
+axes_domain(d::FusedGradedDiagonal) = (d.diag.axis,)
 
 function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(d.diag, T))

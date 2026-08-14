@@ -190,11 +190,12 @@ function sectordata(m::FusedGradedMatrix)
     )
 end
 
-# `biaxes` is the core axis accessor (the one place these fields are read directly); `axes`,
-# `axes_codomain`, `axis_codomain`, `view`, the reductions, and the display all derive from it and
-# `sectordata` generically on `AbstractFusedGradedMatrix`. The stored axes are the fused
-# codomain/domain ranges; `bispace` dualizes the domain half.
-biaxes(m::FusedGradedMatrix) = bispace((m.axis_codomain,), (m.axis_domain,))
+# `axes_codomain`/`axes_domain` are the core axis accessors (the one place these fields are read
+# directly); `biaxes`, `axes`, `axis_codomain`, `view`, the reductions, and the display all derive
+# from them and `sectordata` generically. The stored axes are the fused codomain/domain ranges in
+# un-dualized form; the derived `biaxes` dualizes the domain half.
+axes_codomain(m::FusedGradedMatrix) = (m.axis_codomain,)
+axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 
 # ========================  similar  ========================
 

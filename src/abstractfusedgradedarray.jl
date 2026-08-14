@@ -30,17 +30,10 @@ blocktype(a::AbstractFusedGradedArray) = blocktype(typeof(a))
 # fields. Everything axis-related derives from `biaxes` (the per-variant core), below.
 function sectordata end
 
-# Codomain / domain axis groups, recovered from `biaxes` (the split `bispace` builds). Uniform across
-# the fused family, matching `FusionArray`'s external-axis accessors of the same name.
-axes_codomain(a::AbstractFusedGradedArray) = codomain(biaxes(a))
-axes_domain(a::AbstractFusedGradedArray) = domain(biaxes(a))
-
-# The single fused codomain/domain axis (a fused matrix has one of each), also derived from `biaxes`.
-# `axes_domain` un-conjs the domain half (`domain(::BiTuple)`), so both are non-dual, matching the
-# stored axes; `axes(m, 2)` stays dual because it reads the raw conj'd `bispace` slot. The generic
-# block algebra builds new matrices straight from these.
-axis_codomain(a::AbstractFusedGradedMatrix) = only(axes_codomain(a))
-axis_domain(a::AbstractFusedGradedMatrix) = only(axes_domain(a))
+# Each concrete type implements the bipartite-axes primitives `axes_codomain`/`axes_domain` (its
+# codomain and domain axis groups, un-dualized). The derived `biaxes`/`axis_codomain`/`axis_domain`
+# generics live in `tensoralgebra.jl` (overloaded on `AbstractArray`, since `FusionArray` shares them
+# but is not an `AbstractFusedGradedArray`).
 
 function isblockdiagonal(A::AbstractFusedGradedMatrix)
     for bI in eachblockstoredindex(A)

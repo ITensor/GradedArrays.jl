@@ -36,13 +36,13 @@ end
 
 # ============================  Accessors  ============================
 
+# `axes_codomain`/`axes_domain` are the stored primitives (field reads); `biaxes` derives from them
+# generically (in `tensoralgebra.jl`). Domain axes are stored codomain-facing (TensorKit's `domain`
+# convention); the derived `biaxes` dualizes the domain half, so a domain leg reads as a dual axis
+# (matching TensorKit's `space(t, i)`), and `axes` is the flat form.
 axes_codomain(fa::FusionArray) = fa.axes_codomain
 axes_domain(fa::FusionArray) = fa.axes_domain
 
-# Domain axes are stored codomain-facing (TensorKit's `domain` convention); `bispace` dualizes the
-# domain half, so a domain leg reads as a dual axis (matching TensorKit's `space(t, i)`) and the
-# codomain/domain split rides along. `axes` is the flat form; `codomain`/`domain` recover the halves.
-biaxes(fa::FusionArray) = bispace(axes_codomain(fa), axes_domain(fa))
 Base.axes(fa::FusionArray) = Tuple(biaxes(fa))
 Base.size(fa::FusionArray) = map(length, axes(fa))
 

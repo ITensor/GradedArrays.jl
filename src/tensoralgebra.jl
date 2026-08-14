@@ -1,6 +1,19 @@
 using SplitApplyCombine: groupcount
 using StridedViews: StridedViews, StridedView, isstrided
 
+# ========================  bipartite-axes interface  ========================
+# The shared codomain/domain axis interface for `FusionArray` and the fused graded arrays (a candidate
+# to move to TensorAlgebra alongside `BiTuple`/`bispace`). A type implements the two primitives
+# `axes_codomain`/`axes_domain` — its codomain and domain axis groups in un-dualized (codomain-facing)
+# form — and these derived helpers follow. `biaxes` wraps the halves into the `bispace`/`BiTuple` form
+# (dualizing the domain), so an implementer never constructs a `BiTuple`; `axis_codomain`/`axis_domain`
+# are the single-axis form for a matrix-like array (one axis per side). Overloaded on `AbstractArray`
+# because `FusionArray` shares the interface but is not an `AbstractFusedGradedArray`.
+
+biaxes(a::AbstractArray) = bispace(axes_codomain(a), axes_domain(a))
+axis_codomain(a::AbstractArray) = only(axes_codomain(a))
+axis_domain(a::AbstractArray) = only(axes_domain(a))
+
 function tensor_product(r1, r2, r3, rs...)
     return tensor_product(tensor_product(r1, r2), r3, rs...)
 end

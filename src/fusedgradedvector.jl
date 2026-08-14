@@ -235,9 +235,11 @@ end
 
 sectordata(v::FusedGradedVector) = SectorData(v, sectordatalengths(v.axis))
 
-# The stored axis is the fused range; a vector has no domain half to dualize. `biaxes` is the core
-# axis accessor (the one place `v.axis` is read directly); `axes`/`size` derive from it generically.
-biaxes(v::FusedGradedVector) = bispace((v.axis,), ())
+# The stored axis is the fused codomain range; a vector has an empty domain. `axes_codomain`/
+# `axes_domain` are the core axis accessors (the one place `v.axis` is read directly); `biaxes`,
+# `axes`, and `size` derive from them generically.
+axes_codomain(v::FusedGradedVector) = (v.axis,)
+axes_domain(v::FusedGradedVector) = ()
 
 # Block-wise `mapreduce`: reduce each block locally (so GPU blocks stay on the device for
 # their reduction kernel) and combine per-block scalars on the CPU. Routes
