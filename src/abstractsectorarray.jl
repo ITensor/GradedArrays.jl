@@ -177,7 +177,7 @@ end
 # Materialize the block densely as `data(a) ⊗ sector(a)` (`reduced ⊗ I` for the identity/ones
 # structural factor), repeating each reduced value over the irrep's quantum dimension. The reduced
 # data is the outer (slower) index, matching TensorKit's dense block layout, so this agrees with the
-# `tensormap` conversion (`Array(::FusedGradedMatrix)` and `Array(::FusionArray)` coincide). The generic
+# `to_tensormap` conversion (`Array(::FusedGradedMatrix)` and `Array(::FusionArray)` coincide). The generic
 # `AbstractArray` fallback can't be used: `size` is the full (structural × reduced) extent while
 # `data` is only the reduced block, so copying elementwise scalar-indexes past it into garbage.
 Base.Array(a::AbstractSectorArray) = kron_nd(Array(data(a)), Array(sector(a)))

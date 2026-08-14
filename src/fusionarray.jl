@@ -80,7 +80,7 @@ function viewblock(
     cod = ntuple(i -> sects[i], Val(NC))
     dom = ntuple(j -> eachsectoraxis(axes_domain(a)[j])[bk[NC + j]], Val(ND))
     # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
-    blockdata = tensormap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
+    blockdata = to_tensormap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
     # Fused-sorted axes have one block per sector, so the merged block is the whole block. Only an
     # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
     # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
@@ -104,7 +104,7 @@ Base.view(a::FusionArray{T, <:Any, 1}, I::Block{1}) where {T} = viewblock(a, I)
 # that block; the generic block path indexes the `TensorMap` by external sectors, of which a rank-0 array
 # has none. Defined on the concrete type to take precedence over the `Vararg` block methods, which
 # also match a no-argument call at N=0.
-Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(tensormap(a))
+Base.getindex(a::FusionArray{<:Any, <:Any, 0}) = TK.scalar(to_tensormap(a))
 function Base.setindex!(a::FusionArray{<:Any, <:Any, 0}, value)
     only(values(sectordata(matricize(a))))[begin] = value
     return a
@@ -324,13 +324,15 @@ end
     FusionArray(t::TK.AbstractTensorMap)
 
 Build a `FusionArray` from a `TensorMap`, taking the per-leg external axes from its codomain
-and domain spaces.
+and domain spaces. This copies the data; `to_fusionarray` is the zero-copy view counterpart.
 """
 function FusionArray(t::TK.AbstractTensorMap)
     axes_codomain = map(GradedOneTo, Tuple(TK.codomain(t)))
     axes_domain = map(GradedOneTo, Tuple(TK.domain(t)))
     return copy!(FusionArray{eltype(t)}(undef, axes_codomain, axes_domain), t)
 end
+# A plain `TensorMap` has a zero-copy view, so its copying constructor is `copy` of that view.
+FusionArray(t::TK.TensorMap) = copy(to_fusionarray(t))
 
 # Copy a matrix `TensorMap` (one codomain and one domain leg) block-wise into a `FusedGradedMatrix`.
 function Base.copy!(m::FusedGradedMatrix, t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1})
@@ -522,10 +524,11 @@ function Base.copyto!(dest::FusionArray, bc::BC.Broadcasted{<:FusionArrayStyle})
 end
 
 # ============================  TensorKit conversion (real, zero-copy `TensorMap`)  ============================
-# `tensormap` views a `FusionArray` as a genuine `TensorMap` sharing the matricized contiguous buffer
+# `to_tensormap` views a `FusionArray` as a genuine `TensorMap` sharing the matricized contiguous buffer
 # (the buffer is laid out in TensorKit's `.data` order), so TensorKit's concrete-type kernels (permute,
-# `twist!`, projection) run natively and write back in place. `fusionarray` is the reverse: a
-# `FusionArray` over any `AbstractTensorMap`, copying block-wise.
+# `twist!`, projection) run natively and write back in place. `to_fusionarray` is the reverse view: a
+# `FusionArray` sharing a `TensorMap`'s `.data`. The `FusionArray(t)` / `TK.TensorMap(a)` constructors
+# are the copying counterparts.
 
 # The fused-sorted coupled `HomSpace` for the given external axes. Each leg's space is the
 # `sectormergesort` of its (possibly unfused/unsorted) axis; the rank-0 case resolves the trivial
@@ -539,21 +542,33 @@ function tensormapspace(::Type{S}, axes_codomain::Tuple, axes_domain::Tuple) whe
     return codomain ← domain
 end
 
-# `tensormap(m, axes_codomain, axes_domain)` is the storage-level conversion: a general matricized
+# `to_tensormap(m, axes_codomain, axes_domain)` is the storage-level conversion: a general matricized
 # backing wraps as a `TensorMap` over its buffer; a diagonal factor wraps as a `DiagonalTensorMap` over
 # its contiguous diagonal buffer, keeping the bond diagonal through the conversion (TensorKit's own
 # `svd`/`eig` produce a `DiagonalTensorMap`). Both share storage, no copy.
-tensormap(a::FusionArray) = tensormap(matricize(a), axes_codomain(a), axes_domain(a))
-function tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
+to_tensormap(a::FusionArray) = to_tensormap(matricize(a), axes_codomain(a), axes_domain(a))
+function to_tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.TensorMap(m.buffer, tensormapspace(sectortype(m), axes_codomain, axes_domain))
 end
-function tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
+function to_tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.DiagonalTensorMap(
         MAK.diagview(d).buffer, ElementarySpace(sectormergesort(only(axes_codomain)))
     )
 end
 
-fusionarray(t::TK.AbstractTensorMap) = FusionArray(t)
+# Zero-copy reverse of `to_tensormap`: share the `TensorMap`'s `.data` (already in the matricized
+# buffer's contiguous layout) as a `FusedGradedMatrix`, then wrap it with the per-leg external axes.
+# Mirrors the `undef` constructor but over borrowed storage; `FusionArray(t)` is the copying form.
+function to_fusionarray(t::TK.TensorMap)
+    axes_codomain = map(GradedOneTo, Tuple(TK.codomain(t)))
+    axes_domain = map(GradedOneTo, Tuple(TK.domain(t)))
+    S = sectortype(first((axes_codomain..., axes_domain...)))
+    init = trivial_gradedrange(S)
+    coupled_codomain = reduce(tensor_product, axes_codomain; init)
+    coupled_domain = reduce(tensor_product, axes_domain; init)
+    m = FusedGradedMatrix(t.data, coupled_codomain, coupled_domain)
+    return FusionArray(m, axes_codomain, axes_domain)
+end
 
 # ============================  bipermutedimsopadd! (permute primitive)  ============================
 # `y = α * op.(permute(x, …)) + β * y`, delegated to the `AbstractTensorMap` `bipermutedimsopadd!`
@@ -565,7 +580,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain, α::Number, β::Number
     )
     TensorAlgebra.bipermutedimsopadd!(
-        tensormap(y), op, tensormap(x), perm_codomain, perm_domain, α, β
+        to_tensormap(y), op, to_tensormap(x), perm_codomain, perm_domain, α, β
     )
     return y
 end
@@ -588,7 +603,7 @@ end
 # The `TensorMap` shares its buffer, so `TK.twist!` scales it in place.
 function twist!(a::FusionArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    TK.twist!(tensormap(a), dims)
+    TK.twist!(to_tensormap(a), dims)
     return a
 end
 
@@ -702,7 +717,7 @@ Base._cat(dims, as::FusionArray...) = TensorAlgebra.concatenate(dims, as...)
 # forbidden regions and handles a lower-rank `src` reshaped into a flux-canceling aux leg. The generic
 # `AbstractArray` `projectto!` would scalar-`copyto!` and error mid-write on a forbidden block.
 function TensorAlgebra.projectto!(dest::FusionArray, src::AbstractArray)
-    TensorAlgebra.projectto!(tensormap(dest), src)
+    TensorAlgebra.projectto!(to_tensormap(dest), src)
     return dest
 end
 
@@ -711,7 +726,7 @@ end
 # unfused/unsorted stored axis, move each leg's sector blocks back to the stored order (whole-block
 # moves preserve the array type, e.g. GPU).
 function Base.Array(fa::FusionArray{<:Any, <:Any, N}) where {N}
-    dense = convert(Array, tensormap(fa))
+    dense = convert(Array, to_tensormap(fa))
     all(is_fused_sorted, axes(fa)) && return dense
     sortedlengths = map(g -> Vector(blocklengths(g))[sortperm(sectors(g))], axes(fa))
     invperms = ntuple(d -> Block.(invperm(sortperm(sectors(axes(fa)[d])))), Val(N))

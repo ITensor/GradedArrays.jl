@@ -532,12 +532,12 @@ function unchecked_project_graded(raw, codomain_axes, domain_axes)
             map(ElementarySpace ∘ sectormergesort, codomain_axes),
             map(ElementarySpace ∘ sectormergesort, domain_axes)
         )
-        return FusionArray(matricize(fusionarray(t)), codomain_axes, domain_axes)
+        return FusionArray(matricize(FusionArray(t)), codomain_axes, domain_axes)
     end
     t = TA.unchecked_project(
         raw, map(ElementarySpace, codomain_axes), map(ElementarySpace, domain_axes)
     )
-    return fusionarray(t)
+    return FusionArray(t)
 end
 
 # `infer_aux_space` is the only projection hook a graded backend adds beyond `similar_map`:

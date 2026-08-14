@@ -1,7 +1,8 @@
 using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusionArray, SU2,
     SectorRange, U1, UniqueSectorArray, Z2, data, dual, gradedrange, isdual, ndims_codomain,
-    ndims_domain, sector, sectordata, tensormap, with_block_indexing, with_scalar_indexing
+    ndims_domain, sector, sectordata, to_tensormap, with_block_indexing,
+    with_scalar_indexing
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -59,25 +60,25 @@ end
     end
 
     # The invariant the buffer redesign rests on: the matricized buffer is laid out exactly as
-    # TensorKit's `.data`, so `tensormap` is a genuine zero-copy `TensorMap` view over it whose dense
+    # TensorKit's `.data`, so `to_tensormap` is a genuine zero-copy `TensorMap` view over it whose dense
     # form equals the copy-based reference conversion. (We compare against TensorKit's own dense form,
     # not `Array(::FusedGradedMatrix)`, because our `_to_blockarray` and TensorKit order the
     # degeneracy/multiplicity index differently within a non-abelian block, see the plan note.)
-    @testset "tensormap is a zero-copy TensorMap ($G)" for (G, g) in (
+    @testset "to_tensormap is a zero-copy TensorMap ($G)" for (G, g) in (
             ("U1", gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])),
             ("SU2", gradedrange([SU2(0) => 3, SU2(1 // 2) => 2, SU2(1) => 1])),
         )
         a = randn_fusionarray((g,), (g,))
-        t = tensormap(a)
+        t = to_tensormap(a)
         @test t isa TensorKit.TensorMap
         @test t.data === matricize(a).buffer                                # shares the buffer
         @test convert(Array, t) ≈ convert(Array, TensorKit.TensorMap(a))  # == copy-based reference
-        @test convert(Array, tensormap(FusionArray(t))) ≈ convert(Array, t)  # round-trip
+        @test convert(Array, to_tensormap(FusionArray(t))) ≈ convert(Array, t)  # round-trip
 
         # A diagonal factor maps to a zero-copy `DiagonalTensorMap` over its diagonal buffer.
         U, S, Vᴴ = MAK.svd_compact(matricize(a))
         Sa = FusionArray(S, (g,), (g,))
-        ts = tensormap(Sa)
+        ts = to_tensormap(Sa)
         @test ts isa TensorKit.DiagonalTensorMap
         @test ts.data === S.diag.buffer
         @test collect(MAK.diagview(ts)) ≈ S.diag.buffer
