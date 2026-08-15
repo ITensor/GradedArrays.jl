@@ -683,15 +683,15 @@ for A in (:GradedArray, :AbstractFusedGradedArray)
 end
 
 # A matrix-level right factor has a non-dual codomain, so it needs no twist.
+# TODO: once the graded family shares one matricize style, both operands map to the same
+# style and a `MatricizeStyle` combinator that returns the shared style would make this the
+# default `default_contract_algorithm`. Today `GradedArray` and `AbstractFusedGradedArray`
+# map to different styles, and the combinator falls back to `ReshapeMatricize` regardless.
 for A in (:GradedArray, :AbstractFusedGradedArray)
     @eval function TensorAlgebra.default_contract_algorithm(
             ::Type{<:$A}, ::Type{<:AbstractFusedGradedArray}
         )
-        return TensorAlgebra.Matricize(
-            SectorMatricize(),
-            SectorMatricize(),
-            SectorMatricize()
-        )
+        return TensorAlgebra.Matricize(SectorMatricize())
     end
 end
 
