@@ -6,8 +6,8 @@ using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedG
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra:
-    TensorAlgebra, bipermutedims, contract, eig_full, matricize, svd_compact
+using TensorAlgebra: TensorAlgebra, bipermutedims, contract, eig_full, eigh_full, matricize,
+    project_hermitian, svd_compact
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -384,6 +384,18 @@ end
         @test d isa FusedGradedDiagonal
         @test v isa GradedArray
         # The diagonal factor contracts back as a matrix-level operand: A V ≈ V D.
+        av, = contract(m, (:i, :k), v, (:k, :b))
+        vd, = contract(v, (:i, :b), d, (:b, :c))
+        @test av ≈ vd
+    end
+
+    @testset "factorization (eigh_full)" begin
+        g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
+        m = project_hermitian(randn_gradedarray((g,), (g,)), (1,), (2,))
+        @test m isa GradedArray
+        d, v = eigh_full(m, (1,), (2,))
+        @test d isa FusedGradedDiagonal
+        @test v isa GradedArray
         av, = contract(m, (:i, :k), v, (:k, :b))
         vd, = contract(v, (:i, :b), d, (:b, :c))
         @test av ≈ vd
