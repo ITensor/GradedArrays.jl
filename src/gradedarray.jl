@@ -670,13 +670,28 @@ end
 # fixes the `SectorMatricize`/`TwistedSectorMatricize` styles, so a `GradedArray` contraction rides
 # that path rather than `GradedArrayMatricizeStyle`.
 
-for A in (:GradedArray, :AbstractFusedGradedArray),
-        B in (:GradedArray, :AbstractFusedGradedArray)
+# A general graded right factor is twisted.
+for A in (:GradedArray, :AbstractFusedGradedArray)
+    @eval function TensorAlgebra.default_contract_algorithm(
+            ::Type{<:$A},
+            ::Type{<:GradedArray}
+        )
+        return TensorAlgebra.Matricize(
+            SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
+        )
+    end
+end
 
-    # A matrix-level right factor has a non-dual codomain, so it needs no twist.
-    right = B === :GradedArray ? :TwistedSectorMatricize : :SectorMatricize
-    @eval function TensorAlgebra.default_contract_algorithm(::Type{<:$A}, ::Type{<:$B})
-        return TensorAlgebra.Matricize(SectorMatricize(), $right(), SectorMatricize())
+# A matrix-level right factor has a non-dual codomain, so it needs no twist.
+for A in (:GradedArray, :AbstractFusedGradedArray)
+    @eval function TensorAlgebra.default_contract_algorithm(
+            ::Type{<:$A}, ::Type{<:AbstractFusedGradedArray}
+        )
+        return TensorAlgebra.Matricize(
+            SectorMatricize(),
+            SectorMatricize(),
+            SectorMatricize()
+        )
     end
 end
 
