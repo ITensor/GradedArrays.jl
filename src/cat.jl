@@ -8,9 +8,9 @@
 using BlockArrays: blocks
 using TensorAlgebra: concatenate!
 
-# `dual` on a `GradedOneTo` is again a `GradedOneTo`, so this binary method covers dual axes too,
+# `dual` on a graded axis is again a graded axis, so this binary method covers dual axes too,
 # and `TensorAlgebra` folds `cat_axis` pairwise so binary suffices for any number of arguments.
-function TensorAlgebra.cat_axis(a1::GradedOneTo, a2::GradedOneTo)
+function TensorAlgebra.cat_axis(a1::AbstractGradedOneTo, a2::AbstractGradedOneTo)
     return mortar_axis([a1, a2])
 end
 
