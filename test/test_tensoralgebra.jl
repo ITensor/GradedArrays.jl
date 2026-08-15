@@ -329,15 +329,19 @@ end
     # and unmatricizing back recovers the scalar as a rank-0 graded array.
     a = GradedArray{Float64, U1}(undef, (), ())
     a[] = 4.0
-    m = matricize(GradedArrays.SectorMatricize(), a, Val(0))
+    m = matricize(GradedArrays.GradedMatricize(), a, Val(0))
     @test m isa FusedGradedMatrix{Float64}
     @test size(m) == (1, 1)
     @test data(m[Block(1, 1)]) == fill(4.0, 1, 1)
 
-    # `unmatricize` allocates a rank-0 graded array, like the higher-rank path.
-    back = unmatricize(GradedArrays.SectorMatricize(), m, (), ())
+    # `unmatricize` recovers a rank-0 graded array, like the higher-rank path.
+    back = unmatricize(GradedArrays.GradedMatricize(), m, (), ())
     @test back isa GradedArray{Float64, <:Any, 0}
     @test back[] == 4.0
+
+    # Axes that fuse to a different coupled space than `m` are rejected.
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    @test_throws ArgumentError unmatricize(GradedArrays.GradedMatricize(), m, (g,), ())
 end
 
 @testset "unmatricize UniqueSectorMatrix with SectorOneTo axes" begin
