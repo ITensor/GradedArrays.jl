@@ -12,7 +12,7 @@ TensorAlgebra.MatricizeStyle(::Type{<:SectorOneTo}) = SectorMatricize()
 
 # ========================  trivial_gradedrange  ========================
 
-function trivial_gradedrange(t::Tuple{Vararg{GradedOneTo}})
+function trivial_gradedrange(t::Tuple{Vararg{AbstractGradedOneTo}})
     return tensor_product(trivial.(t)...)
 end
 function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
@@ -28,7 +28,8 @@ end
 # `codomain ← domain` map and the matmul pairs contracted legs correctly.
 function unmerged_matricize_axes(
         S::Type{<:SectorRange},
-        axes_codomain::Tuple{Vararg{GradedOneTo}}, axes_domain::Tuple{Vararg{GradedOneTo}}
+        axes_codomain::Tuple{Vararg{AbstractGradedOneTo}},
+        axes_domain::Tuple{Vararg{AbstractGradedOneTo}}
     )
     # The trivial-sector init seeds each `reduce`, so a group with no axes (a rank-0
     # codomain or domain, as in a full contraction to a scalar) fuses to the trivial
@@ -97,8 +98,8 @@ end
 
 function TensorAlgebra.unmatricize(
         ::SectorMatricize, m::FusedGradedMatrix,
-        codomain_axes::Tuple{Vararg{GradedOneTo}},
-        domain_axes::Tuple{Vararg{GradedOneTo}}
+        codomain_axes::Tuple{Vararg{AbstractGradedOneTo}},
+        domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
     )
     K = length(codomain_axes)
     N = K + length(domain_axes)
@@ -112,15 +113,15 @@ end
 # first, then unmatricize that.
 function TensorAlgebra.unmatricize(
         style::SectorMatricize, m::AdjointFusedGradedArray,
-        codomain_axes::Tuple{Vararg{GradedOneTo}},
-        domain_axes::Tuple{Vararg{GradedOneTo}}
+        codomain_axes::Tuple{Vararg{AbstractGradedOneTo}},
+        domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
     )
     return TensorAlgebra.unmatricize(style, copy(m), codomain_axes, domain_axes)
 end
 
 # ========================  Allowed block keys  ========================
 
-function allowedblocks(axs::NTuple{N, GradedOneTo}) where {N}
+function allowedblocks(axs::NTuple{N, AbstractGradedOneTo}) where {N}
     N == 0 && return Block{0, Int}[Block()]
     @assert TKS.FusionStyle(sectortype(eltype(axs))) === TKS.UniqueFusion()
     unfused = reduce(axs; init = trivial_gradedrange(axs)) do ax1, ax2

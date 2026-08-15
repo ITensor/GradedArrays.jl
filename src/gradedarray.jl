@@ -7,6 +7,8 @@ using LinearAlgebra: LinearAlgebra
 using Random: Random, AbstractRNG
 using TensorKit: TensorKit as TK, ←
 
+const GA = GradedArrays
+
 """
     GradedArray{T,S,N,NC,ND,M} <: AbstractArray{T,N}
 
@@ -187,7 +189,8 @@ function Base.similar(a::GradedArray, ::Type{T}) where {T}
     return GradedArray(similar(matricize(a), T), axes_codomain(a), axes_domain(a))
 end
 function Base.similar(
-        a::GradedArray, ::Type{T}, axes::Tuple{GradedOneTo{S}, Vararg{GradedOneTo{S}}}
+        a::GradedArray, ::Type{T},
+        axes::Tuple{AbstractGradedOneTo{S}, Vararg{AbstractGradedOneTo{S}}}
     ) where {T, S}
     return TensorAlgebra.similar_map(a, T, axes, ())
 end
@@ -403,14 +406,15 @@ end
 # A `GradedArray` source reproduces a `GradedArray`, routing straight to its `undef` constructor.
 function TensorAlgebra.similar_map(
         ::GradedArray, ::Type{T},
-        axes_codomain::Tuple{GradedOneTo, Vararg{GradedOneTo}},
-        axes_domain::Tuple{Vararg{GradedOneTo}}
+        axes_codomain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+        axes_domain::Tuple{Vararg{AbstractGradedOneTo}}
     ) where {T}
     return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
 function TensorAlgebra.similar_map(
         ::GradedArray, ::Type{T},
-        axes_codomain::Tuple{}, axes_domain::Tuple{GradedOneTo, Vararg{GradedOneTo}}
+        axes_codomain::Tuple{},
+        axes_domain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
     ) where {T}
     return GradedArray{T}(undef, axes_codomain, axes_domain)
 end
@@ -647,13 +651,18 @@ function TensorAlgebra.unmatricize(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# A diagonal factor (SVD singular values, eigenvalues) unmatricizes to a `GradedArray` wrapping the
-# `FusedGradedDiagonal` directly, keeping the diagonal storage rather than densifying it.
+# Keep the diagonal factor (`S`/`D`) bare so a spectrum is a true diagonal matrix.
 function TensorAlgebra.unmatricize(
         ::GradedArrayMatricizeStyle, d::FusedGradedDiagonal, axes_codomain::Tuple,
         axes_domain::Tuple
     )
-    return GradedArray(d, axes_codomain, axes_domain)
+    (GA.axes_codomain(d) == axes_codomain && GA.axes_domain(d) == axes_domain) ||
+        throw(
+        ArgumentError(
+            "a `FusedGradedDiagonal` unmatricizes only to its own square bond axis"
+        )
+    )
+    return d
 end
 
 # ============================  contraction (SectorMatricize path)  ============================
@@ -661,14 +670,40 @@ end
 # fixes the `SectorMatricize`/`TwistedSectorMatricize` styles, so a `GradedArray` contraction rides
 # that path rather than `GradedArrayMatricizeStyle`.
 
-# Twist only the right factor; the left factor and the output use plain `SectorMatricize`.
-function TensorAlgebra.default_contract_algorithm(
-        ::Type{<:GradedArray},
-        ::Type{<:GradedArray}
+# A general graded right factor is twisted.
+for A in (:GradedArray, :AbstractFusedGradedArray)
+    @eval function TensorAlgebra.default_contract_algorithm(
+            ::Type{<:$A},
+            ::Type{<:GradedArray}
+        )
+        return TensorAlgebra.Matricize(
+            SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
+        )
+    end
+end
+
+# A matrix-level right factor has a non-dual codomain, so it needs no twist.
+# TODO: once the graded family shares one matricize style, both operands map to the same
+# style and a `MatricizeStyle` combinator that returns the shared style would make this the
+# default `default_contract_algorithm`. Today `GradedArray` and `AbstractFusedGradedArray`
+# map to different styles, and the combinator falls back to `ReshapeMatricize` regardless.
+for A in (:GradedArray, :AbstractFusedGradedArray)
+    @eval function TensorAlgebra.default_contract_algorithm(
+            ::Type{<:$A}, ::Type{<:AbstractFusedGradedArray}
+        )
+        return TensorAlgebra.Matricize(SectorMatricize())
+    end
+end
+
+function TensorAlgebra.matricize(
+        ::SectorMatricize, m::AbstractFusedGradedMatrix, ::Val{K}
+    ) where {K}
+    K == 1 || throw(
+        ArgumentError(
+            "a matrix-level fused array matricizes only with a single codomain leg"
+        )
     )
-    return TensorAlgebra.Matricize(
-        SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
-    )
+    return m
 end
 
 function TensorAlgebra.matricize(::SectorMatricize, fa::GradedArray, ndims_cod::Val)
