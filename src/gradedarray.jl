@@ -60,7 +60,7 @@ ndims_codomain(fa::GradedArray) = length(axes_codomain(fa))
 ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
-# matrix directly (see `matricize(::GradedArrayMatricizeStyle, …)` for re-splitting to another).
+# matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
 # ============================  block indexing (unique fusion)  ============================
@@ -618,9 +618,7 @@ end
 # `FusedGradedMatrix` already has `mul!` and block-wise factorizations, contraction and
 # factorizations ride the generic `TensorAlgebra` machinery with no high-level overloads.
 
-struct GradedArrayMatricizeStyle <: MatricizeStyle end
-
-TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedArrayMatricizeStyle()
+TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedMatricize()
 
 # When the requested split matches the stored split this is the stored matrix. Otherwise it is a
 # leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
@@ -629,7 +627,7 @@ TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedArrayMatricizeStyle(
 # `matricize`. This is what lets a contraction over a subset of legs matricize a factor whose
 # stored split differs.
 function TensorAlgebra.matricize(
-        ::GradedArrayMatricizeStyle,
+        ::GradedMatricize,
         fa::GradedArray,
         ::Val{K}
     ) where {K}
@@ -644,17 +642,27 @@ function TensorAlgebra.matricize(
     return matricize(fa_bent)
 end
 
+function TensorAlgebra.check_input(
+        ::typeof(unmatricize), m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple
+    )
+    init = trivial_gradedrange(sectortype(m))
+    (
+        axis_codomain(m) == reduce(tensor_product, axes_codomain; init) &&
+            axis_domain(m) == reduce(tensor_product, axes_domain; init)
+    ) || throw(ArgumentError("axes do not fuse to the matrix's coupled axes"))
+    return nothing
+end
+
 function TensorAlgebra.unmatricize(
-        ::GradedArrayMatricizeStyle, m::FusedGradedMatrix, axes_codomain::Tuple,
+        ::GradedMatricize, m::FusedGradedMatrix, axes_codomain::Tuple,
         axes_domain::Tuple
     )
+    check_input(unmatricize, m, axes_codomain, axes_domain)
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# Keep the diagonal factor (`S`/`D`) bare so a spectrum is a true diagonal matrix.
-function TensorAlgebra.unmatricize(
-        ::GradedArrayMatricizeStyle, d::FusedGradedDiagonal, axes_codomain::Tuple,
-        axes_domain::Tuple
+function TensorAlgebra.check_input(
+        ::typeof(unmatricize), d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
     )
     (GA.axes_codomain(d) == axes_codomain && GA.axes_domain(d) == axes_domain) ||
         throw(
@@ -662,41 +670,37 @@ function TensorAlgebra.unmatricize(
             "a `FusedGradedDiagonal` unmatricizes only to its own square bond axis"
         )
     )
+    return nothing
+end
+
+# Keep the diagonal factor (`S`/`D`) bare so a spectrum is a true diagonal matrix.
+function TensorAlgebra.unmatricize(
+        ::GradedMatricize, d::FusedGradedDiagonal, axes_codomain::Tuple,
+        axes_domain::Tuple
+    )
+    check_input(unmatricize, d, axes_codomain, axes_domain)
     return d
 end
 
-# ============================  contraction (SectorMatricize path)  ============================
-# Contraction dispatches through `default_contract_algorithm(::GradedArray, …)`, which
-# fixes the `SectorMatricize`/`TwistedSectorMatricize` styles, so a `GradedArray` contraction rides
-# that path rather than `GradedArrayMatricizeStyle`.
+# ============================  contraction  ============================
 
-# A general graded right factor is twisted.
+# A general graded right factor is twisted; the per-position `TwistedGradedMatricize` can only come
+# from an explicit override. A matrix-level right factor needs no twist and falls out of the default
+# `default_contract_algorithm`: both operands share `GradedMatricize`, which the default combinator
+# maps to itself.
 for A in (:GradedArray, :AbstractFusedGradedArray)
     @eval function TensorAlgebra.default_contract_algorithm(
             ::Type{<:$A},
             ::Type{<:GradedArray}
         )
         return TensorAlgebra.Matricize(
-            SectorMatricize(), TwistedSectorMatricize(), SectorMatricize()
+            GradedMatricize(), TwistedGradedMatricize(), GradedMatricize()
         )
-    end
-end
-
-# A matrix-level right factor has a non-dual codomain, so it needs no twist.
-# TODO: once the graded family shares one matricize style, both operands map to the same
-# style and a `MatricizeStyle` combinator that returns the shared style would make this the
-# default `default_contract_algorithm`. Today `GradedArray` and `AbstractFusedGradedArray`
-# map to different styles, and the combinator falls back to `ReshapeMatricize` regardless.
-for A in (:GradedArray, :AbstractFusedGradedArray)
-    @eval function TensorAlgebra.default_contract_algorithm(
-            ::Type{<:$A}, ::Type{<:AbstractFusedGradedArray}
-        )
-        return TensorAlgebra.Matricize(SectorMatricize())
     end
 end
 
 function TensorAlgebra.matricize(
-        ::SectorMatricize, m::AbstractFusedGradedMatrix, ::Val{K}
+        ::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{K}
     ) where {K}
     K == 1 || throw(
         ArgumentError(
@@ -706,12 +710,8 @@ function TensorAlgebra.matricize(
     return m
 end
 
-function TensorAlgebra.matricize(::SectorMatricize, fa::GradedArray, ndims_cod::Val)
-    return matricize(GradedArrayMatricizeStyle(), fa, ndims_cod)
-end
-
 function TensorAlgebra.unmatricizeperm!(
-        ::SectorMatricize, a_dest::GradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
+        ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
     ) where {N}
     # Permute `a_dest` into the matricized leg order to get the matricized-order axes with correct

@@ -1,13 +1,14 @@
 struct SectorMatricize <: MatricizeStyle end
+struct GradedMatricize <: MatricizeStyle end
 
-# Matricize style for the right factor of a fermionic contraction: matricize as `SectorMatricize`
+# Matricize style for the right factor of a fermionic contraction: matricize as `GradedMatricize`
 # after twisting the contracted legs (see `contraction_twist!`). A no-op twist for bosonic
-# sectors, so it matricizes identically to `SectorMatricize` there.
-struct TwistedSectorMatricize <: MatricizeStyle end
+# sectors, so it matricizes identically to `GradedMatricize` there.
+struct TwistedGradedMatricize <: MatricizeStyle end
 
 TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorDelta}) = SectorMatricize()
 TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorArray}) = SectorMatricize()
-TensorAlgebra.MatricizeStyle(::Type{<:AbstractFusedGradedArray}) = SectorMatricize()
+TensorAlgebra.MatricizeStyle(::Type{<:AbstractFusedGradedArray}) = GradedMatricize()
 TensorAlgebra.MatricizeStyle(::Type{<:SectorOneTo}) = SectorMatricize()
 
 # ========================  trivial_gradedrange  ========================
@@ -94,25 +95,12 @@ function TensorAlgebra.unmatricize(
     return UniqueSectorArray(mdata, msectors)
 end
 
-# ========================  SectorMatricize FusedGradedMatrix unmatricize  ========================
-
-function TensorAlgebra.unmatricize(
-        ::SectorMatricize, m::FusedGradedMatrix,
-        codomain_axes::Tuple{Vararg{AbstractGradedOneTo}},
-        domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
-    )
-    K = length(codomain_axes)
-    N = K + length(domain_axes)
-    a = TA.similar_map(m, codomain_axes, domain_axes)
-    return TensorAlgebra.unmatricizeperm!(
-        SectorMatricize(), a, m, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
-    )
-end
+# ========================  GradedMatricize adjoint unmatricize  ========================
 
 # A lazy adjoint has no owned contiguous buffer to reshape; materialize it into a `FusedGradedMatrix`
 # first, then unmatricize that.
 function TensorAlgebra.unmatricize(
-        style::SectorMatricize, m::AdjointFusedGradedArray,
+        style::GradedMatricize, m::AdjointFusedGradedArray,
         codomain_axes::Tuple{Vararg{AbstractGradedOneTo}},
         domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
     )
