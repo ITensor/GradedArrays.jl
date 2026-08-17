@@ -1,11 +1,13 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
-    GradedArray, GradedBlockAlgorithm, U1, Z2, dual, gradedrange, sectordata
-using LinearAlgebra: Diagonal, I, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
+    GradedArray, GradedBlockAlgorithm, SectorRange, U1, Z2, dual, gradedrange, sectordata
+using LinearAlgebra:
+    Diagonal, I, diag, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
 using StableRNGs: StableRNG
-using TensorAlgebra: TensorAlgebra, matricize
+using TensorAlgebra: TensorAlgebra, bipermutedims, invsqrth_safe, matricize, sqrth_safe
+using TensorKitSectors: FermionParity
 using Test: @test, @testset
 
 # ---------------------------------------------------------------------------
@@ -541,5 +543,32 @@ end
         id = TensorAlgebra.one(randn(rng, Float64, (g,), (g,)), (1,), (2,))
         @test Array(a) ≈ Array(id)
         @test Array(a) ≈ Matrix(1.0I, size(a)...)
+    end
+
+    # -----------------------------------------------------------------------
+    # `sqrth_safe`/`invsqrth_safe` on a bare `FusedGradedDiagonal` must stay diagonal through the
+    # leg permutation the factorization interface applies, so the fast `pow_diag_safe` path runs
+    # instead of densifying and hitting the dense eigenvalue-power path.
+    @testset "sqrth_safe on a FusedGradedDiagonal ($(nameof(typeof(sects[1]))))" for sects in
+        (
+            [U1(0), U1(1), U1(2)],
+            SectorRange.([FermionParity(false), FermionParity(true)]),
+        )
+        for T in (Float64, ComplexF64)
+            dims = [n for n in 2:(length(sects) + 1)]
+            svals = [abs.(randn(T, n)) .+ 1 for n in dims]
+            S = FusedGradedDiagonal(FusedGradedVector(svals, sects))
+
+            @test bipermutedims(S, (1,), (2,)) isa FusedGradedDiagonal
+
+            P = sqrth_safe(S, (1,), (2,))
+            Pinv = invsqrth_safe(S, (1,), (2,))
+            @test P isa FusedGradedDiagonal
+            @test Pinv isa FusedGradedDiagonal
+            for (i, s) in enumerate(sects)
+                @test diag(sectordata(P)[s]) ≈ sqrt.(svals[i])
+                @test diag(sectordata(Pinv)[s]) ≈ inv.(sqrt.(svals[i]))
+            end
+        end
     end
 end  # @testset "Factorizations"

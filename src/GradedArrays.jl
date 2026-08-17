@@ -66,13 +66,15 @@ include("abstractfusedgradedarray.jl")
 include("sectordata.jl")
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
+# The graded broadcast-style lattice is defined here, before `FusedGradedDiagonal` (which adds its
+# own `FusedGradedDiagonalStyle` under the lattice) and `GradedArray` (which adds `GradedStyle`).
+include("broadcast.jl")
 include("fusedgradeddiagonal.jl")
 include("adjointfusedgradedarray.jl")
 include("fusedgradedblocks.jl")
 
 include("sectorproduct.jl")
 
-include("broadcast.jl")
 include("fusion.jl")
 include("tensoralgebra.jl")
 include("cat.jl")

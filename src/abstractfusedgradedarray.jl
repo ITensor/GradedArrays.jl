@@ -156,10 +156,9 @@ Base.iszero(A::AbstractFusedGradedMatrix) = all(iszero, sectordata(A))
 #  copy / copyto! — block-wise (the generic AbstractArray fallbacks scalar-index)
 # ---------------------------------------------------------------------------
 
-# `copyto!` is also the write path for mutating a `MAK.diagview(::FusedGradedMatrix)` (whose blocks
-# alias the matrix diagonals). It conservatively requires equal axes, so it is self-guarding on a
-# direct call; Base's generic `copy!(::AbstractArray, ::AbstractArray)` also checks axes before
-# delegating here, so `copy!` is available for free with the same contract.
+# Block-wise `copyto!`: copy each stored block's data across. It conservatively requires equal axes,
+# so it is self-guarding on a direct call; Base's generic `copy!(::AbstractArray, ::AbstractArray)`
+# also checks axes before delegating here, so `copy!` is available for free with the same contract.
 function Base.copyto!(dest::AbstractFusedGradedArray, src::AbstractFusedGradedArray)
     axes(dest) == axes(src) || throw(DimensionMismatch("`copyto!` requires matching axes"))
     dsd, ssd = sectordata(dest), sectordata(src)

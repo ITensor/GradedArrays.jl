@@ -399,11 +399,10 @@ end
 # Truncation support
 # ------------------
 
-# diagview for FusedGradedMatrix: extracts per-block diagonals as a FusedGradedVector
 function MAK.diagview(m::FusedGradedMatrix)
-    diag_blocks = map(MAK.diagview, sectordata(m))
-    diag_axis = map(length, diag_blocks)
-    return FusedGradedVector(diag_blocks, diag_axis)
+    return error(
+        "`diagview` of a `FusedGradedMatrix` (a write-through view) is not yet supported; use `diag` for a copy of the diagonal"
+    )
 end
 
 # A `FusedGradedDiagonal` stores its diagonal as a `FusedGradedVector`, so `diagview` returns it

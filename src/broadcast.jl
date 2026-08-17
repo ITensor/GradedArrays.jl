@@ -121,14 +121,28 @@ end
 # See the `AbstractSectorStyle` override above.
 BC.instantiate(bc::BC.Broadcasted{<:AbstractGradedStyle}) = bc
 
+# Unwrap a broadcast leaf to the underlying operand array. The named-tensor broadcast (ITensorBase)
+# wraps each by-name-aligned operand in a `TensorAlgebra.PermutedDims` (which forwards its parent's
+# broadcast style), so `similar`'s operand discovery must look through it to find the structured
+# array. A bare operand is returned as-is.
+broadcast_leaf(a) = a
+broadcast_leaf(a::TensorAlgebra.PermutedDims) = broadcast_leaf(parent(a))
+
 # ---- fused (coupled-sector-block) graded arrays ----
 #
+# The fused family: `FusedGradedStyle` (`FusedGradedMatrix`/`FusedGradedVector`) and
+# `FusedGradedDiagonalStyle` (`FusedGradedDiagonal`, defined in `fusedgradeddiagonal.jl`). Grouping
+# them under `AbstractFusedGradedStyle` keys the mixing rules off the two-family split: mixing a
+# `GradedArray` (`GradedStyle`) with any fused array errors (in `gradedarray.jl`), while within the
+# fused family a diagonal promotes to the dense fused matrix (in `fusedgradeddiagonal.jl`).
+abstract type AbstractFusedGradedStyle{N} <: AbstractGradedStyle{N} end
+
 # `FusedGradedMatrix` and `FusedGradedVector` store their blocks keyed by coupled sector. Allocating
 # the result rebuilds the fused block structure from the linear expression's axes. Only linear
 # broadcasts are supported; the block arithmetic is the `bipermutedimsopadd!` overload in
 # `tensoralgebra.jl`.
 
-struct FusedGradedStyle{N} <: AbstractGradedStyle{N} end
+struct FusedGradedStyle{N} <: AbstractFusedGradedStyle{N} end
 FusedGradedStyle{N}(::Val{M}) where {N, M} = FusedGradedStyle{M}()
 
 BC.BroadcastStyle(::Type{<:FusedGradedVector}) = FusedGradedStyle{1}()

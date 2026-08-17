@@ -264,20 +264,14 @@ function Base.permutedims!(
 end
 
 # ============================  conj  ============================
-# Conjugate while keeping the codomain/domain split, unlike a plain `conj.(a)`
-# broadcast, which materializes into a fresh array and so lands at the all-codomain split. Fill a
-# same-split destination (per-leg axes dualized) with a single `op = conj` permute-add over the
-# identity biperm, so the TensorKit-backed transform folds in the leg-reversal fermion sign and the
-# non-abelian recoupling that a bare block conjugation would drop.
-function Base.conj(fa::GradedArray{<:Any, <:Any, <:Any, NC, ND}) where {NC, ND}
-    dest = TensorAlgebra.similar_map(
-        fa, map(dual, axes_codomain(fa)), map(dual, axes_domain(fa))
-    )
-    TensorAlgebra.bipermutedimsopadd!(
-        dest, conj, fa, ntuple(identity, Val(NC)), ntuple(i -> NC + i, Val(ND)), true, false
-    )
-    return dest
-end
+# Route through the graded broadcast (which dualizes the axes, applies the fermion leg-reversal phase,
+# and preserves the codomain/domain split). `conj` on a symmetric array is a structural operation
+# (charge conjugation), so force the broadcast path even for a real eltype, where Base's
+# `conj(::AbstractArray{<:Real})` would otherwise short-circuit to the identity and drop the
+# dualization and phase. `broadcast_preserving_zero_d` is Base's own spelling of `conj.(a)` for an
+# array; unlike a plain `conj.(a)` it keeps a rank-0 result a rank-0 `GradedArray` rather than
+# collapsing it to a scalar.
+Base.conj(a::GradedArray) = Base.Broadcast.broadcast_preserving_zero_d(conj, a)
 
 # ============================  matrix operations (guarded)  ============================
 # Matrix / linear-algebra operations live only on the matrix storage type `FusedGradedMatrix`. On a
@@ -493,14 +487,6 @@ function Base.imag(fa::GradedArray)
     return GradedArray(imag(matricize(fa)), axes_codomain(fa), axes_domain(fa))
 end
 
-function Base.:*(a::GradedArray, x::Number)
-    return GradedArray(matricize(a) * x, axes_codomain(a), axes_domain(a))
-end
-Base.:*(x::Number, a::GradedArray) = a * x
-Base.:-(a::GradedArray) = (-one(eltype(a))) * a
-function Base.:/(a::GradedArray, x::Number)
-    return GradedArray(matricize(a) / x, axes_codomain(a), axes_domain(a))
-end
 Base.:+(a::GradedArray, b::GradedArray) = a .+ b
 Base.:-(a::GradedArray, b::GradedArray) = a .- b
 
@@ -509,23 +495,53 @@ Base.:-(a::GradedArray, b::GradedArray) = a .- b
 # materialize through `bipermutedimsopadd!`. The shared graded `copyto!` and the
 # `LinearBroadcasted` fold do the work; only allocation is `GradedArray`-specific.
 
-struct GradedArrayStyle{N} <: AbstractGradedStyle{N} end
-GradedArrayStyle{N}(::Val{M}) where {N, M} = GradedArrayStyle{M}()
+struct GradedStyle{N} <: AbstractGradedStyle{N} end
+GradedStyle{N}(::Val{M}) where {N, M} = GradedStyle{M}()
 
 function BC.BroadcastStyle(::Type{<:GradedArray{<:Any, <:Any, N}}) where {N}
-    return GradedArrayStyle{N}()
+    return GradedStyle{N}()
 end
 
-# Build the result with all axes in the codomain (matching TensorKit's move-to-codomain convention
-# for `+`/`-`), so operands with any codomain/domain split are bent into it by the fold.
+# A `GradedArray` and a bare fused graded array (`FusedGradedMatrix`/`Vector`/`Diagonal`) do not mix
+# in a single broadcast expression: the coupled-block layout has no aligned counterpart in the
+# external-axis array. Error deliberately (with a clear message) rather than densify.
+function BC.BroadcastStyle(::GradedStyle, ::AbstractFusedGradedStyle)
+    return error("cannot broadcast a `GradedArray` together with a fused graded array")
+end
+function BC.BroadcastStyle(::AbstractFusedGradedStyle, ::GradedStyle)
+    return error("cannot broadcast a `GradedArray` together with a fused graded array")
+end
+
+# A 1-arg linear broadcast (`conj.(a)`, `2 .* a`) preserves the single operand's codomain/domain
+# split (dualized when the broadcast conjugated it), so a factor keeps its bipartition through
+# scaling and conjugation. A multi-operand combination (`a .+ b`) collapses to all-codomain, matching
+# TensorKit's move-to-codomain convention for `+`/`-`.
 # TODO: This picks the default block data type and so does not preserve non-`Array` block types
-# (e.g. GPU arrays). Carry the block data type on `GradedArrayStyle` and use it here, as
-# BlockSparseArrays does for its broadcast style.
-function Base.similar(bc::BC.Broadcasted{<:GradedArrayStyle}, elt::Type)
-    return GradedArray{elt}(undef, axes(flattenlinear(bc)), ())
+# (e.g. GPU arrays). Carry the block data type on `GradedStyle` and use it here, as BlockSparseArrays
+# does for its broadcast style.
+function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type)
+    lb = flattenlinear(bc)
+    args = BC.flatten(bc).args
+    operands = filter(arg -> broadcast_leaf(arg) isa GradedArray, args)
+    isempty(operands) &&
+        error("no `GradedArray` operand found in a `GradedStyle` broadcast")
+    # Split-preserving 1-arg optimization: only for a single *bare* (unpermuted) operand whose axes
+    # match the linear expression's (or its conjugate). A `PermutedDims`-wrapped operand (the
+    # named-tensor alignment leaf) or a multi-operand combination falls through to all-codomain.
+    if length(operands) == 1 && only(operands) isa GradedArray
+        a = only(operands)
+        axes(lb) == axes(a) &&
+            return TensorAlgebra.similar_map(a, elt, axes_codomain(a), axes_domain(a))
+        axes(lb) == map(conj, axes(a)) && return TensorAlgebra.similar_map(
+            a, elt, map(dual, axes_codomain(a)), map(dual, axes_domain(a))
+        )
+    end
+    # Fallback: all axes in the codomain. `similar_map` (not the bare `undef` constructor) reads the
+    # sector type from the operand, so the rank-0 case (empty axes) still resolves its trivial sector.
+    return TensorAlgebra.similar_map(broadcast_leaf(first(operands)), elt, axes(lb), ())
 end
 
-function Base.copyto!(dest::GradedArray, bc::BC.Broadcasted{<:GradedArrayStyle})
+function Base.copyto!(dest::GradedArray, bc::BC.Broadcasted{<:GradedStyle})
     return copyto!(dest, flattenlinear(bc))
 end
 
