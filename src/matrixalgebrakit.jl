@@ -3,7 +3,7 @@ using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 # Length of the main diagonal of a matrix (e.g. the number of singular values a block produces).
 diaglength(a::AbstractArray) = minimum(size(a))
 
-struct GradedBlockAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
+struct GradedMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A
 end
 
@@ -21,7 +21,7 @@ for f in [
     @eval function MAK.default_algorithm(
             ::typeof(MAK.$f!), ::Type{T}; kwargs...
         ) where {T <: FusedGradedMatrix}
-        return GradedBlockAlgorithm(
+        return GradedMatrixAlgorithm(
             MAK.default_algorithm(
                 MAK.$f!, datatype(T);
                 kwargs...
@@ -62,7 +62,7 @@ const BARE_MATRIX_FACTORIZATIONS = (
 # `AbstractMatrix` path scalar-indexes the block and hits the unique-fusion guard.
 #
 # `SectorMatrixAlgorithm` wraps the reduced-data algorithm so the block projection dispatches on
-# a distinct type (mirroring `GradedBlockAlgorithm` one level up), forwarding the wrapped inner
+# a distinct type (mirroring `GradedMatrixAlgorithm` one level up), forwarding the wrapped inner
 # algorithm to the data and staying clear of the generic `AbstractMatrix` projection methods.
 struct SectorMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A
@@ -128,7 +128,7 @@ for f! in (
         :eig_full!, :eigh_full!, :svd_compact!, :svd_full!,
         :left_polar!, :right_polar!,
     )
-    @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedBlockAlgorithm)
+    @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::GradedMatrixAlgorithm)
         $(f! in (:eig_full!, :eigh_full!) && :(LinearAlgebra.checksquare(A)))
         foreachblock(A, F...) do _, (Ablock, Fblocks...)
             Fblocks′ = MAK.$f!(Ablock, Fblocks, alg.alg)
@@ -144,7 +144,7 @@ for f! in (
         :svd_vals!, :eig_vals!, :eigh_vals!,
         :project_isometric!,
     )
-    @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::GradedBlockAlgorithm)
+    @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::GradedMatrixAlgorithm)
         $(f! in (:eig_vals!, :eigh_vals!) && :(LinearAlgebra.checksquare(A)))
         foreachblock(A, N) do _, (Ablock, Nblock)
             Nblock′ = MAK.$f!(Ablock, Nblock, alg.alg)
@@ -158,7 +158,7 @@ end
 # stored block, reusing the `FusedSectorMatrix` methods above. Both are pure in-place projections
 # with the same block structure as the input, so they iterate the stored blocks directly.
 for f! in (:project_hermitian!, :project_antihermitian!)
-    @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::GradedBlockAlgorithm)
+    @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::GradedMatrixAlgorithm)
         LinearAlgebra.checksquare(A)
         for I in eachblockstoredindex(A)
             MAK.$f!(view(A, I), view(out, I), SectorMatrixAlgorithm(alg.alg))
@@ -210,7 +210,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.svd_full!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     U = similar(A, axis_codomain(A), axis_codomain(A))
     S = similar(A, real(eltype(A)), axis_codomain(A), axis_domain(A))
@@ -220,7 +220,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.svd_compact!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     V_S = FusedGradedOneTo(map(diaglength, sectordata(A)))
     U = similar(A, axis_codomain(A), V_S)
@@ -232,7 +232,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.svd_vals!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     V_S = FusedGradedOneTo(map(diaglength, sectordata(A)))
     Tr = real(eltype(A))
@@ -244,7 +244,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.eig_full!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     Tc = complex(eltype(A))
     D = similar_diagonal(A, Tc, axis_domain(A))
@@ -254,7 +254,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.eig_vals!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     Tc = complex(eltype(A))
     return similar(A, Vector{Tc}, axis_domain(A)) # TODO: don't hardcode type
@@ -263,7 +263,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.eigh_full!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     Tr = real(eltype(A))
     D = similar_diagonal(A, Tr, axis_domain(A))
@@ -273,7 +273,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.eigh_vals!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     Tr = real(eltype(A))
     return similar(A, Vector{Tr}, axis_domain(A)) # TODO: don't hardcode type
@@ -284,7 +284,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.qr_full!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     Q = similar(A, axis_codomain(A), axis_codomain(A))
     R = similar(A, axis_codomain(A), axis_domain(A))
@@ -293,7 +293,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.qr_compact!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     V_Q = FusedGradedOneTo(map(diaglength, sectordata(A)))
     Q = similar(A, axis_codomain(A), V_Q)
@@ -303,7 +303,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.qr_null!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     V_N = copy(sectordatalengths(axis_codomain(A)))
     dom = sectordatalengths(axis_domain(A))
@@ -319,7 +319,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.lq_full!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     L = similar(A, axis_codomain(A), axis_domain(A))
     Q = similar(A, axis_domain(A), axis_domain(A))
@@ -328,7 +328,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.lq_compact!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     V_Q = FusedGradedOneTo(map(diaglength, sectordata(A)))
     L = similar(A, axis_codomain(A), V_Q)
@@ -338,7 +338,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.lq_null!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     V_N = copy(sectordatalengths(axis_domain(A)))
     cod = sectordatalengths(axis_codomain(A))
@@ -354,7 +354,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.left_polar!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     W = similar(A)
     P = similar(A, axis_domain(A), axis_domain(A))
@@ -363,7 +363,7 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.right_polar!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     P = similar(A, axis_codomain(A), axis_codomain(A))
     Wᴴ = similar(A)
@@ -377,21 +377,21 @@ end
 function MAK.initialize_output(
         ::typeof(MAK.project_hermitian!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     return A
 end
 function MAK.initialize_output(
         ::typeof(MAK.project_antihermitian!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     return A
 end
 function MAK.initialize_output(
         ::typeof(MAK.project_isometric!),
         A::FusedGradedMatrix,
-        alg::GradedBlockAlgorithm
+        alg::GradedMatrixAlgorithm
     )
     return similar(A)
 end

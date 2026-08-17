@@ -10,7 +10,6 @@ export AbstractSectorArray,
     FusedSectorMatrix, FusedSectorVector
 export GradedArray
 export FusedGradedMatrix, FusedGradedVector, FusedGradedDiagonal
-export GradedBlockAlgorithm
 
 export codomain, domain,
     dual, flip, gradedrange, fusedgradedrange, isdual,
