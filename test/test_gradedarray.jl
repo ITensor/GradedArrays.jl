@@ -435,12 +435,40 @@ end
         @test 2 .* TensorAlgebra.PermutedDims(a, (1, 2)) isa GradedArray
         @test a .+ TensorAlgebra.PermutedDims(b, (1, 2)) isa GradedArray
 
-        S = FusedGradedDiagonal(
-            FusedGradedVector([randn(2), randn(1)], [SU2(0), SU2(1 // 2)])
-        )
+        S = FusedGradedDiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
         out = 2 .* TensorAlgebra.PermutedDims(S, (1, 2))
         @test out isa FusedGradedDiagonal
         @test diag(out) ≈ 2 .* diag(S)
+    end
+
+    @testset "mixed dense/diagonal broadcasting and conj" begin
+        S = FusedGradedDiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
+        M = matricize(randn((axes(S, 1),), (axes(S, 2),)))
+        @test axes(M) == axes(S)
+
+        # All-diagonal linear broadcasts stay diagonal (diagonal destination through the
+        # generic block loop).
+        @test 2 .* S isa FusedGradedDiagonal
+        @test Array(2 .* S) ≈ 2 .* Array(S)
+        @test S .+ S isa FusedGradedDiagonal
+        @test Array(S .+ S) ≈ Array(S) .+ Array(S)
+
+        # Mixing a diagonal with a dense fused matrix promotes to dense.
+        @test M .+ S isa FusedGradedMatrix
+        @test Array(M .+ S) ≈ Array(M) .+ Array(S)
+        @test S .+ M isa FusedGradedMatrix
+        @test Array(S .+ M) ≈ Array(S) .+ Array(M)
+        @test 2 .* S .+ M isa FusedGradedMatrix
+        @test Array(2 .* S .+ M) ≈ 2 .* Array(S) .+ Array(M)
+
+        # `conj` dualizes the first axis, which fused storage forbids, so it errors for both
+        # storage types in the function and broadcast forms; `adjoint` is the valid conjugation.
+        @test_throws Exception conj(S)
+        @test_throws Exception conj.(S)
+        @test_throws Exception conj(M)
+        @test_throws Exception conj.(M)
+        @test_throws Exception M .+ conj.(S)
+        @test Array(S') ≈ Array(S)'
     end
 
     @testset "fermionic" begin

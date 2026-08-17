@@ -148,13 +148,19 @@ FusedGradedStyle{N}(::Val{M}) where {N, M} = FusedGradedStyle{M}()
 BC.BroadcastStyle(::Type{<:FusedGradedVector}) = FusedGradedStyle{1}()
 BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle{2}()
 
-# Rebuild the fused array from the linear expression's axes: the undef constructors invert `axes`,
-# undoing the domain dualization a `conj` operand introduces so the result lands in the right sectors.
+# Base's `combine_axes` reduces graded axes to plain blocked ranges (it works off blocklengths), so
+# report the first fused operand's axes. Operands of a linear broadcast share axes; a genuine mismatch,
+# or a `conj` that dualizes them, is caught in `bipermutedimsopadd!`'s `check_input`.
+function Base.axes(bc::BC.Broadcasted{<:AbstractFusedGradedStyle})
+    leaves = map(broadcast_leaf, BC.flatten(bc).args)
+    return axes(leaves[findfirst(l -> l isa AbstractFusedGradedArray, leaves)])
+end
+
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{1}}, elt::Type)
-    return FusedGradedVector{elt}(undef, axes(flattenlinear(bc)))
+    return FusedGradedVector{elt}(undef, axes(bc))
 end
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{2}}, elt::Type)
-    return FusedGradedMatrix{elt}(undef, axes(flattenlinear(bc)))
+    return FusedGradedMatrix{elt}(undef, axes(bc))
 end
 
 # Fused-array linear broadcasts fold to the leaf via `flattenlinear` and apply block-wise.

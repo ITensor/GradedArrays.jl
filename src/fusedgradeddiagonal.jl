@@ -24,6 +24,16 @@ function FusedGradedDiagonal{T}(
     return FusedGradedDiagonal(FusedGradedVector{T}(undef, axis))
 end
 
+"""
+    FusedGradedDiagonal(sectors .=> data)
+
+Build a `FusedGradedDiagonal` from the per-sector diagonal data: the pair `sectors[i] => data[i]` gives
+the diagonal entries of the block at `sectors[i]`.
+"""
+function FusedGradedDiagonal(sectordata::AbstractVector{<:Pair})
+    return FusedGradedDiagonal(FusedGradedVector(last.(sectordata), first.(sectordata)))
+end
+
 sectordata(d::FusedGradedDiagonal) = map(Diagonal, sectordata(MAK.diagview(d)))
 
 # ---- accessors ----
@@ -56,20 +66,6 @@ function TensorAlgebra.permuteddims(d::FusedGradedDiagonal, perm)
     return d
 end
 
-# `check_input` would require `conj` to dualize the axes, but a diagonal is self-dual, so its axes
-# just have to match; each block then delegates to the plain-array `bipermutedimsopadd!`.
-function TensorAlgebra.bipermutedimsopadd!(
-        dest::FusedGradedDiagonal, op, src::FusedGradedDiagonal,
-        perm_codomain, perm_domain, α::Number, β::Number
-    )
-    axes(dest) == axes(src) ||
-        throw(DimensionMismatch("`bipermutedimsopadd!` requires matching axes"))
-    foreachblock(MAK.diagview(dest), MAK.diagview(src)) do _, (d, s)
-        return TensorAlgebra.bipermutedimsopadd!(d, op, s, (1,), (), α, β)
-    end
-    return dest
-end
-
 function TensorAlgebra.allocate_output(
         ::typeof(TA.permutedimsop), op, src::FusedGradedDiagonal, perm_codomain, perm_domain
     )
@@ -90,12 +86,7 @@ BC.BroadcastStyle(style::FusedGradedStyle{2}, ::FusedGradedDiagonalStyle) = styl
 BC.BroadcastStyle(::FusedGradedDiagonalStyle, style::FusedGradedStyle{2}) = style
 
 function Base.similar(bc::BC.Broadcasted{<:FusedGradedDiagonalStyle}, elt::Type)
-    operands = filter(a -> broadcast_leaf(a) isa FusedGradedDiagonal, BC.flatten(bc).args)
-    isempty(operands) && error(
-        "no `FusedGradedDiagonal` operand found in a `FusedGradedDiagonalStyle` broadcast"
-    )
-    d = broadcast_leaf(first(operands))
-    return FusedGradedDiagonal{elt}(undef, only(axes_codomain(d)))
+    return FusedGradedDiagonal{elt}(undef, first(axes(bc)))
 end
 
 function Base.copyto!(
@@ -104,6 +95,3 @@ function Base.copyto!(
     copyto!(dest, flattenlinear(bc))
     return dest
 end
-
-# Without this, `conj` hits the fused-array method that errors; the dot routes it through the style.
-Base.conj(a::FusedGradedDiagonal) = conj.(a)
