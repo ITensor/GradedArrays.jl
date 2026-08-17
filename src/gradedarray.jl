@@ -264,13 +264,9 @@ function Base.permutedims!(
 end
 
 # ============================  conj  ============================
-# Route through the graded broadcast (which dualizes the axes, applies the fermion leg-reversal phase,
-# and preserves the codomain/domain split). `conj` on a symmetric array is a structural operation
-# (charge conjugation), so force the broadcast path even for a real eltype, where Base's
-# `conj(::AbstractArray{<:Real})` would otherwise short-circuit to the identity and drop the
-# dualization and phase. `broadcast_preserving_zero_d` is Base's own spelling of `conj.(a)` for an
-# array; unlike a plain `conj.(a)` it keeps a rank-0 result a rank-0 `GradedArray` rather than
-# collapsing it to a scalar.
+# `conj` on a graded array is charge conjugation (dualizes the axes, applies the fermion phase), so route
+# through the broadcast path even for a real eltype, where Base's `conj` would short-circuit to the
+# identity and drop it.
 Base.conj(a::GradedArray) = Base.Broadcast.broadcast_preserving_zero_d(conj, a)
 
 # ============================  matrix operations (guarded)  ============================
@@ -504,11 +500,9 @@ end
 
 # A `GradedArray` and a bare fused graded array (`FusedGradedMatrix`/`Vector`/`Diagonal`) do not mix
 # in a single broadcast expression: the coupled-block layout has no aligned counterpart in the
-# external-axis array. Error deliberately (with a clear message) rather than densify.
+# external-axis array. Error deliberately rather than densify. Only one direction is needed:
+# `result_style` evaluates `BroadcastStyle` in both operand orders, so this fires either way.
 function BC.BroadcastStyle(::GradedStyle, ::AbstractFusedGradedStyle)
-    return error("cannot broadcast a `GradedArray` together with a fused graded array")
-end
-function BC.BroadcastStyle(::AbstractFusedGradedStyle, ::GradedStyle)
     return error("cannot broadcast a `GradedArray` together with a fused graded array")
 end
 

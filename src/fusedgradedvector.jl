@@ -306,7 +306,8 @@ end
 function TensorAlgebra.allocate_output(
         ::typeof(TA.permutedimsop), op, src::FusedGradedVector, perm_codomain, perm_domain
     )
-    return similar(src, Base.promote_op(op, eltype(src)))
+    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+    return similar(src)
 end
 
 # ========================  show  ========================

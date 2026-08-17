@@ -470,6 +470,41 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
+# A fused graded matrix permute-add keeps the first (codomain) axis non-dual only for an identity copy or
+# an adjoint; any other `(op, perm)` would bend or dualize it, which fused storage cannot represent.
+function TensorAlgebra.check_input(
+        ::typeof(TA.permutedimsop), op,
+        ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+    )
+    is_copy = op === identity && perm_codomain == (1,) && perm_domain == (2,)
+    is_adjoint = op === conj && perm_codomain == (2,) && perm_domain == (1,)
+    (is_copy || is_adjoint) || throw(
+        ArgumentError(
+            "a fused graded matrix permute-add allows only an identity copy (`op = identity`, " *
+                "`perm_codomain = (1,)`, `perm_domain = (2,)`) or an adjoint (`op = conj`, " *
+                "`perm_codomain = (2,)`, `perm_domain = (1,)`); got `op = $op`, " *
+                "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
+        )
+    )
+    return nothing
+end
+
+# A fused graded vector has a single canonical non-dual axis, so only the identity copy is valid: `conj`
+# would dualize it, and there is no rank-preserving transpose.
+function TensorAlgebra.check_input(
+        ::typeof(TA.permutedimsop), op,
+        ::AbstractFusedGradedVector, perm_codomain, perm_domain
+    )
+    (op === identity && perm_codomain == (1,) && perm_domain == ()) || throw(
+        ArgumentError(
+            "a fused graded vector permute-add allows only the identity copy (`op = identity`, " *
+                "`perm_codomain = (1,)`, `perm_domain = ()`); got `op = $op`, " *
+                "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
+        )
+    )
+    return nothing
+end
+
 function LinearAlgebra.mul!(
         C::AbstractFusedGradedMatrix, A::AbstractFusedGradedMatrix,
         B::AbstractFusedGradedMatrix,

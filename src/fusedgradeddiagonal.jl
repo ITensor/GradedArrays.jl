@@ -69,8 +69,18 @@ end
 function TensorAlgebra.allocate_output(
         ::typeof(TA.permutedimsop), op, src::FusedGradedDiagonal, perm_codomain, perm_domain
     )
+    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+    # Both the identity copy and the adjoint allocate the same diagonal (same non-dual axis); `op` acts
+    # on the data during the permute-add, not here. Passing `conj` would dualize the diagview's axis, so
+    # allocate with `identity`.
     return FusedGradedDiagonal(
-        TensorAlgebra.allocate_output(TA.permutedimsop, op, MAK.diagview(src), (1,), ())
+        TensorAlgebra.allocate_output(
+            TA.permutedimsop,
+            identity,
+            MAK.diagview(src),
+            (1,),
+            ()
+        )
     )
 end
 
@@ -86,12 +96,8 @@ BC.BroadcastStyle(style::FusedGradedStyle{2}, ::FusedGradedDiagonalStyle) = styl
 BC.BroadcastStyle(::FusedGradedDiagonalStyle, style::FusedGradedStyle{2}) = style
 
 function Base.similar(bc::BC.Broadcasted{<:FusedGradedDiagonalStyle}, elt::Type)
+    # TODO: generalize to non-CPU storage (e.g. GPU arrays). The style should carry a data/storage style
+    # (as Base's `ArrayStyle` carries the array type) so `similar` allocates backing storage of the right
+    # type rather than always defaulting to a dense CPU array.
     return FusedGradedDiagonal{elt}(undef, first(axes(bc)))
-end
-
-function Base.copyto!(
-        dest::FusedGradedDiagonal, bc::BC.Broadcasted{<:FusedGradedDiagonalStyle}
-    )
-    copyto!(dest, flattenlinear(bc))
-    return dest
 end
