@@ -91,9 +91,9 @@ FusedGradedDiagonalStyle(::Val{2}) = FusedGradedDiagonalStyle()
 
 BC.BroadcastStyle(::Type{<:FusedGradedDiagonal}) = FusedGradedDiagonalStyle()
 
-# Mixed with a dense fused matrix, a diagonal promotes to dense.
+# Mixed with a dense fused matrix, a diagonal promotes to dense. Only one operand order is needed:
+# Base's `result_join` retries the reversed order when the first returns `Unknown`.
 BC.BroadcastStyle(style::FusedGradedStyle{2}, ::FusedGradedDiagonalStyle) = style
-BC.BroadcastStyle(::FusedGradedDiagonalStyle, style::FusedGradedStyle{2}) = style
 
 function Base.similar(bc::BC.Broadcasted{<:FusedGradedDiagonalStyle}, elt::Type)
     # TODO: generalize to non-CPU storage (e.g. GPU arrays). The style should carry a data/storage style

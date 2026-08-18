@@ -81,6 +81,8 @@ BC.BroadcastStyle(::Type{<:FusedSectorMatrix}) = SectorStyle{2}()
 # Rebuild the block from the linear expression's `SectorOneTo` axes, which carry the coupled sector
 # (dualized when the broadcast conjugated an operand). Keyed on the block style's rank rather than
 # `Base.similar` on axis type, which cannot tell a fused block from an unfused `UniqueSectorArray`.
+# TODO: these allocate default CPU `Array` block storage; the style should carry a data/storage type (as
+# Base's `ArrayStyle` carries the array type) so non-`Array` (e.g. GPU) block storage is preserved.
 function Base.similar(bc::BC.Broadcasted{SectorStyle{1}}, elt::Type)
     ax = axes(flattenlinear(bc))
     return FusedSectorVector{elt}(undef, sector(ax[1]), datalength(ax[1]))
@@ -153,6 +155,8 @@ BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle{2}()
 # expression keeps them.
 Base.axes(bc::BC.Broadcasted{<:AbstractGradedStyle}) = axes(flattenlinear(bc))
 
+# TODO: these allocate default CPU `Array` block storage; the style should carry a data/storage type (as
+# Base's `ArrayStyle` carries the array type) so non-`Array` (e.g. GPU) block storage is preserved.
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{1}}, elt::Type)
     return FusedGradedVector{elt}(undef, axes(bc))
 end
