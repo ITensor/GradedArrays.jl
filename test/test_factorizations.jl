@@ -1,6 +1,7 @@
 import MatrixAlgebraKit as MAK
-using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
-    GradedArray, GradedMatrixAlgorithm, SectorRange, U1, Z2, dual, gradedrange, sectordata
+using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix,
+    FusedGradedMatrixAlgorithm, FusedGradedVector, GradedArray, SectorRange, U1, Z2, dual,
+    gradedrange, sectordata
 using LinearAlgebra:
     Diagonal, I, diag, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
@@ -61,9 +62,9 @@ end
     sectors_z2 = [Z2(0), Z2(1)]
     A_z2 = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_z2, [3, 4]))
 
-    @testset "GradedMatrixAlgorithm" begin
+    @testset "FusedGradedMatrixAlgorithm" begin
         alg = MAK.select_algorithm(MAK.svd_compact!, A_rect)
-        @test alg isa GradedMatrixAlgorithm
+        @test alg isa FusedGradedMatrixAlgorithm
     end
 
     # -----------------------------------------------------------------------
