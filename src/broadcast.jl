@@ -121,12 +121,13 @@ end
 # See the `AbstractSectorStyle` override above.
 BC.instantiate(bc::BC.Broadcasted{<:AbstractGradedStyle}) = bc
 
-# Unwrap a broadcast leaf to the underlying operand array. The named-tensor broadcast (ITensorBase)
-# wraps each by-name-aligned operand in a `TensorAlgebra.PermutedDims` (which forwards its parent's
-# broadcast style), so `similar`'s operand discovery must look through it to find the structured
-# array. A bare operand is returned as-is.
-broadcast_leaf(a) = a
-broadcast_leaf(a::TensorAlgebra.PermutedDims) = broadcast_leaf(parent(a))
+# The array a linear broadcast reproduces (its output sector type, `similar_map` dispatch), through the
+# named-tensor `PermutedDims` alignment wrapper.
+broadcast_array(a::TA.ScaledBroadcasted) = broadcast_array(TA.unscaled(a))
+broadcast_array(a::TA.ConjBroadcasted) = broadcast_array(parent(a))
+broadcast_array(a::TA.AddBroadcasted) = broadcast_array(first(TA.addends(a)))
+broadcast_array(a::TA.PermutedDims) = parent(a)
+broadcast_array(a::AbstractArray) = a
 
 # ---- fused (coupled-sector-block) graded arrays ----
 #
@@ -148,13 +149,9 @@ FusedGradedStyle{N}(::Val{M}) where {N, M} = FusedGradedStyle{M}()
 BC.BroadcastStyle(::Type{<:FusedGradedVector}) = FusedGradedStyle{1}()
 BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle{2}()
 
-# Override the Base broadcast `axes`, which `BlockArrays.combine_axes` reduces to plain blocked ranges.
-# Report the first fused operand's own axes (applying any name-aligning `PermutedDims`); `broadcast_leaf`
-# only identifies which operand is fused.
-function Base.axes(bc::BC.Broadcasted{<:AbstractFusedGradedStyle})
-    args = BC.flatten(bc).args
-    return axes(args[findfirst(a -> broadcast_leaf(a) isa AbstractFusedGradedArray, args)])
-end
+# Base's broadcast `axes` (via `BlockArrays.combine_axes`) loses the graded axes; the flattened linear
+# expression keeps them.
+Base.axes(bc::BC.Broadcasted{<:AbstractGradedStyle}) = axes(flattenlinear(bc))
 
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{1}}, elt::Type)
     return FusedGradedVector{elt}(undef, axes(bc))

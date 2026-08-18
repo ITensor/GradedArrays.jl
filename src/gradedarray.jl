@@ -506,33 +506,13 @@ function BC.BroadcastStyle(::GradedStyle, ::AbstractFusedGradedStyle)
     return error("cannot broadcast a `GradedArray` together with a fused graded array")
 end
 
-# A 1-arg linear broadcast (`conj.(a)`, `2 .* a`) preserves the single operand's codomain/domain
-# split (dualized when the broadcast conjugated it), so a factor keeps its bipartition through
-# scaling and conjugation. A multi-operand combination (`a .+ b`) collapses to all-codomain, matching
-# TensorKit's move-to-codomain convention for `+`/`-`.
 # TODO: This picks the default block data type and so does not preserve non-`Array` block types
 # (e.g. GPU arrays). Carry the block data type on `GradedStyle` and use it here, as BlockSparseArrays
 # does for its broadcast style.
 function Base.similar(bc::BC.Broadcasted{<:GradedStyle}, elt::Type)
     lb = flattenlinear(bc)
-    args = BC.flatten(bc).args
-    operands = filter(arg -> broadcast_leaf(arg) isa GradedArray, args)
-    isempty(operands) &&
-        error("no `GradedArray` operand found in a `GradedStyle` broadcast")
-    # Split-preserving 1-arg optimization: only for a single *bare* (unpermuted) operand whose axes
-    # match the linear expression's (or its conjugate). A `PermutedDims`-wrapped operand (the
-    # named-tensor alignment leaf) or a multi-operand combination falls through to all-codomain.
-    if length(operands) == 1 && only(operands) isa GradedArray
-        a = only(operands)
-        axes(lb) == axes(a) &&
-            return TensorAlgebra.similar_map(a, elt, axes_codomain(a), axes_domain(a))
-        axes(lb) == map(conj, axes(a)) && return TensorAlgebra.similar_map(
-            a, elt, map(dual, axes_codomain(a)), map(dual, axes_domain(a))
-        )
-    end
-    # Fallback: all axes in the codomain. `similar_map` (not the bare `undef` constructor) reads the
-    # sector type from the operand, so the rank-0 case (empty axes) still resolves its trivial sector.
-    return TensorAlgebra.similar_map(broadcast_leaf(first(operands)), elt, axes(lb), ())
+    bi = biaxes(lb)
+    return TensorAlgebra.similar_map(broadcast_array(lb), elt, codomain(bi), domain(bi))
 end
 
 function Base.copyto!(dest::GradedArray, bc::BC.Broadcasted{<:GradedStyle})

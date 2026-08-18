@@ -16,6 +16,20 @@ axis_codomain(a::AbstractArray) = only(axes_codomain(a))
 axis_domain(a::AbstractArray) = only(axes_domain(a))
 axis(a::AbstractArray) = only(axes(a))
 
+# Expression nodes share the same interface: `axes_codomain`/`axes_domain` are the primitives and
+# `biaxes` derives from them (as for arrays above). Scaling keeps the operand's split, conjugation
+# dualizes both halves, and a sum (always ≥2 addends) or a `PermutedDims` view goes all-codomain.
+biaxes(a::TA.LinearBroadcasted) = bispace(axes_codomain(a), axes_domain(a))
+biaxes(a::TA.PermutedDims) = bispace(axes_codomain(a), axes_domain(a))
+axes_codomain(a::TA.ScaledBroadcasted) = axes_codomain(TA.unscaled(a))
+axes_domain(a::TA.ScaledBroadcasted) = axes_domain(TA.unscaled(a))
+axes_codomain(a::TA.ConjBroadcasted) = map(conj, axes_codomain(parent(a)))
+axes_domain(a::TA.ConjBroadcasted) = map(conj, axes_domain(parent(a)))
+axes_codomain(a::TA.AddBroadcasted) = axes(a)
+axes_domain(a::TA.AddBroadcasted) = ()
+axes_codomain(a::TA.PermutedDims) = axes(a)
+axes_domain(a::TA.PermutedDims) = ()
+
 function tensor_product(r1, r2, r3, rs...)
     return tensor_product(tensor_product(r1, r2), r3, rs...)
 end
