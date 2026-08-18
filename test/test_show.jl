@@ -1,7 +1,7 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo, SU2,
-    SectorOneTo, SectorRange, TrivialSector, U1, UniqueSectorArray, Z, dual, gradedrange,
-    with_scalar_indexing, ×
+    SectorOneTo, SectorRange, TrivialSector, U1, UniqueSectorArray, Z, dual,
+    fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionNumber, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 

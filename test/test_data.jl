@@ -1,7 +1,7 @@
 using BlockArrays: Block, blockedrange
 using GradedArrays: GradedArrays, Data, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
-    U1, UniqueSectorArray, data, dual, eachblockstoredindex, gradedrange, sectoraxes,
-    sectordata, sectors, with_block_indexing
+    U1, UniqueSectorArray, data, dual, eachblockstoredindex, fusedgradedmatrix, gradedrange,
+    sectoraxes, sectordata, sectors, with_block_indexing
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin

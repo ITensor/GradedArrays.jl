@@ -1,7 +1,7 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix,
     FusedGradedMatrixAlgorithm, FusedGradedVector, GradedArray, SectorRange, U1, Z2, dual,
-    gradedrange, sectordata
+    fusedgradeddiagonal, fusedgradedmatrix, gradedrange, sectordata
 using LinearAlgebra:
     Diagonal, I, diag, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary

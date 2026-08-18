@@ -3,9 +3,9 @@ using BlockArrays: Block, blocklength
 using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, GradedArray,
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths, dual,
-    eachblockstoredindex, eachsectoraxis, flip, gradedrange, isdual, sector, sectoraxes,
-    sectordata, sectormergesort, sectors, sectortype, tensor_product, with_block_indexing,
-    with_scalar_indexing
+    eachblockstoredindex, eachsectoraxis, flip, fusedgradedmatrix, fusedgradedvector,
+    gradedrange, isdual, sector, sectoraxes, sectordata, sectormergesort, sectors,
+    sectortype, tensor_product, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: tr
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,

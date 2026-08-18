@@ -1,8 +1,9 @@
 using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
     FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2, data, dual,
-    gradedrange, isdual, ndims_codomain, ndims_domain, sector, sectordata, to_tensormap,
-    with_block_indexing, with_scalar_indexing
+    fusedgradeddiagonal, fusedgradedmatrix, gradedrange, isdual, ndims_codomain,
+    ndims_domain, sector, sectordata, to_tensormap, with_block_indexing,
+    with_scalar_indexing
 using LinearAlgebra: Diagonal, diag
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
