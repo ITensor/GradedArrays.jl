@@ -119,23 +119,24 @@ struct FusedGradedVector{T, S <: SectorRange, V <: DenseVector{T}} <:
     axis::FusedGradedOneTo{S}
 
     # Primitive constructor: wrap a contiguous buffer (shared, not copied); the per-sector blocks are
-    # the lazy `sectordata` view over it. The axis is a non-dual `FusedGradedOneTo` (its constructor
-    # enforces sorted, non-dual sectors).
+    # the lazy `sectordata` view over it. This is the single place the axis is fused into canonical
+    # `FusedGradedOneTo` form; the stored axis is non-dual.
     function FusedGradedVector{T, S, V}(
-            data::V, axis::FusedGradedOneTo{S}
+            buffer::V, axis::AbstractGradedOneTo
         ) where {T, S <: SectorRange, V <: DenseVector{T}}
-        isdual(axis) && throw(
+        ax = FusedGradedOneTo(axis)
+        isdual(ax) && throw(
             ArgumentError("FusedGradedVector stores a non-dual axis")
         )
         # Validate the buffer length against the block total (SectorData does the same check on access).
-        total = sum(values(sectordatalengths(axis)); init = 0)
-        length(data) == total ||
+        total = sum(values(sectordatalengths(ax)); init = 0)
+        length(buffer) == total ||
             throw(
             DimensionMismatch(
-                "buffer length $(length(data)) does not match block total $total"
+                "buffer length $(length(buffer)) does not match block total $total"
             )
         )
-        return new{T, S, V}(data, axis)
+        return new{T, S, V}(buffer, ax)
     end
 end
 
@@ -146,11 +147,8 @@ Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedVector` with th
 per-sector blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
 form. To build from per-sector block data instead, use [`fusedgradedvector`](@ref).
 """
-function FusedGradedVector(buffer::DenseVector, axis::AbstractGradedOneTo)
-    ax = FusedGradedOneTo(axis)
-    return FusedGradedVector{eltype(buffer), keytype(sectordatalengths(ax)), typeof(buffer)}(
-        buffer, ax
-    )
+function FusedGradedVector(buffer::DenseVector, axis::AbstractGradedOneTo{S}) where {S}
+    return FusedGradedVector{eltype(buffer), S, typeof(buffer)}(buffer, axis)
 end
 
 # Allocate an uninitialized buffer for `axis` and wrap it. The block total is the sum of the

@@ -19,27 +19,30 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
 
     # Primitive constructor: wrap a contiguous buffer already in TensorKit `.data` layout (shared, not
     # copied). The blocks are the lazy `sectordata` view over the buffer, so nothing block-shaped is
-    # stored. The axes are non-dual `FusedGradedOneTo`s (their constructor enforces sorted, non-dual
-    # sectors); the domain's dual arrow is implicit in `axes` (see `biaxes`).
+    # stored. This is the single place the codomain/domain axes are fused into canonical
+    # `FusedGradedOneTo` form; the stored axes are non-dual, with the domain's dual arrow implicit in
+    # `axes` (see `biaxes`).
     function FusedGradedMatrix{T, S, V}(
-            data::V, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
+            buffer::V, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
         ) where {T, S <: SectorRange, V <: DenseVector{T}}
-        (isdual(codomain) || isdual(domain)) && throw(
+        cod = FusedGradedOneTo(codomain)
+        dom = FusedGradedOneTo(domain)
+        (isdual(cod) || isdual(dom)) && throw(
             ArgumentError(
                 "FusedGradedMatrix stores non-dual codomain/domain axes; the domain's dual arrow is implicit in `axes` (see `biaxes`)"
             )
         )
         # Validate the buffer length against the block total (SectorData does the same check on access).
-        cod, dom = sectordatalengths(codomain), sectordatalengths(domain)
-        coupled = intersect(keys(cod), keys(dom))
-        total = sum(c -> cod[c] * dom[c], coupled; init = 0)
-        length(data) == total ||
+        codl, doml = sectordatalengths(cod), sectordatalengths(dom)
+        coupled = intersect(keys(codl), keys(doml))
+        total = sum(c -> codl[c] * doml[c], coupled; init = 0)
+        length(buffer) == total ||
             throw(
             DimensionMismatch(
-                "buffer length $(length(data)) does not match block total $total"
+                "buffer length $(length(buffer)) does not match block total $total"
             )
         )
-        return new{T, S, V}(data, codomain, domain)
+        return new{T, S, V}(buffer, cod, dom)
     end
 end
 
@@ -52,17 +55,9 @@ lazy `sectordata` view over the buffer. The axes are fused into canonical form. 
 per-sector block data instead, use [`fusedgradedmatrix`](@ref).
 """
 function FusedGradedMatrix(
-        buffer::DenseVector, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
-    )
-    cod = FusedGradedOneTo(codomain)
-    dom = FusedGradedOneTo(domain)
-    return FusedGradedMatrix{
-        eltype(buffer),
-        keytype(sectordatalengths(cod)),
-        typeof(buffer),
-    }(
-        buffer, cod, dom
-    )
+        buffer::DenseVector, codomain::AbstractGradedOneTo{S}, domain::AbstractGradedOneTo{S}
+    ) where {S}
+    return FusedGradedMatrix{eltype(buffer), S, typeof(buffer)}(buffer, codomain, domain)
 end
 
 # Allocate an uninitialized buffer for the given codomain/domain and wrap it. The block total (sum of
