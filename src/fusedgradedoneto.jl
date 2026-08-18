@@ -119,8 +119,16 @@ end
 
 FusedGradedOneTo(g::FusedGradedOneTo) = g
 
-# Convert a `GradedOneTo` that is already in canonical fused form (checked by the constructor).
-FusedGradedOneTo(g::GradedOneTo) = FusedGradedOneTo(sectors(g), datalengths(g), isdual(g))
+# Fuse any graded axis into canonical form. This is value-preserving: the constructor rejects
+# unsorted/dual input rather than silently re-sorting.
+function FusedGradedOneTo(g::AbstractGradedOneTo)
+    return FusedGradedOneTo(sectors(g), datalengths(g), isdual(g))
+end
+
+# `convert` is a thin delegator to the constructor (the worker); `convert(::Type{T}, ::T)` from Base
+# gives the no-op on an already-fused axis.
+Base.convert(::Type{FusedGradedOneTo}, g::AbstractGradedOneTo) = FusedGradedOneTo(g)
 
 GradedOneTo(g::GradedOneTo) = g
-GradedOneTo(g::FusedGradedOneTo) = GradedOneTo(sectors(g), datalengths(g), isdual(g))
+GradedOneTo(g::AbstractGradedOneTo) = GradedOneTo(sectors(g), datalengths(g), isdual(g))
+Base.convert(::Type{GradedOneTo}, g::AbstractGradedOneTo) = GradedOneTo(g)

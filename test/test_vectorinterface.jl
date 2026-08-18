@@ -136,12 +136,20 @@ end
 
 @testset "graded dot/norm factorize block-wise ($(typeof(a).name.name))" for (a, b) in (
         (
-            FusedGradedMatrix{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
-            FusedGradedMatrix{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
+            FusedGradedMatrix{Float64}(
+                undef,
+                gradedrange([SU2(0) => 2, SU2(1) => 3]),
+                gradedrange([SU2(0) => 2, SU2(1) => 3])
+            ),
+            FusedGradedMatrix{Float64}(
+                undef,
+                gradedrange([SU2(0) => 2, SU2(1) => 3]),
+                gradedrange([SU2(0) => 2, SU2(1) => 3])
+            ),
         ),
         (
-            FusedGradedVector{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
-            FusedGradedVector{Float64}(undef, [SU2(0) => 2, SU2(1) => 3]),
+            FusedGradedVector{Float64}(undef, gradedrange([SU2(0) => 2, SU2(1) => 3])),
+            FusedGradedVector{Float64}(undef, gradedrange([SU2(0) => 2, SU2(1) => 3])),
         ),
     )
     randn!(a)

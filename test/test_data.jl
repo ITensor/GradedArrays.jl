@@ -1,13 +1,13 @@
 using BlockArrays: Block, blockedrange
 using GradedArrays: GradedArrays, Data, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
-    U1, UniqueSectorArray, data, dual, eachblockstoredindex, gradedrange, sectoraxes,
-    sectordata, sectors, with_block_indexing
+    U1, UniqueSectorArray, data, dual, eachblockstoredindex, fusedgradedmatrix, gradedrange,
+    sectoraxes, sectordata, sectors, with_block_indexing
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin
     @testset "FusedGradedMatrix" begin
         sectors = [U1(0), U1(1)]
-        m = FusedGradedMatrix([ones(2, 3), 2 * ones(4, 5)], sectors)
+        m = fusedgradedmatrix(sectors .=> [ones(2, 3), 2 * ones(4, 5)])
 
         @testset "Data getindex returns copy of raw block" begin
             d = m[Data(1, 1)]
@@ -25,7 +25,7 @@ using Test: @test, @test_throws, @testset
 
         @testset "Data setindex! copies into raw block" begin
             sectors2 = [U1(0), U1(1)]
-            m2 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
+            m2 = fusedgradedmatrix(sectors2 .=> [zeros(2, 3), zeros(4, 5)])
             new_data = 7 * ones(2, 3)
             m2[Data(1, 1)] = new_data
             @test sectordata(m2)[U1(0)] == new_data
@@ -35,7 +35,7 @@ using Test: @test, @test_throws, @testset
         end
 
         @testset "Data setindex! size mismatch errors" begin
-            m3 = FusedGradedMatrix([zeros(2, 3)], [U1(0)])
+            m3 = fusedgradedmatrix([U1(0)] .=> [zeros(2, 3)])
             @test_throws DimensionMismatch (m3[Data(1, 1)] = ones(5, 5))
         end
 
@@ -46,7 +46,7 @@ using Test: @test, @test_throws, @testset
 
         @testset "Block setindex! with FusedSectorMatrix" begin
             sectors2 = [U1(0), U1(1)]
-            m4 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
+            m4 = fusedgradedmatrix(sectors2 .=> [zeros(2, 3), zeros(4, 5)])
             sm = FusedSectorMatrix(7 * ones(2, 3), U1(0))
             m4[Block(1, 1)] = sm
             @test sectordata(m4)[U1(0)] == 7 * ones(2, 3)
@@ -54,14 +54,14 @@ using Test: @test, @test_throws, @testset
 
         @testset "Block setindex! verifies sector" begin
             sectors2 = [U1(0), U1(1)]
-            m5 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
+            m5 = fusedgradedmatrix(sectors2 .=> [zeros(2, 3), zeros(4, 5)])
             sm_wrong = FusedSectorMatrix(ones(2, 3), U1(2))
             @test_throws DimensionMismatch (m5[Block(1, 1)] = sm_wrong)
         end
 
         @testset "Block setindex! off-diagonal errors" begin
             sectors2 = [U1(0), U1(1)]
-            m6 = FusedGradedMatrix([zeros(2, 3), zeros(4, 5)], sectors2)
+            m6 = fusedgradedmatrix(sectors2 .=> [zeros(2, 3), zeros(4, 5)])
             sm = FusedSectorMatrix(ones(2, 3), U1(0))
             @test_throws Exception (m6[Block(1, 2)] = sm)
         end
@@ -72,7 +72,7 @@ using Test: @test, @test_throws, @testset
             # block dictionary to an abstract `AbstractMatrix` on older Julia,
             # throwing a `TypeError` on reconstruction.
             blocks = [[2.0 0.0; 0.0 2.0], [3.0 0.0 0.0; 0.0 3.0 0.0; 0.0 0.0 3.0]]
-            m = FusedGradedMatrix(blocks, [U1(0), U1(1)])
+            m = fusedgradedmatrix([U1(0), U1(1)] .=> blocks)
             fm = f(m)
             @test fm isa FusedGradedMatrix{Float64}
             @test isconcretetype(typeof(sectordata(fm)[U1(0)]))

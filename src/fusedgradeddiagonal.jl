@@ -18,21 +18,32 @@ struct FusedGradedDiagonal{T, S <: SectorRange, V <: DenseVector{T}} <:
     diag::FusedGradedVector{T, S, V}
 end
 
-function FusedGradedDiagonal{T}(
-        ::UndefInitializer, axis::FusedGradedOneTo{S}
-    ) where {T, S <: SectorRange}
+"""
+    FusedGradedDiagonal(buffer, axis)
+
+Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedDiagonal` with the given `axis`; the
+`Diagonal` blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
+form. To build from per-sector diagonal data instead, use [`fusedgradeddiagonal`](@ref).
+"""
+function FusedGradedDiagonal(buffer::DenseVector, axis::AbstractGradedOneTo)
+    return FusedGradedDiagonal(FusedGradedVector(buffer, axis))
+end
+
+function FusedGradedDiagonal{T}(::UndefInitializer, axis::AbstractGradedOneTo) where {T}
     return FusedGradedDiagonal(FusedGradedVector{T}(undef, axis))
 end
 
 """
-    FusedGradedDiagonal(sectors .=> data)
+    fusedgradeddiagonal(sectors .=> data)
+    fusedgradeddiagonal(sectordata::Dictionary)
 
-Build a `FusedGradedDiagonal` from the per-sector diagonal data: the pair `sectors[i] => data[i]` gives
-the diagonal entries of the block at `sectors[i]`.
+Build a `FusedGradedDiagonal` from the per-sector diagonal data (`sector => data` pairs, any iterator
+of pairs, or a `Dictionary` keyed by sector): the pair `sectors[i] => data[i]` gives the diagonal
+entries of the block at `sectors[i]`. The axis is derived from the blocks, as for
+[`fusedgradedvector`](@ref). To wrap an existing contiguous buffer instead, use
+[`FusedGradedDiagonal`](@ref).
 """
-function FusedGradedDiagonal(sectordata::AbstractVector{<:Pair})
-    return FusedGradedDiagonal(FusedGradedVector(last.(sectordata), first.(sectordata)))
-end
+fusedgradeddiagonal(sectordata) = FusedGradedDiagonal(fusedgradedvector(sectordata))
 
 sectordata(d::FusedGradedDiagonal) = map(Diagonal, sectordata(MAK.diagview(d)))
 

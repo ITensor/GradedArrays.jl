@@ -1,7 +1,7 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix,
     FusedGradedMatrixAlgorithm, FusedGradedVector, GradedArray, SectorRange, U1, Z2, dual,
-    gradedrange, sectordata
+    fusedgradeddiagonal, fusedgradedmatrix, gradedrange, sectordata
 using LinearAlgebra:
     Diagonal, I, diag, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
 using MatrixAlgebraKit: isisometric, isunitary
@@ -45,22 +45,61 @@ end
     cod_dims_u1 = [3, 4, 2]
     dom_dims_u1 = [2, 3, 5]
 
-    A_rect =
-        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, cod_dims_u1, dom_dims_u1))
-    A_tall =
-        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, [4, 5, 3], [2, 3, 2]))
-    A_wide =
-        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, [2, 3, 2], [4, 5, 3]))
+    A_rect = randn!(
+        rng,
+        FusedGradedMatrix{Float64}(
+            undef,
+            gradedrange(sectors_u1 .=> cod_dims_u1),
+            gradedrange(sectors_u1 .=> dom_dims_u1)
+        )
+    )
+    A_tall = randn!(
+        rng,
+        FusedGradedMatrix{Float64}(
+            undef,
+            gradedrange(sectors_u1 .=> [4, 5, 3]),
+            gradedrange(sectors_u1 .=> [2, 3, 2])
+        )
+    )
+    A_wide = randn!(
+        rng,
+        FusedGradedMatrix{Float64}(
+            undef,
+            gradedrange(sectors_u1 .=> [2, 3, 2]),
+            gradedrange(sectors_u1 .=> [4, 5, 3])
+        )
+    )
 
     sq_dims_u1 = [3, 4, 2]
-    A_sq = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, sq_dims_u1))
+    A_sq = randn!(
+        rng,
+        FusedGradedMatrix{Float64}(
+            undef,
+            gradedrange(sectors_u1 .=> sq_dims_u1),
+            gradedrange(sectors_u1 .=> sq_dims_u1)
+        )
+    )
     A_herm = MAK.project_hermitian!(
-        randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_u1, sq_dims_u1))
+        randn!(
+            rng,
+            FusedGradedMatrix{Float64}(
+                undef,
+                gradedrange(sectors_u1 .=> sq_dims_u1),
+                gradedrange(sectors_u1 .=> sq_dims_u1)
+            )
+        )
     )
 
     # Z2 sectors for variety
     sectors_z2 = [Z2(0), Z2(1)]
-    A_z2 = randn!(rng, FusedGradedMatrix{Float64}(undef, sectors_z2, [3, 4]))
+    A_z2 = randn!(
+        rng,
+        FusedGradedMatrix{Float64}(
+            undef,
+            gradedrange(sectors_z2 .=> [3, 4]),
+            gradedrange(sectors_z2 .=> [3, 4])
+        )
+    )
 
     @testset "FusedGradedMatrixAlgorithm" begin
         alg = MAK.select_algorithm(MAK.svd_compact!, A_rect)
@@ -368,9 +407,9 @@ end
             # U1(0) carries singular values of order 1, U1(1) only of order 1e-3,
             # so a tolerance between the two scales removes U1(1) from the bond
             # entirely (not just shrinks it).
-            A = FusedGradedMatrix(
-                [Matrix(1.0I, 2, 2), 1.0e-3 * Matrix(1.0I, 2, 2)],
-                [U1(0), U1(1)]
+            A = fusedgradedmatrix(
+                [U1(0), U1(1)] .=>
+                    [Matrix(1.0I, 2, 2), 1.0e-3 * Matrix(1.0I, 2, 2)]
             )
             U, S, Vᴴ, ε = MAK.svd_trunc(A; trunc = trunctol(; atol = 1.0e-2))
             @test collect(keys(sectordata(U))) == [U1(0)]
@@ -435,11 +474,11 @@ end
         dims = [3, 4, 2]
         svals = [randn(rng, n) for n in dims]
         Sblocks = [Diagonal(v) for v in svals]
-        S = FusedGradedDiagonal(FusedGradedVector(svals, sectors_u1))
+        S = fusedgradeddiagonal(sectors_u1 .=> svals)
 
         # `lmul!(S, C)`: `C <- S * C` block-wise, `S` square (diagonal, as singular values).
         Cblocks = [randn(rng, dims[i], d) for (i, d) in enumerate([2, 3, 5])]
-        C = FusedGradedMatrix(copy.(Cblocks), sectors_u1)
+        C = fusedgradedmatrix(sectors_u1 .=> copy.(Cblocks))
         @test lmul!(S, C) === C
         for (i, s) in enumerate(sectors_u1)
             @test sectordata(C)[s] ≈ Sblocks[i] * Cblocks[i]
@@ -447,7 +486,7 @@ end
 
         # `rmul!(A, S)`: `A <- A * S` block-wise.
         Ablocks = [randn(rng, d, dims[i]) for (i, d) in enumerate([2, 3, 5])]
-        A = FusedGradedMatrix(copy.(Ablocks), sectors_u1)
+        A = fusedgradedmatrix(sectors_u1 .=> copy.(Ablocks))
         @test rmul!(A, S) === A
         for (i, s) in enumerate(sectors_u1)
             @test sectordata(A)[s] ≈ Ablocks[i] * Sblocks[i]
@@ -558,7 +597,7 @@ end
         for T in (Float64, ComplexF64)
             dims = [n for n in 2:(length(sects) + 1)]
             svals = [abs.(randn(T, n)) .+ 1 for n in dims]
-            S = FusedGradedDiagonal(FusedGradedVector(svals, sects))
+            S = fusedgradeddiagonal(sects .=> svals)
 
             @test bipermutedims(S, (1,), (2,)) isa FusedGradedDiagonal
 
