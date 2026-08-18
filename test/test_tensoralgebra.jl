@@ -416,21 +416,21 @@ end
 end
 
 @testset "FusedGradedMatrix block-wise arithmetic" begin
-    m = FusedGradedMatrix([[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]], [U1(0), U1(1)])
+    m = fusedgradedmatrix([U1(0), U1(1)] .=> [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
 
     m2 = 3 * m
     @test data(m2[Block(1, 1)]) == [3.0 6.0; 9.0 12.0]
     @test data(m2[Block(2, 2)]) == [15.0 0.0; 0.0 18.0]
 
-    n = FusedGradedMatrix([ones(2, 2), ones(2, 2)], [U1(0), U1(1)])
+    n = fusedgradedmatrix([U1(0), U1(1)] .=> [ones(2, 2), ones(2, 2)])
     s = m + n
     @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
     @test data(s[Block(2, 2)]) == [6.0 1.0; 1.0 7.0]
 end
 
 @testset "FusedGradedMatrix linear broadcasting" begin
-    m = FusedGradedMatrix([[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]], [U1(0), U1(1)])
-    n = FusedGradedMatrix([ones(2, 2), ones(2, 2)], [U1(0), U1(1)])
+    m = fusedgradedmatrix([U1(0), U1(1)] .=> [[1.0 2.0; 3.0 4.0], [5.0 0.0; 0.0 6.0]])
+    n = fusedgradedmatrix([U1(0), U1(1)] .=> [ones(2, 2), ones(2, 2)])
 
     s = m .+ n
     @test data(s[Block(1, 1)]) == [2.0 3.0; 4.0 5.0]
@@ -457,7 +457,11 @@ end
     # `conj` would dualize each coupled sector, flipping the first axis to dual, which the fused
     # storage types disallow. The dotted form is rejected by the constructor invariant when it
     # allocates the dual-keyed result. Conjugate the `GradedArray` (or matricize) instead.
-    m = randn!(FusedGradedMatrix{ComplexF64}(undef, sectorpairs))
+    m = randn!(
+        FusedGradedMatrix{ComplexF64}(
+            undef, gradedrange(sectorpairs), gradedrange(sectorpairs)
+        )
+    )
     @test_throws ErrorException conj(m)
     @test_throws ArgumentError conj.(m)
 end
@@ -466,15 +470,30 @@ end
     # A non-abelian block's axis length is its reduced length times the sector's quantum dimension
     # (SU2(1) has dimension 3), so the broadcast allocator has to key on reduced lengths, and the
     # per-block phase must not require unique fusion.
-    m = randn!(FusedGradedMatrix{ComplexF64}(undef, [SU2(0) => 2, SU2(1) => 3]))
-    n = randn!(FusedGradedMatrix{ComplexF64}(undef, [SU2(0) => 2, SU2(1) => 3]))
+    m = randn!(
+        FusedGradedMatrix{ComplexF64}(
+            undef,
+            gradedrange([SU2(0) => 2, SU2(1) => 3]),
+            gradedrange([SU2(0) => 2, SU2(1) => 3])
+        )
+    )
+    n = randn!(
+        FusedGradedMatrix{ComplexF64}(
+            undef,
+            gradedrange([SU2(0) => 2, SU2(1) => 3]),
+            gradedrange([SU2(0) => 2, SU2(1) => 3])
+        )
+    )
 
     s = 2 .* m .- n
     @test s isa FusedGradedMatrix
     @test Array(s) ≈ 2 .* Array(m) .- Array(n)
 
     v = randn!(
-        FusedGradedVector{ComplexF64}(undef, [SU2(0) => 1, SU2(1 // 2) => 2, SU2(1) => 1])
+        FusedGradedVector{ComplexF64}(
+            undef,
+            gradedrange([SU2(0) => 1, SU2(1 // 2) => 2, SU2(1) => 1])
+        )
     )
     @test (3 .* v) isa FusedGradedVector
     @test Array(3 .* v) ≈ 3 .* Array(v)
@@ -487,7 +506,7 @@ end
     v = randn!(
         FusedGradedVector{ComplexF64}(
             undef,
-            [FermionNumber(n) => l for (n, l) in zip(0:2, (1, 2, 1))]
+            gradedrange([FermionNumber(n) => l for (n, l) in zip(0:2, (1, 2, 1))])
         )
     )
     @test_throws ErrorException conj(v)
@@ -498,9 +517,9 @@ end
     # The structural factor of a block is `SectorOnesVector`, the all-ones vector of length equal
     # to the sector's quantum dimension, so materializing repeats each reduced value over the
     # irrep (`SU2(j)` has quantum dimension `2j + 1`: 1, 2, 3 here).
-    v = FusedGradedVector(
-        [Float64[10.0], Float64[20.0], Float64[30.0]],
-        [SU2(0), SU2(1 // 2), SU2(1)]
+    v = fusedgradedvector(
+        [SU2(0), SU2(1 // 2), SU2(1)] .=>
+            [Float64[10.0], Float64[20.0], Float64[30.0]]
     )
     @test sector(view(v, Block(2))) isa SectorOnesVector
     @test Array(sector(view(v, Block(2)))) == ones(2)

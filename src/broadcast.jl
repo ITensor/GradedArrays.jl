@@ -158,10 +158,12 @@ Base.axes(bc::BC.Broadcasted{<:AbstractGradedStyle}) = axes(flattenlinear(bc))
 # TODO: these allocate default CPU `Array` block storage; the style should carry a data/storage type (as
 # Base's `ArrayStyle` carries the array type) so non-`Array` (e.g. GPU) block storage is preserved.
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{1}}, elt::Type)
-    return FusedGradedVector{elt}(undef, axes(bc))
+    return FusedGradedVector{elt}(undef, only(axes(bc)))
 end
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{2}}, elt::Type)
-    return FusedGradedMatrix{elt}(undef, axes(bc))
+    # `axes(bc)` is `(codomain, dual(domain))`; the splatted constructor takes the non-dual domain, so
+    # undo the dual on the second axis.
+    return FusedGradedMatrix{elt}(undef, axes(bc)[1], dual(axes(bc)[2]))
 end
 
 # Fused-array linear broadcasts fold to the leaf via `flattenlinear` and apply block-wise. Covers the

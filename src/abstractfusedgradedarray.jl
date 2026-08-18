@@ -229,7 +229,7 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval function Base.$f(A::AbstractFusedGradedMatrix)
         raw = map(Base.$f, sectordata(A))
         T = mapreduce(eltype, promote_type, raw; init = eltype(A))
-        return FusedGradedMatrix(
+        return fusedgradedmatrix(
             convert_eltypes(T, raw), axis_codomain(A), axis_domain(A)
         )
     end

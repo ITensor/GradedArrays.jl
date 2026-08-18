@@ -30,7 +30,7 @@ for f in [
     end
 
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
-        return FusedGradedMatrix(
+        return fusedgradedmatrix(
             map(Base.Fix1(MAK.copy_input, MAK.$f), sectordata(A)),
             axis_codomain(A), axis_domain(A)
         )
@@ -591,15 +591,15 @@ function MAK.truncate(
     # matrices, not buffer views, so let the block dictionary infer their type.
     U_cod = axis_codomain(U)
     U_dom = FusedGradedOneTo(sectors_kept, bond_dims)
-    Ũ = FusedGradedMatrix(Dictionary(sectors_kept, U_blocks_all[keep]), U_cod, U_dom)
+    Ũ = fusedgradedmatrix(Dictionary(sectors_kept, U_blocks_all[keep]), U_cod, U_dom)
 
     # S: the diagonal factor over the shrunk bond.
-    S̃ = MAK.diagonal(FusedGradedVector(sv_blocks_all[keep], sectors_kept))
+    S̃ = MAK.diagonal(fusedgradedvector(sectors_kept .=> sv_blocks_all[keep]))
 
     # Vᴴ: rows = bond (shrunk), cols = input domain (full).
     Vᴴ_cod = FusedGradedOneTo(sectors_kept, bond_dims)
     Vᴴ_dom = axis_domain(Vᴴ)
-    Ṽᴴ = FusedGradedMatrix(Dictionary(sectors_kept, Vᴴ_blocks_all[keep]), Vᴴ_cod, Vᴴ_dom)
+    Ṽᴴ = fusedgradedmatrix(Dictionary(sectors_kept, Vᴴ_blocks_all[keep]), Vᴴ_cod, Vᴴ_dom)
 
     return (Ũ, S̃, Ṽᴴ), inds
 end
@@ -620,8 +620,8 @@ for f! in (:eigh_trunc!, :eig_trunc!)
         keep = [i for i in eachindex(inds) if length(ev_blocks_all[i]) > 0]
         sectors_kept = sectors_all[keep]
 
-        D̃ = MAK.diagonal(FusedGradedVector(ev_blocks_all[keep], sectors_kept))
-        Ṽ = FusedGradedMatrix(V_blocks_all[keep], sectors_kept)
+        D̃ = MAK.diagonal(fusedgradedvector(sectors_kept .=> ev_blocks_all[keep]))
+        Ṽ = fusedgradedmatrix(sectors_kept .=> V_blocks_all[keep])
         return (D̃, Ṽ), inds
     end
 end

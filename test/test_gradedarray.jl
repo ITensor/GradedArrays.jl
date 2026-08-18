@@ -345,10 +345,13 @@ end
         g = gradedrange([Z2(0) => 2, Z2(1) => 3])
         d0, d1 = randn(2), randn(3)
         diag = GradedArray(
-            FusedGradedMatrix([Diagonal(d0), Diagonal(d1)], [Z2(0), Z2(1)]), (g,), (g,)
+            fusedgradedmatrix([Z2(0), Z2(1)] .=> [Diagonal(d0), Diagonal(d1)]), (g,),
+            (g,)
         )
         dense = GradedArray(
-            FusedGradedMatrix([Matrix(Diagonal(d0)), Matrix(Diagonal(d1))], [Z2(0), Z2(1)]),
+            fusedgradedmatrix(
+                [Z2(0), Z2(1)] .=> [Matrix(Diagonal(d0)), Matrix(Diagonal(d1))]
+            ),
             (g,), (g,)
         )
         p = bipermutedims(diag, (1, 2), ())
@@ -464,14 +467,14 @@ end
         @test 2 .* TensorAlgebra.PermutedDims(a, (1, 2)) isa GradedArray
         @test a .+ TensorAlgebra.PermutedDims(b, (1, 2)) isa GradedArray
 
-        S = FusedGradedDiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
+        S = fusedgradeddiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
         out = 2 .* TensorAlgebra.PermutedDims(S, (1, 2))
         @test out isa FusedGradedDiagonal
         @test diag(out) ≈ 2 .* diag(S)
     end
 
     @testset "mixed dense/diagonal broadcasting and conj" begin
-        S = FusedGradedDiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
+        S = fusedgradeddiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
         M = matricize(randn((axes(S, 1),), (axes(S, 2),)))
         @test axes(M) == axes(S)
 

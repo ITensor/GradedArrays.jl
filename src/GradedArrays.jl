@@ -13,6 +13,7 @@ export FusedGradedMatrix, FusedGradedVector, FusedGradedDiagonal
 
 export codomain, domain,
     dual, flip, gradedrange, fusedgradedrange, isdual,
+    fusedgradedvector, fusedgradedmatrix, fusedgradeddiagonal,
     data, dataaxes, dataaxes1, datalength, datalengths,
     eachdataaxis, eachsectoraxis,
     sector, sectoraxes, sectoraxes1, sectorlength, sectorlengths,
