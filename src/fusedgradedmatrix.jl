@@ -2,6 +2,8 @@
 #  FusedGradedMatrix — block-diagonal matrix from matricizing a graded array
 # ===========================================================================
 
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
+
 """
     FusedGradedMatrix{T,S<:SectorRange,V<:DenseVector{T}}
 
@@ -196,6 +198,17 @@ end
 # un-dualized form; the derived `biaxes` dualizes the domain half.
 axes_codomain(m::FusedGradedMatrix) = (m.axis_codomain,)
 axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
+
+# The main diagonal as an owned `FusedGradedVector` whose block at each coupled sector is that block's
+# diagonal; the fresh buffer means writing it does not touch `m`. A write-through `diagview` of a
+# `FusedGradedMatrix` is not yet supported. Off-diagonals are unsupported.
+function LinearAlgebra.diag(m::FusedGradedMatrix)
+    blockdiags = map(MAK.diagview, sectordata(m))
+    return FusedGradedVector(collect(values(blockdiags)), collect(keys(blockdiags)))
+end
+function LinearAlgebra.diag(m::FusedGradedMatrix, k::Integer)
+    return error("`diag` on a `FusedGradedMatrix` supports only the main diagonal")
+end
 
 # ========================  similar  ========================
 

@@ -18,33 +18,86 @@ struct FusedGradedDiagonal{T, S <: SectorRange, V <: DenseVector{T}} <:
     diag::FusedGradedVector{T, S, V}
 end
 
-# Allocate with a given per-sector diagonal axis (the reduced/degeneracy dimension of each sector).
 function FusedGradedDiagonal{T}(
         ::UndefInitializer, axis::FusedGradedOneTo{S}
     ) where {T, S <: SectorRange}
     return FusedGradedDiagonal(FusedGradedVector{T}(undef, axis))
 end
 
-# A `Diagonal` matrix is square, so its codomain and domain share the stored diagonal's axis. Each
-# block is a `Diagonal` wrapping that sector's view into the diagonal buffer (sharing storage), so
-# the shared block-wise matrix operations can read a diagonal like any fused graded matrix; the axes
-# derive from `biaxes` below.
+"""
+    FusedGradedDiagonal(sectors .=> data)
+
+Build a `FusedGradedDiagonal` from the per-sector diagonal data: the pair `sectors[i] => data[i]` gives
+the diagonal entries of the block at `sectors[i]`.
+"""
+function FusedGradedDiagonal(sectordata::AbstractVector{<:Pair})
+    return FusedGradedDiagonal(FusedGradedVector(last.(sectordata), first.(sectordata)))
+end
+
 sectordata(d::FusedGradedDiagonal) = map(Diagonal, sectordata(MAK.diagview(d)))
 
 # ---- accessors ----
 
-# Each block is a `Diagonal` over a 1-D `view` into the diagonal buffer (see `_dataview`).
 function datatype(::Type{<:FusedGradedDiagonal{T, S, V}}) where {T, S, V}
     return Diagonal{T, Base.promote_op(view, V, UnitRange{Int})}
 end
 
-# Square: codomain and domain share the diagonal's axis, the axis of the wrapped diagonal vector
-# `diagview(d)`. The derived `biaxes` dualizes the domain half, and the block indexing, reductions,
-# predicates, and display all derive from these and `sectordata` generically on
-# `AbstractFusedGradedMatrix`.
 axes_codomain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 axes_domain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 
 function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(MAK.diagview(d), T))
+end
+
+LinearAlgebra.diag(d::FusedGradedDiagonal) = copy(MAK.diagview(d))
+function LinearAlgebra.diag(d::FusedGradedDiagonal, k::Integer)
+    return error("`diag` on a `FusedGradedDiagonal` supports only the main diagonal")
+end
+
+# ---- permutation ----
+
+# A transpose would dualize the codomain axis, which a `FusedGradedDiagonal` cannot represent.
+function TensorAlgebra.permuteddims(d::FusedGradedDiagonal, perm)
+    perm == (1, 2) || throw(
+        ArgumentError(
+            "permuting a `FusedGradedDiagonal` by `$perm` is not supported; only the identity permutation is allowed"
+        )
+    )
+    return d
+end
+
+function TensorAlgebra.allocate_output(
+        ::typeof(TA.permutedimsop), op, src::FusedGradedDiagonal, perm_codomain, perm_domain
+    )
+    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+    # Both the identity copy and the adjoint allocate the same diagonal (same non-dual axis); `op` acts
+    # on the data during the permute-add, not here. Passing `conj` would dualize the diagview's axis, so
+    # allocate with `identity`.
+    return FusedGradedDiagonal(
+        TensorAlgebra.allocate_output(
+            TA.permutedimsop,
+            identity,
+            MAK.diagview(src),
+            (1,),
+            ()
+        )
+    )
+end
+
+# ---- broadcasting ----
+
+struct FusedGradedDiagonalStyle <: AbstractFusedGradedStyle{2} end
+FusedGradedDiagonalStyle(::Val{2}) = FusedGradedDiagonalStyle()
+
+BC.BroadcastStyle(::Type{<:FusedGradedDiagonal}) = FusedGradedDiagonalStyle()
+
+# Mixed with a dense fused matrix, a diagonal promotes to dense. Only one operand order is needed:
+# Base's `result_join` retries the reversed order when the first returns `Unknown`.
+BC.BroadcastStyle(style::FusedGradedStyle{2}, ::FusedGradedDiagonalStyle) = style
+
+function Base.similar(bc::BC.Broadcasted{<:FusedGradedDiagonalStyle}, elt::Type)
+    # TODO: generalize to non-CPU storage (e.g. GPU arrays). The style should carry a data/storage style
+    # (as Base's `ArrayStyle` carries the array type) so `similar` allocates backing storage of the right
+    # type rather than always defaulting to a dense CPU array.
+    return FusedGradedDiagonal{elt}(undef, first(axes(bc)))
 end

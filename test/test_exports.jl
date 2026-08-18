@@ -16,7 +16,6 @@ using Test: @test, @testset
         :FusedGradedVector,
         :GradedArray,
         :GradedArrays,
-        :GradedBlockAlgorithm,
         :GradedOneTo,
         :codomain,
         :data,

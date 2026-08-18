@@ -81,6 +81,8 @@ BC.BroadcastStyle(::Type{<:FusedSectorMatrix}) = SectorStyle{2}()
 # Rebuild the block from the linear expression's `SectorOneTo` axes, which carry the coupled sector
 # (dualized when the broadcast conjugated an operand). Keyed on the block style's rank rather than
 # `Base.similar` on axis type, which cannot tell a fused block from an unfused `UniqueSectorArray`.
+# TODO: these allocate default CPU `Array` block storage; the style should carry a data/storage type (as
+# Base's `ArrayStyle` carries the array type) so non-`Array` (e.g. GPU) block storage is preserved.
 function Base.similar(bc::BC.Broadcasted{SectorStyle{1}}, elt::Type)
     ax = axes(flattenlinear(bc))
     return FusedSectorVector{elt}(undef, sector(ax[1]), datalength(ax[1]))
@@ -121,32 +123,52 @@ end
 # See the `AbstractSectorStyle` override above.
 BC.instantiate(bc::BC.Broadcasted{<:AbstractGradedStyle}) = bc
 
+# The array a linear broadcast reproduces (its output sector type, `similar_map` dispatch), through the
+# named-tensor `PermutedDims` alignment wrapper.
+broadcast_array(a::TA.ScaledBroadcasted) = broadcast_array(TA.unscaled(a))
+broadcast_array(a::TA.ConjBroadcasted) = broadcast_array(parent(a))
+broadcast_array(a::TA.AddBroadcasted) = broadcast_array(first(TA.addends(a)))
+broadcast_array(a::TA.PermutedDims) = parent(a)
+broadcast_array(a::AbstractArray) = a
+
 # ---- fused (coupled-sector-block) graded arrays ----
 #
+# The fused family: `FusedGradedStyle` (`FusedGradedMatrix`/`FusedGradedVector`) and
+# `FusedGradedDiagonalStyle` (`FusedGradedDiagonal`, defined in `fusedgradeddiagonal.jl`). Grouping
+# them under `AbstractFusedGradedStyle` keys the mixing rules off the two-family split: mixing a
+# `GradedArray` (`GradedStyle`) with any fused array errors (in `gradedarray.jl`), while within the
+# fused family a diagonal promotes to the dense fused matrix (in `fusedgradeddiagonal.jl`).
+abstract type AbstractFusedGradedStyle{N} <: AbstractGradedStyle{N} end
+
 # `FusedGradedMatrix` and `FusedGradedVector` store their blocks keyed by coupled sector. Allocating
 # the result rebuilds the fused block structure from the linear expression's axes. Only linear
 # broadcasts are supported; the block arithmetic is the `bipermutedimsopadd!` overload in
 # `tensoralgebra.jl`.
 
-struct FusedGradedStyle{N} <: AbstractGradedStyle{N} end
+struct FusedGradedStyle{N} <: AbstractFusedGradedStyle{N} end
 FusedGradedStyle{N}(::Val{M}) where {N, M} = FusedGradedStyle{M}()
 
 BC.BroadcastStyle(::Type{<:FusedGradedVector}) = FusedGradedStyle{1}()
 BC.BroadcastStyle(::Type{<:FusedGradedMatrix}) = FusedGradedStyle{2}()
 
-# Rebuild the fused array from the linear expression's axes: the undef constructors invert `axes`,
-# undoing the domain dualization a `conj` operand introduces so the result lands in the right sectors.
+# Base's broadcast `axes` (via `BlockArrays.combine_axes`) loses the graded axes; the flattened linear
+# expression keeps them.
+Base.axes(bc::BC.Broadcasted{<:AbstractGradedStyle}) = axes(flattenlinear(bc))
+
+# TODO: these allocate default CPU `Array` block storage; the style should carry a data/storage type (as
+# Base's `ArrayStyle` carries the array type) so non-`Array` (e.g. GPU) block storage is preserved.
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{1}}, elt::Type)
-    return FusedGradedVector{elt}(undef, axes(flattenlinear(bc)))
+    return FusedGradedVector{elt}(undef, axes(bc))
 end
 function Base.similar(bc::BC.Broadcasted{FusedGradedStyle{2}}, elt::Type)
-    return FusedGradedMatrix{elt}(undef, axes(flattenlinear(bc)))
+    return FusedGradedMatrix{elt}(undef, axes(bc))
 end
 
-# Fused-array linear broadcasts fold to the leaf via `flattenlinear` and apply block-wise.
+# Fused-array linear broadcasts fold to the leaf via `flattenlinear` and apply block-wise. Covers the
+# whole fused family (dense matrix/vector and diagonal) via `AbstractFusedGradedStyle`.
 function Base.copyto!(
         dest::AbstractFusedGradedArray,
-        bc::BC.Broadcasted{<:FusedGradedStyle}
+        bc::BC.Broadcasted{<:AbstractFusedGradedStyle}
     )
     return copyto!(dest, flattenlinear(bc))
 end

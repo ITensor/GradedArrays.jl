@@ -301,6 +301,15 @@ function Base.similar(
     end
 end
 
+# A permute of a vector stays a vector; the generic fallback routes through `similar_map` to a
+# `GradedArray`.
+function TensorAlgebra.allocate_output(
+        ::typeof(TA.permutedimsop), op, src::FusedGradedVector, perm_codomain, perm_domain
+    )
+    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+    return similar(src)
+end
+
 # ========================  show  ========================
 
 function Base.summary(io::IO, v::FusedGradedVector)

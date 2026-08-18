@@ -156,10 +156,9 @@ Base.iszero(A::AbstractFusedGradedMatrix) = all(iszero, sectordata(A))
 #  copy / copyto! — block-wise (the generic AbstractArray fallbacks scalar-index)
 # ---------------------------------------------------------------------------
 
-# `copyto!` is also the write path for mutating a `MAK.diagview(::FusedGradedMatrix)` (whose blocks
-# alias the matrix diagonals). It conservatively requires equal axes, so it is self-guarding on a
-# direct call; Base's generic `copy!(::AbstractArray, ::AbstractArray)` also checks axes before
-# delegating here, so `copy!` is available for free with the same contract.
+# Block-wise `copyto!`: copy each stored block's data across. It conservatively requires equal axes,
+# so it is self-guarding on a direct call; Base's generic `copy!(::AbstractArray, ::AbstractArray)`
+# also checks axes before delegating here, so `copy!` is available for free with the same contract.
 function Base.copyto!(dest::AbstractFusedGradedArray, src::AbstractFusedGradedArray)
     axes(dest) == axes(src) || throw(DimensionMismatch("`copyto!` requires matching axes"))
     dsd, ssd = sectordata(dest), sectordata(src)
@@ -468,6 +467,41 @@ function TensorAlgebra.check_input(
     check_input(*, A, B)
     axes(C, 1) == axes(A, 1) || throw(DimensionMismatch())
     axes(C, 2) == axes(B, 2) || throw(DimensionMismatch())
+    return nothing
+end
+
+# A fused graded matrix permute-add keeps the first (codomain) axis non-dual only for an identity copy or
+# an adjoint; any other `(op, perm)` would bend or dualize it, which fused storage cannot represent.
+function TensorAlgebra.check_input(
+        ::typeof(TA.permutedimsop), op,
+        ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+    )
+    is_copy = op === identity && perm_codomain == (1,) && perm_domain == (2,)
+    is_adjoint = op === conj && perm_codomain == (2,) && perm_domain == (1,)
+    (is_copy || is_adjoint) || throw(
+        ArgumentError(
+            "a fused graded matrix permute-add allows only an identity copy (`op = identity`, " *
+                "`perm_codomain = (1,)`, `perm_domain = (2,)`) or an adjoint (`op = conj`, " *
+                "`perm_codomain = (2,)`, `perm_domain = (1,)`); got `op = $op`, " *
+                "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
+        )
+    )
+    return nothing
+end
+
+# A fused graded vector has a single canonical non-dual axis, so only the identity copy is valid: `conj`
+# would dualize it, and there is no rank-preserving transpose.
+function TensorAlgebra.check_input(
+        ::typeof(TA.permutedimsop), op,
+        ::AbstractFusedGradedVector, perm_codomain, perm_domain
+    )
+    (op === identity && perm_codomain == (1,) && perm_domain == ()) || throw(
+        ArgumentError(
+            "a fused graded vector permute-add allows only the identity copy (`op = identity`, " *
+                "`perm_codomain = (1,)`, `perm_domain = ()`); got `op = $op`, " *
+                "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
+        )
+    )
     return nothing
 end
 

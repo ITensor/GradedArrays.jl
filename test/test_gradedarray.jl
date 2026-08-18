@@ -1,9 +1,9 @@
 using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
-    GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2, data, dual, gradedrange,
-    isdual, ndims_codomain, ndims_domain, sector, sectordata, to_tensormap,
+    FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2, data, dual,
+    gradedrange, isdual, ndims_codomain, ndims_domain, sector, sectordata, to_tensormap,
     with_block_indexing, with_scalar_indexing
-using LinearAlgebra: Diagonal
+using LinearAlgebra: Diagonal, diag
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, bipermutedims, contract, eig_full, eigh_full, matricize,
@@ -11,13 +11,6 @@ using TensorAlgebra: TensorAlgebra, bipermutedims, contract, eig_full, eigh_full
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
-
-# Build a random `GradedArray`: allocate an undef map over the given per-leg codomain/domain
-# axes (codomain-facing) and fill the reduced blocks.
-function randn_gradedarray(::Type{T}, cod::Tuple, dom::Tuple) where {T}
-    return randn!(GradedArray{T}(undef, cod, dom))
-end
-randn_gradedarray(cod::Tuple, dom::Tuple) = randn_gradedarray(Float64, cod, dom)
 
 # `GradedArray` delegates its heavy fusion-tree work (braiding, fermion signs, recoupling) to
 # `TensorKit.TensorMap`, so every check here validates against the corresponding TensorKit
@@ -48,7 +41,7 @@ end
                 gradedrange([SU2(0) => 1, SU2(1 // 2) => 1]),
             ),
         )
-        a = randn_gradedarray((i,), (j,))
+        a = randn((i,), (j,))
         @test a isa GradedArray
         @test size(a) == (length(i), length(j))
         # Codomain axis is stored as given; the domain axis is stored dualized.
@@ -69,7 +62,7 @@ end
             ("U1", gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])),
             ("SU2", gradedrange([SU2(0) => 3, SU2(1 // 2) => 2, SU2(1) => 1])),
         )
-        a = randn_gradedarray((g,), (g,))
+        a = randn((g,), (g,))
         t = to_tensormap(a)
         @test t isa TensorKit.TensorMap
         @test t.data === matricize(a).buffer                                # shares the buffer
@@ -161,7 +154,7 @@ end
         # `viewblock` must return each positional block's own slice.
         g1 = gradedrange([U1(0) => 1, U1(1) => 1, U1(0) => 2])   # U1(0) repeated
         g2 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 1])   # U1(1) repeated, out of order
-        a = randn_gradedarray((g1,), (g2,))
+        a = randn((g1,), (g2,))
         dense = Array(a)
         elranges(g) = (
             c = cumsum(collect(blocklengths(g)));
@@ -197,7 +190,7 @@ end
                 gradedrange([SU2(0) => 1, SU2(1 // 2) => 1]),
             ),
         )
-        a = randn_gradedarray(ComplexF64, (i,), (j,))
+        a = randn(ComplexF64, (i,), (j,))
         ra = real(a)
         ia = imag(a)
         @test ra isa GradedArray
@@ -232,7 +225,7 @@ end
                 (gradedrange([fP0 => 2, fP1 => 1]),),
             ),
         )
-        a = randn_gradedarray(ComplexF64, cod, dom)
+        a = randn(ComplexF64, cod, dom)
         c = conj(a)
         @test c isa GradedArray
         # Split preserved (unlike the `conj.(a)` broadcast, which materializes all-codomain), per-leg
@@ -270,7 +263,7 @@ end
                 ((fax(), fax()), (fax(),), (), (1, 2, 3)),
                 ((fax(), fax()), (fax(), fax()), (1, 4, 2), (3,)),
             )
-            fa = randn_gradedarray(ComplexF64, cod, dom)
+            fa = randn(ComplexF64, cod, dom)
             perm = (pc..., pd...)
             fp = bipermutedims(fa, pc, pd)
             with_block_indexing() do
@@ -316,16 +309,16 @@ end
             ),
         )
         # 2-leg: the stored split already matches, matmul composition compares directly.
-        m1 = randn_gradedarray((i,), (k,))
-        m2 = randn_gradedarray((k,), (j,))
+        m1 = randn((i,), (k,))
+        m2 = randn((k,), (j,))
         c2, = contract(m1, (:i, :k), m2, (:k, :j))
         @test c2 isa GradedArray
         @test TensorKit.TensorMap(c2) ≈ TensorKit.TensorMap(m1) * TensorKit.TensorMap(m2)
 
         # 3-leg over two shared indices: the free/contracted split differs from the stored
         # split, so this exercises the leg bend in `matricize`.
-        a = randn_gradedarray((i, j), (k,))          # (i,j; k)
-        b = randn_gradedarray((k,), (j, l))          # (k; j,l)
+        a = randn((i, j), (k,))          # (i,j; k)
+        b = randn((k,), (j, l))          # (k; j,l)
         ta = TensorKit.TensorMap(a)
         tb = TensorKit.TensorMap(b)
         c, lc = contract(a, (:i, :j, :k), b, (:k, :j, :l))
@@ -337,7 +330,7 @@ end
         i = gradedrange([SU2(0) => 1, SU2(1 // 2) => 1])
         j = gradedrange([SU2(0) => 1, SU2(1 // 2) => 1])
         k = gradedrange([SU2(1 // 2) => 1, SU2(1) => 1])
-        a = randn_gradedarray((i, j), (k,))
+        a = randn((i, j), (k,))
         # Move a domain leg into the codomain: a braid + bend that TensorKit handles.
         p = bipermutedims(a, (1, 3), (2,))
         @test p isa GradedArray
@@ -367,7 +360,7 @@ end
     @testset "factorization (svd_compact)" begin
         i = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
         j = gradedrange([SU2(0) => 1, SU2(1 // 2) => 2])
-        m = randn_gradedarray((i,), (j,))
+        m = randn((i,), (j,))
         u, s, v = svd_compact(m, (1,), (2,))
         @test u isa GradedArray
         @test s isa FusedGradedDiagonal
@@ -379,7 +372,7 @@ end
 
     @testset "factorization (eig_full)" begin
         g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
-        m = randn_gradedarray((g,), (g,))
+        m = randn((g,), (g,))
         d, v = eig_full(m, (1,), (2,))
         @test d isa FusedGradedDiagonal
         @test v isa GradedArray
@@ -391,7 +384,7 @@ end
 
     @testset "factorization (eigh_full)" begin
         g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
-        m = project_hermitian(randn_gradedarray((g,), (g,)), (1,), (2,))
+        m = project_hermitian(randn((g,), (g,)), (1,), (2,))
         @test m isa GradedArray
         d, v = eigh_full(m, (1,), (2,))
         @test d isa FusedGradedDiagonal
@@ -403,7 +396,7 @@ end
 
     @testset "construct from a factorization bond axis (FusedGradedOneTo)" begin
         g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
-        m = randn_gradedarray((g,), (g,))
+        m = randn((g,), (g,))
         d, v = eig_full(m, (1,), (2,))
         # A factorization exposes `FusedGradedOneTo` bond axes; the public construction surface takes
         # any `AbstractGradedOneTo`, so feeding one back in builds a `GradedArray`.
@@ -416,8 +409,8 @@ end
     @testset "broadcasting (linear combinations)" begin
         i = gradedrange([SU2(0) => 1, SU2(1 // 2) => 1])
         j = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
-        a = randn_gradedarray((i,), (j,))
-        b = randn_gradedarray((i,), (j,))
+        a = randn((i,), (j,))
+        b = randn((i,), (j,))
         # Linear combinations move all axes to the codomain, so normalize back to a `(i; j)`
         # `TensorMap` before comparing.
         back(x) = TensorKit.permute(TensorKit.TensorMap(x), ((1,), (2,)))
@@ -426,10 +419,56 @@ end
         @test back(a - b) ≈ back(a) - back(b)
         @test back(2 * a - 3 * b) ≈ 2 * back(a) - 3 * back(b)
         # Operands with different codomain/domain splits but equal axes still add (each is bent).
-        c = randn_gradedarray((i, dual(j)), ())
+        c = randn((i, dual(j)), ())
         @test (ndims_codomain(c), ndims_domain(c)) != (ndims_codomain(a), ndims_domain(a))
         @test axes(c) == axes(a)
         @test back(a + c) ≈ back(a) + back(c)
+    end
+
+    @testset "broadcasting through a PermutedDims operand" begin
+        # ITensorBase wraps by-name-aligned operands in `TensorAlgebra.PermutedDims`, so `similar`
+        # looks through it; a single wrapped operand would otherwise leave the operand filter empty.
+        i = gradedrange([SU2(0) => 1, SU2(1 // 2) => 1])
+        j = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
+        a = randn((i,), (j,))
+        b = randn((i,), (j,))
+        @test 2 .* TensorAlgebra.PermutedDims(a, (1, 2)) isa GradedArray
+        @test a .+ TensorAlgebra.PermutedDims(b, (1, 2)) isa GradedArray
+
+        S = FusedGradedDiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
+        out = 2 .* TensorAlgebra.PermutedDims(S, (1, 2))
+        @test out isa FusedGradedDiagonal
+        @test diag(out) ≈ 2 .* diag(S)
+    end
+
+    @testset "mixed dense/diagonal broadcasting and conj" begin
+        S = FusedGradedDiagonal([SU2(0) => randn(2), SU2(1 // 2) => randn(1)])
+        M = matricize(randn((axes(S, 1),), (axes(S, 2),)))
+        @test axes(M) == axes(S)
+
+        # All-diagonal linear broadcasts stay diagonal (diagonal destination through the
+        # generic block loop).
+        @test 2 .* S isa FusedGradedDiagonal
+        @test Array(2 .* S) ≈ 2 .* Array(S)
+        @test S .+ S isa FusedGradedDiagonal
+        @test Array(S .+ S) ≈ Array(S) .+ Array(S)
+
+        # Mixing a diagonal with a dense fused matrix promotes to dense.
+        @test M .+ S isa FusedGradedMatrix
+        @test Array(M .+ S) ≈ Array(M) .+ Array(S)
+        @test S .+ M isa FusedGradedMatrix
+        @test Array(S .+ M) ≈ Array(S) .+ Array(M)
+        @test 2 .* S .+ M isa FusedGradedMatrix
+        @test Array(2 .* S .+ M) ≈ 2 .* Array(S) .+ Array(M)
+
+        # `conj` dualizes the first axis, which fused storage forbids, so it errors for both
+        # storage types in the function and broadcast forms; `adjoint` is the valid conjugation.
+        @test_throws Exception conj(S)
+        @test_throws Exception conj.(S)
+        @test_throws Exception conj(M)
+        @test_throws Exception conj.(M)
+        @test_throws Exception M .+ conj.(S)
+        @test Array(S') ≈ Array(S)'
     end
 
     @testset "fermionic" begin
@@ -439,21 +478,21 @@ end
         l = gradedrange([fP0 => 2, fP1 => 1])
 
         # Fermion signs on a permute ride `tensoradd!` for free.
-        a3 = randn_gradedarray((i, j), (k,))
+        a3 = randn((i, j), (k,))
         p = bipermutedims(a3, (2, 1), (3,))
         @test TensorKit.TensorMap(p) ≈
             TensorKit.permute(TensorKit.TensorMap(a3), ((2, 1), (3,)))
 
         # The contraction twist: 2-leg matches TensorKit composition directly.
-        m1 = randn_gradedarray((i,), (k,))
-        m2 = randn_gradedarray((k,), (j,))
+        m1 = randn((i,), (k,))
+        m2 = randn((k,), (j,))
         c2, = contract(m1, (:i, :k), m2, (:k, :j))
         @test TensorKit.TensorMap(c2) ≈ TensorKit.TensorMap(m1) * TensorKit.TensorMap(m2)
 
         # Multi-leg fermionic contraction matches `@tensor`, and is independent of operand
         # order — the property the twist exists to guarantee.
-        a = randn_gradedarray((i, j), (k,))          # (i,j; k)
-        b = randn_gradedarray((k,), (j, l))          # (k; j,l)
+        a = randn((i, j), (k,))          # (i,j; k)
+        b = randn((k,), (j, l))          # (k; j,l)
         ta = TensorKit.TensorMap(a)
         tb = TensorKit.TensorMap(b)
         c1, lc1 = contract(a, (:i, :j, :k), b, (:k, :j, :l))
