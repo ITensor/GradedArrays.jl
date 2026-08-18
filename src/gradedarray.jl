@@ -581,19 +581,6 @@ function TensorAlgebra.bipermutedimsopadd!(
     return y
 end
 
-# A `FusedGradedMatrix` source (e.g. a matricized factorization output permuted into a `GradedArray`
-# destination) is wrapped zero-copy as a one-codomain/one-domain `GradedArray` — its stored matrix is
-# already the `GradedArray` matricized form — and forwarded to the method above. Without this the
-# generic block-wise permute-add would block-index the `GradedArray` destination, which it
-# does not support.
-function TensorAlgebra.bipermutedimsopadd!(
-        y::GradedArray, op, x::FusedGradedMatrix,
-        perm_codomain, perm_domain, α::Number, β::Number
-    )
-    x_fa = GradedArray(x, (axes(x, 1),), (dual(axes(x, 2)),))
-    return TensorAlgebra.bipermutedimsopadd!(y, op, x_fa, perm_codomain, perm_domain, α, β)
-end
-
 # ============================  fermionic twist  ============================
 # The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
 # The `TensorMap` shares its buffer, so `TK.twist!` scales it in place.

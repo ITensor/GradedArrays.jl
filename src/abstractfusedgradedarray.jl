@@ -418,29 +418,18 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
 end
 
 # ============================  similar_map  ============================
-# A split-axes `similar_map` off a fused prototype reproduces a `GradedArray` (the external-axis
-# array), the same target the graded constructors allocate. Three anchored entries: codomain-led,
-# empty-codomain domain-led, and the fully empty rank-0 case (whose sector type is read from the
-# prototype, since the empty axes carry none).
+# `similar_map` with explicit axes off a fused prototype previously allocated a `GradedArray`; that
+# implicitly crossed the `FusedGradedMatrix` (internal) / `GradedArray` (external) boundary, so it is
+# now undefined. A fused matrix permutes through `permutedims` / `permutedimsop` (staying fused via
+# `allocate_output(permutedimsop, ::AbstractFusedGradedMatrix, …)` below).
 function TensorAlgebra.similar_map(
-        ::AbstractFusedGradedArray, ::Type{T},
-        axes_codomain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
-        axes_domain::Tuple{Vararg{AbstractGradedOneTo}}
-    ) where {T}
-    return GradedArray{T}(undef, axes_codomain, axes_domain)
-end
-function TensorAlgebra.similar_map(
-        ::AbstractFusedGradedArray, ::Type{T},
-        axes_codomain::Tuple{},
-        axes_domain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
-    ) where {T}
-    return GradedArray{T}(undef, axes_codomain, axes_domain)
-end
-function TensorAlgebra.similar_map(
-        prototype::AbstractFusedGradedArray, ::Type{T},
-        axes_codomain::Tuple{}, axes_domain::Tuple{}
-    ) where {T}
-    return GradedArray{T, sectortype(prototype)}(undef, axes_codomain, axes_domain)
+        ::AbstractFusedGradedArray, ::Type, ::Tuple, ::Tuple
+    )
+    return throw(
+        ArgumentError(
+            "`similar_map` with explicit axes is not defined for a fused graded array"
+        )
+    )
 end
 
 # ============================  matrix algebra  ============================
@@ -489,6 +478,17 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
+# A fused graded matrix permute stays fused with the same axes and eltype (`check_input` allows only
+# the identity copy or, for a square operand, the adjoint), so allocate with `similar`. Covers the
+# diagonal too, via `AbstractFusedGradedMatrix`.
+function TensorAlgebra.allocate_output(
+        ::typeof(TA.permutedimsop), op, src::AbstractFusedGradedMatrix, perm_codomain,
+        perm_domain
+    )
+    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+    return similar(src)
+end
+
 # A fused graded vector has a single canonical non-dual axis, so only the identity copy is valid: `conj`
 # would dualize it, and there is no rank-preserving transpose.
 function TensorAlgebra.check_input(
@@ -504,6 +504,17 @@ function TensorAlgebra.check_input(
     )
     return nothing
 end
+
+# Route through `permutedimsop` so the permute allocates via `allocate_output` and validates via
+# `check_input`, instead of the generic path through `similar_map`.
+function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm)
+    return TA.permutedimsop(identity, a, perm, ())
+end
+function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm_codomain, perm_domain)
+    return TA.permutedimsop(identity, a, perm_codomain, perm_domain)
+end
+
+Base.permutedims(a::AbstractFusedGradedArray, perm) = TensorAlgebra.permutedims(a, perm)
 
 function LinearAlgebra.mul!(
         C::AbstractFusedGradedMatrix, A::AbstractFusedGradedMatrix,

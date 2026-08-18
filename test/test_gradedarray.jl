@@ -357,6 +357,35 @@ end
             TensorKit.permute(TensorKit.TensorMap(dense), ((1, 2), ()))
     end
 
+    @testset "fused matrix permute stays fused and rejects unrepresentable permutations" begin
+        i = gradedrange([SU2(0) => 1, SU2(1 // 2) => 1])
+        j = gradedrange([SU2(0) => 1, SU2(1 // 2) => 1])
+        M = matricize(randn((i,), (j,)))
+        @test M isa FusedGradedMatrix
+
+        # The identity-copy permute stays a fused matrix and copies (no bend into a `GradedArray`).
+        for p in (TensorAlgebra.permutedims(M, (1,), (2,)), bipermutedims(M, (1,), (2,)))
+            @test p isa FusedGradedMatrix
+            @test p == M
+            @test p !== M
+        end
+
+        # An all-codomain or transposing permute is unrepresentable for a fused matrix and errors
+        # instead of silently densifying into a `GradedArray`.
+        @test_throws ArgumentError TensorAlgebra.permutedims(M, (1, 2))
+        @test_throws ArgumentError TensorAlgebra.permutedims(M, (2, 1))
+        @test_throws ArgumentError permutedims(M, (1, 2))
+        @test_throws ArgumentError TensorAlgebra.permutedims(M, (2,), (1,))
+
+        # `similar_map` with explicit axes off fused storage is undefined.
+        @test_throws ArgumentError TensorAlgebra.similar_map(
+            M,
+            eltype(M),
+            (axes(M, 1),),
+            ()
+        )
+    end
+
     @testset "factorization (svd_compact)" begin
         i = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
         j = gradedrange([SU2(0) => 1, SU2(1 // 2) => 2])
