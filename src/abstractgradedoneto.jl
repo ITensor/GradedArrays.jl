@@ -1,7 +1,7 @@
 """
-    AbstractGradedOneTo{S<:SectorRange} <: AbstractBlockedUnitRange{Int,Vector{Int}}
+    AbstractGradedOneTo{S<:SectorRange} <: AbstractUnitRange{Int}
 
-Supertype for graded axes — a blocked unit range carved into sectors, each with a data length
+Supertype for graded axes — a unit range carved into sectors (its blocks), each with a data length
 (multiplicity), plus a range-level `isdual` arrow. Concrete subtypes differ only in storage
 and invariants:
 
@@ -14,20 +14,26 @@ Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isd
 `dual` and `flip` (which return the same concrete type). Everything below is derived from
 those.
 """
-abstract type AbstractGradedOneTo{S <: SectorRange} <:
-AbstractBlockedUnitRange{Int, Vector{Int}} end
+abstract type AbstractGradedOneTo{S <: SectorRange} <: AbstractUnitRange{Int} end
 
 # ========================  derived accessors  ========================
 
 sectorlengths(g::AbstractGradedOneTo) = length.(sectors(g))
 Base.first(::AbstractGradedOneTo) = 1
+Base.length(g::AbstractGradedOneTo) = sum(blocklengths(g))
+Base.last(g::AbstractGradedOneTo) = length(g)
 # An `AbstractGradedOneTo` is 1-based and acts as its own axis, like `Base.OneTo`. Without
-# this, `axes` falls back to the `AbstractBlockedUnitRange` default, which returns a plain
-# `BlockedOneTo` and drops the sectors.
+# this, `axes` falls back to the generic default, which returns a plain `OneTo` and drops the
+# sectors.
 Base.axes(g::AbstractGradedOneTo) = (g,)
 BlockArrays.blocklasts(g::AbstractGradedOneTo) = cumsum(blocklengths(g))
 BlockArrays.blocklength(g::AbstractGradedOneTo) = length(sectors(g))
+BlockArrays.blockaxes(g::AbstractGradedOneTo) = (Block.(Base.OneTo(blocklength(g))),)
 BlockArrays.eachblockaxes1(g::AbstractGradedOneTo) = eachblockaxis(g)
+function BlockArrays.findblock(g::AbstractGradedOneTo, i::Integer)
+    @boundscheck i in g || throw(BoundsError(g, i))
+    return Block(searchsortedfirst(blocklasts(g), i))
+end
 
 # blocklengths: total length of each block (length(sector) * multiplicity).
 function BlockArrays.blocklengths(g::AbstractGradedOneTo)
