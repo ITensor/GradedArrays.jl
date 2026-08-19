@@ -60,6 +60,13 @@ sectors(g::FusedGradedOneTo) = collect(keys(g.sector_datalengths))
 datalengths(g::FusedGradedOneTo) = collect(values(g.sector_datalengths))
 sectordatalengths(g::FusedGradedOneTo) = g.sector_datalengths
 
+# Per-sector length/axis accessors following the strict/lenient convention: the bare 2-arg form is
+# strict (throws on an absent sector), the `get`-prefixed form falls back to length 0. Only the
+# lenient axis accessor exists, since a data axis is needed only to size an absent (zero) block.
+sectordatalengths(g::FusedGradedOneTo, c) = sectordatalengths(g)[c]
+getsectordatalengths(g::FusedGradedOneTo, c) = get(sectordatalengths(g), c, 0)
+getsectordataaxis(g::FusedGradedOneTo, c) = Base.OneTo(getsectordatalengths(g, c))
+
 # ========================  dual, flip  ========================
 
 # `dual` flips the arrow only; the stored (non-dual) sectors and their order are unchanged,
