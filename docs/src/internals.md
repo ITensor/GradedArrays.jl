@@ -1,6 +1,6 @@
-# Reference
+# Internals
 
 ```@autodocs
 Modules = [GradedArrays]
-Private = false
+Public = false
 ```
