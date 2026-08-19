@@ -2,26 +2,16 @@ module GradedArrays
 
 # exports
 # -------
-export TrivialSector, Z, Z2, U1, SU2
-export SectorRange, SectorOneTo, AbstractGradedOneTo, GradedOneTo, FusedGradedOneTo
-export AbstractSectorDelta, UniqueSectorDelta, SectorIdentity
-export AbstractSectorArray,
-    UniqueSectorArray, UniqueSectorVector, UniqueSectorMatrix,
-    FusedSectorMatrix, FusedSectorVector
-export GradedArray
-export FusedGradedMatrix, FusedGradedVector, FusedGradedDiagonal
-
-export codomain, domain,
-    dual, flip, gradedrange, fusedgradedrange, isdual,
-    fusedgradedvector, fusedgradedmatrix, fusedgradeddiagonal,
-    data, dataaxes, dataaxes1, datalength, datalengths,
-    eachdataaxis, eachsectoraxis,
-    sector, sectoraxes, sectoraxes1, sectorlength, sectorlengths,
-    sectors, sectortype,
-    Data
+export TrivialSector, U1, SU2, Z, Z2
+export GradedArray, gradedrange
+export dual, isdual
 
 if VERSION >= v"1.11.0-DEV.469"
-    eval(Meta.parse("public with_scalar_indexing, with_block_indexing"))
+    eval(
+        Meta.parse(
+            "public SectorRange, sectors, with_scalar_indexing, with_block_indexing"
+        )
+    )
 end
 
 # imports
