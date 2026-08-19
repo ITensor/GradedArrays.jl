@@ -91,37 +91,8 @@ end
 
 # Generic Implementations
 # -----------------------
-# utility function to do something with each block
-function _blockdataaxes(a::FusedGradedMatrix, c)
-    cod, dom = sectordatalengths(axis_codomain(a)), sectordatalengths(axis_domain(a))
-    return (Base.OneTo(get(cod, c, 0)), Base.OneTo(get(dom, c, 0)))
-end
-function _blockdataaxes(a::FusedGradedVector, c)
-    return (Base.OneTo(get(sectordatalengths(only(axes(a))), c, 0)),)
-end
-function _blockdataaxes(a::FusedGradedDiagonal, c)
-    n = Base.OneTo(get(sectordatalengths(axis_codomain(a)), c, 0))
-    return (n, n)
-end
-
-function foreachblock(f, A::AbstractFusedGradedArray, As::AbstractFusedGradedArray...)
-    cs = union(map(keys ∘ sectordata, (A, As...))...)
-
-    for c in cs
-        bs = map((A, As...)) do a
-            get(sectordata(a), c) do
-                return similar(valtype(sectordata(a)), _blockdataaxes(a, c))
-            end
-        end
-        f(c, bs)
-    end
-
-    return nothing
-end
-
 # in cases where the factorization/alg does not result in in-place, we try to force it by copying.
 _ensure_inplace!(F, F′) = F === F′ || copy!(F, F′)
-_ensure_inplace!(F::NTuple{N}, F′::NTuple{N}) where {N} = _ensure_inplace!.(F, F′)
 
 for f! in (
         :qr_compact!, :qr_full!, :lq_compact!, :lq_full!,
@@ -130,9 +101,11 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_full!, :eigh_full!) && :(LinearAlgebra.checksquare(A)))
-        foreachblock(A, F...) do _, (Ablock, Fblocks...)
-            Fblocks′ = MAK.$f!(Ablock, Fblocks, alg.alg)
-            return _ensure_inplace!(Fblocks, Fblocks′)
+        for c in eachsector(A, F...)
+            Ac = getsectordata(A, c)
+            Fc = map(x -> getsectordata(x, c), F)
+            Fc′ = MAK.$f!(Ac, Fc, alg.alg)
+            _ensure_inplace!.(Fc, Fc′)
         end
         return F
     end
@@ -146,9 +119,10 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_vals!, :eigh_vals!) && :(LinearAlgebra.checksquare(A)))
-        foreachblock(A, N) do _, (Ablock, Nblock)
-            Nblock′ = MAK.$f!(Ablock, Nblock, alg.alg)
-            return _ensure_inplace!(Nblock, Nblock′)
+        for c in eachsector(A, N)
+            Ac = getsectordata(A, c)
+            Nc = getsectordata(N, c)
+            _ensure_inplace!(Nc, MAK.$f!(Ac, Nc, alg.alg))
         end
         return N
     end
@@ -425,8 +399,9 @@ MAK.diagonal(v::FusedGradedVector) = FusedGradedDiagonal(v)
 function TensorAlgebra.MatrixAlgebra.pow_diag_safe!(
         Dp::FusedGradedDiagonal, D::FusedGradedDiagonal, p, tol
     )
-    foreachblock(MAK.diagview(Dp), MAK.diagview(D)) do _, (σp, σ)
-        return map!(d -> _clamped_pow(d, p, tol), σp, σ)
+    dp, d = MAK.diagview(Dp), MAK.diagview(D)
+    for c in eachsector(d)
+        map!(x -> _clamped_pow(x, p, tol), sectordata(dp, c), sectordata(d, c))
     end
     return Dp
 end

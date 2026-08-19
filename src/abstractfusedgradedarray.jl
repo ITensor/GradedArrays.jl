@@ -30,6 +30,31 @@ blocktype(a::AbstractFusedGradedArray) = blocktype(typeof(a))
 # fields. Everything axis-related derives from `biaxes` (the per-variant core), below.
 function sectordata end
 
+# Sectors to iterate. Single arg: the stored sectors. Varargs: their union across arguments
+# (analogous to `eachindex(A...)`). Returns an iterator; `sectors` is the vector-returning query.
+eachsector(a::AbstractFusedGradedArray) = keys(sectordata(a))
+function eachsector(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
+    return union(eachsector(a), eachsector.(as)...)
+end
+
+# Per-sector data, strict and lenient. Strict `sectordata(a, c)` returns the stored block's data and
+# throws if the sector is absent; lenient `getsectordata(a, c)` allocates a zero-size block on a miss
+# (the `get` prefix marks the possible allocation).
+sectordata(a::AbstractFusedGradedArray, c) = sectordata(a)[c]
+function getsectordata(a::AbstractFusedGradedArray, c)
+    return get(sectordata(a), c) do
+        return similar(valtype(sectordata(a)), getsectordataaxes(a, c))
+    end
+end
+
+# The data axes of sector `c`'s block, one lenient per-dimension data axis, used only by
+# `getsectordata` to size an absent (zero) block. Dual-invariant: `sectordatalengths` reads the
+# stored per-sector lengths, which `dual` leaves unchanged, so `axes(a)` (with a possibly dualized
+# domain) gives the same sizes as the un-dualized codomain/domain ranges.
+function getsectordataaxes(a::AbstractFusedGradedArray, c)
+    return map(ax -> getsectordataaxis(ax, c), axes(a))
+end
+
 # Each concrete type implements the bipartite-axes primitives `axes_codomain`/`axes_domain` (its
 # codomain and domain axis groups, un-dualized). The derived `biaxes`/`axis_codomain`/`axis_domain`
 # generics live in `tensoralgebra.jl` (overloaded on `AbstractArray`, since `GradedArray` shares them
