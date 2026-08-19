@@ -92,7 +92,7 @@ end
 
     s_plain = sprint(show, MIME("text/plain"), sa)
     @test occursin("⊗", s_plain)
-    @test occursin("UniqueSectorMatrix", s_plain)
+    @test occursin("$(typeof(sa))", s_plain)
 end
 
 @testset "FusedSectorMatrix display shows Kronecker structure" begin
