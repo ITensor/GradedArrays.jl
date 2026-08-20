@@ -161,9 +161,13 @@ axes_codomain(m::FusedGradedMatrix) = (m.axis_codomain,)
 axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 
 # The main diagonal as an owned `FusedGradedVector` whose block at each coupled sector is that block's
-# diagonal; the fresh buffer means writing it does not touch `m`. A write-through `diagview` of a
-# `FusedGradedMatrix` is not yet supported. Off-diagonals are unsupported.
+# diagonal; the fresh buffer means writing it does not touch `m`. Restricted to equal codomain and
+# domain axes (square blocks): only then do the per-block diagonals coincide with the matrix's main
+# diagonal. With rectangular blocks the dense diagonal drifts off the blocks into off-diagonal bands,
+# so concatenating per-block diagonals is a different operation; iterate blocks explicitly for that. A
+# write-through `diagview` of a `FusedGradedMatrix` is not yet supported. Off-diagonals are unsupported.
 function LinearAlgebra.diag(m::FusedGradedMatrix)
+    checksquare(m)
     return fusedgradedvector(map(MAK.diagview, sectordata(m)))
 end
 function LinearAlgebra.diag(m::FusedGradedMatrix, k::Integer)

@@ -60,7 +60,7 @@ end
 # generics live in `tensoralgebra.jl` (overloaded on `AbstractArray`, since `GradedArray` shares them
 # but is not an `AbstractFusedGradedArray`).
 
-function isblockdiagonal(A::AbstractFusedGradedMatrix)
+function isblockdiag(A::AbstractFusedGradedMatrix)
     for bI in eachblockstoredindex(A)
         row, col = Tuple(bI)
         row == col || return false
@@ -76,6 +76,23 @@ function LinearAlgebra.isdiag(A::AbstractFusedGradedMatrix)
         (row == col && LinearAlgebra.isdiag(view(A, bI))) || return false
     end
     return true
+end
+
+# Square in the graded sense: equal codomain and domain axes, so every coupled block is square and sits
+# on the block diagonal. Stronger than equal overall dimensions, since a graded matrix can be
+# dimension-square with rectangular blocks. This is the meaningful "square" for a graded operator (its
+# main diagonal, an eigendecomposition, an endomorphism).
+issquare(A::AbstractFusedGradedMatrix) = axis_codomain(A) == axis_domain(A)
+
+# Throwing form of `issquare`, for use as a precondition guard. Our own (not `LinearAlgebra.checksquare`,
+# whose contract returns the matrix size); this one just checks and returns nothing.
+function checksquare(A::AbstractFusedGradedMatrix)
+    issquare(A) || throw(
+        DimensionMismatch(
+            "graded matrix is not square: its codomain and domain axes differ"
+        )
+    )
+    return nothing
 end
 
 # ---------------------------------------------------------------------------
