@@ -638,6 +638,9 @@ function TensorAlgebra.unmatricize(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
+# A `{1,1}` unmatricize (one codomain axis, one domain axis) reproduces the diagonal's own square
+# bond and is the endomorphism identity: the result stays diagonal, wrapped up to the tensor-level
+# `GradedArray`. `check_input` rejects a mismatched single-axis split rather than densifying it.
 function TensorAlgebra.check_input(
         ::typeof(unmatricize), d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
     )
@@ -650,13 +653,21 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-# Keep the diagonal factor (`S`/`D`) bare so a spectrum is a true diagonal matrix.
 function TensorAlgebra.unmatricize(
-        ::GradedMatricize, d::FusedGradedDiagonal, axes_codomain::Tuple,
-        axes_domain::Tuple
+        ::GradedMatricize, d::FusedGradedDiagonal,
+        axes_codomain::Tuple{<:AbstractGradedOneTo}, axes_domain::Tuple{<:AbstractGradedOneTo}
     )
     check_input(unmatricize, d, axes_codomain, axes_domain)
-    return d
+    return GradedArray(d, axes_codomain, axes_domain)
+end
+
+# Any other split is a genuine bond-split (for example a rank-4 generalized-diagonal tensor), not
+# representable as a `FusedGradedDiagonal`, so densify to a `FusedGradedMatrix` and reconstruct
+# through its own `unmatricize`.
+function TensorAlgebra.unmatricize(
+        style::GradedMatricize, d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
+    )
+    return unmatricize(style, densematrix(d), axes_codomain, axes_domain)
 end
 
 # ============================  contraction  ============================
@@ -687,6 +698,40 @@ function TensorAlgebra.matricize(
     return m
 end
 
+# A `GradedArray` whose matricized backing is a diagonal factor (an `S`/`D` spectrum).
+const GradedDiagonalArray{T, S} = GradedArray{T, S, 2, 1, 1, <:FusedGradedDiagonal{T, S}}
+
+# Contracting two diagonal-backed graded arrays over a single leg is the matmul/endomorphism pattern
+# (`[i,j] * [j,k]`, whose `{1,1}` result is `V ← V`), so allocate a diagonal-backed `GradedArray`; the
+# block-wise `Diagonal * Diagonal` `mul!` fills it. Every other pattern — outer product, full
+# contraction, non-`{1,1}` output — is not representable as a diagonal, so fall back to the general
+# (dense) allocation, mirroring the dense `Diagonal` contract in `TensorAlgebra`. A transpose variant
+# whose contracted diagonal must be bent (`[i,j] * [k,j]`) densifies that operand upstream and lands
+# here dense-typed.
+function TensorAlgebra.allocate_output(
+        ::typeof(TA.contract),
+        perm_dest_codomain, perm_dest_domain,
+        a1::GradedDiagonalArray, perm1_codomain, perm1_domain,
+        a2::GradedDiagonalArray, perm2_codomain, perm2_domain
+    )
+    check_input(
+        TA.contract, a1, perm1_codomain, perm1_domain, a2, perm2_codomain, perm2_domain
+    )
+    codomain_axes_dest, domain_axes_dest = TA.output_axes(
+        TA.contract,
+        perm_dest_codomain, perm_dest_domain,
+        a1, perm1_codomain, perm1_domain,
+        a2, perm2_codomain, perm2_domain
+    )
+    T = promote_type(eltype(a1), eltype(a2))
+    if length(perm1_domain) == 1 &&
+            length(perm_dest_codomain) == 1 && length(perm_dest_domain) == 1
+        d = FusedGradedDiagonal{T}(undef, only(codomain_axes_dest))
+        return GradedArray(d, codomain_axes_dest, conj.(domain_axes_dest))
+    end
+    return zero!(TA.similar_map(a1, T, codomain_axes_dest, conj.(domain_axes_dest)))
+end
+
 function TensorAlgebra.unmatricizeperm!(
         ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
@@ -703,6 +748,16 @@ function TensorAlgebra.unmatricizeperm!(
     perm_domain = ntuple(i -> perm_dest[ndims_cod_dest + i], Val(N - ndims_cod_dest))
     # TODO: Switch to `Base.permutedims!` once it is defined to route through `bipermutedimsopadd!`.
     bipermutedims!(a_dest, tmp, perm_codomain, perm_domain)
+    return a_dest
+end
+
+# The single-contracted-leg diagonal contract produces a diagonal matricized result over the `{1,1}`
+# identity split, so copy it straight into the diagonal-backed destination (block-wise, no bend).
+function TensorAlgebra.unmatricizeperm!(
+        ::GradedMatricize, a_dest::GradedArray, m::FusedGradedDiagonal,
+        invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
+    )
+    copyto!(matricize(a_dest), m)
     return a_dest
 end
 

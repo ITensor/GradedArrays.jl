@@ -77,6 +77,39 @@ function TensorAlgebra.permuteddims(d::FusedGradedDiagonal, perm)
     return d
 end
 
+# ---- densify / matricize ----
+
+# Densify to a full `FusedGradedMatrix`: each `Diagonal` block becomes a dense block (`copyto!` zeros
+# the off-diagonal). The block-wise `copyto!` keeps the block backend rather than routing through
+# `Array`/`collect`, which would force a CPU result. Used where a diagonal result is not representable
+# as a `FusedGradedDiagonal` (a non-`{1,1}` matricize / bond-split unmatricize).
+function densematrix(d::FusedGradedDiagonal)
+    m = FusedGradedMatrix{eltype(d)}(undef, axis_codomain(d), axis_domain(d))
+    return copyto!(m, d)
+end
+
+# `matricize(d, Val(1))` is the identity `{1,1}` matricization of the diagonal (handled by the
+# `AbstractFusedGradedMatrix` method). Any other pattern is not representable as a
+# `FusedGradedDiagonal`, so densify to a `FusedGradedMatrix` rather than throwing.
+function TensorAlgebra.matricize(
+        ::GradedMatricize,
+        d::FusedGradedDiagonal,
+        ::Val{K}
+    ) where {K}
+    K == 1 && return d
+    return densematrix(d)
+end
+
+# The product of two diagonal fused matrices over a single contracted leg is again diagonal, so
+# allocate a `FusedGradedDiagonal` (the block-wise `mul!` fills it via `Diagonal * Diagonal`). Mixed
+# diagonal/dense products fall through to the general `AbstractFusedGradedMatrix` method (dense).
+function allocate_output(
+        ::typeof(*), A::FusedGradedDiagonal, B::FusedGradedDiagonal
+    )
+    Tout = Base.promote_op(*, eltype(A), eltype(B))
+    return FusedGradedDiagonal{Tout}(undef, axis_codomain(A))
+end
+
 # ---- broadcasting ----
 
 struct FusedGradedDiagonalStyle <: AbstractFusedGradedStyle{2} end
