@@ -431,6 +431,12 @@ end
 
 TensorAlgebra.zero!(fa::GradedArray) = (zero!(matricize(fa)); fa)
 TensorAlgebra.scale!(fa::GradedArray, α::Number) = (scale!(matricize(fa), α); fa)
+function LinearAlgebra.rmul!(fa::GradedArray, α::Number)
+    return (LinearAlgebra.rmul!(matricize(fa), α); fa)
+end
+function LinearAlgebra.lmul!(α::Number, fa::GradedArray)
+    return (LinearAlgebra.lmul!(α, matricize(fa)); fa)
+end
 LinearAlgebra.norm(fa::GradedArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
 Base.fill!(fa::GradedArray, v) = (fill!(matricize(fa), v); fa)
 Base.iszero(fa::GradedArray) = iszero(matricize(fa))
