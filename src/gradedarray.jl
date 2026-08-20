@@ -673,7 +673,7 @@ end
 function TensorAlgebra.unmatricize(
         style::GradedMatricize, d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
     )
-    return unmatricize(style, densematrix(d), axes_codomain, axes_domain)
+    return unmatricize(style, FusedGradedMatrix(d), axes_codomain, axes_domain)
 end
 
 # ============================  contraction  ============================

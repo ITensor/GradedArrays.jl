@@ -548,12 +548,10 @@ end
     @test S isa FusedGradedDiagonal
 
     @testset "matricize (B)" begin
-        # `{1,1}` is the identity matricization of a diagonal; any other pattern densifies to a
-        # `FusedGradedMatrix`.
+        # `{1,1}` is the identity matricization of a diagonal. Any other codomain rank bends a leg,
+        # which matrix-level fused storage cannot represent, so it errors.
         @test matricize(S, Val(1)) === S
-        M = matricize(S, Val(2))
-        @test M isa FusedGradedMatrix
-        @test all(sectordata(M)[c] ≈ Matrix(sectordata(S)[c]) for c in keys(sectordata(S)))
+        @test_throws ArgumentError matricize(S, Val(2))
     end
 
     @testset "unmatricize (C)" begin
