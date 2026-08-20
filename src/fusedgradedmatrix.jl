@@ -74,6 +74,19 @@ function FusedGradedMatrix{T}(
     return FusedGradedMatrix(buffer, cod, dom)
 end
 
+# Same as the `{T}` method but allocates the buffer as the given `V`, so a caller can forward its own
+# block backend (for example a GPU buffer) instead of defaulting to `Vector{T}`.
+function FusedGradedMatrix{T, S, V}(
+        ::UndefInitializer, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
+    ) where {T, S, V}
+    cod = FusedGradedOneTo(codomain)
+    dom = FusedGradedOneTo(domain)
+    codl, doml = sectordatalengths(cod), sectordatalengths(dom)
+    coupled = intersect(keys(codl), keys(doml))
+    buffer = V(undef, sum(c -> codl[c] * doml[c], coupled; init = 0))
+    return FusedGradedMatrix(buffer, cod, dom)
+end
+
 """
     fusedgradedmatrix(sectors .=> data, codomain, domain)
     fusedgradedmatrix(sectordata::Dictionary, codomain, domain)
