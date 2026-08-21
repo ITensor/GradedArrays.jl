@@ -89,13 +89,16 @@ end
 # ---- matricize ----
 
 # A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix). Any other
-# codomain rank bends a leg, which matrix-level fused storage cannot represent, so densify to a
-# `FusedGradedMatrix` and let its own `matricize` reject it with the matrix-level error.
+# codomain rank bends a leg, which matrix-level fused storage cannot represent.
 TensorAlgebra.matricize(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
 function TensorAlgebra.matricize(
         style::GradedMatricize, d::FusedGradedDiagonal, ndims_codomain::Val
     )
-    return matricize(style, FusedGradedMatrix(d), ndims_codomain)
+    throw(
+        ArgumentError(
+            "a matrix-level fused array matricizes only with a single codomain leg"
+        )
+    )
 end
 
 # The product of two diagonal fused matrices over a single contracted leg is again diagonal, so

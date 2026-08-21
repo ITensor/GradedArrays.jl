@@ -4,6 +4,14 @@
 
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
+# Length of the contiguous stored buffer: the sum of codomain-block times domain-block sizes over
+# the coupled sectors the two axes share.
+function fusedbufferlength(codomain::FusedGradedOneTo, domain::FusedGradedOneTo)
+    codl, doml = sectordatalengths(codomain), sectordatalengths(domain)
+    coupled = intersect(keys(codl), keys(doml))
+    return sum(c -> codl[c] * doml[c], coupled; init = 0)
+end
+
 """
     FusedGradedMatrix{T,S<:SectorRange,V<:DenseVector{T}}
 
@@ -33,9 +41,7 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
             )
         )
         # Validate the buffer length against the block total (SectorData does the same check on access).
-        codl, doml = sectordatalengths(cod), sectordatalengths(dom)
-        coupled = intersect(keys(codl), keys(doml))
-        total = sum(c -> codl[c] * doml[c], coupled; init = 0)
+        total = fusedbufferlength(cod, dom)
         length(buffer) == total ||
             throw(
             DimensionMismatch(
@@ -68,9 +74,7 @@ function FusedGradedMatrix{T}(
     ) where {T}
     cod = FusedGradedOneTo(codomain)
     dom = FusedGradedOneTo(domain)
-    codl, doml = sectordatalengths(cod), sectordatalengths(dom)
-    coupled = intersect(keys(codl), keys(doml))
-    buffer = Vector{T}(undef, sum(c -> codl[c] * doml[c], coupled; init = 0))
+    buffer = Vector{T}(undef, fusedbufferlength(cod, dom))
     return FusedGradedMatrix(buffer, cod, dom)
 end
 
@@ -81,9 +85,7 @@ function FusedGradedMatrix{T, S, V}(
     ) where {T, S, V}
     cod = FusedGradedOneTo(codomain)
     dom = FusedGradedOneTo(domain)
-    codl, doml = sectordatalengths(cod), sectordatalengths(dom)
-    coupled = intersect(keys(codl), keys(doml))
-    buffer = V(undef, sum(c -> codl[c] * doml[c], coupled; init = 0))
+    buffer = V(undef, fusedbufferlength(cod, dom))
     return FusedGradedMatrix{T, S, V}(buffer, cod, dom)
 end
 

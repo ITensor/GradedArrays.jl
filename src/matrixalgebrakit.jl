@@ -101,7 +101,7 @@ for f! in (
         :left_polar!, :right_polar!,
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
-        $(f! in (:eig_full!, :eigh_full!) && :(LinearAlgebra.checksquare(A)))
+        $(f! in (:eig_full!, :eigh_full!) && :(checksquare(A)))
         for c in eachsector(A, F...)
             Ac = getsectordata(A, c)
             Fc = map(x -> getsectordata(x, c), F)
@@ -119,7 +119,7 @@ for f! in (
         :project_isometric!,
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
-        $(f! in (:eig_vals!, :eigh_vals!) && :(LinearAlgebra.checksquare(A)))
+        $(f! in (:eig_vals!, :eigh_vals!) && :(checksquare(A)))
         for c in eachsector(A, N)
             Ac = getsectordata(A, c)
             Nc = getsectordata(N, c)
@@ -134,7 +134,7 @@ end
 # with the same block structure as the input, so they iterate the stored blocks directly.
 for f! in (:project_hermitian!, :project_antihermitian!)
     @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::FusedGradedMatrixAlgorithm)
-        LinearAlgebra.checksquare(A)
+        checksquare(A)
         for I in eachblockstoredindex(A)
             MAK.$f!(view(A, I), view(out, I), FusedSectorMatrixAlgorithm(alg.alg))
         end
