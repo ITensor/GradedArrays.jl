@@ -134,7 +134,7 @@ for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
     @eval begin
         Base.Array(a::$AT) = Array{eltype(a), ndims(a)}(a)
         Base.Array{T}(a::$AT) where {T} = Array{T, ndims(a)}(a)
-        Base.Vector(a::$AT{<:Any, <:Any, 1}) = Array{eltype(a), 1}(a)
-        Base.Matrix(a::$AT{<:Any, <:Any, 2}) = Array{eltype(a), 2}(a)
+        # Covers `Vector(a)` and `Matrix(a)`: they are `Array{<:Any, 1}` and `Array{<:Any, 2}`.
+        Base.Array{<:Any, N}(a::$AT{<:Any, <:Any, N}) where {N} = Array{eltype(a), N}(a)
     end
 end
