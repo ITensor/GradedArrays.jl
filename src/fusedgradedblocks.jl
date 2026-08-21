@@ -75,3 +75,6 @@ end
 
 Base.size(b::FusedGradedVectorBlocks) = (blocklength(only(axes(b.parent))),)
 Base.getindex(b::FusedGradedVectorBlocks, i::Int) = view(b.parent, Block(i))
+
+# Every in-range block is stored: the vector's contiguous buffer allocates all sectors of its axis.
+isstored(b::FusedGradedVectorBlocks, i::Int) = i in 1:blocklength(only(axes(b.parent)))
