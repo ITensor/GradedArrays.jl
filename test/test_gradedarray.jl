@@ -576,9 +576,10 @@ end
 
     @testset "contract (D)" begin
         Sa = GradedArray(S, (g,), (g,))
-        # Single contracted leg (matmul / endomorphism composition) stays diagonal.
+        # Wrapped spectra contract through the generic dense allocation. Diagonal contract algebra
+        # lives at the matrix level, where factorizations return spectra.
         C, _ = contract(Sa, (1, -1), Sa, (-1, 2))
-        @test matricize(C) isa FusedGradedDiagonal
+        @test matricize(C) isa FusedGradedMatrix
         @test Array(C) ≈ Array(Sa) * Array(Sa)
 
         # Diagonal × dense densifies.
