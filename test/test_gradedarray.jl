@@ -632,10 +632,12 @@ end
     @test matricize(wd) === d
     @test (ndims_codomain(wd), ndims_domain(wd)) == (1, 1)
     @test axes(wd) == axes(d)
-    # A lazy adjoint materializes into the wrap.
-    wa = GradedArray(m')
-    @test matricize(wa) isa FusedGradedMatrix
-    @test axes(wa) == axes(m')
+    # A lazy adjoint wraps lazily, sharing the parent's storage.
+    ma = m'
+    wa = GradedArray(ma)
+    @test matricize(wa) === ma
+    @test parent(matricize(wa)) === m
+    @test axes(wa) == axes(ma)
     @test Array(wa) ≈ Array(m)'
 end
 

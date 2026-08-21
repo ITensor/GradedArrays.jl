@@ -40,18 +40,9 @@ end
     GradedArray(m::AbstractFusedGradedMatrix)
 
 Wrap a matrix-level fused graded matrix as its tensor-level `{1,1}` `GradedArray`, with the
-matrix's own coupled axes as the codomain and domain axes. The wrap shares storage, except that a
-lazy adjoint is materialized first.
+matrix's own coupled axes as the codomain and domain axes. The wrap shares storage.
 """
 GradedArray(m::AbstractFusedGradedMatrix) = GradedArray(m, axes_codomain(m), axes_domain(m))
-
-# The wrap's permute path lacks lazy-adjoint methods (`to_tensormap` has no
-# `AdjointFusedGradedArray` method, so `bipermutedimsopadd!` on the wrap throws a `MethodError`),
-# so materialize for now. TODO: a zero-copy adjoint lift (wrap the parent with the codomain/domain
-# roles swapped) once the wrap path handles it.
-function GradedArray(m::AdjointFusedGradedArray{<:Any, <:Any, 2})
-    return GradedArray(copy(m))
-end
 
 # ============================  Accessors  ============================
 
@@ -575,6 +566,11 @@ function to_tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain:
     return TK.DiagonalTensorMap(
         MAK.diagview(d).buffer, ElementarySpace(sectormergesort(only(axes_codomain)))
     )
+end
+# A lazy adjoint converts to TensorKit's lazy adjoint, still sharing the parent's buffer. `adjoint`
+# swaps codomain and domain back, so the parent's map is built with the two axes tuples swapped.
+function to_tensormap(m::AdjointFusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
+    return adjoint(to_tensormap(parent(m), axes_domain, axes_codomain))
 end
 
 # Zero-copy reverse of `to_tensormap`: share the `TensorMap`'s `.data` (already in the matricized
