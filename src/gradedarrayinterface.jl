@@ -125,3 +125,17 @@ for AT in (:GradedArray, :AbstractFusedGradedArray)
         end
     end
 end
+
+# =============================  dense conversions  =============================
+# Each family's `Array{T, N}` method is the materialization worker (eltype converts during the
+# dense pass), and everything else delegates to it, following the `Base.Array` design.
+# `Vector{T}` and `Matrix{T}` are `Array{T, 1}` and `Array{T, 2}`, so the worker covers them
+# directly.
+for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
+    @eval begin
+        Base.Array(a::$AT) = Array{eltype(a), ndims(a)}(a)
+        Base.Array{T}(a::$AT) where {T} = Array{T, ndims(a)}(a)
+        # Covers `Vector(a)` and `Matrix(a)`: they are `Array{<:Any, 1}` and `Array{<:Any, 2}`.
+        Base.Array{<:Any, N}(a::$AT{<:Any, <:Any, N}) where {N} = Array{eltype(a), N}(a)
+    end
+end

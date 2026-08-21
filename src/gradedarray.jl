@@ -763,8 +763,12 @@ end
 # materialize through the zero-copy `TensorMap` view. The view is fused-sorted per leg, so for an
 # unfused/unsorted stored axis, move each leg's sector blocks back to the stored order (whole-block
 # moves preserve the array type, e.g. GPU).
-function Base.Array(fa::GradedArray{<:Any, <:Any, N}) where {N}
-    dense = convert(Array, to_tensormap(fa))
+# TensorKit defines only the untyped `convert(::Type{Array}, t)` (by its own account a checking
+# path, not tuned for speed), and it widens the element type by the sector scalar type, so a
+# fusion-coefficient-carrying result converts back to `T` in a second pass (an `InexactError` for
+# an integer `T` over a non-abelian sector, an exotic combination we accept losing).
+function Base.Array{T, N}(fa::GradedArray{<:Any, <:Any, N}) where {T, N}
+    dense = convert(Array{T, N}, convert(Array, to_tensormap(fa)))
     all(is_fused_sorted, axes(fa)) && return dense
     sortedlengths = map(g -> Vector(blocklengths(g))[sortperm(sectors(g))], axes(fa))
     invperms = ntuple(d -> Block.(invperm(sortperm(sectors(axes(fa)[d])))), Val(N))
@@ -772,7 +776,7 @@ function Base.Array(fa::GradedArray{<:Any, <:Any, N}) where {N}
 end
 # Rank-0: TensorKit's `convert(Array, ::rank-0 TensorMap)` hits a VectorInterface `add!` gap for some
 # eltypes (e.g. `Float32`), so build the 0-dim array from the scalar directly.
-Base.Array(fa::GradedArray{<:Any, <:Any, 0}) = fill(fa[])
+Base.Array{T, 0}(fa::GradedArray{<:Any, <:Any, 0}) where {T} = fill(convert(T, fa[]))
 
 # `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification, and the dense
 # form at an arbitrary codomain split `Val{K}` used to compare tensors across backends (which agree
