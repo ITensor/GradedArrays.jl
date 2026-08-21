@@ -32,8 +32,8 @@ end
 # Block `(i, j)` is stored only when its codomain and domain sectors coincide and that sector has
 # an allocated block.
 function isstored(b::FusedGradedMatrixBlocks, i::Int, j::Int)
+    @boundscheck checkbounds(b, i, j)
     cod, dom = axis_codomain(b.parent), axis_domain(b.parent)
-    (i in 1:blocklength(cod) && j in 1:blocklength(dom)) || return false
     s_cod = sectors(cod)[i]
     s_dom = sectors(dom)[j]
     # Stored iff codomain and domain share the sector: `s_cod` is a codomain sector by construction,
@@ -75,6 +75,3 @@ end
 
 Base.size(b::FusedGradedVectorBlocks) = (blocklength(only(axes(b.parent))),)
 Base.getindex(b::FusedGradedVectorBlocks, i::Int) = view(b.parent, Block(i))
-
-# Every in-range block is stored: the vector's contiguous buffer allocates all sectors of its axis.
-isstored(b::FusedGradedVectorBlocks, i::Int) = i in 1:blocklength(only(axes(b.parent)))

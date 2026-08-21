@@ -150,7 +150,7 @@ using Test: @test, @test_broken, @test_throws, @testset
         m = fusedgradedmatrix([U1(0), U1(1)] .=> [ones(2, 2), 2 * ones(3, 3)])
         @test isstored(m, Block(1, 1))
         @test !isstored(m, Block(1, 2))  # off-diagonal in sector space
-        @test !isstored(m, Block(3, 1))  # out of range
+        @test_throws BoundsError isstored(m, Block(3, 1))  # out of range
     end
 
     @testset "blocks accessor (fused)" begin

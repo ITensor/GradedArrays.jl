@@ -8,6 +8,14 @@
 
 function storedlength end
 function isstored end
+
+# `AbstractArray` fallback matching SparseArraysBase: a plain array stores every in-bounds element,
+# with the bounds check elidable via `@inbounds`.
+function isstored(a::AbstractArray, I::Int...)
+    @inline
+    @boundscheck checkbounds(a, I...)
+    return true
+end
 function getstoredindex end
 function setstoredindex! end
 function getunstoredindex end
