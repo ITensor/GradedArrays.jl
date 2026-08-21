@@ -45,6 +45,15 @@ entries of the block at `sectors[i]`. The axis is derived from the blocks, as fo
 """
 fusedgradeddiagonal(sectordata) = FusedGradedDiagonal(fusedgradedvector(sectordata))
 
+# Densify to a full `FusedGradedMatrix`, forwarding the diagonal's block backend `V` through the
+# `{T,S,V}` undef constructor so the result stays on the same device. Each `Diagonal` block becomes a
+# dense block and `copyto!` zeros the off-diagonal. Used where a diagonal result is not representable
+# as a `FusedGradedDiagonal` (a non-`{1,1}` matricize / bond-split unmatricize).
+function FusedGradedMatrix(d::FusedGradedDiagonal{T, S, V}) where {T, S, V}
+    m = FusedGradedMatrix{T, S, V}(undef, axis_codomain(d), axis_domain(d))
+    return copyto!(m, d)
+end
+
 sectordata(d::FusedGradedDiagonal) = map(Diagonal, sectordata(MAK.diagview(d)))
 
 # ---- accessors ----
@@ -75,6 +84,31 @@ function TensorAlgebra.permuteddims(d::FusedGradedDiagonal, perm)
         )
     )
     return d
+end
+
+# ---- matricize ----
+
+# A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix). Any other
+# codomain rank bends a leg, which matrix-level fused storage cannot represent.
+TensorAlgebra.matricize(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
+function TensorAlgebra.matricize(
+        style::GradedMatricize, d::FusedGradedDiagonal, ndims_codomain::Val
+    )
+    throw(
+        ArgumentError(
+            "a matrix-level fused array matricizes only with a single codomain leg"
+        )
+    )
+end
+
+# The product of two diagonal fused matrices over a single contracted leg is again diagonal, so
+# allocate a `FusedGradedDiagonal` (the block-wise `mul!` fills it via `Diagonal * Diagonal`). Mixed
+# diagonal/dense products fall through to the general `AbstractFusedGradedMatrix` method (dense).
+function allocate_output(
+        ::typeof(*), A::FusedGradedDiagonal, B::FusedGradedDiagonal
+    )
+    Tout = Base.promote_op(*, eltype(A), eltype(B))
+    return FusedGradedDiagonal{Tout}(undef, axis_codomain(A))
 end
 
 # ---- broadcasting ----

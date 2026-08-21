@@ -603,11 +603,24 @@ end
 
             P = sqrth_safe(S, (1,), (2,))
             Pinv = invsqrth_safe(S, (1,), (2,))
-            @test P isa FusedGradedDiagonal
-            @test Pinv isa FusedGradedDiagonal
+            # The pattern-taking form ends in `unmatricize`, which wraps a diagonal `{1,1}`
+            # result up to the tensor-level `GradedArray`. The fast
+            # `pow_diag_safe` path still runs, so the backing stays a `FusedGradedDiagonal`
+            # rather than densifying to the eigenvalue-power path.
+            @test matricize(P) isa FusedGradedDiagonal
+            @test matricize(Pinv) isa FusedGradedDiagonal
             for (i, s) in enumerate(sects)
-                @test diag(sectordata(P)[s]) ≈ sqrt.(svals[i])
-                @test diag(sectordata(Pinv)[s]) ≈ inv.(sqrt.(svals[i]))
+                @test diag(sectordata(matricize(P))[s]) ≈ sqrt.(svals[i])
+                @test diag(sectordata(matricize(Pinv))[s]) ≈ inv.(sqrt.(svals[i]))
+            end
+
+            # A dense-stored runtime-diagonal matrix takes the same fast path, with
+            # `pow_diag_safe!` delegating per block.
+            M = FusedGradedMatrix(S)
+            Pm = sqrth_safe(M, (1,), (2,))
+            @test matricize(Pm) isa FusedGradedMatrix
+            for (i, s) in enumerate(sects)
+                @test diag(sectordata(matricize(Pm))[s]) ≈ sqrt.(svals[i])
             end
         end
     end

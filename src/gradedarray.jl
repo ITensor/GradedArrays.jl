@@ -431,6 +431,14 @@ end
 
 TensorAlgebra.zero!(fa::GradedArray) = (zero!(matricize(fa)); fa)
 TensorAlgebra.scale!(fa::GradedArray, α::Number) = (scale!(matricize(fa), α); fa)
+function LinearAlgebra.rmul!(fa::GradedArray, α::Number)
+    LinearAlgebra.rmul!(matricize(fa), α)
+    return fa
+end
+function LinearAlgebra.lmul!(α::Number, fa::GradedArray)
+    LinearAlgebra.lmul!(α, matricize(fa))
+    return fa
+end
 LinearAlgebra.norm(fa::GradedArray, p::Real = 2) = LinearAlgebra.norm(matricize(fa), p)
 Base.fill!(fa::GradedArray, v) = (fill!(matricize(fa), v); fa)
 Base.iszero(fa::GradedArray) = iszero(matricize(fa))
@@ -638,6 +646,9 @@ function TensorAlgebra.unmatricize(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
+# A `{1,1}` unmatricize (one codomain axis, one domain axis) reproduces the diagonal's own square
+# bond and is the endomorphism identity: the result stays diagonal, wrapped up to the tensor-level
+# `GradedArray`. `check_input` rejects a mismatched single-axis split rather than densifying it.
 function TensorAlgebra.check_input(
         ::typeof(unmatricize), d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
     )
@@ -650,13 +661,21 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-# Keep the diagonal factor (`S`/`D`) bare so a spectrum is a true diagonal matrix.
 function TensorAlgebra.unmatricize(
-        ::GradedMatricize, d::FusedGradedDiagonal, axes_codomain::Tuple,
-        axes_domain::Tuple
+        ::GradedMatricize, d::FusedGradedDiagonal,
+        axes_codomain::Tuple{<:AbstractGradedOneTo}, axes_domain::Tuple{<:AbstractGradedOneTo}
     )
     check_input(unmatricize, d, axes_codomain, axes_domain)
-    return d
+    return GradedArray(d, axes_codomain, axes_domain)
+end
+
+# Any other split is a genuine bond-split (for example a rank-4 generalized-diagonal tensor), not
+# representable as a `FusedGradedDiagonal`, so densify to a `FusedGradedMatrix` and reconstruct
+# through its own `unmatricize`.
+function TensorAlgebra.unmatricize(
+        style::GradedMatricize, d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
+    )
+    return unmatricize(style, FusedGradedMatrix(d), axes_codomain, axes_domain)
 end
 
 # ============================  contraction  ============================
@@ -688,7 +707,8 @@ function TensorAlgebra.matricize(
 end
 
 function TensorAlgebra.unmatricizeperm!(
-        ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, N}, m::FusedGradedMatrix,
+        ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, N},
+        m::AbstractFusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
     ) where {N}
     # Permute `a_dest` into the matricized leg order to get the matricized-order axes with correct

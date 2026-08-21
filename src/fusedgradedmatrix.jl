@@ -4,6 +4,14 @@
 
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
+# Length of the contiguous stored buffer: the sum of codomain-block times domain-block sizes over
+# the coupled sectors the two axes share.
+function fusedbufferlength(codomain::FusedGradedOneTo, domain::FusedGradedOneTo)
+    codl, doml = sectordatalengths(codomain), sectordatalengths(domain)
+    coupled = intersect(keys(codl), keys(doml))
+    return sum(c -> codl[c] * doml[c], coupled; init = 0)
+end
+
 """
     FusedGradedMatrix{T,S<:SectorRange,V<:DenseVector{T}}
 
@@ -33,9 +41,7 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
             )
         )
         # Validate the buffer length against the block total (SectorData does the same check on access).
-        codl, doml = sectordatalengths(cod), sectordatalengths(dom)
-        coupled = intersect(keys(codl), keys(doml))
-        total = sum(c -> codl[c] * doml[c], coupled; init = 0)
+        total = fusedbufferlength(cod, dom)
         length(buffer) == total ||
             throw(
             DimensionMismatch(
@@ -68,10 +74,19 @@ function FusedGradedMatrix{T}(
     ) where {T}
     cod = FusedGradedOneTo(codomain)
     dom = FusedGradedOneTo(domain)
-    codl, doml = sectordatalengths(cod), sectordatalengths(dom)
-    coupled = intersect(keys(codl), keys(doml))
-    buffer = Vector{T}(undef, sum(c -> codl[c] * doml[c], coupled; init = 0))
+    buffer = Vector{T}(undef, fusedbufferlength(cod, dom))
     return FusedGradedMatrix(buffer, cod, dom)
+end
+
+# Same as the `{T}` method but allocates the buffer as the given `V`, so a caller can forward its own
+# block backend (for example a GPU buffer) instead of defaulting to `Vector{T}`.
+function FusedGradedMatrix{T, S, V}(
+        ::UndefInitializer, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
+    ) where {T, S, V}
+    cod = FusedGradedOneTo(codomain)
+    dom = FusedGradedOneTo(domain)
+    buffer = V(undef, fusedbufferlength(cod, dom))
+    return FusedGradedMatrix{T, S, V}(buffer, cod, dom)
 end
 
 """
@@ -161,9 +176,13 @@ axes_codomain(m::FusedGradedMatrix) = (m.axis_codomain,)
 axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 
 # The main diagonal as an owned `FusedGradedVector` whose block at each coupled sector is that block's
-# diagonal; the fresh buffer means writing it does not touch `m`. A write-through `diagview` of a
-# `FusedGradedMatrix` is not yet supported. Off-diagonals are unsupported.
+# diagonal; the fresh buffer means writing it does not touch `m`. Restricted to equal codomain and
+# domain axes (square blocks): only then do the per-block diagonals coincide with the matrix's main
+# diagonal. With rectangular blocks the dense diagonal drifts off the blocks into off-diagonal bands,
+# so concatenating per-block diagonals is a different operation; iterate blocks explicitly for that. A
+# write-through `diagview` of a `FusedGradedMatrix` is not yet supported. Off-diagonals are unsupported.
 function LinearAlgebra.diag(m::FusedGradedMatrix)
+    checksquare(m)
     return fusedgradedvector(map(MAK.diagview, sectordata(m)))
 end
 function LinearAlgebra.diag(m::FusedGradedMatrix, k::Integer)

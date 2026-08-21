@@ -1,15 +1,17 @@
 # Block-sparse interface functions owned by GradedArrays.
 #
 # GradedArrays implements a block-sparse interface on its own graded array and axis types.
-# These names are duplicated with BlockSparseArrays by design: GradedArrays owns them here so
+# These names are mostly duplicated with BlockSparseArrays by design: GradedArrays owns them here so
 # it does not depend on BlockSparseArrays. They are internal (not exported); downstream reaches
-# them by qualified import, e.g. `using GradedArrays: eachblockstoredindex`.
+# them by qualified import, e.g. `using GradedArrays: eachblockstoredindex`. `isblockdiag` is a
+# deliberate exception: BlockSparseArrays spells it `isblockdiagonal`, but we match the name of
+# `LinearAlgebra.isdiag` instead.
 
 function eachblockstoredindex end
 function eachblockaxis end
 function mortar_axis end
 function blocktype end
-function isblockdiagonal end
+function isblockdiag end
 
 # The number of stored (symmetry-allowed) blocks. Counted from the stored block indices directly
 # rather than via `storedlength(blocks(a))`, whose generic `length(storedvalues(...))` would

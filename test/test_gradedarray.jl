@@ -1,14 +1,14 @@
 using BlockArrays: Block, blocklengths
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
-    FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2, data, dual,
-    fusedgradeddiagonal, fusedgradedmatrix, gradedrange, isdual, ndims_codomain,
-    ndims_domain, sector, sectordata, to_tensormap, with_block_indexing,
-    with_scalar_indexing
-using LinearAlgebra: Diagonal, diag
+    FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2,
+    checksquare, data, dual, fusedgradeddiagonal, fusedgradedmatrix, gradedrange,
+    isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sector, sectordata,
+    tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
+using LinearAlgebra: Diagonal, diag, lmul!, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, bipermutedims, contract, eig_full, eigh_full, matricize,
-    project_hermitian, svd_compact
+    project_hermitian, svd_compact, unmatricize
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -534,4 +534,126 @@ end
         @test canonical(c1, lc1, [:i, :l]) ≈ ref
         @test canonical(c1, lc1, [:i, :l]) ≈ canonical(c2, lc2, [:i, :l])
     end
+end
+
+# The diagonal factor `S`/`D` (SVD singular values, eigenvalues) is a `FusedGradedDiagonal`. These
+# check that `matricize`/`unmatricize`, `contract`, broadcast addition, and band-wise matrix
+# functions preserve the diagonal type exactly where the result stays diagonal and densify where it
+# genuinely is not (the operand-driven policy).
+@testset "diagonal algebra output types ($G)" for (G, g) in (
+        ("U1", gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])),
+        ("SU2", gradedrange([SU2(0) => 3, SU2(1 // 2) => 2, SU2(1) => 1])),
+    )
+    S = MAK.svd_compact(matricize(randn((g,), (g,))))[2]
+    @test S isa FusedGradedDiagonal
+
+    @testset "matricize" begin
+        # `{1,1}` is the identity matricization of a diagonal. Any other codomain rank bends a leg,
+        # which matrix-level fused storage cannot represent, so it errors.
+        @test matricize(S, Val(1)) === S
+        @test_throws ArgumentError matricize(S, Val(2))
+    end
+
+    @testset "unmatricize" begin
+        # `{1,1}` bond preserves the diagonal, wrapped to the tensor-level `GradedArray`.
+        r = unmatricize(S, (g,), (g,))
+        @test r isa GradedArray
+        @test matricize(r) isa FusedGradedDiagonal
+        @test matricize(r) === S
+    end
+
+    @testset "contract" begin
+        Sa = GradedArray(S, (g,), (g,))
+        # Wrapped spectra contract through the generic dense allocation. Diagonal contract algebra
+        # lives at the matrix level, where factorizations return spectra.
+        C, _ = contract(Sa, (1, -1), Sa, (-1, 2))
+        @test matricize(C) isa FusedGradedMatrix
+        @test Array(C) ≈ Array(Sa) * Array(Sa)
+
+        # Diagonal × dense densifies.
+        adense = randn((g,), (g,))
+        Cmix, _ = contract(Sa, (1, -1), adense, (-1, 2))
+        @test matricize(Cmix) isa FusedGradedMatrix
+        @test Array(Cmix) ≈ Array(Sa) * Array(adense)
+
+        # Full contraction is a scalar; outer product is rank 4 — both dense.
+        Cfull, _ = contract(Sa, (1, 2), Sa, (2, 1))
+        @test ndims(Cfull) == 0
+        @test matricize(Cfull) isa FusedGradedMatrix
+
+        Couter, _ = contract(Sa, (1, 2), Sa, (3, 4))
+        @test ndims(Couter) == 4
+        @test matricize(Couter) isa FusedGradedMatrix
+    end
+
+    @testset "matrix product" begin
+        # The matrix-level product of two spectra stays diagonal.
+        S2 = MAK.svd_compact(matricize(randn((g,), (g,))))[2]
+        P = S * S2
+        @test P isa FusedGradedDiagonal
+        for c in keys(sectordata(S))
+            @test sectordata(P)[c] ≈ sectordata(S)[c] * sectordata(S2)[c]
+        end
+    end
+
+    @testset "broadcast addition" begin
+        S2 = MAK.svd_compact(matricize(randn((g,), (g,))))[2]
+        # All-diagonal broadcast stays diagonal; a dense operand promotes to a fused matrix.
+        r_dd = S + S2
+        @test r_dd isa FusedGradedDiagonal
+        @test MAK.diagview(r_dd).buffer ≈ MAK.diagview(S).buffer .+ MAK.diagview(S2).buffer
+        r_lc = 2 .* S .- S2
+        @test r_lc isa FusedGradedDiagonal
+
+        M = matricize(randn((g,), (g,)))
+        @test S + M isa FusedGradedMatrix
+        @test Array(S + M) ≈ Array(S) + Array(M)
+        @test M + S isa FusedGradedMatrix
+    end
+
+    @testset "band-wise matrix functions" begin
+        # A band-wise function on the diagonal band stays diagonal.
+        Sq = MAK.diagonal(map(sqrt, MAK.diagview(S)))
+        @test Sq isa FusedGradedDiagonal
+        @test MAK.diagview(Sq).buffer ≈ sqrt.(MAK.diagview(S).buffer)
+    end
+end
+
+# The dense reshape equivalence is abelian-only (a non-abelian unmatricize recouples), so this
+# runs on `U1` rather than inside the symmetry loop above.
+@testset "unmatricize bond-split densifies a diagonal" begin
+    g = gradedrange([U1(0) => 1, U1(1) => 1])
+    bond = tensor_product(g, g)
+    D = MAK.svd_compact(matricize(randn((bond,), (bond,))))[2]
+    rsplit = unmatricize(D, (g, g), (bond,))
+    @test rsplit isa GradedArray
+    @test matricize(rsplit) isa FusedGradedMatrix
+    @test ndims_codomain(rsplit) == 2
+    @test Array(rsplit) ≈ reshape(Array(D), length(g), length(g), length(bond))
+end
+
+@testset "scalar rmul! and lmul!" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn((g,), (g,))
+    aref = Array(a)
+    rmul!(a, 2.5)
+    @test Array(a) ≈ 2.5 * aref
+    lmul!(-0.5, a)
+    @test Array(a) ≈ -1.25 * aref
+end
+
+@testset "issquare, checksquare, isblockdiag, and diag" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    m = matricize(randn((g,), (g,)))
+    @test issquare(m)
+    @test isnothing(checksquare(m))
+    @test isblockdiag(m)
+    d = diag(m)
+    @test d isa FusedGradedVector
+    @test Array(d) ≈ diag(Array(m))
+    grect = gradedrange([U1(0) => 3, U1(1) => 3])
+    mrect = matricize(randn((g,), (grect,)))
+    @test !issquare(mrect)
+    @test_throws DimensionMismatch checksquare(mrect)
+    @test_throws DimensionMismatch diag(mrect)
 end

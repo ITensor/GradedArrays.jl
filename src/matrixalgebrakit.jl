@@ -1,4 +1,5 @@
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
+using TensorAlgebra: MatrixAlgebra as MA
 
 # Length of the main diagonal of a matrix (e.g. the number of singular values a block produces).
 diaglength(a::AbstractArray) = minimum(size(a))
@@ -100,7 +101,7 @@ for f! in (
         :left_polar!, :right_polar!,
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
-        $(f! in (:eig_full!, :eigh_full!) && :(LinearAlgebra.checksquare(A)))
+        $(f! in (:eig_full!, :eigh_full!) && :(checksquare(A)))
         for c in eachsector(A, F...)
             Ac = getsectordata(A, c)
             Fc = map(x -> getsectordata(x, c), F)
@@ -118,7 +119,7 @@ for f! in (
         :project_isometric!,
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
-        $(f! in (:eig_vals!, :eigh_vals!) && :(LinearAlgebra.checksquare(A)))
+        $(f! in (:eig_vals!, :eigh_vals!) && :(checksquare(A)))
         for c in eachsector(A, N)
             Ac = getsectordata(A, c)
             Nc = getsectordata(N, c)
@@ -133,7 +134,7 @@ end
 # with the same block structure as the input, so they iterate the stored blocks directly.
 for f! in (:project_hermitian!, :project_antihermitian!)
     @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::FusedGradedMatrixAlgorithm)
-        LinearAlgebra.checksquare(A)
+        checksquare(A)
         for I in eachblockstoredindex(A)
             MAK.$f!(view(A, I), view(out, I), FusedSectorMatrixAlgorithm(alg.alg))
         end
@@ -390,26 +391,21 @@ MAK.diagview(d::FusedGradedDiagonal) = d.diag
 # falling through to LinearAlgebra's scalar-indexing `Diagonal*Matrix` impl.
 MAK.diagonal(v::FusedGradedVector) = FusedGradedDiagonal(v)
 
-# `pow_diag_safe!` for a block-diagonal graded matrix: clamp-power each reduced diagonal
-# block. Only the reduced (degeneracy) data is touched, and that is correct even in the
-# non-abelian case: a diagonal factor is `Diagonal(λ) ⊗ I` per sector, and `f(A ⊗ I) =
-# f(A) ⊗ I`, so the power passes straight to the reduced eigenvalues. This is why the
-# diagonal power is well defined here whereas a general element-wise `map!` on a graded
-# array is not.
-function TensorAlgebra.MatrixAlgebra.pow_diag_safe!(
-        Dp::FusedGradedDiagonal, D::FusedGradedDiagonal, p, tol
+# `pow_diag_safe!` for a graded matrix that is diagonal: a `FusedGradedDiagonal`, or a
+# `FusedGradedMatrix` that happens to be runtime-diagonal (the `isdiag` fast path in
+# `sqrth_invsqrth_safe` powers such a matrix directly, without an eigendecomposition).
+# Delegating per reduced block reuses the generic diagonal-only kernel, which is correct even
+# in the non-abelian case: a diagonal factor is `Diagonal(λ) ⊗ I` per sector, and `f(A ⊗ I) =
+# f(A) ⊗ I`, so the power passes straight to the reduced eigenvalues. This is why the diagonal
+# power is well defined here whereas a general element-wise `map!` on a graded array is not.
+function MA.pow_diag_safe!(
+        Dp::AbstractFusedGradedMatrix, D::AbstractFusedGradedMatrix, p, tol
     )
-    dp, d = MAK.diagview(Dp), MAK.diagview(D)
-    for c in eachsector(d)
-        map!(x -> _clamped_pow(x, p, tol), sectordata(dp, c), sectordata(d, c))
+    for c in eachsector(D)
+        MA.pow_diag_safe!(sectordata(Dp, c), sectordata(D, c), p, tol)
     end
     return Dp
 end
-
-# Vendored from `TensorAlgebra.MatrixAlgebra` (not part of its public API): clamp entries
-# below `tol` to zero, then raise to `p`; a negative entry above `tol` lets `real(d)^p`
-# error for fractional `p`, enforcing the PSD precondition per-power.
-_clamped_pow(d, p, tol) = abs(d) < tol ? zero(d) : real(d)^p
 
 # Count how many elements are kept for a given index specification and block size
 _count_kept(::Colon, n) = n
