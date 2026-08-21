@@ -619,6 +619,62 @@ end
     end
 end
 
+@testset "GradedArray wrap of a matrix-level fused operand" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    m = matricize(randn((g,), (g,)))
+    wm = GradedArray(m)
+    @test wm isa GradedArray
+    @test matricize(wm) === m
+    @test (ndims_codomain(wm), ndims_domain(wm)) == (1, 1)
+    @test axes(wm) == axes(m)
+    d = MAK.svd_compact(m)[2]
+    wd = GradedArray(d)
+    @test matricize(wd) === d
+    @test (ndims_codomain(wd), ndims_domain(wd)) == (1, 1)
+    @test axes(wd) == axes(d)
+    # A lazy adjoint wraps lazily, sharing the parent's storage.
+    ma = m'
+    wa = GradedArray(ma)
+    @test matricize(wa) === ma
+    @test parent(matricize(wa)) === m
+    @test axes(wa) == axes(ma)
+    @test Array(wa) ≈ Array(m)'
+end
+
+# Factorization spectra are matrix-level fused operands (a `FusedGradedDiagonal`, or a lazy adjoint
+# of a matricized factor). `contract` lifts them to their tensor-level `{1,1}` `GradedArray` wrap at
+# the entry point, so every operand order works. The fermionic case is the load-bearing one: the
+# lift happens before algorithm selection, so a lifted right factor still gets the contraction
+# twist.
+@testset "contract with matrix-level fused operands ($G)" for (G, g) in (
+        ("U1", gradedrange([U1(0) => 2, U1(1) => 2])),
+        ("fermion", gradedrange([fP0 => 2, fP1 => 2])),
+    )
+    h = project_hermitian(randn((g,), (g,)), (1,), (2,))
+    d, v = eigh_full(h, (1,), (2,))
+    @test d isa FusedGradedDiagonal
+    vdag = matricize(v)'
+    href = canonical(h, (:i, :j), [:i, :j])
+    # `V D V†` with the bare spectra in every contract slot and orientation: the fused operand in
+    # `a2` over its codomain leg (`vd`) and over its domain leg (`vdagd`), in `a1` (`dv`), and in
+    # both slots (`dvdag`).
+    vd, lvd = contract(v, (:i, :b), d, (:b, :c))
+    hr1, lr1 = contract(vd, (:i, :c), vdag, (:c, :j))
+    dv, ldv = contract(d, (:b, :c), v, (:i, :b))
+    hr2, lr2 = contract(dv, (:c, :i), vdag, (:c, :j))
+    dvdag, _ = contract(d, (:b, :c), vdag, (:c, :j))
+    hr3, lr3 = contract(v, (:i, :b), dvdag, (:b, :j))
+    vdagd, _ = contract(vdag, (:c, :j), d, (:b, :c))
+    hr4, lr4 = contract(v, (:i, :b), vdagd, (:j, :b))
+    for (hr, lr) in ((hr1, lr1), (hr2, lr2), (hr3, lr3), (hr4, lr4))
+        @test hr isa GradedArray
+        @test axes(hr) == axes(h)
+        @test canonical(hr, lr, [:i, :j]) ≈ href
+        # A dense comparison is sign-safe only without fermionic braiding.
+        G == "U1" && @test Array(hr) ≈ Array(h)
+    end
+end
+
 # The dense reshape equivalence is abelian-only (a non-abelian unmatricize recouples), so this
 # runs on `U1` rather than inside the symmetry loop above.
 @testset "unmatricize bond-split densifies a diagonal" begin

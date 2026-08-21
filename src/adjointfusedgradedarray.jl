@@ -17,6 +17,9 @@ struct AdjointFusedGradedArray{
     parent::P
 end
 
+const AdjointFusedGradedMatrix{T, S, P} = AdjointFusedGradedArray{T, S, 2, P}
+const AdjointFusedGradedVector{T, S, P} = AdjointFusedGradedArray{T, S, 1, P}
+
 function AdjointFusedGradedArray(
         parent::P
     ) where {T, S, N, P <: AbstractFusedGradedArray{T, S, N}}
