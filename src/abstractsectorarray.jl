@@ -181,7 +181,7 @@ end
 # `AbstractArray` fallback can't be used: `size` is the full (structural × reduced) extent while
 # `data` is only the reduced block, so copying elementwise scalar-indexes past it into garbage.
 function Base.Array{T, N}(a::AbstractSectorArray{<:Any, <:Any, N}) where {T, N}
-    return convert(Array{T, N}, kron_nd(Array(data(a)), Array(sector(a))))
+    return kron_nd(Array{T, N}(data(a)), Array{T, N}(sector(a)))
 end
 
 # ========================  random fills  ========================
