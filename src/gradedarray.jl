@@ -773,6 +773,10 @@ end
 # Rank-0: TensorKit's `convert(Array, ::rank-0 TensorMap)` hits a VectorInterface `add!` gap for some
 # eltypes (e.g. `Float32`), so build the 0-dim array from the scalar directly.
 Base.Array(fa::GradedArray{<:Any, <:Any, 0}) = fill(fa[])
+# The generic `Base.Vector`/`Base.Matrix` constructors copy element by element, which scalar-indexes,
+# so route them through the dense `Array` conversion.
+Base.Vector(fa::GradedArray{<:Any, <:Any, 1}) = Array(fa)
+Base.Matrix(fa::GradedArray{<:Any, <:Any, 2}) = Array(fa)
 
 # `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification, and the dense
 # form at an arbitrary codomain split `Val{K}` used to compare tensors across backends (which agree

@@ -632,6 +632,13 @@ end
     @test Array(rsplit) ≈ reshape(Array(D), length(g), length(g), length(bond))
 end
 
+@testset "dense converters route around scalar indexing" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn((g,), (g,))
+    @test Matrix(a) == Array(a)
+    @test Matrix(matricize(a)) == Array(matricize(a))
+end
+
 @testset "scalar rmul! and lmul!" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = randn((g,), (g,))
@@ -651,6 +658,9 @@ end
     d = diag(m)
     @test d isa FusedGradedVector
     @test Array(d) ≈ diag(Array(m))
+    @test Vector(d) == Array(d)
+    @test Matrix(m) == Array(m)
+    @test with_scalar_indexing(() -> d[1]) == Vector(d)[1]
     grect = gradedrange([U1(0) => 3, U1(1) => 3])
     mrect = matricize(randn((g,), (grect,)))
     @test !issquare(mrect)

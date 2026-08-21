@@ -181,6 +181,10 @@ end
 # `AbstractArray` fallback can't be used: `size` is the full (structural × reduced) extent while
 # `data` is only the reduced block, so copying elementwise scalar-indexes past it into garbage.
 Base.Array(a::AbstractSectorArray) = kron_nd(Array(data(a)), Array(sector(a)))
+# The generic `Base.Vector`/`Base.Matrix` constructors copy element by element, which scalar-indexes,
+# so route them through the dense `Array` conversion.
+Base.Vector(a::AbstractSectorArray{<:Any, <:Any, 1}) = Array(a)
+Base.Matrix(a::AbstractSectorArray{<:Any, <:Any, 2}) = Array(a)
 
 # ========================  random fills  ========================
 
