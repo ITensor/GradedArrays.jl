@@ -84,7 +84,7 @@ function FusedGradedMatrix{T, S, V}(
     codl, doml = sectordatalengths(cod), sectordatalengths(dom)
     coupled = intersect(keys(codl), keys(doml))
     buffer = V(undef, sum(c -> codl[c] * doml[c], coupled; init = 0))
-    return FusedGradedMatrix(buffer, cod, dom)
+    return FusedGradedMatrix{T, S, V}(buffer, cod, dom)
 end
 
 """
