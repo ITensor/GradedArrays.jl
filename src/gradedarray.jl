@@ -36,6 +36,23 @@ struct GradedArray{
     end
 end
 
+"""
+    GradedArray(m::AbstractFusedGradedMatrix)
+
+Wrap a matrix-level fused graded matrix as its tensor-level `{1,1}` `GradedArray`, with the
+matrix's own coupled axes as the codomain and domain axes. The wrap shares storage, except that a
+lazy adjoint is materialized first.
+"""
+GradedArray(m::AbstractFusedGradedMatrix) = GradedArray(m, axes_codomain(m), axes_domain(m))
+
+# The wrap's permute path lacks lazy-adjoint methods (`to_tensormap` has no
+# `AdjointFusedGradedArray` method, so `bipermutedimsopadd!` on the wrap throws a `MethodError`),
+# so materialize for now. TODO: a zero-copy adjoint lift (wrap the parent with the codomain/domain
+# roles swapped) once the wrap path handles it.
+function GradedArray(m::AdjointFusedGradedArray{<:Any, <:Any, 2})
+    return GradedArray(copy(m))
+end
+
 # ============================  Accessors  ============================
 
 # `axes_codomain`/`axes_domain` are the stored primitives (field reads); `biaxes` derives from them
@@ -679,6 +696,51 @@ function TensorAlgebra.unmatricize(
 end
 
 # ============================  contraction  ============================
+
+# A matrix-level fused operand carries no external axes, so it cannot serve as the allocation
+# prototype (`similar_map` with explicit axes is undefined for it), and `default_contract_algorithm`
+# below would not see a `GradedArray` right factor, skipping the fermionic contraction twist. Lift
+# it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the contraction entry
+# point, before output allocation and algorithm selection, then recurse into the generic path.
+function TensorAlgebra.contract(
+        perm_dest_codomain, perm_dest_domain,
+        a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
+        a2::GradedArray, perm2_codomain, perm2_domain;
+        kwargs...
+    )
+    return TensorAlgebra.contract(
+        perm_dest_codomain, perm_dest_domain,
+        GradedArray(a1), perm1_codomain, perm1_domain,
+        a2, perm2_codomain, perm2_domain;
+        kwargs...
+    )
+end
+function TensorAlgebra.contract(
+        perm_dest_codomain, perm_dest_domain,
+        a1::GradedArray, perm1_codomain, perm1_domain,
+        a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
+        kwargs...
+    )
+    return TensorAlgebra.contract(
+        perm_dest_codomain, perm_dest_domain,
+        a1, perm1_codomain, perm1_domain,
+        GradedArray(a2), perm2_codomain, perm2_domain;
+        kwargs...
+    )
+end
+function TensorAlgebra.contract(
+        perm_dest_codomain, perm_dest_domain,
+        a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
+        a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
+        kwargs...
+    )
+    return TensorAlgebra.contract(
+        perm_dest_codomain, perm_dest_domain,
+        GradedArray(a1), perm1_codomain, perm1_domain,
+        GradedArray(a2), perm2_codomain, perm2_domain;
+        kwargs...
+    )
+end
 
 # A general graded right factor is twisted; the per-position `TwistedGradedMatricize` can only come
 # from an explicit override. A matrix-level right factor needs no twist and falls out of the default
