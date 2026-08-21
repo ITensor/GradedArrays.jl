@@ -763,15 +763,28 @@ end
 # materialize through the zero-copy `TensorMap` view. The view is fused-sorted per leg, so for an
 # unfused/unsorted stored axis, move each leg's sector blocks back to the stored order (whole-block
 # moves preserve the array type, e.g. GPU).
-function Base.Array{T, N}(fa::GradedArray{<:Any, <:Any, N}) where {T, N}
-    dense = convert(Array{T, N}, convert(Array, to_tensormap(fa)))
+# TensorKit's dense conversion widens the element type by the sector scalar type (a complex
+# `F`-symbol sector complexifies, a non-integer one floats), so the untyped constructors return
+# that widened type and only an explicit `Array{T, N}` converts the result.
+function _dense(fa::GradedArray{<:Any, <:Any, N}) where {N}
+    dense = convert(Array, to_tensormap(fa))
     all(is_fused_sorted, axes(fa)) && return dense
     sortedlengths = map(g -> Vector(blocklengths(g))[sortperm(sectors(g))], axes(fa))
     invperms = ntuple(d -> Block.(invperm(sortperm(sectors(axes(fa)[d])))), Val(N))
     return parent(BlockedArray(dense, sortedlengths...)[invperms...])
 end
+Base.Array(fa::GradedArray) = _dense(fa)
+Base.Array{<:Any, N}(fa::GradedArray{<:Any, <:Any, N}) where {N} = Array(fa)
+Base.Array{T}(fa::GradedArray) where {T} = Array{T, ndims(fa)}(fa)
+# TensorKit defines only the untyped `convert(::Type{Array}, t)` (by its own account a checking
+# path, not tuned for speed), so an explicit element type costs a second conversion pass over the
+# materialized result; a target-eltype converter belongs upstream if this ever matters.
+function Base.Array{T, N}(fa::GradedArray{<:Any, <:Any, N}) where {T, N}
+    return convert(Array{T, N}, _dense(fa))
+end
 # Rank-0: TensorKit's `convert(Array, ::rank-0 TensorMap)` hits a VectorInterface `add!` gap for some
 # eltypes (e.g. `Float32`), so build the 0-dim array from the scalar directly.
+Base.Array(fa::GradedArray{<:Any, <:Any, 0}) = fill(fa[])
 Base.Array{T, 0}(fa::GradedArray{<:Any, <:Any, 0}) where {T} = fill(convert(T, fa[]))
 
 # `unproject` is the dense inverse of `projectto!` used by `TA.project`'s verification, and the dense
