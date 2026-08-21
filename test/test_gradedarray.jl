@@ -1,4 +1,4 @@
-using BlockArrays: Block, blocklengths
+using BlockArrays: Block, blocklengths, blocks
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
     FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2,
     checksquare, data, dual, fusedgradeddiagonal, fusedgradedmatrix, gradedrange,
@@ -637,6 +637,10 @@ end
     a = randn((g,), (g,))
     @test Matrix(a) == Array(a)
     @test Matrix(matricize(a)) == Array(matricize(a))
+    @test Array{Float64}(a) == Array(a)
+    @test Matrix{Float32}(a) == Float32.(Array(a))
+    @test Array{Float32}(matricize(a)) == Float32.(Array(matricize(a)))
+    @test Vector{Float32}(diag(matricize(a))) == Float32.(Array(diag(matricize(a))))
 end
 
 @testset "scalar rmul! and lmul!" begin
@@ -661,6 +665,8 @@ end
     @test Vector(d) == Array(d)
     @test Matrix(m) == Array(m)
     @test with_scalar_indexing(() -> d[1]) == Vector(d)[1]
+    @test all(i -> GradedArrays.isstored(blocks(d), i), 1:length(blocks(d)))
+    @test_throws BoundsError GradedArrays.isstored(blocks(d), length(blocks(d)) + 1)
     grect = gradedrange([U1(0) => 3, U1(1) => 3])
     mrect = matricize(randn((g,), (grect,)))
     @test !issquare(mrect)

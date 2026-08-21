@@ -180,11 +180,9 @@ end
 # `to_tensormap` conversion (`Array(::FusedGradedMatrix)` and `Array(::GradedArray)` coincide). The generic
 # `AbstractArray` fallback can't be used: `size` is the full (structural × reduced) extent while
 # `data` is only the reduced block, so copying elementwise scalar-indexes past it into garbage.
-Base.Array(a::AbstractSectorArray) = kron_nd(Array(data(a)), Array(sector(a)))
-# The generic `Base.Vector`/`Base.Matrix` constructors copy element by element, which scalar-indexes,
-# so route them through the dense `Array` conversion.
-Base.Vector(a::AbstractSectorArray{<:Any, <:Any, 1}) = Array(a)
-Base.Matrix(a::AbstractSectorArray{<:Any, <:Any, 2}) = Array(a)
+function Base.Array{T, N}(a::AbstractSectorArray{<:Any, <:Any, N}) where {T, N}
+    return convert(Array{T, N}, kron_nd(Array(data(a)), Array(sector(a))))
+end
 
 # ========================  random fills  ========================
 

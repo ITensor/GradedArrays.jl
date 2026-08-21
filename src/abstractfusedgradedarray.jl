@@ -369,11 +369,9 @@ end
 # Materialize into a dense `Array` (the generic fallback copies elementwise, which scalar-indexes).
 # `_to_blockarray` reintroduces each block's structural factor (`reduced ⊗ I`), the identity for
 # abelian sectors but a repeat over the irrep's quantum dimension for non-abelian ones.
-Base.Array(a::AbstractFusedGradedArray) = Array(_to_blockarray(a))
-# The generic `Base.Vector`/`Base.Matrix` constructors copy element by element, which scalar-indexes,
-# so route them through the dense `Array` conversion.
-Base.Vector(a::AbstractFusedGradedVector) = Array(a)
-Base.Matrix(a::AbstractFusedGradedMatrix) = Array(a)
+function Base.Array{T, N}(a::AbstractFusedGradedArray{<:Any, <:Any, N}) where {T, N}
+    return Array{T, N}(_to_blockarray(a))
+end
 
 # Block-diagonal inner product: sum the inner products of the stored blocks, each a sector array
 # whose own `dot` carries the quantum-dimension weight of its coupled sector (unit weight for
