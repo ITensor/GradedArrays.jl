@@ -12,7 +12,7 @@ using Test: @test, @test_throws, @testset
         @test g isa FusedGradedOneTo{U1}
         @test g isa AbstractGradedOneTo{U1}
         @test sectors(g) == [U1(0), U1(1)]
-        @test sectors(g) isa Vector{U1}
+        @test sectors(g) isa AbstractVector{U1}
         @test datalengths(g) == [2, 3]
         @test isdual(g) == false
     end

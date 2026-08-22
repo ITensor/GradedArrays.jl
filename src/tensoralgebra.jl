@@ -117,16 +117,11 @@ function invblockmergeperm(
 end
 
 # The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`.
+# encodes that invariant rather than a plain `GradedOneTo`. The vector-level worker lives in
+# `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have constant-time fast paths
+# (the cached fused form and the identity).
 function sectormergesort(g::AbstractGradedOneTo)
-    # Merge repeated sectors (summing their data lengths) and sort. The stored sectors are non-dual
-    # and the arrow is axis-level, so merge and sort them directly and carry `isdual` through.
-    dict = Dict{sectortype(g), Int}()
-    for (s, m) in zip(sectors(g), datalengths(g))
-        dict[s] = get(dict, s, 0) + m
-    end
-    merged = sort!(collect(pairs(dict)); by = first)
-    return FusedGradedOneTo(first.(merged), last.(merged), isdual(g))
+    return sectormergesort(sectors(g), datalengths(g), isdual(g))
 end
 
 # tensor_product produces a fused-sorted, non-dual FusedGradedOneTo

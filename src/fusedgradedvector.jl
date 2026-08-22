@@ -234,8 +234,8 @@ end
 # ========================  eachblockstoredindex  ========================
 
 function eachblockstoredindex(v::FusedGradedVector)
-    ax = sectordatalengths(axis(v))
-    return (Block(gettoken(ax, c)[2][2]) for c in keys(sectordata(v)))
+    ax = axis(v)
+    return (Block(findsectorindex(ax, c)) for c in keys(sectordata(v)))
 end
 
 # ========================  similar  ========================

@@ -125,10 +125,10 @@ function Base.view(m::AbstractFusedGradedMatrix, I::Block{2})
 end
 
 function eachblockstoredindex(m::AbstractFusedGradedMatrix)
-    cod = sectordatalengths(axis_codomain(m))
-    dom = sectordatalengths(axis_domain(m))
+    cod = axis_codomain(m)
+    dom = axis_domain(m)
     return (
-        Block(gettoken(cod, c)[2][2], gettoken(dom, c)[2][2]) for
+        Block(findsectorindex(cod, c), findsectorindex(dom, c)) for
             c in keys(sectordata(m))
     )
 end
