@@ -201,6 +201,9 @@ sectordata(v::FusedGradedVector) = SectorData(v, sectordatalengths(axis(v)))
 axes_codomain(v::FusedGradedVector) = (v.axis,)
 axes_domain(v::FusedGradedVector) = ()
 
+# Aliasing identity is the buffer's (see `dataids(::FusedGradedMatrix)`).
+Base.dataids(v::FusedGradedVector) = Base.dataids(v.buffer)
+
 # Block-wise `mapreduce`: reduce each block locally (so GPU blocks stay on the device for
 # their reduction kernel) and combine per-block scalars on the CPU. Routes
 # `maximum(abs, v; init=…)`, `sum`, `LinearAlgebra.norm`, etc. without ever falling

@@ -65,6 +65,9 @@ end
 axes_codomain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 axes_domain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 
+# Aliasing identity is the wrapped diagonal vector's, i.e. its buffer's.
+Base.dataids(d::FusedGradedDiagonal) = Base.dataids(d.diag)
+
 function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(MAK.diagview(d), T))
 end

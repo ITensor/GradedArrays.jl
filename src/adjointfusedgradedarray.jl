@@ -51,6 +51,9 @@ end
 axes_codomain(a::AdjointFusedGradedArray) = axes_domain(parent(a))
 axes_domain(a::AdjointFusedGradedArray) = axes_codomain(parent(a))
 
+# Aliasing identity is the parent's (the adjoint shares its storage).
+Base.dataids(a::AdjointFusedGradedArray) = Base.dataids(parent(a))
+
 function Base.similar(a::AdjointFusedGradedArray, ::Type{T}) where {T}
     return FusedGradedMatrix{T}(undef, axis_codomain(a), axis_domain(a))
 end

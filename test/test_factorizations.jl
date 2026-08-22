@@ -625,3 +625,91 @@ end
         end
     end
 end  # @testset "Factorizations"
+
+# The factorization kernels co-iterate the sorted sector union of the input and outputs with one
+# positional walk per array, substituting a zero-size block for a sector an array lacks. Pin the
+# two absent-sector cases against the per-block dense reference: an output sector absent from
+# `A` (null spaces, and the square factors of the full forms), and a full reconstruction across
+# the mismatched sector sets.
+@testset "factorization kernels over differing sector sets (eltype=$elt)" for elt in (
+        Float64,
+        ComplexF64,
+    )
+    rng = StableRNG(1234)
+    # The codomain's U1(2) has no domain partner, so A stores no block there; the null space
+    # and the full factorizations must still cover it.
+    cod = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2])
+    dom = gradedrange([U1(0) => 2, U1(1) => 4])
+    A = randn!(rng, FusedGradedMatrix{elt}(undef, cod, dom))
+    codl = GradedArrays.sectordatalengths(GradedArrays.axis_codomain(A))
+    doml = GradedArrays.sectordatalengths(GradedArrays.axis_domain(A))
+
+    N = MAK.qr_null(A)
+    @test isleftnull(N, A)
+    for (c, n1) in pairs(codl)
+        Ac = haskey(sectordata(A), c) ? Matrix(sectordata(A)[c]) : zeros(elt, n1, 0)
+        Nc_ref = MAK.qr_null(Ac)
+        size(Nc_ref, 2) > 0 || continue
+        @test sectordata(N)[c] ≈ Nc_ref
+    end
+
+    U, S, Vᴴ = MAK.svd_full(A)
+    @test MAK.isunitary(U)
+    @test MAK.isunitary(Vᴴ)
+    @test Array(U * S * Vᴴ) ≈ Array(A)
+
+    Q, R = MAK.qr_full(A)
+    @test MAK.isunitary(Q)
+    @test Array(Q * R) ≈ Array(A)
+
+    # The mirrored case: a domain sector the codomain lacks, covered by the right null space.
+    B = randn!(
+        rng,
+        FusedGradedMatrix{elt}(
+            undef,
+            gradedrange([U1(0) => 2, U1(1) => 4]),
+            gradedrange([U1(0) => 3, U1(1) => 2, U1(3) => 3])
+        )
+    )
+    Nᴴ = MAK.lq_null(B)
+    @test isrightnull(Nᴴ, B)
+    for (c, n2) in pairs(GradedArrays.sectordatalengths(GradedArrays.axis_domain(B)))
+        Bc = if haskey(sectordata(B), c)
+            Matrix(sectordata(B)[c])
+        else
+            zeros(elt, 0, n2)
+        end
+        Nᴴc_ref = MAK.lq_null(Bc)
+        size(Nᴴc_ref, 1) > 0 || continue
+        @test sectordata(Nᴴ)[c] ≈ Nᴴc_ref
+    end
+end
+
+# `copy_input` re-backs the input as one whole-buffer copy; the eltype rule must stay
+# MatrixAlgebraKit's `float(eltype)`, also from an integer input, and the result must never
+# share the input's buffer.
+@testset "copy_input eltype and non-aliasing" begin
+    rng = StableRNG(1234)
+    Ai = fusedgradedmatrix([U1(0) => [1 2; 3 4], U1(1) => [5 6; 7 8]])
+    for f in (
+            MAK.qr_compact, MAK.svd_compact, MAK.lq_compact, MAK.eig_full, MAK.eigh_full,
+            MAK.left_polar, MAK.project_hermitian,
+        )
+        Af = MAK.copy_input(f, Ai)
+        @test Af isa FusedGradedMatrix{Float64}
+        @test Array(Af) == Array(Ai)
+    end
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    Af64 = randn!(rng, FusedGradedMatrix{Float64}(undef, g, g))
+    Ac = MAK.copy_input(MAK.svd_compact, Af64)
+    @test Ac.buffer !== Af64.buffer
+    @test Array(Ac) == Array(Af64)
+
+    # Factorizations from integer input keep the dense output eltypes.
+    Q, R = MAK.qr_compact(Ai)
+    @test eltype(Q) === Float64 && eltype(R) === Float64
+    U, S, Vᴴ = MAK.svd_compact(Ai)
+    @test eltype(U) === Float64 && eltype(S) === Float64 && eltype(Vᴴ) === Float64
+    D, V = MAK.eig_full(Ai)
+    @test eltype(D) === ComplexF64 && eltype(V) === ComplexF64
+end

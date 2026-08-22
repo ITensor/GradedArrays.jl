@@ -175,6 +175,27 @@ end
 axes_codomain(m::FusedGradedMatrix) = (m.axis_codomain,)
 axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 
+# Aliasing identity is the buffer's: `Base.mightalias` then detects sharing between the matrix,
+# its buffer, and wrappers of either (the `AbstractArray` fallback compares `objectid`s, which
+# never match across wrappers).
+Base.dataids(m::FusedGradedMatrix) = Base.dataids(m.buffer)
+
+# ========================  buffer fast paths  ========================
+# The stored blocks tile the buffer exactly and equal axes pin the same layout, so whole-array
+# zero and copy are single contiguous buffer passes instead of the generic per-block loops.
+# (`copy` rides on the generic `copyto!(similar(a), a)`, so it takes this path too.)
+
+function TensorAlgebra.zero!(m::FusedGradedMatrix)
+    fill!(m.buffer, zero(eltype(m)))
+    return m
+end
+
+function Base.copyto!(dest::FusedGradedMatrix, src::FusedGradedMatrix)
+    axes(dest) == axes(src) || throw(DimensionMismatch("`copyto!` requires matching axes"))
+    copyto!(dest.buffer, src.buffer)
+    return dest
+end
+
 # The main diagonal as an owned `FusedGradedVector` whose block at each coupled sector is that block's
 # diagonal; the fresh buffer means writing it does not touch `m`. Restricted to equal codomain and
 # domain axes (square blocks): only then do the per-block diagonals coincide with the matrix's main

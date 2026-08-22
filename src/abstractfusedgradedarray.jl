@@ -30,11 +30,12 @@ blocktype(a::AbstractFusedGradedArray) = blocktype(typeof(a))
 # fields. Everything axis-related derives from `biaxes` (the per-variant core), below.
 function sectordata end
 
-# Sectors to iterate. Single arg: the stored sectors. Varargs: their union across arguments
-# (analogous to `eachindex(A...)`). Returns an iterator; `sectors` is the vector-returning query.
+# Sectors to iterate. Single arg: the stored sectors. Varargs: their sorted union across
+# arguments (analogous to `eachindex(A...)`), so it can key a positional walk over each
+# argument's sorted storage (see `allsectordata`). `sectors` is the vector-returning query.
 eachsector(a::AbstractFusedGradedArray) = keys(sectordata(a))
 function eachsector(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
-    return union(eachsector(a), eachsector.(as)...)
+    return sort!(union!(collect(eachsector(a)), eachsector.(as)...))
 end
 
 # Per-sector data, strict and lenient. Strict `sectordata(a, c)` returns the stored block's data and
@@ -42,8 +43,32 @@ end
 # (the `get` prefix marks the possible allocation).
 sectordata(a::AbstractFusedGradedArray, c) = sectordata(a)[c]
 function getsectordata(a::AbstractFusedGradedArray, c)
-    return get(sectordata(a), c) do
-        return similar(valtype(sectordata(a)), getsectordataaxes(a, c))
+    return get(() -> zerosectordata(a, c), sectordata(a), c)
+end
+
+# A fresh block for a sector absent from `a`, zero-size along each dimension whose axis lacks the
+# sector. The stored block type is a buffer view with no `undef` constructor, so allocate dense.
+function zerosectordata(a::AbstractFusedGradedArray, c)
+    return similar(Array{eltype(a)}, getsectordataaxes(a, c))
+end
+
+# The stored blocks as a `sector => block` pairs iterator, the `storedpairs` analog of
+# `sectordata` (token-level iteration over the sorted storage).
+sectordatapairs(a::AbstractFusedGradedArray) = pairs(sectordata(a))
+
+# The per-sector blocks of `a` over the given sector list `cs`: the stored block where the sector
+# is stored, the lenient zero-size block (as `getsectordata`) where it is absent. `cs` must be
+# sorted and contain every stored sector of `a` (e.g. `eachsector(a, bs...)`), so one positional
+# walk over the sorted storage lines the blocks up with `cs` — no per-sector lookups.
+function allsectordata(a::AbstractFusedGradedArray, cs)
+    stored = Iterators.Stateful(sectordatapairs(a))
+    return map(cs) do c
+        p = peek(stored, nothing)
+        if !isnothing(p) && isequal(first(p), c)
+            popfirst!(stored)
+            return last(p)
+        end
+        return zerosectordata(a, c)
     end
 end
 

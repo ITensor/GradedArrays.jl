@@ -71,6 +71,11 @@ ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 # matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
+# Aliasing identity is the stored matrix's buffer: `Base.mightalias` then detects sharing
+# between the array and its matricized form (e.g. so a contraction that multiplied straight
+# into the destination's stored matrix skips the scatter-back).
+Base.dataids(fa::GradedArray) = Base.dataids(matricize(fa))
+
 # ============================  block indexing (unique fusion)  ============================
 # Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
 # block. The returned `UniqueSectorArray` is a view into the block's strided data, so get/set writes
@@ -643,6 +648,18 @@ function TensorAlgebra.matricize(
     return matricize(fa_bent)
 end
 
+# With the identity bipermutation and a matching split, `matricizeperm` returns the stored
+# matrix (a field read), so claim the alias: `contractopadd!` then multiplies straight into the
+# destination's stored matrix instead of scattering a detached product back. The claim is
+# perm-shape-only; in the identity-perm leg-bend case `matricize` still gathers a fresh matrix,
+# and the scatter-skip decision falls back to `Base.mightalias` (via `dataids`), which is then
+# `false`.
+function TensorAlgebra.matricizepermaliases(
+        ::GradedMatricize, perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
+    )
+    return TensorAlgebra.isidentityperm((perm_codomain..., perm_domain...))
+end
+
 function TensorAlgebra.check_input(
         ::typeof(unmatricize), m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple
     )
@@ -809,12 +826,15 @@ function TensorAlgebra.output_axes(
 end
 
 # The generic `allocate_contract_output` constrains the axes to `Tuple`, so the carrier form
-# needs its own method; it mirrors the generic body.
+# needs its own method. Unlike the generic body it skips the `zero!`: every consumer overwrites
+# the destination in full — `mul!` into the stored matrix zero-fills the coupled blocks the
+# product misses, and the scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a
+# strong-zero β) write every block.
 function TensorAlgebra.allocate_contract_output(
         a1::GradedArray, a2::GradedArray, T,
         axes_codomain::FusedAxes, axes_domain::FusedAxes
     )
-    return zero!(TensorAlgebra.similar_map(a1, T, axes_codomain, axes_domain))
+    return TensorAlgebra.similar_map(a1, T, axes_codomain, axes_domain)
 end
 
 function TensorAlgebra.similar_map(

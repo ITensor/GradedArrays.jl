@@ -841,3 +841,69 @@ end
     check_coupled(c)
     @test canonical(c, (:k, :i, :j, :l), [:i, :j, :k, :l]) ≈ refc
 end
+
+# `Base.dataids` forwards to the shared buffer, so `Base.mightalias` sees storage sharing
+# through the `GradedArray`/matricized-wrapper boundary (this is what lets a contraction that
+# multiplied straight into the destination's stored matrix skip the scatter-back).
+@testset "dataids sees through the matricized wrapper" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn((g,), (g,))
+    b = randn((g,), (g,))
+    @test Base.mightalias(matricize(a), a)
+    @test Base.mightalias(a, matricize(a))
+    @test Base.mightalias(matricize(a)', a)
+    @test !Base.mightalias(matricize(a), b)
+    @test !Base.mightalias(a, b)
+    @test !Base.mightalias(copy(matricize(a)), a)
+    d = fusedgradeddiagonal([SectorRange(U1(0)) => randn(2)])
+    @test Base.mightalias(d, MAK.diagview(d))
+end
+
+# Contract destinations are allocated without a `zero!` pass, so every consumer must overwrite
+# them in full. The critical case is a destination whose coupled-sector set strictly contains
+# the product's stored sectors (here the bond misses U1(1), which both external legs carry):
+# the blocks the product never reaches must come out exactly zero, not undef garbage.
+@testset "contract zero-fills the dest blocks the product misses" begin
+    gext = gradedrange([U1(0) => 2, U1(1) => 3])
+    gbond = gradedrange([U1(0) => 2])
+    a = randn((gext,), (gbond,))
+    b = randn((gbond,), (gext,))
+    for _ in 1:3
+        c, = contract(a, (1, -1), b, (-1, 2))
+        mc = matricize(c)
+        @test issetequal(collect(keys(sectordata(mc))), SectorRange.([U1(0), U1(1)]))
+        @test iszero(sectordata(mc)[SectorRange(U1(1))])
+        @test Array(c) ≈ Array(a) * Array(b)
+    end
+end
+
+# `contractadd!` with nonzero β: `mul!` straight into the destination's stored matrix for an
+# identity destination bipermutation, a seeded gather / `mul!` / scatter for a permuted one.
+# Pin both against the dense reference, over a bond that misses a destination sector so β must
+# also scale the blocks the product never reaches.
+@testset "contractadd! with nonzero beta (identity and permuted dest)" begin
+    gext = gradedrange([U1(0) => 2, U1(1) => 3])
+    gbond = gradedrange([U1(0) => 2])
+    a = randn((gext,), (gbond,))
+    b = randn((gbond,), (gext,))
+    α, β = 2.0, -3.0
+
+    d = randn((gext,), (gext,))
+    dref = Array(d)
+    TensorAlgebra.contractadd!(d, (1, 2), a, (1, -1), b, (-1, 2), α, β)
+    @test Array(d) ≈ α * Array(a) * Array(b) + β * dref
+
+    c, = contract(a, (1, -1), b, (-1, 2))
+    dp = TensorAlgebra.permutedims(c, (2, 1))
+    randn!(matricize(dp).buffer)
+    dpref = Array(dp)
+    TensorAlgebra.contractadd!(dp, (2, 1), a, (1, -1), b, (-1, 2), α, β)
+    @test Array(dp) ≈ α * permutedims(Array(a) * Array(b), (2, 1)) + β * dpref
+
+    # β = 0 with a permuted destination takes the detached-product branch instead; the blocks
+    # the product misses must still come out zero.
+    dz = TensorAlgebra.permutedims(c, (2, 1))
+    randn!(matricize(dz).buffer)
+    TensorAlgebra.contractadd!(dz, (2, 1), a, (1, -1), b, (-1, 2), 1.0, 0.0)
+    @test Array(dz) ≈ permutedims(Array(a) * Array(b), (2, 1))
+end

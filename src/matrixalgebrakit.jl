@@ -30,11 +30,10 @@ for f in [
         )
     end
 
+    # One buffer-level allocation and copy (the blocks tile the buffer). The `float` eltype rule
+    # matches `MAK.copy_input` for dense matrices, which is `float(eltype)` for all of these.
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
-        return fusedgradedmatrix(
-            map(Base.Fix1(MAK.copy_input, MAK.$f), sectordata(A)),
-            axis_codomain(A), axis_domain(A)
-        )
+        return copyto!(similar(A, float(eltype(A))), A)
     end
 end
 
@@ -102,9 +101,8 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_full!, :eigh_full!) && :(checksquare(A)))
-        for c in eachsector(A, F...)
-            Ac = getsectordata(A, c)
-            Fc = map(x -> getsectordata(x, c), F)
+        cs = eachsector(A, F...)
+        for (Ac, Fc...) in zip(allsectordata(A, cs), map(x -> allsectordata(x, cs), F)...)
             Fc′ = MAK.$f!(Ac, Fc, alg.alg)
             _ensure_inplace!.(Fc, Fc′)
         end
@@ -120,9 +118,8 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_vals!, :eigh_vals!) && :(checksquare(A)))
-        for c in eachsector(A, N)
-            Ac = getsectordata(A, c)
-            Nc = getsectordata(N, c)
+        cs = eachsector(A, N)
+        for (Ac, Nc) in zip(allsectordata(A, cs), allsectordata(N, cs))
             _ensure_inplace!(Nc, MAK.$f!(Ac, Nc, alg.alg))
         end
         return N
