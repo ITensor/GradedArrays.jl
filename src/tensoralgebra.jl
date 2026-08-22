@@ -124,8 +124,15 @@ function sectormergesort(g::AbstractGradedOneTo)
     return sectormergesort(sectors(g), datalengths(g), isdual(g))
 end
 
-# tensor_product produces a fused-sorted, non-dual FusedGradedOneTo
-tensor_product(g::AbstractGradedOneTo) = sectormergesort(flip_dual(g))
+# tensor_product produces a fused-sorted, non-dual FusedGradedOneTo. Equivalent to
+# `sectormergesort(flip_dual(g))`, but flipping the merged form instead of merging the flipped
+# axis (conjugation is a sector bijection, so the two commute): `sectormergesort` is a cached
+# field read for `GradedOneTo`, and `flip` on the fused form is O(sectors), so a dual axis
+# avoids a re-fusion.
+function tensor_product(g::AbstractGradedOneTo)
+    f = sectormergesort(g)
+    return isdual(f) ? flip(f) : f
+end
 
 function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
     return sectormergesort(unmerged_tensor_product(g1, g2))
@@ -294,6 +301,22 @@ function TensorAlgebra.matricizeopperm(
         ::TwistedGradedMatricize, op, a::AbstractArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     )
+    # An identity bipermutation matching the stored split needs no permute: `permutedimsop`
+    # would just copy (identity permutation and unchanged split give no braiding or bend
+    # phases). When the twist is also a no-op — non-fermionic braiding (`twist!` early-returns)
+    # or no dual codomain leg — return the stored matrix directly; it may alias `a`, which
+    # `matricizeopperm`'s maybe-alias contract allows. Otherwise twist a plain copy in place.
+    if op === identity && a isa GradedArray &&
+            length(perm_codomain) == ndims_codomain(a) &&
+            (perm_codomain..., perm_domain...) == ntuple(identity, ndims(a))
+        needs_twist =
+            TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic &&
+            any(i -> isdual(axes(a, i)), perm_codomain)
+        needs_twist || return matricize(a)
+        a_twisted = copy(a)
+        contraction_twist!(a_twisted, length(perm_codomain))
+        return matricize(a_twisted)
+    end
     a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
     contraction_twist!(a_perm, length(perm_codomain))
     return matricize(GradedMatricize(), a_perm, Val(length(perm_codomain)))

@@ -729,3 +729,115 @@ end
     @test_throws DimensionMismatch checksquare(mrect)
     @test_throws DimensionMismatch diag(mrect)
 end
+
+# The single-axis and empty `fuseaxes` fast paths (a cached-field read and the trivial range)
+# must agree with the general reduce-over-`tensor_product` spelling, and the fused root must
+# depend only on the multiset of leaves — the order-independence that lets a contraction carry
+# an operand's stored coupled axis to a permuted output. Conjugating every leaf flips the root.
+@testset "fuseaxes fast paths and leaf-order independence ($G)" for (G, g, h) in (
+        ("U1", gradedrange([U1(0) => 2, U1(1) => 3]), gradedrange([U1(0) => 1, U1(1) => 2])),
+        ("fermion", gradedrange([fP0 => 2, fP1 => 3]), gradedrange([fP1 => 2])),
+        ("SU2", gradedrange([SU2(0) => 2, SU2(1 // 2) => 1]), gradedrange([SU2(1 // 2) => 2])),
+    )
+    S = GradedArrays.sectortype(g)
+    init = GradedArrays.trivial_gradedrange(S)
+    @test GradedArrays.fuseaxes(S, ()) == init
+    for gs in ((g,), (dual(g),), (g, h), (dual(g), h), (g, dual(h), g))
+        @test GradedArrays.fuseaxes(S, gs) == reduce(tensor_product, gs; init)
+    end
+    for (gs, gs_perm) in (((g, h), (h, g)), ((dual(g), h, g), (g, dual(g), h)))
+        @test GradedArrays.fuseaxes(S, gs) == GradedArrays.fuseaxes(S, gs_perm)
+    end
+    # Conjugating every leaf conjugates the root's sectors; `flip` also flips the arrow, which
+    # `dual` resets (a fused root is always non-dual).
+    @test GradedArrays.fuseaxes(S, (conj(g), conj(h))) ==
+        dual(GradedArrays.flip(GradedArrays.fuseaxes(S, (g, h))))
+end
+
+# `output_axes` carries a side's root from the operand's stored coupled axis exactly when that
+# side is the operand's stored codomain/domain group (in any order); any other split falls back
+# to fusing the leaves, which must give the same root for the same multiset.
+@testset "contract output_axes carries stored roots" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    h = gradedrange([U1(0) => 1, U1(1) => 2])
+    a = randn((g, h), (g,))
+    b = randn((g,), (h, g))
+    S = GradedArrays.sectortype(a)
+    root_a = GradedArrays.axis_codomain(matricize(a))
+    root_b = GradedArrays.axis_domain(matricize(b))
+    # Identity groupings carry both sides, with the generic leaves.
+    cod, dom = TensorAlgebra.output_axes(
+        TensorAlgebra.contract, (1, 2), (3, 4), a, (1, 2), (3,), b, (1,), (2, 3)
+    )
+    @test GradedArrays.leaves(cod) == GradedArrays.axes_codomain(a)
+    @test GradedArrays.leaves(dom) == GradedArrays.axes_domain(b)
+    @test GradedArrays.root(cod) === root_a
+    @test GradedArrays.root(dom) === root_b
+    # Permutations within each group still carry (the root is order-independent).
+    cod, dom = TensorAlgebra.output_axes(
+        TensorAlgebra.contract, (2, 1), (4, 3), a, (2, 1), (3,), b, (1,), (3, 2)
+    )
+    @test GradedArrays.root(cod) === root_a
+    @test GradedArrays.root(dom) === root_b
+    # A group-crossing destination split falls back to fusing on both sides; the fused roots
+    # must equal the carried ones on the sides whose multiset is unchanged.
+    cod, dom = TensorAlgebra.output_axes(
+        TensorAlgebra.contract, (1, 2, 3), (4,), a, (1, 2), (3,), b, (1,), (2, 3)
+    )
+    @test GradedArrays.root(cod) == GradedArrays.fuseaxes(S, GradedArrays.leaves(cod))
+    @test GradedArrays.root(dom) == GradedArrays.fuseaxes(S, GradedArrays.leaves(dom))
+    # Contracting part of a stored group falls back on that side.
+    cod, dom = TensorAlgebra.output_axes(
+        TensorAlgebra.contract, (1, 2), (3, 4), a, (1, 3), (2,), b, (1,), (2, 3)
+    )
+    @test GradedArrays.root(cod) == GradedArrays.fuseaxes(S, GradedArrays.leaves(cod))
+    @test GradedArrays.root(dom) === root_b
+end
+
+# Whatever the grouping, the contract output's backing coupled axes must equal the fusion of its
+# external leaves (a carried root agrees with the fused one), and the values must match the
+# TensorKit reference. Groupings cover: both sides carried, per-operand groups permuted, a
+# contracted leg inside a stored group, and a group-crossing destination.
+@testset "contract carries coupled axes across groupings ($G)" for (G, g, h) in (
+        ("U1", gradedrange([U1(0) => 2, U1(1) => 3]), gradedrange([U1(0) => 1, U1(1) => 2])),
+        ("fermion", gradedrange([fP0 => 2, fP1 => 3]), gradedrange([fP1 => 2])),
+        ("SU2", gradedrange([SU2(0) => 2, SU2(1 // 2) => 1]), gradedrange([SU2(1 // 2) => 2])),
+    )
+    S = GradedArrays.sectortype(g)
+    a = randn((g, h), (g,))
+    b = randn((g,), (h, g))
+    ta = TensorKit.TensorMap(a)
+    tb = TensorKit.TensorMap(b)
+    function check_coupled(c)
+        mc = matricize(c)
+        @test GradedArrays.axis_codomain(mc) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_codomain(c))
+        @test GradedArrays.axis_domain(mc) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_domain(c))
+        return nothing
+    end
+
+    # Both sides carried (each side is exactly the operand's stored group).
+    c, lc = contract(a, (:i, :j, :m), b, (:m, :k, :l))
+    @tensor ref[i, j, k, l] := ta[i, j, m] * tb[m, k, l]
+    refc = TensorKit.permute(ref, ((1, 2, 3, 4), ()))
+    check_coupled(c)
+    @test canonical(c, lc, [:i, :j, :k, :l]) ≈ refc
+
+    # Permuted within each stored group (still carried).
+    c, lc = contract(a, (:j, :i, :m), b, (:m, :l, :k))
+    @tensor ref2[i, j, k, l] := ta[j, i, m] * tb[m, l, k]
+    check_coupled(c)
+    @test canonical(c, lc, [:i, :j, :k, :l]) ≈ TensorKit.permute(ref2, ((1, 2, 3, 4), ()))
+
+    # Contracted leg inside a's stored codomain (fused fallback on that side).
+    c, lc = contract(a, (:m, :j, :i), b, (:l, :k, :m))
+    @tensor ref3[i, j, k, l] := ta[m, j, i] * tb[l, k, m]
+    check_coupled(c)
+    @test canonical(c, lc, [:i, :j, :k, :l]) ≈ TensorKit.permute(ref3, ((1, 2, 3, 4), ()))
+
+    # Group-crossing destination split (a `b` leg lands in the destination codomain).
+    c = contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l))
+    check_coupled(c)
+    @test canonical(c, (:k, :i, :j, :l), [:i, :j, :k, :l]) ≈ refc
+end

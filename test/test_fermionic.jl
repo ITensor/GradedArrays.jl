@@ -546,3 +546,36 @@ end
             unmatricizeperm_ref(similar(a), m, invperm_codomain, invperm_domain)
     end
 end
+
+# The right factor of a contraction takes a fast path when its bipermutation is the identity on
+# its stored split: the stored matrix directly when the contraction twist is a no-op, a plain
+# copy twisted in place when it is not. Pin both against the permuted spelling of the same
+# operand, which takes the generic permute-then-twist path, and check the source is not mutated.
+@testset "right-factor identity fast path matches the permuted path (eltype=$elt)" for elt in
+    (
+        Float64,
+        ComplexF64,
+    )
+    r = gradedrange([fP0 => 2, fP1 => 3])
+    for rc in (r, dual(r))
+        a1 = randn(elt, (r,), (rc,))
+        a2 = randn(elt, (rc,), (r,))
+        a2_dense_before = Array(a2)
+        c_fast, = contract(a1, (1, -1), a2, (-1, 2))
+        a2p = permutedims(a2, (2, 1))
+        c_ref, = contract(a1, (1, -1), a2p, (2, -1))
+        @test Array(c_fast) ≈ Array(c_ref)
+        @test axes(c_fast) == axes(c_ref)
+        @test Array(a2) ≈ a2_dense_before
+        # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
+        # returns the stored matrix itself.
+        m = matricizeopperm(
+            GradedArrays.TwistedGradedMatricize(), identity, a2, (1,), (2,)
+        )
+        if isdual(rc)
+            @test m !== matricize(a2)
+        else
+            @test m === matricize(a2)
+        end
+    end
+end
