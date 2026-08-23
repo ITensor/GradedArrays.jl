@@ -117,27 +117,41 @@ struct FusedGradedVector{T, S <: SectorRange, V <: DenseVector{T}} <:
     AbstractFusedGradedVector{T, S}
     buffer::V
     axis::FusedGradedOneTo{S}
+    # The per-sector offset/size layout into the buffer; its concrete type involves `labeltype(S)`
+    # (see `datalayouttype`), so the field is loosely typed and `sectordatalayout` recovers the
+    # concrete type via a typeassert.
+    datalayout::SortedArrayDictionary
 
     # Primitive constructor: wrap a contiguous buffer (shared, not copied); the per-sector blocks are
-    # the lazy `sectordata` view over it. This is the single place the axis is fused into canonical
-    # `FusedGradedOneTo` form; the stored axis is non-dual.
+    # the lazy `sectordata` view over it. The stored axis is non-dual. `datalayout` must be the
+    # per-sector layout of the given axis: the fusing constructor below computes it, and constructors
+    # deriving from an existing vector with the same axis pass its layout through, sharing it (like
+    # the axis itself). Any layout dictionary is accepted and canonicalized to the sorted
+    # parallel-vector form here, a no-op for an already-canonical layout.
     function FusedGradedVector{T, S, V}(
-            buffer::V, axis::AbstractGradedOneTo
+            buffer::V, axis::FusedGradedOneTo{S}, datalayout::AbstractDictionary{S}
         ) where {T, S <: SectorRange, V <: DenseVector{T}}
-        ax = FusedGradedOneTo(axis)
-        isdual(ax) && throw(
+        isdual(axis) && throw(
             ArgumentError("FusedGradedVector stores a non-dual axis")
         )
-        # Validate the buffer length against the block total (SectorData does the same check on access).
-        total = sum(values(sectordatalengths(ax)); init = 0)
+        total = fusedbufferlength(datalayout)
         length(buffer) == total ||
             throw(
             DimensionMismatch(
                 "buffer length $(length(buffer)) does not match block total $total"
             )
         )
-        return new{T, S, V}(buffer, ax)
+        return new{T, S, V}(buffer, axis, convert(datalayouttype(S, Val(1)), datalayout))
     end
+end
+
+# The single place the axis is fused into canonical `FusedGradedOneTo` form (and its per-sector
+# layout computed); every axis-only construction routes through here.
+function FusedGradedVector{T, S, V}(
+        buffer::V, axis::AbstractGradedOneTo
+    ) where {T, S <: SectorRange, V <: DenseVector{T}}
+    ax = FusedGradedOneTo(axis)
+    return FusedGradedVector{T, S, V}(buffer, ax, sectordatalayout(ax))
 end
 
 """
@@ -149,6 +163,13 @@ form. To build from per-sector block data instead, use [`fusedgradedvector`](@re
 """
 function FusedGradedVector(buffer::DenseVector, axis::AbstractGradedOneTo{S}) where {S}
     return FusedGradedVector{eltype(buffer), S, typeof(buffer)}(buffer, axis)
+end
+
+# Sharing form: wrap a buffer with the axis and per-sector layout of an existing vector.
+function FusedGradedVector(
+        buffer::DenseVector, axis::FusedGradedOneTo{S}, datalayout::AbstractDictionary{S}
+    ) where {S}
+    return FusedGradedVector{eltype(buffer), S, typeof(buffer)}(buffer, axis, datalayout)
 end
 
 # Allocate an uninitialized buffer for `axis` and wrap it. The block total is the sum of the
@@ -193,7 +214,12 @@ function datatype(::Type{<:FusedGradedVector{T, S, V}}) where {T, S, V}
     return Base.promote_op(view, V, UnitRange{Int})
 end
 
-sectordata(v::FusedGradedVector) = SectorData(v, sectordatalengths(axis(v)))
+# Typeassert accessor for the loosely typed `datalayout` field (see the struct definition).
+function sectordatalayout(v::FusedGradedVector{<:Any, S}) where {S}
+    return v.datalayout::datalayouttype(S, Val(1))
+end
+
+sectordata(v::FusedGradedVector) = SectorData(v)
 
 # The stored axis is the fused codomain range; a vector has an empty domain. `axes_codomain` is the
 # core axis accessor (the one place `v.axis` is read directly); `biaxes`, `axes`, `size`, and the
@@ -244,7 +270,7 @@ end
 # ========================  similar  ========================
 
 function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
-    return FusedGradedVector(similar(v.buffer, T), axis(v))
+    return FusedGradedVector(similar(v.buffer, T), axis(v), sectordatalayout(v))
 end
 function Base.similar(v::FusedGradedVector, axis::FusedGradedOneTo{S}) where {S}
     return FusedGradedVector{eltype(v)}(undef, axis)

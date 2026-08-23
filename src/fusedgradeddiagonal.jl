@@ -54,7 +54,12 @@ function FusedGradedMatrix(d::FusedGradedDiagonal{T, S, V}) where {T, S, V}
     return copyto!(m, d)
 end
 
-sectordata(d::FusedGradedDiagonal) = map(Diagonal, sectordata(MAK.diagview(d)))
+# `Iterators.map` is Dictionaries' lazy map (a tokenizable `MappedDictionary`), so no dictionary is
+# materialized per call. The closure (rather than `Diagonal` itself) keeps the map's function type
+# parameter concrete (`typeof(Diagonal)` is a `UnionAll`), so the return type infers.
+function sectordata(d::FusedGradedDiagonal)
+    return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
+end
 
 # ---- accessors ----
 

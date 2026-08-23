@@ -1,9 +1,10 @@
 using BlockArrays: Block, blocklengths, blocks
+using Dictionaries: dictionary
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
     FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2,
-    checksquare, data, dual, fusedgradeddiagonal, fusedgradedmatrix, gradedrange,
-    isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sector, sectordata,
-    tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
+    checksquare, data, dual, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector,
+    gradedrange, isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sector,
+    sectordata, tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal, diag, lmul!, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -906,4 +907,92 @@ end
     randn!(matricize(dz).buffer)
     TensorAlgebra.contractadd!(dz, (2, 1), a, (1, -1), b, (-1, 2), 1.0, 0.0)
     @test Array(dz) ≈ permutedims(Array(a) * Array(b), (2, 1))
+end
+
+# `sectordata` is backed by the array's carried sorted-vector index structure (computed once at
+# construction) rather than a per-call `Dictionary` build; pin its dictionary interface (keys,
+# `getindex`, `pairs`, value iteration, lookup misses) against a reference `Dictionary` built the
+# old way — an intersect over the axes' sector sets plus a running-offset walk — for each storage
+# variant, so a backing change cannot silently reorder, drop, or misplace blocks.
+@testset "sectordata dictionary interface matches the reference build" begin
+    g_cod = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+    g_dom = gradedrange([U1(0) => 2, U1(1) => 1, U1(3) => 2])   # mismatched sector sets
+    m = matricize(randn((g_cod,), (g_dom,)))
+    codl = GradedArrays.sectordatalengths(GradedArrays.axis_codomain(m))
+    doml = GradedArrays.sectordatalengths(GradedArrays.axis_domain(m))
+    coupled = sort!(intersect(collect(keys(codl)), collect(keys(doml))))
+    offset = 0
+    ref = dictionary(
+        map(coupled) do c
+            sz = (codl[c], doml[c])
+            block = reshape(m.buffer[(offset + 1):(offset + prod(sz))], sz)
+            offset += prod(sz)
+            return c => block
+        end
+    )
+    sd = sectordata(m)
+    @test collect(keys(sd)) == collect(keys(ref))
+    @test all(sd[c] == ref[c] for c in keys(ref))
+    @test collect(pairs(sd)) == collect(pairs(ref))
+    @test collect(sd) == collect(ref)
+    @test !haskey(sd, SectorRange(U1(2)))   # codomain-only sector is not coupled
+    @test !haskey(sd, SectorRange(U1(3)))   # domain-only sector is not coupled
+    @test isnothing(get(sd, SectorRange(U1(9)), nothing))
+
+    # Adjoint: same coupled sectors, each block the parent's adjoint.
+    sda = sectordata(m')
+    @test collect(keys(sda)) == collect(keys(ref))
+    @test all(sda[c] == ref[c]' for c in keys(ref))
+    @test collect(sda) == [ref[c]' for c in keys(ref)]
+
+    # Vector: one block per axis sector, offsets the prefix sums of the data lengths.
+    v = fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)])
+    vref = dictionary(
+        [SectorRange(U1(0)) => v.buffer[1:2], SectorRange(U1(1)) => v.buffer[3:5]]
+    )
+    sdv = sectordata(v)
+    @test collect(keys(sdv)) == collect(keys(vref))
+    @test all(sdv[c] == vref[c] for c in keys(vref))
+    @test collect(pairs(sdv)) == collect(pairs(vref))
+
+    # Diagonal: the vector blocks wrapped as `Diagonal`s.
+    d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
+    dv = sectordata(MAK.diagview(d))
+    sdd = sectordata(d)
+    @test collect(keys(sdd)) == collect(keys(dv))
+    @test all(sdd[c] == Diagonal(dv[c]) for c in keys(dv))
+    @test collect(pairs(sdd)) == [c => Diagonal(dv[c]) for c in keys(dv)]
+end
+
+# The carried index structure is immutable metadata determined by the axes, so constructions that
+# keep the axes (`similar`, `copy`) share it rather than recomputing it.
+@testset "carried index structure is shared under similar/copy" begin
+    g_cod = gradedrange([U1(0) => 2, U1(1) => 3])
+    g_dom = gradedrange([U1(0) => 2, U1(2) => 1])
+    m = matricize(randn((g_cod,), (g_dom,)))
+    for m′ in (similar(m), similar(m, ComplexF64), copy(m))
+        @test GradedArrays.sectordatalayout(m′) === GradedArrays.sectordatalayout(m)
+    end
+    v = fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)])
+    for v′ in (similar(v), similar(v, ComplexF64), copy(v))
+        @test GradedArrays.sectordatalayout(v′) === GradedArrays.sectordatalayout(v)
+    end
+
+    # A non-canonical (hash, unsorted) layout dictionary canonicalizes in the inner constructor;
+    # passing a matrix's own carried layout back in must stay the identity (no copy).
+    gc = FusedGradedOneTo(gradedrange([U1(0) => 2, U1(2) => 3]))
+    gd = FusedGradedOneTo(gradedrange([U1(0) => 2, U1(2) => 1]))
+    lay = dictionary(
+        [
+            SectorRange(U1(2)) => (offset = 4, size = (3, 1)),
+            SectorRange(U1(0)) => (offset = 0, size = (2, 2)),
+        ]
+    )
+    mc = FusedGradedMatrix(collect(1.0:7.0), gc, gd, lay)
+    @test collect(keys(sectordata(mc))) == SectorRange.([U1(0), U1(2)])
+    @test sectordata(mc)[SectorRange(U1(0))] == [1.0 3.0; 2.0 4.0]
+    @test typeof(GradedArrays.sectordatalayout(mc)) ===
+        typeof(GradedArrays.sectordatalayout(m))
+    m4 = FusedGradedMatrix(mc.buffer, gc, gd, GradedArrays.sectordatalayout(mc))
+    @test GradedArrays.sectordatalayout(m4) === GradedArrays.sectordatalayout(mc)
 end

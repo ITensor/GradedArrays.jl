@@ -35,7 +35,34 @@ function sectordata end
 # argument's sorted storage (see `allsectordata`). `sectors` is the vector-returning query.
 eachsector(a::AbstractFusedGradedArray) = keys(sectordata(a))
 function eachsector(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
-    return sort!(union!(collect(eachsector(a)), eachsector.(as)...))
+    cs = collect(eachsector(a))
+    for b in as
+        cs = mergesortedunique(cs, collect(eachsector(b)))
+    end
+    return cs
+end
+
+# Union of two sorted, unique vectors, in sorted order (each stored sector set is sorted, so the
+# union is a merge, not a `sort!(union!(...))`).
+function mergesortedunique(a::Vector{S}, b::Vector{S}) where {S}
+    out = S[]
+    i = j = 1
+    while i <= length(a) && j <= length(b)
+        if isless(a[i], b[j])
+            push!(out, a[i])
+            i += 1
+        elseif isless(b[j], a[i])
+            push!(out, b[j])
+            j += 1
+        else
+            push!(out, a[i])
+            i += 1
+            j += 1
+        end
+    end
+    append!(out, @view a[i:end])
+    append!(out, @view b[j:end])
+    return out
 end
 
 # Per-sector data, strict and lenient. Strict `sectordata(a, c)` returns the stored block's data and

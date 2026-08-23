@@ -15,6 +15,11 @@ SectorRange{I}(label) where {I} = SectorRange{I}(label, false)
 SectorRange(label::TKS.Sector) = SectorRange(label, false)
 SectorRange(r::SectorRange) = r
 
+# Function form of the non-dual constructor. `SectorRange` itself is a `UnionAll`, so as a mapping
+# function (e.g. in `mappedarray`) it would leave the function type parameter abstract; the named
+# wrapper has a concrete singleton type, keeping mapped label views type-stable.
+sectorrange(label::TKS.Sector) = SectorRange(label)
+
 label(r::SectorRange) = r.label
 labeltype(::Type{SectorRange{I}}) where {I} = I
 labeltype(r::SectorRange) = labeltype(typeof(r))

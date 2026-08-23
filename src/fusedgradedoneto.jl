@@ -1,4 +1,5 @@
-using Dictionaries: Dictionaries, AbstractDictionary, AbstractIndices, Dictionary
+using Dictionaries: Dictionaries, AbstractDictionary, Dictionary
+using MappedArrays: ReadonlyMappedArray, mappedarray
 
 """
     FusedGradedOneTo{S<:SectorRange}
@@ -78,57 +79,28 @@ function FusedGradedOneTo(
 end
 
 # ========================  zero-copy views over the stored vectors  ========================
-# Three lazy read-only views share the stored sorted label vector: `SectorRanges` (the
-# positional `sectors(g)` vector), `SectorIndices` (the self-keyed key set of the dictionary
-# facade), and `SectorDatalengths` (the sector-to-length dictionary facade returned by
-# `sectordatalengths`). Keys materialize as `SectorRange`s on access, and lookups
-# binary-search the sorted labels. Callers must not mutate the vectors they wrap.
+# The lazy read-only views over the stored sorted label vector: the positional `sectors(g)` vector
+# (a `mappedarray` whose entries materialize as `SectorRange`s on access, with the bare labels
+# reachable through `parent`) and, keyed by it, the `SortedArrayDictionary` returned by
+# `sectordatalengths` (sector → data length; lookups binary-search the sorted keys). Callers must
+# not mutate the vectors they wrap.
 
-struct SectorRanges{I <: TKS.Sector} <: AbstractVector{SectorRange{I}}
-    labels::Vector{I}
+# The concrete type of the lazy sector view over a bare-label vector, for typeasserts (the type
+# involves `labeltype(S)`, so a struct field cannot spell it).
+function sectorstype(::Type{SectorRange{I}}) where {I}
+    return ReadonlyMappedArray{SectorRange{I}, 1, Vector{I}, typeof(sectorrange)}
 end
-Base.size(v::SectorRanges) = size(v.labels)
-Base.getindex(v::SectorRanges, i::Int) = SectorRange(v.labels[i])
 
-struct SectorIndices{I <: TKS.Sector} <: AbstractIndices{SectorRange{I}}
-    labels::Vector{I}
+# Strip a vector of (non-dual) sectors to the lazy bare-label view form, for the generic
+# `SortedArrayDictionary` canonicalization.
+function Base.convert(
+        ::Type{ReadonlyMappedArray{SectorRange{I}, 1, Vector{I}, typeof(sectorrange)}},
+        v::AbstractVector{SectorRange{I}}
+    ) where {I}
+    all(s -> !TensorAlgebra.isdual(s), v) ||
+        throw(ArgumentError("sector keys must be non-dual"))
+    return mappedarray(sectorrange, I[label(s) for s in v])
 end
-Base.length(inds::SectorIndices) = length(inds.labels)
-Dictionaries.istokenizable(::SectorIndices) = true
-Dictionaries.tokentype(::SectorIndices) = Int
-function Dictionaries.iteratetoken(inds::SectorIndices, s...)
-    return iterate(eachindex(inds.labels), s...)
-end
-function Dictionaries.iteratetoken_reverse(inds::SectorIndices)
-    isempty(inds.labels) && return nothing
-    t = lastindex(inds.labels)
-    return (t, t)
-end
-function Dictionaries.iteratetoken_reverse(inds::SectorIndices, t)
-    t -= 1
-    t < firstindex(inds.labels) && return nothing
-    return (t, t)
-end
-# The token of a sector is its position among the sorted labels.
-function Dictionaries.gettoken(inds::SectorIndices{I}, i) where {I}
-    i isa SectorRange{I} || return (false, 0)
-    TensorAlgebra.isdual(i) && return (false, 0)
-    t = searchsortedfirst(inds.labels, label(i))
-    t <= length(inds.labels) && isequal(inds.labels[t], label(i)) || return (false, 0)
-    return (true, t)
-end
-Dictionaries.gettokenvalue(inds::SectorIndices, t::Int) = SectorRange(inds.labels[t])
-Dictionaries.istokenassigned(::SectorIndices, ::Int) = true
-
-struct SectorDatalengths{I <: TKS.Sector} <: AbstractDictionary{SectorRange{I}, Int}
-    labels::Vector{I}
-    datalengths::Vector{Int}
-end
-Base.keys(d::SectorDatalengths) = SectorIndices(d.labels)
-Dictionaries.istokenizable(::SectorDatalengths) = true
-Dictionaries.gettoken(d::SectorDatalengths, i) = gettoken(keys(d), i)
-Dictionaries.gettokenvalue(d::SectorDatalengths, t::Int) = d.datalengths[t]
-Dictionaries.istokenassigned(::SectorDatalengths, ::Int) = true
 
 # ========================  primitive accessors  ========================
 
@@ -137,9 +109,9 @@ Dictionaries.istokenassigned(::SectorDatalengths, ::Int) = true
 # range-interface methods are shared via `AbstractGradedOneTo`.
 TensorAlgebra.isdual(g::FusedGradedOneTo) = g.isdual
 sectorlabels(g::FusedGradedOneTo{SectorRange{I}}) where {I} = g.labels::Vector{I}
-sectors(g::FusedGradedOneTo) = SectorRanges(sectorlabels(g))
+sectors(g::FusedGradedOneTo) = mappedarray(sectorrange, sectorlabels(g))
 datalengths(g::FusedGradedOneTo) = g.datalengths
-sectordatalengths(g::FusedGradedOneTo) = SectorDatalengths(sectorlabels(g), datalengths(g))
+sectordatalengths(g::FusedGradedOneTo) = SortedArrayDictionary(sectors(g), datalengths(g))
 
 # Per-sector length/axis accessors following the strict/lenient convention: the bare 2-arg form is
 # strict (throws on an absent sector), the `get`-prefixed form falls back to length 0. Only the
