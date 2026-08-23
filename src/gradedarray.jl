@@ -71,9 +71,8 @@ ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 # matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
-# Aliasing identity is the stored matrix's buffer: `Base.mightalias` then detects sharing
-# between the array and its matricized form (e.g. so a contraction that multiplied straight
-# into the destination's stored matrix skips the scatter-back).
+# Aliasing identity is the stored matrix's buffer, so `Base.mightalias` detects sharing
+# between the array and views or wrappers of its matricized form.
 Base.dataids(fa::GradedArray) = Base.dataids(matricize(fa))
 
 # ============================  block indexing (unique fusion)  ============================
@@ -648,17 +647,15 @@ function TensorAlgebra.matricize(
     return matricize(fa_bent)
 end
 
-# With the identity bipermutation and a matching split, `matricizeperm` returns the stored
-# matrix (a field read), so claim the alias: `contractopadd!` then multiplies straight into the
-# destination's stored matrix instead of scattering a detached product back. The claim is
-# perm-shape-only; in the identity-perm leg-bend case `matricize` still gathers a fresh matrix,
-# and the scatter-skip decision falls back to `Base.mightalias` (via `dataids`), which is then
-# `false`.
-function TensorAlgebra.matricizepermaliases(
-        ::GradedMatricize, perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
-    )
-    return TensorAlgebra.isidentityperm((perm_codomain..., perm_domain...))
+# The memory-sharing matricization is the stored matrix (a field read), available exactly at
+# the stored split; any other split is a leg bend whose `matricize` gathers a fresh matrix, so
+# no sharing is declared. Pure dispatch on the stored codomain rank.
+function TensorAlgebra.trymatricizeview(
+        ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
+    ) where {NC}
+    return matricize(a_dest)
 end
+TensorAlgebra.trymatricizeview(::GradedMatricize, a_dest::GradedArray, ::Val) = nothing
 
 function TensorAlgebra.check_input(
         ::typeof(unmatricize), m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple
