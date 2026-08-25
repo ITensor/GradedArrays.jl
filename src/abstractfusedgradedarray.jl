@@ -30,16 +30,25 @@ blocktype(a::AbstractFusedGradedArray) = blocktype(typeof(a))
 # fields. Everything axis-related derives from `biaxes` (the per-variant core), below.
 function sectordata end
 
-# Sectors to iterate. Single arg: the stored sectors. Varargs: their sorted union across
-# arguments (analogous to `eachindex(A...)`), so it can key a positional walk over each
-# argument's sorted storage (see `allsectordata`). `sectors` is the vector-returning query.
+# The stored sectors, as an iterator; the varargs `sectors` below is the axis-support union.
 eachsector(a::AbstractFusedGradedArray) = keys(sectordata(a))
-function eachsector(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
-    cs = collect(eachsector(a))
-    for b in as
-        cs = mergesortedunique(cs, collect(eachsector(b)))
+
+# The sorted union of the arguments' axis supports (analogous to `eachindex(A...)`): ordered
+# random access for a positional walk over each argument's support-set form (see `setsectors`),
+# and a valid `setsectors` target for every argument by construction (it covers each axis).
+# Returned as the lazy sector view over one bare-label vector, which `setsectors` stores
+# directly, so every axis set from one union shares that vector.
+function sectors(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
+    ls = mapreduce(mergesortedunique, (a, as...)) do x
+        return mapreduce(
+            sectorlabels,
+            mergesortedunique,
+            (axes_codomain(x)..., axes_domain(x)...)
+        )
     end
-    return cs
+    # The concrete `SectorRange{...}` (not the bare `UnionAll`) keeps the view's eltype concrete:
+    # `mappedarray` takes a given type verbatim as the eltype.
+    return mappedarray(SectorRange{eltype(ls)}, ls)
 end
 
 # Union of two sorted, unique vectors, in sorted order (each stored sector set is sorted, so the
@@ -65,47 +74,34 @@ function mergesortedunique(a::Vector{S}, b::Vector{S}) where {S}
     return out
 end
 
-# Per-sector data, strict and lenient. Strict `sectordata(a, c)` returns the stored block's data and
-# throws if the sector is absent; lenient `getsectordata(a, c)` allocates a zero-size block on a miss
-# (the `get` prefix marks the possible allocation).
+# `setsectors(a, cs)` (one method per concrete fused array, building its axes and layout) sets
+# each axis's sector support to exactly `cs` — the same per-sector lengths, length zero for the
+# added sectors — returning the same kind of array sharing `a`'s buffer: a zero-length sector
+# contributes no data, so the layout carves the stored blocks at their existing offsets and
+# writes through the result land in `a` (aliasing, as with `matricize`). `cs` must be sorted
+# (`SectorRange` order) and cover every axis's support; each axis checks that with one sorted
+# walk and throws an `ArgumentError` on violation. Arrays meant to be co-iterated must be set
+# from one shared `cs` covering every array's every axis (the axis-support union
+# `sectors(a, bs...)`): that makes each result's stored sector list exactly `cs`, so one
+# position indexes them all, and the rebuilt axes all store `cs`'s label vector itself. The
+# identity (an axis support already equal to `cs`) returns the axis — and, when every axis is
+# unchanged, `a` itself. The one-arg form equalizes `a`'s own axis supports, setting each axis
+# to their union (trivial for a vector).
+setsectors(a::AbstractFusedGradedArray) = setsectors(a, sectors(a))
+
+# Strip a sector vector to its bare label vector once per array (zero-copy for the lazy
+# `sectors` view), so both axes of the array are set from the same vector.
+function setsectors(a::AbstractFusedGradedArray, cs::AbstractVector{<:SectorRange})
+    return setsectors(a, sectorlabelvector(cs))
+end
+
+# Per-sector data: `sectordata(a, c)` returns the stored block's data, throwing if the sector is
+# absent.
 sectordata(a::AbstractFusedGradedArray, c) = sectordata(a)[c]
-function getsectordata(a::AbstractFusedGradedArray, c)
-    return get(() -> zerosectordata(a, c), sectordata(a), c)
-end
 
-# A fresh block for a sector absent from `a`, zero-size along each dimension whose axis lacks the
-# sector. The stored block type is a buffer view with no `undef` constructor, so allocate dense.
-function zerosectordata(a::AbstractFusedGradedArray, c)
-    return similar(Array{eltype(a)}, getsectordataaxes(a, c))
-end
-
-# The stored blocks as a `sector => block` pairs iterator, the `storedpairs` analog of
-# `sectordata` (token-level iteration over the sorted storage).
-sectordatapairs(a::AbstractFusedGradedArray) = pairs(sectordata(a))
-
-# The per-sector blocks of `a` over the given sector list `cs`: the stored block where the sector
-# is stored, the lenient zero-size block (as `getsectordata`) where it is absent. `cs` must be
-# sorted and contain every stored sector of `a` (e.g. `eachsector(a, bs...)`), so one positional
-# walk over the sorted storage lines the blocks up with `cs` — no per-sector lookups.
-function allsectordata(a::AbstractFusedGradedArray, cs)
-    stored = Iterators.Stateful(sectordatapairs(a))
-    return map(cs) do c
-        p = peek(stored, nothing)
-        if !isnothing(p) && isequal(first(p), c)
-            popfirst!(stored)
-            return last(p)
-        end
-        return zerosectordata(a, c)
-    end
-end
-
-# The data axes of sector `c`'s block, one lenient per-dimension data axis, used only by
-# `getsectordata` to size an absent (zero) block. Dual-invariant: `sectordatalengths` reads the
-# stored per-sector lengths, which `dual` leaves unchanged, so `axes(a)` (with a possibly dualized
-# domain) gives the same sizes as the un-dualized codomain/domain ranges.
-function getsectordataaxes(a::AbstractFusedGradedArray, c)
-    return map(ax -> getsectordataaxis(ax, c), axes(a))
-end
+# Positional form: the block of the i-th stored sector (the tokens of the sorted storage are
+# positions). Unambiguous with the keyed form because sector keys are `SectorRange`s, never `Int`s.
+sectordata(a::AbstractFusedGradedArray, i::Int) = gettokenvalue(sectordata(a), i)
 
 # Each concrete type implements the bipartite-axes primitives `axes_codomain`/`axes_domain` (its
 # codomain and domain axis groups, un-dualized). The derived `biaxes`/`axis_codomain`/`axis_domain`

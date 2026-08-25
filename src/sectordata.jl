@@ -58,7 +58,7 @@ function sectordatalayout(
             j += 1
         end
     end
-    return SortedArrayDictionary(mappedarray(sectorrange, labels), layouts)
+    return SortedArrayDictionary(mappedarray(S, labels), layouts)
 end
 
 # Vector form: one block per axis sector, in sorted-sector order; the offsets are the prefix sums

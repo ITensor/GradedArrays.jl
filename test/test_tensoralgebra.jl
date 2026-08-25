@@ -538,6 +538,21 @@ end
     @test A ≈ USV
 end
 
+# The matricized codomain and domain supports need not coincide (here the codomain reaches
+# sectors the domain lacks); the compact factorization covers the one-sided sectors as
+# zero-size blocks and preserves the input's axes.
+@testset "TA.svd_compact on mismatched matricized supports" begin
+    s_cod = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2])
+    s_dom = gradedrange([U1(0) => 2, U1(1) => 4])
+    A = randn(Float64, (s_cod, dual(s_dom)))
+    U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
+    US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
+    USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
+    @test A ≈ USV
+    @test axes(U, 1) == axes(A, 1)
+    @test axes(Vᴴ, 2) == axes(A, 2)
+end
+
 @testset "TA.gram_eigh_full_with_pinv (axes_Y regression)" begin
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
     B = randn(Float64, (s,), (s,))

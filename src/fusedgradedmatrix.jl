@@ -200,6 +200,20 @@ axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 # never match across wrappers).
 Base.dataids(m::FusedGradedMatrix) = Base.dataids(m.buffer)
 
+# ========================  setsectors  ========================
+
+# The support-set matrix: both axes set to exactly `ls` (the `FusedGradedOneTo` method), wrapping
+# the same buffer as `m` — the added sectors are zero-length, so the layout carves the stored
+# blocks at their existing offsets and the added blocks as zero-size views. Writes through the
+# result land in `m` (see `setsectors` in `abstractfusedgradedarray.jl` for the full contract).
+function setsectors(m::FusedGradedMatrix, ls::Vector{<:TKS.Sector})
+    cod = setsectors(axis_codomain(m), ls)
+    dom = setsectors(axis_domain(m), ls)
+    # Both axes unchanged means the set is the identity; return `m` itself.
+    (cod === axis_codomain(m) && dom === axis_domain(m)) && return m
+    return FusedGradedMatrix(m.buffer, cod, dom, sectordatalayout(cod, dom))
+end
+
 # ========================  buffer fast paths  ========================
 # The stored blocks tile the buffer exactly and equal axes pin the same layout, so whole-array
 # zero and copy are single contiguous buffer passes instead of the generic per-block loops.

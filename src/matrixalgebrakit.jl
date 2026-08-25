@@ -101,10 +101,15 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_full!, :eigh_full!) && :(checksquare(A)))
-        cs = eachsector(A, F...)
-        for (Ac, Fc...) in zip(allsectordata(A, cs), map(x -> allsectordata(x, cs), F)...)
-            Fc′ = MAK.$f!(Ac, Fc, alg.alg)
-            _ensure_inplace!.(Fc, Fc′)
+        cs = sectors(A, F...)
+        wA = setsectors(A, cs)
+        wFs = map(x -> setsectors(x, cs), F)
+        for i in eachindex(cs)
+            Fi = map(w -> sectordata(w, i), wFs)
+            Fi′ = MAK.$f!(sectordata(wA, i), Fi, alg.alg)
+            # `foreach`, not a `.`-broadcast: broadcast materialization over these small
+            # union-typed tuples costs more than the factorization of a small block.
+            foreach(_ensure_inplace!, Fi, Fi′)
         end
         return F
     end
@@ -118,9 +123,12 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_vals!, :eigh_vals!) && :(checksquare(A)))
-        cs = eachsector(A, N)
-        for (Ac, Nc) in zip(allsectordata(A, cs), allsectordata(N, cs))
-            _ensure_inplace!(Nc, MAK.$f!(Ac, Nc, alg.alg))
+        cs = sectors(A, N)
+        wA = setsectors(A, cs)
+        wN = setsectors(N, cs)
+        for i in eachindex(cs)
+            Ni = sectordata(wN, i)
+            _ensure_inplace!(Ni, MAK.$f!(sectordata(wA, i), Ni, alg.alg))
         end
         return N
     end

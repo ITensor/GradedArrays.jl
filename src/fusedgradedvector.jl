@@ -249,6 +249,17 @@ function Base.map(f, v::FusedGradedVector)
     return fusedgradedvector(blockdata)
 end
 
+# ========================  setsectors  ========================
+
+# The support-set vector: the axis set to exactly `ls`, wrapping the same buffer as `v`, with
+# the added blocks zero-size views (see `setsectors(::FusedGradedMatrix, ls)`).
+function setsectors(v::FusedGradedVector, ls::Vector{<:TKS.Sector})
+    ax = setsectors(axis(v), ls)
+    # An unchanged axis means the set is the identity; return `v` itself.
+    ax === axis(v) && return v
+    return FusedGradedVector(v.buffer, ax, sectordatalayout(ax))
+end
+
 # ========================  Block indexing (primitive)  ========================
 
 function Base.view(v::FusedGradedVector, I::Block{1})

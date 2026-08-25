@@ -61,6 +61,15 @@ function sectordata(d::FusedGradedDiagonal)
     return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
 end
 
+# The support-set diagonal: set the wrapped diagonal vector (see
+# `setsectors(::FusedGradedMatrix, ls)`); the `Diagonal` blocks at the added sectors are 0×0.
+function setsectors(d::FusedGradedDiagonal, ls::Vector{<:TKS.Sector})
+    diag = setsectors(MAK.diagview(d), ls)
+    # An unchanged diagonal means the set is the identity; return `d` itself.
+    diag === MAK.diagview(d) && return d
+    return FusedGradedDiagonal(diag)
+end
+
 # ---- accessors ----
 
 function datatype(::Type{<:FusedGradedDiagonal{T, S, V}}) where {T, S, V}
