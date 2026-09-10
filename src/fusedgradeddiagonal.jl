@@ -105,10 +105,16 @@ end
 
 # ---- matricize ----
 
-# A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix). Any other
-# codomain rank bends a leg, which matrix-level fused storage cannot represent.
-TensorAlgebra.matricize(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
-function TensorAlgebra.matricize(
+# A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix), so
+# the memory-sharing matricization is `d` itself. Any other codomain rank bends a leg, which
+# matrix-level fused storage cannot represent.
+TensorAlgebra.ismatricizeview(::GradedMatricize, ::FusedGradedDiagonal, ::Val{1}) = true
+TensorAlgebra.ismatricizeview(::GradedMatricize, ::FusedGradedDiagonal, ::Val) = false
+TensorAlgebra.matricizeview(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
+function TensorAlgebra.matricizecopy(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1})
+    return FusedGradedDiagonal(copy(MAK.diagview(d)))
+end
+function TensorAlgebra.matricizecopy(
         style::GradedMatricize, d::FusedGradedDiagonal, ndims_codomain::Val
     )
     throw(

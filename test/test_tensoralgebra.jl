@@ -583,3 +583,36 @@ end
     result, = contract(a, (1, -1), b_ok, (-1, 2))
     @test result isa GradedArray
 end
+
+@testset "ismatricizeview coherence" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn(Float64, (g, g), (g, g))
+    style = MatricizeStyle(a)
+
+    # The stored split is declared shared and its view is the stored matrix itself; the copy
+    # leaf is detached even there.
+    @test TensorAlgebra.ismatricizeview(style, a, Val(2))
+    @test TensorAlgebra.matricizeview(style, a, Val(2)) === matricize(a)
+    @test TensorAlgebra.matricizecopy(style, a, Val(2)).buffer !== matricize(a).buffer
+
+    # A bend is not declared shared; `matricize` routes it to the copy leaf.
+    @test !TensorAlgebra.ismatricizeview(style, a, Val(1))
+    @test matricize(style, a, Val(1)).buffer !== matricize(a).buffer
+
+    # Both destination branches of a consumer (`contractadd!`) behave: the shared-view route
+    # for the identity destination bipermutation and the gather/scatter route for a permuted
+    # destination.
+    a1 = randn(Float64, (g, g), (g,))
+    a2 = randn(Float64, (g,), (g, g))
+    ref = contract((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    dest_id = contract((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    TensorAlgebra.contractadd!(
+        dest_id, (:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l), 1.0, 1.0
+    )
+    @test Array(dest_id) ≈ 2 .* Array(ref)
+    dest_p = contract((:k, :i, :l, :j), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    TensorAlgebra.contractadd!(
+        dest_p, (:k, :i, :l, :j), a1, (:i, :j, :m), a2, (:m, :k, :l), 1.0, 1.0
+    )
+    @test Array(dest_p) ≈ 2 .* permutedims(Array(ref), (3, 1, 4, 2))
+end

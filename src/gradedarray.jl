@@ -625,18 +625,27 @@ end
 
 TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedMatricize()
 
-# When the requested split matches the stored split this is the stored matrix. Otherwise it is a
-# leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
-# legs stay in order and only the codomain/domain boundary moves), which for a `GradedArray` is
-# not a free reshape. Re-split with the array's own `bipermutedims`, then take its 1-arg
-# `matricize`. This is what lets a contraction over a subset of legs matricize a factor whose
-# stored split differs.
-function TensorAlgebra.matricize(
-        ::GradedMatricize,
-        fa::GradedArray,
-        ::Val{K}
+# The memory-sharing matricization is the stored matrix (a field read), available exactly at
+# the stored split; any other split is a leg bend, which for a `GradedArray` is not a free
+# reshape, so no sharing is declared there. Pure dispatch on the stored codomain rank.
+function TensorAlgebra.ismatricizeview(
+        ::GradedMatricize, ::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
+    ) where {NC}
+    return true
+end
+TensorAlgebra.ismatricizeview(::GradedMatricize, ::GradedArray, ::Val) = false
+function TensorAlgebra.matricizeview(
+        ::GradedMatricize, fa::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
+    ) where {NC}
+    return matricize(fa)
+end
+# A leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
+# legs stay in order and only the codomain/domain boundary moves): re-split with the array's own
+# `bipermutedims`, then take the fresh result's stored matrix. This is what lets a contraction
+# over a subset of legs matricize a factor whose stored split differs.
+function TensorAlgebra.matricizecopy(
+        ::GradedMatricize, fa::GradedArray, ::Val{K}
     ) where {K}
-    K == ndims_codomain(fa) && return matricize(fa)
     N = ndims(fa)
     # TODO: Once `permutedims` on a `GradedArray` routes to `bipermutedimsopadd!`, bend with the
     # identity-permutation `permutedims` directly (ideally a `[bi]permutedims(fa, Val(K))` split-only
@@ -646,16 +655,6 @@ function TensorAlgebra.matricize(
     )
     return matricize(fa_bent)
 end
-
-# The memory-sharing matricization is the stored matrix (a field read), available exactly at
-# the stored split; any other split is a leg bend whose `matricize` gathers a fresh matrix, so
-# no sharing is declared. Pure dispatch on the stored codomain rank.
-function TensorAlgebra.trymatricizeview(
-        ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
-    ) where {NC}
-    return matricize(a_dest)
-end
-TensorAlgebra.trymatricizeview(::GradedMatricize, a_dest::GradedArray, ::Val) = nothing
 
 function TensorAlgebra.check_input(
         ::typeof(unmatricize), m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple

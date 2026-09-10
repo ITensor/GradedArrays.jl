@@ -43,7 +43,9 @@ end
 
 # ========================  UniqueSectorDelta matricize  ========================
 
-function TensorAlgebra.matricize(
+# A delta is structural (no data storage), so nothing is shared and the rebuilt identity is
+# the copy leaf.
+function TensorAlgebra.matricizecopy(
         ::SectorMatricize, a::UniqueSectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
     ax_codomain = first(bipartition(axes(a), ndims_codomain))
@@ -54,7 +56,10 @@ end
 
 # ========================  UniqueSectorArray matricize  ========================
 
-function TensorAlgebra.matricize(
+# The matricization wraps reshapes of the structural factor and the reduced data (`sector_kron`
+# only wraps), so it shares `a`'s memory at every trivial split.
+TensorAlgebra.ismatricizeview(::SectorMatricize, ::UniqueSectorArray, ::Val) = true
+function TensorAlgebra.matricizeview(
         ::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val{K}
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))

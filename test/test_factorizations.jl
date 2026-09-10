@@ -9,7 +9,7 @@ using Random: randn!
 using StableRNGs: StableRNG
 using TensorAlgebra: TensorAlgebra, bipermutedims, invsqrth_safe, matricize, sqrth_safe
 using TensorKitSectors: FermionParity
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 # ---------------------------------------------------------------------------
 # Helpers
