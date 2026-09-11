@@ -731,7 +731,7 @@ end
     @test_throws DimensionMismatch diag(mrect)
 end
 
-# The fused coupled axis must depend only on the multiset of leaves — the order-independence
+# The fused coupled axis must not depend on the order of the leaves — the order-independence
 # that lets a contraction reuse an operand's stored coupled axis for a permuted output.
 # Conjugating every leaf flips the fused axis.
 @testset "fuseaxes leaf-order independence ($G)" for (G, g, h) in (
@@ -751,7 +751,7 @@ end
 end
 
 # A contract output reuses an operand's stored coupled axis (`===`, not merely equal) exactly
-# when its codomain/domain side holds the same multiset of axes as that operand's stored group;
+# when its codomain/domain side holds the same axes in some order as that operand's stored group;
 # any other split fuses, and must land on the same coupled axis by value.
 @testset "contract output reuses the operands' stored coupled axes" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
@@ -785,9 +785,9 @@ end
 end
 
 # Whatever the grouping, the contract output's backing coupled axes must equal the fusion of its
-# external leaves (a carried root agrees with the fused one), and the values must match the
-# TensorKit reference. Groupings cover: both sides carried, per-operand groups permuted, a
-# contracted leg inside a stored group, and a group-crossing destination.
+# external leaves, whether that axis was reused from an operand or fused afresh, and the values
+# must match the TensorKit reference. Groupings cover: both sides carried, per-operand groups
+# permuted, a contracted leg inside a stored group, and a group-crossing destination.
 @testset "contract carries coupled axes across groupings ($G)" for (G, g, h) in (
         ("U1", gradedrange([U1(0) => 2, U1(1) => 3]), gradedrange([U1(0) => 1, U1(1) => 2])),
         ("fermion", gradedrange([fP0 => 2, fP1 => 3]), gradedrange([fP1 => 2])),
@@ -960,10 +960,10 @@ end
     g_dom = gradedrange([U1(0) => 2, U1(2) => 1])
     m = matricize(randn((g_cod,), (g_dom,)))
     for m′ in (similar(m), similar(m, ComplexF64), copy(m))
-        @test GradedArrays.sectordatalayout(m′) === GradedArrays.sectordatalayout(m)
+        @test m′.datalayout === m.datalayout
     end
     v = fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)])
     for v′ in (similar(v), similar(v, ComplexF64), copy(v))
-        @test GradedArrays.sectordatalayout(v′) === GradedArrays.sectordatalayout(v)
+        @test v′.datalayout === v.datalayout
     end
 end

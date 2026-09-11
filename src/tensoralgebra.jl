@@ -1,4 +1,3 @@
-using SplitApplyCombine: groupcount
 using StridedViews: StridedViews, StridedView, isstrided
 
 # ========================  bipartite-axes interface  ========================
@@ -64,23 +63,6 @@ function sectorsortperm(g::AbstractGradedOneTo)
     return Block.(sortperm(sectors(g)))
 end
 
-# Get the permutation for sorting, then group by common elements.
-# groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
-function groupsortperm(v; kwargs...)
-    perm = sortperm(v; kwargs...)
-    v_sorted = @view v[perm]
-    group_lengths = collect(groupcount(identity, v_sorted))
-    return BlockVector(perm, group_lengths)
-end
-
-# Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedOneTosExt`.
-# Get the permutation for sorting, then group by common elements.
-# groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
-# Sort by SectorRange to use the custom isless ordering
-function sectormergesortperm(g::AbstractGradedOneTo)
-    return Block.(groupsortperm(sectors(g)))
-end
-
 # Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
 invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
@@ -117,16 +99,16 @@ function invblockmergeperm(
 end
 
 # The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`. The `sectormergesort` worker over the
+# encodes that invariant rather than a plain `GradedOneTo`. The `mergesectorlabels` worker over the
 # axis parts lives in `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have
 # constant-time fast paths (the cached fused form and the identity).
 function fusesectors(g::AbstractGradedOneTo)
-    merged_labels, merged_datalengths = sectormergesort(sectors(g), datalengths(g))
+    merged_labels, merged_datalengths = mergesectorlabels(sectors(g), datalengths(g))
     return FusedGradedOneTo(merged_labels, merged_datalengths, isdual(g))
 end
 
-# Conjugation is a sector bijection, so flipping the merged form equals merging the flipped
-# axis — and the merged form is cached, so this spelling avoids a re-fusion for a dual axis.
+# Always returns a non-dual fused-sorted axis. Conjugation is a sector bijection, so flipping
+# the merged form equals merging the flipped axis.
 function tensor_product(g::AbstractGradedOneTo)
     f = fusesectors(g)
     return isdual(f) ? flip(f) : f

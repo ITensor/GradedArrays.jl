@@ -35,7 +35,7 @@ function sectordata end
 # and a valid `setsectors` target for every argument by construction (it covers each axis).
 # Returned as the lazy sector view over one bare-label vector, which `setsectors` stores
 # directly, so every axis set from one union shares that vector.
-function sectors(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
+function sectorsupport(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
     ls = mapreduce(mergesortedunique, (a, as...)) do x
         return mapreduce(
             sectorlabels,
@@ -48,8 +48,8 @@ function sectors(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
     return mappedarray(SectorRange{eltype(ls)}, ls)
 end
 
-# Union of two sorted, unique vectors, in sorted order (each stored sector set is sorted, so the
-# union is a merge; `sort!(union(...))` here measurably regresses the factorization kernels).
+# Union of two sorted, unique vectors, returned in sorted order. Sorted inputs make the union a
+# merge.
 function mergesortedunique(a::Vector{S}, b::Vector{S}) where {S}
     out = S[]
     i = j = 1
@@ -76,9 +76,9 @@ end
 # The result shares `a`'s buffer: a zero-length sector contributes no data, so the layout carves
 # the stored blocks at their existing offsets. `cs` must be sorted (`SectorRange` order) and
 # cover every axis's support; setting arrays that will be co-iterated from one shared `cs` (the
-# axis-support union `sectors(a, bs...)`) makes a single position index them all. An unchanged
-# support returns `a` itself, so callers can detect the identity by `===`.
-setsectors(a::AbstractFusedGradedArray) = setsectors(a, sectors(a))
+# axis-support union `sectorsupport(a, bs...)`) makes a single position index them all. An
+# unchanged support returns `a` itself.
+setsectors(a::AbstractFusedGradedArray) = setsectors(a, sectorsupport(a))
 
 # Strip a sector vector to its bare label vector once per array (zero-copy for the lazy
 # `sectors` view), so both axes of the array are set from the same vector.
@@ -165,7 +165,7 @@ function eachblockstoredindex(m::AbstractFusedGradedMatrix)
     cod = axis_codomain(m)
     dom = axis_domain(m)
     return (
-        Block(findsectorindex(cod, c), findsectorindex(dom, c)) for
+        Block(sectorindex(cod, c), sectorindex(dom, c)) for
             c in keys(sectordata(m))
     )
 end

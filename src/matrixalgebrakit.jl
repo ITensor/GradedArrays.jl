@@ -101,7 +101,7 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_full!, :eigh_full!) && :(checksquare(A)))
-        cs = sectors(A, F...)
+        cs = sectorsupport(A, F...)
         wA = setsectors(A, cs)
         wFs = map(x -> setsectors(x, cs), F)
         for i in eachindex(cs)
@@ -123,7 +123,7 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_vals!, :eigh_vals!) && :(checksquare(A)))
-        cs = sectors(A, N)
+        cs = sectorsupport(A, N)
         wA = setsectors(A, cs)
         wN = setsectors(N, cs)
         for i in eachindex(cs)
@@ -259,8 +259,9 @@ function MAK.initialize_output(
     return similar(A, Vector{Tr}, axis_domain(A)) # TODO: don't hardcode type
 end
 
-# The bond axis of a null space: the per-sector excess of `axis`'s multiplicity over `other`'s,
-# dropping exhausted sectors. A walk over `axis`'s sorted stored vectors, preserving canonical form.
+# The bond axis of a null space: per sector, the excess of `axis`'s multiplicity over `other`'s,
+# omitting the sectors with no excess. A walk over `axis`'s sorted stored vectors, so the result
+# stays canonical.
 function nullspace_axis(axis::FusedGradedOneTo, other::FusedGradedOneTo)
     labels = empty(sectorlabels(axis))
     lens = Int[]

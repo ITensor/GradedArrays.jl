@@ -13,22 +13,18 @@ function _dataview(buffer, offset::Int, sz::Tuple{Int, Int})
     return reshape(view(buffer, (offset + 1):(offset + prod(sz))), sz)
 end
 
-# `sectordatalayout` builds (2-arg and 1-arg axis forms, below) or reads off a fused graded array
-# (the accessor each buffer-backed array defines) the sector → block-layout dictionary locating
-# each stored block's data in the contiguous buffer: a 0-based buffer `offset` plus the block's
-# data `size` (`(len,)` for a vector block, `(rows, cols)` for a matrix block). A
-# `SortedArrayDictionary` keyed by the lazy sector view over the sorted coupled-sector labels.
+# The sector → block-layout dictionary maps each stored sector to where its block's data sits in
+# the contiguous buffer: a 0-based buffer `offset` plus the block's data `size` (`(len,)` for a
+# vector block, `(rows, cols)` for a matrix block). The buffer-backed fused arrays carry it in
+# their `datalayout` field; `sectordatalayout` below builds it from the two matrix axes or from a
+# single vector axis.
 
-# The concrete type of a canonical `N`-dimensional layout for sector type `S`: it involves
-# `labeltype(S)`, so the `datalayout` struct fields are loosely typed and their `sectordatalayout`
-# accessors typeassert against this.
-function datalayouttype(::Type{SectorRange{I}}, ::Val{N}) where {I, N}
-    return SortedArrayDictionary{
-        SectorRange{I}, @NamedTuple{offset::Int, size::NTuple{N, Int}},
-        ReadonlyMappedArray{SectorRange{I}, 1, Vector{I}, Type{SectorRange{I}}},
-        Vector{@NamedTuple{offset::Int, size::NTuple{N, Int}}}
-    }
-end
+# The type of a canonical `N`-dimensional layout for sector type `S`: a `SortedArrayDictionary` over
+# a sorted `Vector{S}` of sectors and the parallel vector of their offset/size layouts.
+const SectorDataLayout{S, N} = SortedArrayDictionary{
+    S, @NamedTuple{offset::Int, size::NTuple{N, Int}},
+    Vector{S}, Vector{@NamedTuple{offset::Int, size::NTuple{N, Int}}}
+}
 
 # Matrix form: one block per coupled sector (present on both codomain and domain), in sorted
 # coupled-sector order and column-major within each block (TensorKit's `.data` layout). A single
@@ -39,7 +35,7 @@ function sectordatalayout(
     ) where {S <: SectorRange}
     codl, codd = sectorlabels(codomain), datalengths(codomain)
     doml, domd = sectorlabels(domain), datalengths(domain)
-    labels = labeltype(S)[]
+    coupled = S[]
     layouts = @NamedTuple{offset::Int, size::NTuple{2, Int}}[]
     offset = 0
     i = j = 1
@@ -50,18 +46,18 @@ function sectordatalayout(
             j += 1
         else
             sz = (codd[i], domd[j])
-            push!(labels, codl[i])
+            push!(coupled, S(codl[i]))
             push!(layouts, (offset = offset, size = sz))
             offset += prod(sz)
             i += 1
             j += 1
         end
     end
-    return SortedArrayDictionary(mappedarray(S, labels), layouts)
+    return SortedArrayDictionary(coupled, layouts)
 end
 
 # Vector form: one block per axis sector, in sorted-sector order; the offsets are the prefix sums
-# of the axis's stored data lengths. The label vector is shared with the axis.
+# of the axis's stored data lengths.
 function sectordatalayout(axis::FusedGradedOneTo)
     lens = datalengths(axis)
     layouts = Vector{@NamedTuple{offset::Int, size::NTuple{1, Int}}}(undef, length(lens))
@@ -70,13 +66,12 @@ function sectordatalayout(axis::FusedGradedOneTo)
         layouts[k] = (offset = offset, size = (lens[k],))
         offset += lens[k]
     end
-    return SortedArrayDictionary(sectors(axis), layouts)
+    return SortedArrayDictionary(collect(sectors(axis)), layouts)
 end
 
 # Total buffer length the blocks of a layout tile; the fused array constructors validate their
-# buffer against it. The blocks are contiguous, so it is the sum of the block sizes (well defined
-# for any layout dictionary, canonical or not).
-fusedbufferlength(datalayout) = sum(layout -> prod(layout.size), datalayout; init = 0)
+# buffer against it. The blocks are contiguous, so it is the sum of the block sizes.
+bufferlength(datalayout) = sum(layout -> prod(layout.size), datalayout; init = 0)
 
 """
     SectorData{S,T,P,I} <: Dictionaries.AbstractDictionary{S,T}
@@ -86,8 +81,7 @@ itself. Keys are the coupled sectors; each value materializes on access as a `vi
 contiguous buffer (a 1-D view for a [`FusedGradedVector`](@ref), a reshaped 2-D view for a
 [`FusedGradedMatrix`](@ref)), so no block-shaped storage is held and writes through a value land in
 the buffer. The value type is `datatype(parent)`. The `datalayout` field is the array's carried
-sector → offset/size layout (see `sectordatalayout`), so constructing a `SectorData` is a plain
-wrap with no per-call work.
+sector → offset/size layout (see `sectordatalayout`), passed straight from the array's field.
 """
 struct SectorData{S, T, P <: AbstractFusedGradedArray, I <: AbstractDictionary{S}} <:
     AbstractDictionary{S, T}
@@ -103,10 +97,6 @@ function SectorData(
         parent, datalayout
     )
 end
-
-# The construction entry point (what `sectordata` wraps): read the carried layout off the parent
-# via the `sectordatalayout` accessor, which each buffer-backed fused array defines.
-SectorData(parent::AbstractFusedGradedArray) = SectorData(parent, sectordatalayout(parent))
 
 # --- AbstractDictionary interface (read-only; values are views, so they mutate through) ---
 

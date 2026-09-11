@@ -22,9 +22,9 @@ end
 
 # ========================  fuseaxes  ========================
 
-# Fuse a group of leg axes into its coupled fused-sorted axis. A single leg reads its cached
-# fused form, and a multi-leg group reduces without a trivial init (which would add a pointless
-# trivial×leg merge per call).
+# Fuse a group of leg axes into its coupled fused-sorted axis. A single leg goes straight to
+# `tensor_product` (the axis's cached fused form for a non-dual axis, its `flip` for a dual one);
+# a multi-leg group reduces pairwise.
 fuseaxes(::Type{S}, axs::Tuple{}) where {S <: SectorRange} = trivial_gradedrange(S)
 fuseaxes(::Type{<:SectorRange}, axs::Tuple{Any}) = tensor_product(only(axs))
 fuseaxes(::Type{<:SectorRange}, axs::Tuple) = reduce(tensor_product, axs)
@@ -65,8 +65,8 @@ end
 
 # ========================  UniqueSectorArray matricize  ========================
 
-# The matricization wraps reshapes of the structural factor and the reduced data (`sector_kron`
-# only wraps), so it shares `a`'s memory at every trivial split.
+# The reduced data matricizes to a reshaped view, so the matricization shares `a`'s memory at
+# every trivial split; the structural factor stores no data and is rebuilt as a `SectorIdentity`.
 TensorAlgebra.ismatricizeview(::SectorMatricize, ::UniqueSectorArray, ::Val) = true
 function TensorAlgebra.matricizeview(
         ::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val{K}
@@ -74,6 +74,11 @@ function TensorAlgebra.matricizeview(
     asectors_reshaped = matricize(sector(a), Val(K))
     adata_reshaped = matricize(data(a), Val(K))
     return sector_kron(asectors_reshaped, adata_reshaped)
+end
+function TensorAlgebra.matricizecopy(
+        style::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val
+    )
+    return copy(TensorAlgebra.matricizeview(style, a, ndims_codomain))
 end
 
 # ========================  SectorMatricize unmatricize  ========================

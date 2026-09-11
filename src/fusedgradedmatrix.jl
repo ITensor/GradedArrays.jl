@@ -16,10 +16,8 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
     buffer::V
     axis_codomain::FusedGradedOneTo{S}
     axis_domain::FusedGradedOneTo{S}
-    # The coupled-sector offset/size layout into the buffer; its concrete type involves
-    # `labeltype(S)` (see `datalayouttype`), so the field is loosely typed and `sectordatalayout`
-    # recovers the concrete type via a typeassert.
-    datalayout::SortedArrayDictionary
+    # The coupled-sector offset/size layout into the buffer (see `sectordatalayout`).
+    datalayout::SectorDataLayout{S, 2}
 
     # Primitive constructor: wrap a contiguous buffer already in TensorKit `.data` layout (shared, not
     # copied). The blocks are the lazy `sectordata` view over the buffer, so nothing block-shaped is
@@ -36,16 +34,14 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
                 "FusedGradedMatrix stores non-dual codomain/domain axes; the domain's dual arrow is implicit in `axes` (see `biaxes`)"
             )
         )
-        total = fusedbufferlength(datalayout)
+        total = bufferlength(datalayout)
         length(buffer) == total ||
             throw(
             DimensionMismatch(
                 "buffer length $(length(buffer)) does not match block total $total"
             )
         )
-        return new{T, S, V}(
-            buffer, codomain, domain, datalayout::datalayouttype(S, Val(2))
-        )
+        return new{T, S, V}(buffer, codomain, domain, datalayout)
     end
 end
 
@@ -92,7 +88,7 @@ function FusedGradedMatrix{T}(
     cod = FusedGradedOneTo(codomain)
     dom = FusedGradedOneTo(domain)
     datalayout = sectordatalayout(cod, dom)
-    buffer = Vector{T}(undef, fusedbufferlength(datalayout))
+    buffer = Vector{T}(undef, bufferlength(datalayout))
     return FusedGradedMatrix(buffer, cod, dom, datalayout)
 end
 
@@ -104,7 +100,7 @@ function FusedGradedMatrix{T, S, V}(
     cod = FusedGradedOneTo(codomain)
     dom = FusedGradedOneTo(domain)
     datalayout = sectordatalayout(cod, dom)
-    buffer = V(undef, fusedbufferlength(datalayout))
+    buffer = V(undef, bufferlength(datalayout))
     return FusedGradedMatrix{T, S, V}(buffer, cod, dom, datalayout)
 end
 
@@ -179,12 +175,7 @@ function datatype(::Type{<:FusedGradedMatrix{T, S, V}}) where {T, S, V}
     )
 end
 
-# Typeassert accessor for the loosely typed `datalayout` field (see the struct definition).
-function sectordatalayout(m::FusedGradedMatrix{<:Any, S}) where {S}
-    return m.datalayout::datalayouttype(S, Val(2))
-end
-
-sectordata(m::FusedGradedMatrix) = SectorData(m)
+sectordata(m::FusedGradedMatrix) = SectorData(m, m.datalayout)
 
 # `axes_codomain`/`axes_domain` are the core axis accessors (the one place these fields are read
 # directly); `biaxes`, `axes`, `axis_codomain`, `view`, the reductions, and the display all derive
@@ -193,16 +184,16 @@ sectordata(m::FusedGradedMatrix) = SectorData(m)
 axes_codomain(m::FusedGradedMatrix) = (m.axis_codomain,)
 axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 
-# Aliasing identity is the buffer's: `Base.mightalias` then detects sharing between the matrix,
-# its buffer, and wrappers of either.
+# Forwarding to the buffer is what lets `Base.mightalias` detect sharing between the matrix, its
+# buffer, and wrappers of either.
 Base.dataids(m::FusedGradedMatrix) = Base.dataids(m.buffer)
 
 # ========================  setsectors  ========================
 
-# The support-set matrix: both axes set to exactly `ls` (the `FusedGradedOneTo` method), wrapping
-# the same buffer as `m` — the added sectors are zero-length, so the layout carves the stored
-# blocks at their existing offsets and the added blocks as zero-size views. Writes through the
-# result land in `m` (see `setsectors` in `abstractfusedgradedarray.jl` for the full contract).
+# Set both axes to exactly `ls` (the `FusedGradedOneTo` method) and wrap the same buffer as `m`.
+# The added sectors are zero-length, so the layout carves the stored blocks at their existing
+# offsets and the added blocks as zero-size views, and writes through the result land in `m` (see
+# `setsectors` in `abstractfusedgradedarray.jl` for the full contract).
 function setsectors(m::FusedGradedMatrix, ls::Vector{<:TKS.Sector})
     cod = setsectors(axis_codomain(m), ls)
     dom = setsectors(axis_domain(m), ls)
@@ -245,7 +236,7 @@ end
 
 function Base.similar(m::FusedGradedMatrix, ::Type{T}) where {T}
     return FusedGradedMatrix(
-        similar(m.buffer, T), axis_codomain(m), axis_domain(m), sectordatalayout(m)
+        similar(m.buffer, T), axis_codomain(m), axis_domain(m), m.datalayout
     )
 end
 function Base.similar(

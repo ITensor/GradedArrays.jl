@@ -71,8 +71,6 @@ ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 # matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
-# Aliasing identity is the stored matrix's buffer, so `Base.mightalias` detects sharing
-# between the array and views or wrappers of its matricized form.
 Base.dataids(fa::GradedArray) = Base.dataids(matricize(fa))
 
 # ============================  block indexing (unique fusion)  ============================
@@ -759,18 +757,20 @@ for A in (:GradedArray, :AbstractFusedGradedArray)
     end
 end
 
-# Whether two axis groups are the same multiset. Fusion is order-independent, so equal multisets
-# fuse to the same coupled axis; the ordered pass first is the common case (a grouping-preserving
-# destination), where the axes are the operand's own stored objects.
+# Whether the two axis groups hold the same axes with the same repeats, in any order. Reordering
+# the factors changes the fusion trees but not the coupled sectors or their multiplicities
+# (`Nsymbol` is symmetric in the two fusing sectors), so the groups fuse to an equal coupled axis
+# for abelian and non-abelian sectors alike. The ordered pass comes first because in the common
+# case the axes are the operand's own stored objects.
 function ismultisetequal(axs1::Tuple, axs2::Tuple)
     length(axs1) == length(axs2) || return false
     all(((ax1, ax2),) -> ax1 === ax2, zip(axs1, axs2)) && return true
     return all(ax -> count(isequal(ax), axs1) == count(isequal(ax), axs2), axs1)
 end
 
-# Allocate a graded destination over the given external axes (domain codomain-facing), reusing an
-# operand's stored coupled axis instead of re-fusing whenever the destination side holds the same
-# multiset of axes as that operand's stored codomain/domain group.
+# Allocate a graded destination over the given external axes, with the domain axes un-dualized,
+# reusing an operand's stored coupled axis instead of re-fusing whenever the destination side
+# holds a reordering of that operand's stored codomain/domain group.
 function allocate_graded(
         ::Type{T}, a1::GradedArray, a2::GradedArray,
         axes_codomain::Tuple, axes_domain::Tuple
@@ -811,15 +811,30 @@ function TensorAlgebra.allocate_output(
     return allocate_graded(T, src, src, axes_codomain, axes_domain)
 end
 
-function TensorAlgebra.matricize(
-        ::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{K}
-    ) where {K}
-    K == 1 || throw(
+# A matrix-level fused array is already matricized at the `{1,1}` split, so the memory-sharing
+# matricization is the array itself. Any other codomain rank bends a leg, which matrix-level fused
+# storage cannot represent.
+function TensorAlgebra.ismatricizeview(
+        ::GradedMatricize,
+        ::AbstractFusedGradedMatrix,
+        ::Val{1}
+    )
+    return true
+end
+TensorAlgebra.matricizeview(::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{1}) = m
+function TensorAlgebra.matricizecopy(
+        ::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{1}
+    )
+    return copy(m)
+end
+function TensorAlgebra.matricizecopy(
+        ::GradedMatricize, ::AbstractFusedGradedMatrix, ::Val
+    )
+    throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"
         )
     )
-    return m
 end
 
 function TensorAlgebra.unmatricizeperm!(
@@ -838,10 +853,11 @@ function TensorAlgebra.unmatricizeperm!(
         copyto!(md.buffer, m.buffer)
         return a_dest
     end
-    # Wrap `m` in `a_dest`'s axes reordered into the matricized leg order (with correct per-leg
-    # duality: the codomain-group axes are read as stored, the domain group un-dualized), then
-    # permute back. The permute-back split follows `a_dest`'s own codomain/domain split, not the
-    # matricized one: the graded `bipermutedimsopadd!` requires the destination's split.
+    # Wrap `m` in `a_dest`'s axes reordered into the matricized leg order: `bipartition_axes` takes
+    # the codomain group straight from `axes(a_dest)` and conjugates the domain group, so a leg
+    # moving from `a_dest`'s codomain into the matricized domain reads as dual. The permute back
+    # follows `a_dest`'s own codomain/domain split, not the matricized one: the graded
+    # `bipermutedimsopadd!` requires the destination's split.
     axes_codomain_m, axes_domain_m = TensorAlgebra.bipartition_axes(
         axes(a_dest), invperm_codomain, invperm_domain
     )

@@ -61,8 +61,8 @@ function sectordata(d::FusedGradedDiagonal)
     return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
 end
 
-# The support-set diagonal: set the wrapped diagonal vector (see
-# `setsectors(::FusedGradedMatrix, ls)`); the `Diagonal` blocks at the added sectors are 0×0.
+# Set the wrapped diagonal vector's axis to exactly `ls` (see
+# `setsectors(::FusedGradedVector, ls)`); the `Diagonal` blocks at the added sectors are 0×0.
 function setsectors(d::FusedGradedDiagonal, ls::Vector{<:TKS.Sector})
     diag = setsectors(MAK.diagview(d), ls)
     # An unchanged diagonal means the set is the identity; return `d` itself.
@@ -79,8 +79,7 @@ end
 axes_codomain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 axes_domain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 
-# Aliasing identity is the wrapped diagonal vector's, i.e. its buffer's.
-Base.dataids(d::FusedGradedDiagonal) = Base.dataids(d.diag)
+Base.dataids(d::FusedGradedDiagonal) = Base.dataids(MAK.diagview(d))
 
 function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(MAK.diagview(d), T))

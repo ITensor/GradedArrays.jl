@@ -757,10 +757,10 @@ end
     @test eltype(D) === ComplexF64 && eltype(V) === ComplexF64
 end
 
-# `setsectors` is the support alignment the kernels co-iterate over. Pin its contract: the
-# one-arg form equalizes the axes' supports, the result is a genuine fused array sharing the
-# parent's buffer (the added sectors are zero-length), a `cs` that does not cover an axis
-# support throws, the axes rebuilt from one shared `cs` store its label vector itself, and
+# Pin the `setsectors` contract, which the kernels rely on to line up supports before they
+# co-iterate: the one-arg form equalizes the axes' supports, the result is a genuine fused array
+# sharing the parent's buffer (the added sectors are zero-length), a `cs` that does not cover an
+# axis support throws, the axes rebuilt from one shared `cs` store its label vector itself, and
 # positional `sectordata` matches the keyed form on stored sectors and carves a zero-size
 # buffer view (not a fresh dense block) on an added one.
 @testset "setsectors and positional sectordata" begin
@@ -795,9 +795,9 @@ end
     @test !(blk isa Array)
     @test blk isa GradedArrays.datatype(typeof(w))
 
-    # The identity set returns the array itself: `w`'s axis supports both equal its stored
-    # sector list, so setting with it changes nothing.
-    @test GradedArrays.setsectors(w, GradedArrays.sectors(w)) === w
+    # Setting a support that is already in place returns the array itself: `w`'s axis supports
+    # both equal its stored sector list, so nothing changes.
+    @test GradedArrays.setsectors(w, GradedArrays.sectorsupport(w)) === w
 
     # Exact semantics: `cs` must cover every axis support; an uncovering `cs` throws.
     @test_throws ArgumentError GradedArrays.setsectors(A, [SectorRange(U1(3))])
@@ -805,7 +805,7 @@ end
     # Co-iteration over an explicit sector union: the set arrays line up with the lenient
     # per-sector reads on a null-kernel case (a sector absent from `A`'s storage).
     N = MAK.qr_null(A)
-    cs = GradedArrays.sectors(A, N)
+    cs = GradedArrays.sectorsupport(A, N)
     wA = GradedArrays.setsectors(A, cs)
     wN = GradedArrays.setsectors(N, cs)
 
