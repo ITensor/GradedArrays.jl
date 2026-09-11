@@ -540,8 +540,8 @@ function unchecked_project_graded(raw, codomain_axes, domain_axes)
         sorted = parent(BlockedArray(raw, storedlengths...)[perms...])
         t = TA.unchecked_project(
             sorted,
-            map(ElementarySpace ∘ sectormergesort, codomain_axes),
-            map(ElementarySpace ∘ sectormergesort, domain_axes)
+            map(ElementarySpace ∘ fusesectors, codomain_axes),
+            map(ElementarySpace ∘ fusesectors, domain_axes)
         )
         return GradedArray(matricize(to_gradedarray(t)), codomain_axes, domain_axes)
     end

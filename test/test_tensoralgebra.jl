@@ -4,7 +4,7 @@ using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, Gra
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths, dual,
     eachblockstoredindex, eachsectoraxis, flip, fusedgradeddiagonal, fusedgradedmatrix,
-    fusedgradedvector, gradedrange, isdual, sector, sectoraxes, sectordata, sectormergesort,
+    fusedgradedvector, fusesectors, gradedrange, isdual, sector, sectoraxes, sectordata,
     sectors, sectortype, tensor_product, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
@@ -133,9 +133,9 @@ end
     end
 end
 
-@testset "sectormergesort on a graded array" begin
+@testset "fusesectors on a graded array" begin
     # `GradedArray` represents unfused (unsorted, repeated-sector) external axes directly (`U1(1)` at
-    # blocks 1 and 3 here). `sectormergesort` sorts and merges them; since the fused storage is already
+    # blocks 1 and 3 here). `fusesectors` sorts and merges them; since the fused storage is already
     # canonical, it is a pure external-axis relabel over the same data.
     g1 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
@@ -146,7 +146,7 @@ end
         return a[Block(3, 2)] = UniqueSectorArray(2 * ones(3, 2), (U1(1), U1(-1)))
     end
 
-    a_merged = sectormergesort(a)
+    a_merged = fusesectors(a)
 
     # Sectors should be sorted and unique after merge
     @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]

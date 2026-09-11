@@ -117,22 +117,23 @@ function invblockmergeperm(
 end
 
 # The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`. The vector-level worker lives in
-# `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have constant-time fast paths
-# (the cached fused form and the identity).
-function sectormergesort(g::AbstractGradedOneTo)
-    return sectormergesort(sectors(g), datalengths(g), isdual(g))
+# encodes that invariant rather than a plain `GradedOneTo`. The `sectormergesort` worker over the
+# axis parts lives in `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have
+# constant-time fast paths (the cached fused form and the identity).
+function fusesectors(g::AbstractGradedOneTo)
+    merged_labels, merged_datalengths = sectormergesort(sectors(g), datalengths(g))
+    return FusedGradedOneTo(merged_labels, merged_datalengths, isdual(g))
 end
 
 # Conjugation is a sector bijection, so flipping the merged form equals merging the flipped
 # axis — and the merged form is cached, so this spelling avoids a re-fusion for a dual axis.
 function tensor_product(g::AbstractGradedOneTo)
-    f = sectormergesort(g)
+    f = fusesectors(g)
     return isdual(f) ? flip(f) : f
 end
 
 function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
-    return sectormergesort(unmerged_tensor_product(g1, g2))
+    return fusesectors(unmerged_tensor_product(g1, g2))
 end
 
 # ========================  mixed-type tensor_product  ========================

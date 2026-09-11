@@ -131,7 +131,7 @@ using Test: @test, @test_throws, @testset
     @testset "ElementarySpace from an axis with a zero-length sector" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
         g0 = GradedArrays.setsectors(
-            g, GradedArrays.sectorlabelvector([U1(0), U1(1), U1(2)])
+            g, GradedArrays.sectorlabels([U1(0), U1(1), U1(2)])
         )
         @test datalengths(g0) == [2, 3, 0]
         @test TensorKit.ElementarySpace(g0) == TensorKit.ElementarySpace(g)

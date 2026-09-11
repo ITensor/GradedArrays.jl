@@ -103,7 +103,7 @@ function viewblock(
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
-            invblockmergeperm(g, sectorsortperm(g), sectormergesort(g))[bk[d]].indices
+            invblockmergeperm(g, sectorsortperm(g), fusesectors(g))[bk[d]].indices
         )
     end
     return UniqueSectorArray(view(blockdata, ranges...), cod, dom)
@@ -312,18 +312,18 @@ spaces from the per-leg axes and copying each coupled-sector block.
 function TK.TensorMap(fa::GradedArray)
     # Derive the space type from the sector type (not a leg) so the rank-0 case, with no legs, still
     # resolves the trivial `one(Sp)` codomain/domain. The `matricized` backing is over the fused-sorted
-    # coupled space, so build each leg's space from `sectormergesort` of the (possibly unsorted) stored
+    # coupled space, so build each leg's space from `fusesectors` of the (possibly unsorted) stored
     # axis; the `TensorMap` is the fused-sorted TensorKit view, and the stored-axis order is reapplied
     # only when going back to a dense array (`Array`).
     Sp = typeof(ElementarySpace(trivial_gradedrange(sectortype(fa))))
     codsp = mapreduce(
-        ElementarySpace ∘ sectormergesort,
+        ElementarySpace ∘ fusesectors,
         TK.:⊗,
         axes_codomain(fa);
         init = one(Sp)
     )
     domsp =
-        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_domain(fa); init = one(Sp))
+        mapreduce(ElementarySpace ∘ fusesectors, TK.:⊗, axes_domain(fa); init = one(Sp))
     return copy!(TK.TensorMap{eltype(fa)}(undef, codsp, domsp), fa)
 end
 
@@ -485,11 +485,11 @@ end
 # canonical (blocks are keyed by coupled sector), so the data is unchanged: only the external axes are
 # re-labeled to their merged-sorted form, which re-slices the same coupled blocks into the merged
 # external blocks. Copies the matricized matrix so the result is an independent array.
-function sectormergesort(a::GradedArray)
+function fusesectors(a::GradedArray)
     return GradedArray(
         copy(matricize(a)),
-        map(sectormergesort, axes_codomain(a)),
-        map(sectormergesort, axes_domain(a))
+        map(fusesectors, axes_codomain(a)),
+        map(fusesectors, axes_domain(a))
     )
 end
 
@@ -544,14 +544,14 @@ end
 # are the copying counterparts.
 
 # The fused-sorted coupled `HomSpace` for the given external axes. Each leg's space is the
-# `sectormergesort` of its (possibly unfused/unsorted) axis; the rank-0 case resolves the trivial
+# `fusesectors` of its (possibly unfused/unsorted) axis; the rank-0 case resolves the trivial
 # space from the sector type since it has no legs.
 function tensormapspace(::Type{S}, axes_codomain::Tuple, axes_domain::Tuple) where {S}
     Sp = typeof(ElementarySpace(trivial_gradedrange(S)))
     codomain =
-        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_codomain; init = one(Sp))
+        mapreduce(ElementarySpace ∘ fusesectors, TK.:⊗, axes_codomain; init = one(Sp))
     domain =
-        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_domain; init = one(Sp))
+        mapreduce(ElementarySpace ∘ fusesectors, TK.:⊗, axes_domain; init = one(Sp))
     return codomain ← domain
 end
 
@@ -565,7 +565,7 @@ function to_tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::T
 end
 function to_tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.DiagonalTensorMap(
-        MAK.diagview(d).buffer, ElementarySpace(sectormergesort(only(axes_codomain)))
+        MAK.diagview(d).buffer, ElementarySpace(fusesectors(only(axes_codomain)))
     )
 end
 # A lazy adjoint converts to TensorKit's lazy adjoint, still sharing the parent's buffer. `adjoint`

@@ -90,7 +90,7 @@ end
         @test GradedArray{Float64}(undef, (unsorted,), (ok,)) isa GradedArray
         @test GradedArray{Float64}(undef, (ok,), (unfused,)) isa GradedArray
         # The `TensorMap` / `ElementarySpace` conversion stays strict: it expects a fused-sorted range
-        # (callers normalize with `sectormergesort` at the boundary).
+        # (callers normalize with `fusesectors` at the boundary).
         @test_throws ArgumentError TensorKit.ElementarySpace(unsorted)
         @test_throws ArgumentError TensorKit.ElementarySpace(unfused)
     end

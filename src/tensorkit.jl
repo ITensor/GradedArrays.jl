@@ -16,7 +16,7 @@ end
 # conversions block-permute the dense data into this form at the TensorKit boundary.
 is_fused_sorted(g::AbstractGradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
 # Allocation-free via the cached fused form: canonical iff the stored sectors already equal it.
-is_fused_sorted(g::GradedOneTo) = sectors(g) == sectors(sectormergesort(g))
+is_fused_sorted(g::GradedOneTo) = sectors(g) == sectors(fusesectors(g))
 
 # Throwing wrapper: `ElementarySpace` demands a fused-sorted range.
 function check_fused_sorted(g::AbstractGradedOneTo)

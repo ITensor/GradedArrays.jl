@@ -8,7 +8,7 @@ Stores non-dual `SectorRange` values in `sectors`, sector lengths, and a single
 `isdual` flag. The `sectors` accessor returns those stored non-dual sectors; query the
 duality separately with `isdual`. The dual flag is applied per block by `eachblockaxis`
 (and hence `eachsectoraxis`). The fused (merged-sorted) form of the axis is computed once
-at construction and cached in `fused`, so `sectormergesort`/`FusedGradedOneTo` conversions
+at construction and cached in `fused`, so `fusesectors`/`FusedGradedOneTo` conversions
 are field reads.
 """
 struct GradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
@@ -27,13 +27,13 @@ struct GradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
                 "GradedOneTo stores non-dual sectors; pass the arrow via `isdual`"
             )
         )
-        return new{S}(
-            sectors, datalengths, isdual, sectormergesort(sectors, datalengths, isdual)
-        )
+        merged_labels, merged_datalengths = sectormergesort(sectors, datalengths)
+        fused = FusedGradedOneTo(merged_labels, merged_datalengths, isdual)
+        return new{S}(sectors, datalengths, isdual, fused)
     end
     # Trusted variant for callers that already hold the fused form (`dual` reuses the
     # parent's cache with the arrow flipped; conversion from an already-fused axis passes the
-    # axis itself): `fused` must equal `sectormergesort` of the other fields.
+    # axis itself): `fused` must equal the fused form of the other fields.
     function GradedOneTo(
             sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool,
             fused::FusedGradedOneTo{S}
@@ -56,7 +56,7 @@ datalengths(g::GradedOneTo) = g.datalengths
 TensorAlgebra.isdual(g::GradedOneTo) = g.isdual
 sectors(g::GradedOneTo) = g.sectors
 # The fused (merged-sorted) form is precomputed at construction, so this is a field read.
-sectormergesort(g::GradedOneTo) = g.fused
+fusesectors(g::GradedOneTo) = g.fused
 
 # ========================  conversions between graded-axis types  ========================
 
@@ -71,7 +71,7 @@ Base.convert(::Type{GradedOneTo}, g::AbstractGradedOneTo) = GradedOneTo(g)
 # The strict conversion (reject rather than re-sort a non-canonical axis) reduces to
 # comparing the stored sectors with the precomputed fused form.
 function FusedGradedOneTo(g::GradedOneTo)
-    fused = sectormergesort(g)
+    fused = fusesectors(g)
     sectors(g) == sectors(fused) || throw(
         ArgumentError(
             "FusedGradedOneTo requires fused and sorted sectors: $(sectors(g))"
@@ -145,7 +145,7 @@ end
 # `dual` reuses the parent's fused form with the arrow flipped (the merge is arrow-independent),
 # so no re-fusion happens on the hot `conj`/`biaxes` path.
 function TensorAlgebra.dual(g::GradedOneTo)
-    return GradedOneTo(g.sectors, datalengths(g), !isdual(g), dual(sectormergesort(g)))
+    return GradedOneTo(g.sectors, datalengths(g), !isdual(g), dual(fusesectors(g)))
 end
 function flip(g::GradedOneTo)
     # Conjugate labels but keep stored sectors non-dual

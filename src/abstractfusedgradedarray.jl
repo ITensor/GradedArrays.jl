@@ -83,7 +83,7 @@ setsectors(a::AbstractFusedGradedArray) = setsectors(a, sectors(a))
 # Strip a sector vector to its bare label vector once per array (zero-copy for the lazy
 # `sectors` view), so both axes of the array are set from the same vector.
 function setsectors(a::AbstractFusedGradedArray, cs::AbstractVector{<:SectorRange})
-    return setsectors(a, sectorlabelvector(cs))
+    return setsectors(a, sectorlabels(cs))
 end
 
 sectordata(a::AbstractFusedGradedArray, c) = sectordata(a)[c]

@@ -108,24 +108,23 @@ end
 
 # ========================  setsectors  ========================
 
-# The bare label vector behind a sector vector: zero-copy for the lazy sector view over a label
-# vector (the `sectors` form), one strip per call otherwise.
-function sectorlabelvector(
+# Zero-copy for the lazy sector view over a label vector (the `sectors` form), one strip per
+# call otherwise.
+function sectorlabels(
         cs::ReadonlyMappedArray{SectorRange{I}, 1, <:Vector, Type{SectorRange{I}}}
     ) where {I}
     return parent(cs)
 end
-function sectorlabelvector(cs::AbstractVector{S}) where {S <: SectorRange}
+function sectorlabels(cs::AbstractVector{S}) where {S <: SectorRange}
     all(s -> !TensorAlgebra.isdual(s), cs) ||
         throw(ArgumentError("sectors must be non-dual"))
     return labeltype(S)[label(s) for s in cs]
 end
 
-# The support-set axis (see the `setsectors` contract in `abstractfusedgradedarray.jl`). The
-# walk that gathers the lengths doubles as the `ls`-covers-`g` check. The result stores `ls`
-# itself, so every axis set from one vector shares it, and an `ls` equal to the stored support
-# returns `g` itself, so callers can detect the identity by `===` and skip rebuilding anything
-# derived from the axis.
+# Sectors of `ls` that `g` already has keep their lengths, the ones it lacks get length zero.
+# The walk that fills `lens` doubles as the coverage check: every stored label has to be
+# matched, which the test after the loop confirms. `ls` is stored as is, so axes set from the
+# same vector share it.
 function setsectors(g::FusedGradedOneTo{SectorRange{I}}, ls::Vector{I}) where {I}
     gl, gd = sectorlabels(g), datalengths(g)
     (ls === gl || ls == gl) && return g
@@ -219,27 +218,29 @@ Base.convert(::Type{FusedGradedOneTo}, g::AbstractGradedOneTo) = FusedGradedOneT
 
 # ========================  sectormergesort  ========================
 
-# Merge repeated sectors (summing their data lengths) and sort into canonical fused form,
-# building the sorted label/length vectors directly. The stored sectors are non-dual and the
-# arrow is axis-level, so merging their labels is exact. The vector-level worker lets
-# `GradedOneTo` fuse at construction time, before the axis object exists.
+# Merge repeated sectors (summing their data lengths) and sort. The sectors are non-dual and
+# the arrow is axis-level, so merging their labels is exact and the arrow plays no part. The
+# merged parts are canonical (sorted, each sector once) by construction, so callers hand them
+# to the trusted label-taking `FusedGradedOneTo` constructor.
 function sectormergesort(
-        sectors::AbstractVector{S}, datalengths::AbstractVector{Int}, isdual::Bool
+        sectors::AbstractVector{S}, datalengths::AbstractVector{Int}
     ) where {S <: SectorRange}
     perm = sortperm(sectors)
-    labels = Vector{labeltype(S)}(undef, 0)
+    merged_labels = Vector{labeltype(S)}(undef, 0)
     merged_datalengths = Vector{Int}(undef, 0)
     for p in perm
         l = label(sectors[p])
-        if !isempty(labels) && isequal(last(labels), l)
+        if !isempty(merged_labels) && isequal(last(merged_labels), l)
             merged_datalengths[end] += datalengths[p]
         else
-            push!(labels, l)
+            push!(merged_labels, l)
             push!(merged_datalengths, datalengths[p])
         end
     end
-    return FusedGradedOneTo(labels, merged_datalengths, isdual)
+    return (merged_labels, merged_datalengths)
 end
 
+# ========================  fusesectors  ========================
+
 # An already-fused axis is its own fused form.
-sectormergesort(g::FusedGradedOneTo) = g
+fusesectors(g::FusedGradedOneTo) = g
