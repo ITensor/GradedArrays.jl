@@ -4,6 +4,7 @@ using GradedArrays: GradedArrays, AbstractGradedOneTo, FusedGradedOneTo, GradedO
     SectorRange, U1, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, label,
     sectorlengths, sectors, sectortype
 using TensorAlgebra: TensorAlgebra
+using TensorKit: TensorKit
 using Test: @test, @test_throws, @testset
 
 @testset "FusedGradedOneTo" begin
@@ -12,7 +13,7 @@ using Test: @test, @test_throws, @testset
         @test g isa FusedGradedOneTo{U1}
         @test g isa AbstractGradedOneTo{U1}
         @test sectors(g) == [U1(0), U1(1)]
-        @test sectors(g) isa Vector{U1}
+        @test sectors(g) isa AbstractVector{U1}
         @test datalengths(g) == [2, 3]
         @test isdual(g) == false
     end
@@ -123,6 +124,18 @@ using Test: @test, @test_throws, @testset
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
         @test GradedArrays.eachsectoraxis(g) == [U1(0), U1(1)]
         @test GradedArrays.eachsectoraxis(dual(g)) == [conj(U1(0)), conj(U1(1))]
+    end
+
+    # `setsectors` routinely produces zero-length sectors, and TensorKit's dictionary-backed
+    # spaces drop them, so the space must come out as if those sectors were never there.
+    @testset "ElementarySpace from an axis with a zero-length sector" begin
+        g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
+        g0 = GradedArrays.setsectors(
+            g, GradedArrays.to_labelvector([U1(0), U1(1), U1(2)])
+        )
+        @test datalengths(g0) == [2, 3, 0]
+        @test TensorKit.ElementarySpace(g0) == TensorKit.ElementarySpace(g)
+        @test TensorKit.ElementarySpace(dual(g0)) == TensorKit.ElementarySpace(dual(g))
     end
 
     @testset "GradedOneTo is also an AbstractGradedOneTo" begin

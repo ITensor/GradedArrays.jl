@@ -9,7 +9,7 @@ using Random: randn!
 using StableRNGs: StableRNG
 using TensorAlgebra: TensorAlgebra, bipermutedims, invsqrth_safe, matricize, sqrth_safe
 using TensorKitSectors: FermionParity
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -625,3 +625,205 @@ end
         end
     end
 end  # @testset "Factorizations"
+
+# The mismatched-support matrices the two testsets below share: the codomain's U1(2) has no
+# domain partner (zero-column blocks in the kernels), and mirrored, the domain's U1(3) has no
+# codomain partner (zero-row blocks).
+function codomain_only_sector_matrix(rng, elt)
+    return randn!(
+        rng,
+        FusedGradedMatrix{elt}(
+            undef,
+            gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2]),
+            gradedrange([U1(0) => 2, U1(1) => 4])
+        )
+    )
+end
+function domain_only_sector_matrix(rng, elt)
+    return randn!(
+        rng,
+        FusedGradedMatrix{elt}(
+            undef,
+            gradedrange([U1(0) => 2, U1(1) => 4]),
+            gradedrange([U1(0) => 3, U1(1) => 2, U1(3) => 3])
+        )
+    )
+end
+
+# The factorization kernels co-iterate the sorted sector union of the input and outputs with one
+# positional walk per array, substituting a zero-size block for a sector an array lacks. Pin the
+# two absent-sector cases against the per-block dense reference: an output sector absent from
+# `A` (null spaces, and the square factors of the full forms), and a full reconstruction across
+# the mismatched sector sets.
+@testset "factorization kernels over differing sector sets (eltype=$elt)" for elt in (
+        Float64,
+        ComplexF64,
+    )
+    rng = StableRNG(1234)
+    A = codomain_only_sector_matrix(rng, elt)
+    codl = GradedArrays.sectordatalengths(GradedArrays.axis_codomain(A))
+
+    N = MAK.qr_null(A)
+    @test isleftnull(N, A)
+    for (c, n1) in pairs(codl)
+        Ac = haskey(sectordata(A), c) ? Matrix(sectordata(A)[c]) : zeros(elt, n1, 0)
+        Nc_ref = MAK.qr_null(Ac)
+        size(Nc_ref, 2) > 0 || continue
+        @test sectordata(N)[c] ≈ Nc_ref
+    end
+
+    U, S, Vᴴ = MAK.svd_full(A)
+    @test MAK.isunitary(U)
+    @test MAK.isunitary(Vᴴ)
+    @test Array(U * S * Vᴴ) ≈ Array(A)
+
+    Q, R = MAK.qr_full(A)
+    @test MAK.isunitary(Q)
+    @test Array(Q * R) ≈ Array(A)
+
+    # The mirrored case: a domain sector the codomain lacks, covered by the right null space.
+    B = domain_only_sector_matrix(rng, elt)
+    Nᴴ = MAK.lq_null(B)
+    @test isrightnull(Nᴴ, B)
+    for (c, n2) in pairs(GradedArrays.sectordatalengths(GradedArrays.axis_domain(B)))
+        Bc = if haskey(sectordata(B), c)
+            Matrix(sectordata(B)[c])
+        else
+            zeros(elt, 0, n2)
+        end
+        Nᴴc_ref = MAK.lq_null(Bc)
+        size(Nᴴc_ref, 1) > 0 || continue
+        @test sectordata(Nᴴ)[c] ≈ Nᴴc_ref
+    end
+end
+
+# Compact factorizations across mismatched sector supports: a sector on one axis with no
+# partner on the other flows through the kernels as zero-size blocks (the kernels' sector
+# union spans every participant's axis supports, so the exact `setsectors` covering
+# precondition holds), and the factors keep the input's axes.
+@testset "compact factorizations over differing sector sets (eltype=$elt)" for elt in (
+        Float64,
+        ComplexF64,
+    )
+    rng = StableRNG(1234)
+    A = codomain_only_sector_matrix(rng, elt)
+
+    Q, R = MAK.qr_compact(A)
+    @test isisometric(Q)
+    @test Array(Q * R) ≈ Array(A)
+    @test GradedArrays.axis_codomain(Q) == GradedArrays.axis_codomain(A)
+    @test GradedArrays.axis_domain(R) == GradedArrays.axis_domain(A)
+
+    U, S, Vᴴ = MAK.svd_compact(A)
+    @test isisometric(U)
+    @test Array(U * S * Vᴴ) ≈ Array(A)
+    @test GradedArrays.axis_codomain(U) == GradedArrays.axis_codomain(A)
+    @test GradedArrays.axis_domain(Vᴴ) == GradedArrays.axis_domain(A)
+
+    # Mirrored: a domain sector the codomain lacks (zero-row blocks in the kernels).
+    B = domain_only_sector_matrix(rng, elt)
+    UB, SB, VBᴴ = MAK.svd_compact(B)
+    @test Array(UB * SB * VBᴴ) ≈ Array(B)
+    @test GradedArrays.axis_codomain(UB) == GradedArrays.axis_codomain(B)
+    @test GradedArrays.axis_domain(VBᴴ) == GradedArrays.axis_domain(B)
+end
+
+# `copy_input` re-backs the input as one whole-buffer copy; the eltype rule must stay
+# MatrixAlgebraKit's `float(eltype)`, also from an integer input, and the result must never
+# share the input's buffer.
+@testset "copy_input eltype and non-aliasing" begin
+    rng = StableRNG(1234)
+    Ai = fusedgradedmatrix([U1(0) => [1 2; 3 4], U1(1) => [5 6; 7 8]])
+    for f in (
+            MAK.qr_compact, MAK.svd_compact, MAK.lq_compact, MAK.eig_full, MAK.eigh_full,
+            MAK.left_polar, MAK.project_hermitian,
+        )
+        Af = MAK.copy_input(f, Ai)
+        @test Af isa FusedGradedMatrix{Float64}
+        @test Array(Af) == Array(Ai)
+    end
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    Af64 = randn!(rng, FusedGradedMatrix{Float64}(undef, g, g))
+    Ac = MAK.copy_input(MAK.svd_compact, Af64)
+    @test Ac.buffer !== Af64.buffer
+    @test Array(Ac) == Array(Af64)
+
+    # Factorizations from integer input keep the dense output eltypes.
+    Q, R = MAK.qr_compact(Ai)
+    @test eltype(Q) === Float64 && eltype(R) === Float64
+    U, S, Vᴴ = MAK.svd_compact(Ai)
+    @test eltype(U) === Float64 && eltype(S) === Float64 && eltype(Vᴴ) === Float64
+    D, V = MAK.eig_full(Ai)
+    @test eltype(D) === ComplexF64 && eltype(V) === ComplexF64
+end
+
+# Pin the `setsectors` contract, which the kernels rely on to line up supports before they
+# co-iterate: the one-arg form equalizes the axes' supports, the result is a genuine fused array
+# sharing the parent's buffer (the added sectors are zero-length), a `cs` that does not cover an
+# axis support throws, the axes rebuilt from one shared `cs` store its label vector itself, and
+# positional `sectordata` matches the keyed form on stored sectors and carves a zero-size
+# buffer view (not a fresh dense block) on an added one.
+@testset "setsectors and positional sectordata" begin
+    rng = StableRNG(1234)
+    A = randn!(
+        rng,
+        FusedGradedMatrix{Float64}(
+            undef,
+            gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2]),
+            gradedrange([U1(0) => 2, U1(1) => 4])
+        )
+    )
+    w = GradedArrays.setsectors(A)
+    @test w isa FusedGradedMatrix
+    @test w.buffer === A.buffer
+    cod, dom = GradedArrays.axis_codomain(w), GradedArrays.axis_domain(w)
+    @test GradedArrays.sectors(cod) == GradedArrays.sectors(dom)
+    @test GradedArrays.datalengths(cod) == [3, 2, 2]
+    @test GradedArrays.datalengths(dom) == [2, 4, 0]
+
+    for (i, c) in enumerate(collect(keys(sectordata(w))))
+        @test sectordata(w, i) == sectordata(w)[c]
+    end
+    for (i, c) in enumerate(collect(keys(sectordata(A))))
+        @test sectordata(A, i) == sectordata(A)[c]
+    end
+
+    # The added sector's block is a zero-size view into the shared buffer, the same block type as
+    # the stored blocks, not a freshly allocated dense array.
+    blk = sectordata(w)[SectorRange(U1(2))]
+    @test size(blk) == (2, 0)
+    @test !(blk isa Array)
+    @test blk isa GradedArrays.datatype(typeof(w))
+
+    # Setting a support that is already in place returns the array itself: `w`'s axis supports
+    # both equal its stored sector list, so nothing changes.
+    @test GradedArrays.setsectors(w, GradedArrays.sectorsupport(w)) === w
+
+    # Exact semantics: `cs` must cover every axis support; an uncovering `cs` throws.
+    @test_throws ArgumentError GradedArrays.setsectors(A, [SectorRange(U1(3))])
+
+    # Co-iteration over an explicit sector union: the set arrays line up with the lenient
+    # per-sector reads on a null-kernel case (a sector absent from `A`'s storage).
+    N = MAK.qr_null(A)
+    cs = GradedArrays.sectorsupport(A, N)
+    wA = GradedArrays.setsectors(A, cs)
+    wN = GradedArrays.setsectors(N, cs)
+
+    # An axis whose support already equals `cs` is returned as-is; the rebuilt axes store
+    # `cs`'s bare label vector itself, one object shared across the participants.
+    @test GradedArrays.axis_codomain(wA) === GradedArrays.axis_codomain(A)
+    ls = GradedArrays.sectorlabels(GradedArrays.axis_domain(wA))
+    @test GradedArrays.sectorlabels(GradedArrays.axis_domain(wN)) === ls
+
+    for (i, c) in enumerate(cs), (x, wx) in ((A, wA), (N, wN))
+        ref = if haskey(sectordata(x), c)
+            sectordata(x)[c]
+        else
+            zeros(
+                eltype(x), map(ax -> GradedArrays.getsectordatalengths(ax, c), axes(x))
+            )
+        end
+        @test size(sectordata(wx, i)) == size(ref)
+        @test sectordata(wx, i) == ref
+    end
+end

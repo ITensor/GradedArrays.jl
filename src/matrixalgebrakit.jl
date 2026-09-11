@@ -30,11 +30,10 @@ for f in [
         )
     end
 
+    # One buffer-level allocation and copy (the blocks tile the buffer). The `float` eltype rule
+    # matches `MAK.copy_input` for dense matrices, which is `float(eltype)` for all of these.
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
-        return fusedgradedmatrix(
-            map(Base.Fix1(MAK.copy_input, MAK.$f), sectordata(A)),
-            axis_codomain(A), axis_domain(A)
-        )
+        return copyto!(similar(A, float(eltype(A))), A)
     end
 end
 
@@ -102,11 +101,15 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_full!, :eigh_full!) && :(checksquare(A)))
-        for c in eachsector(A, F...)
-            Ac = getsectordata(A, c)
-            Fc = map(x -> getsectordata(x, c), F)
-            Fc′ = MAK.$f!(Ac, Fc, alg.alg)
-            _ensure_inplace!.(Fc, Fc′)
+        cs = sectorsupport(A, F...)
+        wA = setsectors(A, cs)
+        wFs = map(x -> setsectors(x, cs), F)
+        for i in eachindex(cs)
+            Fi = map(w -> sectordata(w, i), wFs)
+            Fi′ = MAK.$f!(sectordata(wA, i), Fi, alg.alg)
+            # `foreach`, not a `.`-broadcast: broadcast materialization over these small
+            # union-typed tuples costs more than the factorization of a small block.
+            foreach(_ensure_inplace!, Fi, Fi′)
         end
         return F
     end
@@ -120,10 +123,12 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_vals!, :eigh_vals!) && :(checksquare(A)))
-        for c in eachsector(A, N)
-            Ac = getsectordata(A, c)
-            Nc = getsectordata(N, c)
-            _ensure_inplace!(Nc, MAK.$f!(Ac, Nc, alg.alg))
+        cs = sectorsupport(A, N)
+        wA = setsectors(A, cs)
+        wN = setsectors(N, cs)
+        for i in eachindex(cs)
+            Ni = sectordata(wN, i)
+            _ensure_inplace!(Ni, MAK.$f!(sectordata(wA, i), Ni, alg.alg))
         end
         return N
     end
@@ -254,6 +259,22 @@ function MAK.initialize_output(
     return similar(A, Vector{Tr}, axis_domain(A)) # TODO: don't hardcode type
 end
 
+# The bond axis of a null space: per sector, the excess of `axis`'s multiplicity over `other`'s,
+# omitting the sectors with no excess. A walk over `axis`'s sorted stored vectors, so the result
+# stays canonical.
+function nullspace_axis(axis::FusedGradedOneTo, other::FusedGradedOneTo)
+    labels = empty(sectorlabels(axis))
+    lens = Int[]
+    for (l, d) in zip(sectorlabels(axis), datalengths(axis))
+        n = d - getsectordatalengths(other, SectorRange(l))
+        if n > 0
+            push!(labels, l)
+            push!(lens, n)
+        end
+    end
+    return FusedGradedOneTo(labels, lens)
+end
+
 # QR decomposition
 # ----------------
 function MAK.initialize_output(
@@ -280,13 +301,8 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::FusedGradedMatrixAlgorithm
     )
-    V_N = copy(sectordatalengths(axis_codomain(A)))
-    dom = sectordatalengths(axis_domain(A))
-    for (c, d₁) in pairs(V_N)
-        V_N[c] = max(d₁ - get(dom, c, 0), 0)
-    end
-    filter!(!iszero, V_N)
-    return similar(A, axis_codomain(A), FusedGradedOneTo(V_N))
+    V_N = nullspace_axis(axis_codomain(A), axis_domain(A))
+    return similar(A, axis_codomain(A), V_N)
 end
 
 # LQ decomposition
@@ -315,13 +331,8 @@ function MAK.initialize_output(
         A::FusedGradedMatrix,
         alg::FusedGradedMatrixAlgorithm
     )
-    V_N = copy(sectordatalengths(axis_domain(A)))
-    cod = sectordatalengths(axis_codomain(A))
-    for (c, d₂) in pairs(V_N)
-        V_N[c] = max(d₂ - get(cod, c, 0), 0)
-    end
-    filter!(!iszero, V_N)
-    return similar(A, FusedGradedOneTo(V_N), axis_domain(A))
+    V_N = nullspace_axis(axis_domain(A), axis_codomain(A))
+    return similar(A, V_N, axis_domain(A))
 end
 
 # Polar decomposition
@@ -401,8 +412,9 @@ MAK.diagonal(v::FusedGradedVector) = FusedGradedDiagonal(v)
 function MA.pow_diag_safe!(
         Dp::AbstractFusedGradedMatrix, D::AbstractFusedGradedMatrix, p, tol
     )
-    for c in eachsector(D)
-        MA.pow_diag_safe!(sectordata(Dp, c), sectordata(D, c), p, tol)
+    dDp, dD = sectordata(Dp), sectordata(D)
+    for c in keys(dD)
+        MA.pow_diag_safe!(dDp[c], dD[c], p, tol)
     end
     return Dp
 end
@@ -542,17 +554,18 @@ function MAK.truncate(
     )
     sv = MAK.diagview(S)
     inds = MAK.findtruncated_svd(sv, strategy)
-    sectors_all = collect(keys(sectordata(U)))
+    sdU, sdsv, sdVᴴ = sectordata(U), sectordata(sv), sectordata(Vᴴ)
+    sectors_all = collect(keys(sdU))
 
     # Slice every sector's blocks first. `inds[i]` may be `Colon()` (notrunc) or a
     # `Vector{Int}` (rank/tol/error truncations), so check emptiness via the resulting
     # column count rather than `isempty(inds[i])`.
     U_blocks_all =
-        [sectordata(U)[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
+        [sdU[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
     sv_blocks_all =
-        [sectordata(sv)[sectors_all[i]][inds[i]] for i in eachindex(inds)]
+        [sdsv[sectors_all[i]][inds[i]] for i in eachindex(inds)]
     Vᴴ_blocks_all =
-        [sectordata(Vᴴ)[sectors_all[i]][inds[i], :] for i in eachindex(inds)]
+        [sdVᴴ[sectors_all[i]][inds[i], :] for i in eachindex(inds)]
 
     keep = [i for i in eachindex(inds) if size(U_blocks_all[i], 2) > 0]
     sectors_kept = sectors_all[keep]
@@ -583,10 +596,11 @@ for f! in (:eigh_trunc!, :eig_trunc!)
         )
         ev = MAK.diagview(D)
         inds = MAK.findtruncated(ev, strategy)
+        sdev, sdV = sectordata(ev), sectordata(V)
         sectors_all = collect(keys(sectordata(D)))
 
-        ev_blocks_all = [sectordata(ev)[sectors_all[i]][inds[i]] for i in eachindex(inds)]
-        V_blocks_all = [sectordata(V)[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
+        ev_blocks_all = [sdev[sectors_all[i]][inds[i]] for i in eachindex(inds)]
+        V_blocks_all = [sdV[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
 
         keep = [i for i in eachindex(inds) if length(ev_blocks_all[i]) > 0]
         sectors_kept = sectors_all[keep]

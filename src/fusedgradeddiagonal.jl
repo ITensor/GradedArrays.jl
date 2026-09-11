@@ -54,7 +54,21 @@ function FusedGradedMatrix(d::FusedGradedDiagonal{T, S, V}) where {T, S, V}
     return copyto!(m, d)
 end
 
-sectordata(d::FusedGradedDiagonal) = map(Diagonal, sectordata(MAK.diagview(d)))
+# `Iterators.map` is lazy here (see `sectordata(::AdjointFusedGradedArray)`). The closure (rather
+# than `Diagonal` itself) keeps the map's function type parameter concrete (`typeof(Diagonal)` is
+# a `UnionAll`), so the return type infers.
+function sectordata(d::FusedGradedDiagonal)
+    return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
+end
+
+# Set the wrapped diagonal vector's axis to exactly `ls` (see
+# `setsectors(::FusedGradedVector, ls)`); the `Diagonal` blocks at the added sectors are 0×0.
+function setsectors(d::FusedGradedDiagonal, ls::Vector{<:TKS.Sector})
+    diag = setsectors(MAK.diagview(d), ls)
+    # An unchanged diagonal means the set is the identity; return `d` itself.
+    diag === MAK.diagview(d) && return d
+    return FusedGradedDiagonal(diag)
+end
 
 # ---- accessors ----
 
@@ -64,6 +78,8 @@ end
 
 axes_codomain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 axes_domain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
+
+Base.dataids(d::FusedGradedDiagonal) = Base.dataids(MAK.diagview(d))
 
 function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(MAK.diagview(d), T))
@@ -88,10 +104,15 @@ end
 
 # ---- matricize ----
 
-# A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix). Any other
-# codomain rank bends a leg, which matrix-level fused storage cannot represent.
-TensorAlgebra.matricize(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
-function TensorAlgebra.matricize(
+# A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix), so
+# the memory-sharing matricization is `d` itself. Any other codomain rank bends a leg, which
+# matrix-level fused storage cannot represent.
+TensorAlgebra.ismatricizeview(::GradedMatricize, ::FusedGradedDiagonal, ::Val{1}) = true
+TensorAlgebra.matricizeview(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
+function TensorAlgebra.matricizecopy(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1})
+    return FusedGradedDiagonal(copy(MAK.diagview(d)))
+end
+function TensorAlgebra.matricizecopy(
         style::GradedMatricize, d::FusedGradedDiagonal, ndims_codomain::Val
     )
     throw(

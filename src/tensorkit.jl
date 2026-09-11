@@ -15,6 +15,8 @@ end
 # `GradedSpace` with no reordering. `GradedArray` axes may be unfused/unsorted, and the `project` / `Array`
 # conversions block-permute the dense data into this form at the TensorKit boundary.
 is_fused_sorted(g::AbstractGradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
+# Allocation-free via the cached fused form: canonical iff the stored sectors already equal it.
+is_fused_sorted(g::GradedOneTo) = sectors(g) == sectors(fusesectors(g))
 
 # Throwing wrapper: `ElementarySpace` demands a fused-sorted range.
 function check_fused_sorted(g::AbstractGradedOneTo)
@@ -28,6 +30,38 @@ function TK.ElementarySpace(g::AbstractGradedOneTo)
     check_fused_sorted(g)
     sp = to_tensorkit_space([c => m for (c, m) in zip(sectors(g), datalengths(g))])
     return isdual(g) ? dual(sp) : sp
+end
+
+# A `FusedGradedOneTo` stores a `GradedSpace`'s exact data — sorted parallel label/length
+# vectors plus an arrow (`SectorRange` order is the bare labels' `isless` order, which is
+# also TensorKit's) — so transcribe the storage directly instead of re-validating pair by
+# pair.
+function TK.ElementarySpace(g::FusedGradedOneTo)
+    sp = to_tensorkit_space(g)
+    return isdual(g) ? dual(sp) : sp
+end
+
+# The non-dual space over the stored sectors; the arrow is applied by `ElementarySpace`.
+function to_tensorkit_space(g::FusedGradedOneTo{SectorRange{I}}) where {I}
+    return to_tensorkit_space(Vect[I], g)
+end
+# Dictionary-backed spaces (unbounded sector sets, e.g. `U1`): share the stored vectors with
+# the space through TensorKit's trusted already-sorted `SortedVectorDict` constructor — no
+# sort, no per-pair insertion, no copy. Both sides treat the shared vectors as immutable.
+# TensorKit's pair constructor drops zero dims, so fall back to it in that (rare) case.
+function to_tensorkit_space(
+        ::Type{TK.GradedSpace{I, TK.SectorDict{I, Int}}}, g::FusedGradedOneTo
+    ) where {I}
+    all(>(0), datalengths(g)) || return TK.GradedSpace{I, TK.SectorDict{I, Int}}(
+        l => m for (l, m) in zip(sectorlabels(g), datalengths(g))
+    )
+    dims = TK.SectorDict{I, Int}(sectorlabels(g), datalengths(g))
+    return TK.GradedSpace{I, TK.SectorDict{I, Int}}(dims, false)
+end
+# Tuple-backed spaces (finite sector sets, e.g. `Z2`) store a dense dimension tuple; their
+# pair constructor is already a flat fill with nothing to skip.
+function to_tensorkit_space(::Type{Sp}, g::FusedGradedOneTo) where {Sp <: ElementarySpace}
+    return Sp(l => m for (l, m) in zip(sectorlabels(g), datalengths(g)))
 end
 
 # Sort the pairs into `SectorRange` order.

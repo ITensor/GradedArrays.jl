@@ -20,10 +20,19 @@ function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
     return fusedgradedrange([trivial(S) => 1])
 end
 
+# ========================  fuseaxes  ========================
+
+# Fuse a group of leg axes into its coupled fused-sorted axis. A single leg goes straight to
+# `tensor_product` (the axis's cached fused form for a non-dual axis, its `flip` for a dual one);
+# a multi-leg group reduces pairwise.
+fuseaxes(::Type{S}, axs::Tuple{}) where {S <: SectorRange} = trivial_gradedrange(S)
+fuseaxes(::Type{<:SectorRange}, axs::Tuple{Any}) = tensor_product(only(axs))
+fuseaxes(::Type{<:SectorRange}, axs::Tuple) = reduce(tensor_product, axs)
+
 # ========================  unmerged_matricize_axes  ========================
 
 # Fuse a bipartitioned tuple of graded axes into the unmerged 2D row/column axes: one
-# block per source-block combination, before `sectormergesort` merges same-sector blocks
+# block per source-block combination, before `fusesectors` merges same-sector blocks
 # into the final matricized axes. The codomain group fuses as-is; the domain group is
 # `flip`ed (same sectors and sizes, opposite arrow) so the matrix reads as a
 # `codomain ← domain` map and the matmul pairs contracted legs correctly.
@@ -43,7 +52,9 @@ end
 
 # ========================  UniqueSectorDelta matricize  ========================
 
-function TensorAlgebra.matricize(
+# A delta is structural (no data storage), so nothing is shared and the rebuilt identity is
+# the copy leaf.
+function TensorAlgebra.matricizecopy(
         ::SectorMatricize, a::UniqueSectorDelta, ndims_codomain::Val{Ncodomain}
     ) where {Ncodomain}
     ax_codomain = first(bipartition(axes(a), ndims_codomain))
@@ -54,12 +65,20 @@ end
 
 # ========================  UniqueSectorArray matricize  ========================
 
-function TensorAlgebra.matricize(
+# The reduced data matricizes to a reshaped view, so the matricization shares `a`'s memory at
+# every trivial split; the structural factor stores no data and is rebuilt as a `SectorIdentity`.
+TensorAlgebra.ismatricizeview(::SectorMatricize, ::UniqueSectorArray, ::Val) = true
+function TensorAlgebra.matricizeview(
         ::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val{K}
     ) where {K}
     asectors_reshaped = matricize(sector(a), Val(K))
     adata_reshaped = matricize(data(a), Val(K))
     return sector_kron(asectors_reshaped, adata_reshaped)
+end
+function TensorAlgebra.matricizecopy(
+        style::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val
+    )
+    return copy(TensorAlgebra.matricizeview(style, a, ndims_codomain))
 end
 
 # ========================  SectorMatricize unmatricize  ========================

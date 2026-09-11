@@ -3,10 +3,11 @@ using BlockArrays: Block, blocklength
 using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, GradedArray,
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths, dual,
-    eachblockstoredindex, eachsectoraxis, flip, fusedgradedmatrix, fusedgradedvector,
-    gradedrange, isdual, sector, sectoraxes, sectordata, sectormergesort, sectors,
-    sectortype, tensor_product, with_block_indexing, with_scalar_indexing
-using LinearAlgebra: tr
+    eachblockstoredindex, eachsectoraxis, flip, fusedgradeddiagonal, fusedgradedmatrix,
+    fusedgradedvector, fusesectors, gradedrange, isdual, sector, sectoraxes, sectordata,
+    sectors, sectortype, tensor_product, with_block_indexing, with_scalar_indexing
+using LinearAlgebra: I, tr
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,
     matricizeperm, unmatricize
@@ -132,9 +133,9 @@ end
     end
 end
 
-@testset "sectormergesort on a graded array" begin
+@testset "fusesectors on a graded array" begin
     # `GradedArray` represents unfused (unsorted, repeated-sector) external axes directly (`U1(1)` at
-    # blocks 1 and 3 here). `sectormergesort` sorts and merges them; since the fused storage is already
+    # blocks 1 and 3 here). `fusesectors` sorts and merges them; since the fused storage is already
     # canonical, it is a pure external-axis relabel over the same data.
     g1 = gradedrange([U1(1) => 2, U1(0) => 1, U1(1) => 3])
     g2 = gradedrange([U1(0) => 1, U1(-1) => 2])
@@ -145,7 +146,7 @@ end
         return a[Block(3, 2)] = UniqueSectorArray(2 * ones(3, 2), (U1(1), U1(-1)))
     end
 
-    a_merged = sectormergesort(a)
+    a_merged = fusesectors(a)
 
     # Sectors should be sorted and unique after merge
     @test sectors(axes(a_merged, 1)) == [U1(0), U1(1)]
@@ -538,6 +539,21 @@ end
     @test A ≈ USV
 end
 
+# The matricized codomain and domain supports need not coincide (here the codomain reaches
+# sectors the domain lacks); the compact factorization covers the one-sided sectors as
+# zero-size blocks and preserves the input's axes.
+@testset "TA.svd_compact on mismatched matricized supports" begin
+    s_cod = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2])
+    s_dom = gradedrange([U1(0) => 2, U1(1) => 4])
+    A = randn(Float64, (s_cod, dual(s_dom)))
+    U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
+    US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
+    USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
+    @test A ≈ USV
+    @test axes(U, 1) == axes(A, 1)
+    @test axes(Vᴴ, 2) == axes(A, 2)
+end
+
 @testset "TA.gram_eigh_full_with_pinv (axes_Y regression)" begin
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
     B = randn(Float64, (s,), (s,))
@@ -567,4 +583,91 @@ end
     randn!(b_ok)
     result, = contract(a, (1, -1), b_ok, (-1, 2))
     @test result isa GradedArray
+end
+
+@testset "ismatricizeview coherence" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn(Float64, (g, g), (g, g))
+    style = MatricizeStyle(a)
+
+    # The stored split is declared shared and its view is the stored matrix itself; the copy
+    # leaf is detached even there.
+    @test TensorAlgebra.ismatricizeview(style, a, Val(2))
+    @test TensorAlgebra.matricizeview(style, a, Val(2)) === matricize(a)
+    @test TensorAlgebra.matricizecopy(style, a, Val(2)).buffer !== matricize(a).buffer
+
+    # A bend is not declared shared; `matricize` routes it to the copy leaf.
+    @test !TensorAlgebra.ismatricizeview(style, a, Val(1))
+    @test matricize(style, a, Val(1)).buffer !== matricize(a).buffer
+
+    # A matrix-level fused array is already matricized at the `{1,1}` split: the view is the
+    # array itself, the copy leaf is detached, and any other split is rejected. The lazy adjoint
+    # goes through the same leaves and materializes its copy.
+    ma = matricize(a)
+    for m in (ma, ma')
+        @test TensorAlgebra.ismatricizeview(style, m, Val(1))
+        @test TensorAlgebra.matricizeview(style, m, Val(1)) === m
+        mcopy = TensorAlgebra.matricizecopy(style, m, Val(1))
+        @test mcopy == m
+        @test mcopy.buffer !== ma.buffer
+        @test !TensorAlgebra.ismatricizeview(style, m, Val(2))
+        @test_throws ArgumentError matricize(style, m, Val(2))
+    end
+
+    # A diagonal is already a matrix: the `{1,1}` split is the shared view, and its copy leaf
+    # stays diagonal but detached.
+    d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
+    @test TensorAlgebra.ismatricizeview(style, d, Val(1))
+    @test TensorAlgebra.matricizeview(style, d, Val(1)) === d
+    dcopy = TensorAlgebra.matricizecopy(style, d, Val(1))
+    @test dcopy isa typeof(d)
+    @test Array(dcopy) == Array(d)
+    @test MAK.diagview(dcopy).buffer !== MAK.diagview(d).buffer
+    @test !TensorAlgebra.ismatricizeview(style, d, Val(2))
+    @test_throws ArgumentError matricize(style, d, Val(2))
+
+    # A `UniqueSectorArray` shares its reduced data at every split, so the trait holds there and
+    # only the copy leaf detaches.
+    sa = UniqueSectorArray(randn(2, 3, 4), (U1(0), U1(1), dual(U1(1))))
+    sector_style = MatricizeStyle(sa)
+    @test TensorAlgebra.ismatricizeview(sector_style, sa, Val(2))
+    sa_view = TensorAlgebra.matricizeview(sector_style, sa, Val(2))
+    sa_copy = TensorAlgebra.matricizecopy(sector_style, sa, Val(2))
+    @test Base.mightalias(data(sa_view), data(sa))
+    @test !Base.mightalias(data(sa_copy), data(sa))
+    @test Array(sa_copy) == Array(sa_view)
+
+    # Both destination branches of a consumer (`contractadd!`) behave: the shared-view route
+    # for the identity destination bipermutation and the gather/scatter route for a permuted
+    # destination.
+    a1 = randn(Float64, (g, g), (g,))
+    a2 = randn(Float64, (g,), (g, g))
+    ref = contract((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    dest_id = contract((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    TensorAlgebra.contractadd!(
+        dest_id, (:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l), 1.0, 1.0
+    )
+    @test Array(dest_id) ≈ 2 .* Array(ref)
+    dest_p = contract((:k, :i, :l, :j), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    TensorAlgebra.contractadd!(
+        dest_p, (:k, :i, :l, :j), a1, (:i, :j, :m), a2, (:m, :k, :l), 1.0, 1.0
+    )
+    @test Array(dest_p) ≈ 2 .* permutedims(Array(ref), (3, 1, 4, 2))
+end
+
+# The tensor-level `one!` fills through the declared shared matricization, so on a matrix-level
+# fused array the identity lands in the operand itself.
+@testset "tensor-level one! on matrix-level fused arrays" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    m = randn!(FusedGradedMatrix{Float64}(undef, g, g))
+    @test TensorAlgebra.one!(m, Val(1)) === m
+    @test Array(m) == Matrix{Float64}(I, size(m)...)
+
+    d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
+    @test TensorAlgebra.one!(d, Val(1)) === d
+    @test Array(d) == Matrix{Float64}(I, size(d)...)
+
+    # Only the `{1,1}` split is representable as matrix-level fused storage.
+    @test_throws ArgumentError TensorAlgebra.one!(m, Val(2))
+    @test_throws ArgumentError TensorAlgebra.one!(d, Val(2))
 end

@@ -6,9 +6,10 @@ Supertype for graded axes — a unit range carved into sectors (its blocks), eac
 and invariants:
 
   - [`GradedOneTo`](@ref) stores parallel `sectors`/`datalengths` vectors and may hold
-    repeated or unsorted sectors (the intermediate state of a not-yet-merged fusion).
-  - [`FusedGradedOneTo`](@ref) stores a sector-to-length `Dictionary` and is always fused and
-    sorted (each sector once, in sorted order).
+    repeated or unsorted sectors (the intermediate state of a not-yet-merged fusion), plus a
+    cached fused form of itself.
+  - [`FusedGradedOneTo`](@ref) stores sorted parallel label/length vectors and is always
+    fused and sorted (each sector once, in sorted order).
 
 Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isdual`, plus
 `dual` and `flip` (which return the same concrete type). Everything below is derived from

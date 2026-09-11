@@ -1,9 +1,10 @@
 using BlockArrays: Block, blocklengths, blocks
+using Dictionaries: dictionary
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
     FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2,
-    checksquare, data, dual, fusedgradeddiagonal, fusedgradedmatrix, gradedrange,
-    isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sector, sectordata,
-    tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
+    checksquare, data, dual, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector,
+    gradedrange, isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sector,
+    sectordata, tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal, diag, lmul!, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -89,7 +90,7 @@ end
         @test GradedArray{Float64}(undef, (unsorted,), (ok,)) isa GradedArray
         @test GradedArray{Float64}(undef, (ok,), (unfused,)) isa GradedArray
         # The `TensorMap` / `ElementarySpace` conversion stays strict: it expects a fused-sorted range
-        # (callers normalize with `sectormergesort` at the boundary).
+        # (callers normalize with `fusesectors` at the boundary).
         @test_throws ArgumentError TensorKit.ElementarySpace(unsorted)
         @test_throws ArgumentError TensorKit.ElementarySpace(unfused)
     end
@@ -728,4 +729,241 @@ end
     @test !issquare(mrect)
     @test_throws DimensionMismatch checksquare(mrect)
     @test_throws DimensionMismatch diag(mrect)
+end
+
+# The fused coupled axis must not depend on the order of the leaves — the order-independence
+# that lets a contraction reuse an operand's stored coupled axis for a permuted output.
+# Conjugating every leaf flips the fused axis.
+@testset "fuseaxes leaf-order independence ($G)" for (G, g, h) in (
+        ("U1", gradedrange([U1(0) => 2, U1(1) => 3]), gradedrange([U1(0) => 1, U1(1) => 2])),
+        ("fermion", gradedrange([fP0 => 2, fP1 => 3]), gradedrange([fP1 => 2])),
+        ("SU2", gradedrange([SU2(0) => 2, SU2(1 // 2) => 1]), gradedrange([SU2(1 // 2) => 2])),
+    )
+    S = GradedArrays.sectortype(g)
+    @test GradedArrays.fuseaxes(S, ()) == GradedArrays.trivial_gradedrange(S)
+    for (gs, gs_perm) in (((g, h), (h, g)), ((dual(g), h, g), (g, dual(g), h)))
+        @test GradedArrays.fuseaxes(S, gs) == GradedArrays.fuseaxes(S, gs_perm)
+    end
+    # Conjugating every leaf conjugates the fused sectors; `flip` also flips the arrow, which
+    # `dual` resets (a fused axis is always non-dual).
+    @test GradedArrays.fuseaxes(S, (conj(g), conj(h))) ==
+        dual(GradedArrays.flip(GradedArrays.fuseaxes(S, (g, h))))
+end
+
+# A contract output reuses an operand's stored coupled axis (`===`, not merely equal) exactly
+# when its codomain/domain side holds the same axes in some order as that operand's stored group;
+# any other split fuses, and must land on the same coupled axis by value.
+@testset "contract output reuses the operands' stored coupled axes" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    h = gradedrange([U1(0) => 1, U1(1) => 2])
+    a = randn((g, h), (g,))
+    b = randn((g,), (h, g))
+    S = GradedArrays.sectortype(a)
+    coupled_a = GradedArrays.axis_codomain(matricize(a))
+    coupled_b = GradedArrays.axis_domain(matricize(b))
+    # Identity groupings reuse both sides.
+    c, = contract(a, (:i, :j, :m), b, (:m, :k, :l))
+    @test GradedArrays.axes_codomain(c) == GradedArrays.axes_codomain(a)
+    @test GradedArrays.axes_domain(c) == GradedArrays.axes_domain(b)
+    @test GradedArrays.axis_codomain(matricize(c)) === coupled_a
+    @test GradedArrays.axis_domain(matricize(c)) === coupled_b
+    # Permutations within each group still reuse (the fused axis is order-independent).
+    c, = contract(a, (:j, :i, :m), b, (:m, :l, :k))
+    @test GradedArrays.axis_codomain(matricize(c)) === coupled_a
+    @test GradedArrays.axis_domain(matricize(c)) === coupled_b
+    # A group-crossing destination split, and a contracted leg inside a stored group, both fuse
+    # instead; the fused axes must still be the fusion of the destination's own leaves.
+    for c in (
+            contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l)),
+            first(contract(a, (:m, :j, :i), b, (:l, :k, :m))),
+        )
+        @test GradedArrays.axis_codomain(matricize(c)) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_codomain(c))
+        @test GradedArrays.axis_domain(matricize(c)) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_domain(c))
+    end
+end
+
+# Whatever the grouping, the contract output's backing coupled axes must equal the fusion of its
+# external leaves, whether that axis was reused from an operand or fused afresh, and the values
+# must match the TensorKit reference. Groupings cover: both sides carried, per-operand groups
+# permuted, a contracted leg inside a stored group, and a group-crossing destination.
+@testset "contract carries coupled axes across groupings ($G)" for (G, g, h) in (
+        ("U1", gradedrange([U1(0) => 2, U1(1) => 3]), gradedrange([U1(0) => 1, U1(1) => 2])),
+        ("fermion", gradedrange([fP0 => 2, fP1 => 3]), gradedrange([fP1 => 2])),
+        ("SU2", gradedrange([SU2(0) => 2, SU2(1 // 2) => 1]), gradedrange([SU2(1 // 2) => 2])),
+    )
+    S = GradedArrays.sectortype(g)
+    a = randn((g, h), (g,))
+    b = randn((g,), (h, g))
+    ta = TensorKit.TensorMap(a)
+    tb = TensorKit.TensorMap(b)
+    function check_coupled(c)
+        mc = matricize(c)
+        @test GradedArrays.axis_codomain(mc) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_codomain(c))
+        @test GradedArrays.axis_domain(mc) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_domain(c))
+        return nothing
+    end
+
+    # Both sides carried (each side is exactly the operand's stored group).
+    c, lc = contract(a, (:i, :j, :m), b, (:m, :k, :l))
+    @tensor ref[i, j, k, l] := ta[i, j, m] * tb[m, k, l]
+    refc = TensorKit.permute(ref, ((1, 2, 3, 4), ()))
+    check_coupled(c)
+    @test canonical(c, lc, [:i, :j, :k, :l]) ≈ refc
+
+    # Permuted within each stored group (still carried).
+    c, lc = contract(a, (:j, :i, :m), b, (:m, :l, :k))
+    @tensor ref2[i, j, k, l] := ta[j, i, m] * tb[m, l, k]
+    check_coupled(c)
+    @test canonical(c, lc, [:i, :j, :k, :l]) ≈ TensorKit.permute(ref2, ((1, 2, 3, 4), ()))
+
+    # Contracted leg inside a's stored codomain (fused fallback on that side).
+    c, lc = contract(a, (:m, :j, :i), b, (:l, :k, :m))
+    @tensor ref3[i, j, k, l] := ta[m, j, i] * tb[l, k, m]
+    check_coupled(c)
+    @test canonical(c, lc, [:i, :j, :k, :l]) ≈ TensorKit.permute(ref3, ((1, 2, 3, 4), ()))
+
+    # Group-crossing destination split (a `b` leg lands in the destination codomain).
+    c = contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l))
+    check_coupled(c)
+    @test canonical(c, (:k, :i, :j, :l), [:i, :j, :k, :l]) ≈ refc
+end
+
+# `Base.dataids` forwards to the shared buffer, so `Base.mightalias` stays truthful across the
+# `GradedArray`/matricized-wrapper boundary: an array and a wrapper over its storage report
+# sharing, independent arrays and a copied matrix do not.
+@testset "dataids sees through the matricized wrapper" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn((g,), (g,))
+    b = randn((g,), (g,))
+    @test Base.mightalias(matricize(a), a)
+    @test Base.mightalias(a, matricize(a))
+    @test Base.mightalias(matricize(a)', a)
+    @test !Base.mightalias(matricize(a), b)
+    @test !Base.mightalias(a, b)
+    @test !Base.mightalias(copy(matricize(a)), a)
+    d = fusedgradeddiagonal([SectorRange(U1(0)) => randn(2)])
+    @test Base.mightalias(d, MAK.diagview(d))
+end
+
+# Contract destinations are allocated without a `zero!` pass, so every consumer must overwrite
+# them in full. The critical case is a destination whose coupled-sector set strictly contains
+# the product's stored sectors (here the bond misses U1(1), which both external legs carry):
+# the blocks the product never reaches must come out exactly zero, not undef garbage.
+@testset "contract zero-fills the dest blocks the product misses" begin
+    gext = gradedrange([U1(0) => 2, U1(1) => 3])
+    gbond = gradedrange([U1(0) => 2])
+    a = randn((gext,), (gbond,))
+    b = randn((gbond,), (gext,))
+    for _ in 1:3
+        c, = contract(a, (1, -1), b, (-1, 2))
+        mc = matricize(c)
+        @test issetequal(collect(keys(sectordata(mc))), SectorRange.([U1(0), U1(1)]))
+        @test iszero(sectordata(mc)[SectorRange(U1(1))])
+        @test Array(c) ≈ Array(a) * Array(b)
+    end
+end
+
+# `contractadd!` with nonzero β: `mul!` straight into the destination's stored matrix for an
+# identity destination bipermutation, a seeded gather / `mul!` / scatter for a permuted one.
+# Pin both against the dense reference, over a bond that misses a destination sector so β must
+# also scale the blocks the product never reaches.
+@testset "contractadd! with nonzero beta (identity and permuted dest)" begin
+    gext = gradedrange([U1(0) => 2, U1(1) => 3])
+    gbond = gradedrange([U1(0) => 2])
+    a = randn((gext,), (gbond,))
+    b = randn((gbond,), (gext,))
+    α, β = 2.0, -3.0
+
+    d = randn((gext,), (gext,))
+    dref = Array(d)
+    TensorAlgebra.contractadd!(d, (1, 2), a, (1, -1), b, (-1, 2), α, β)
+    @test Array(d) ≈ α * Array(a) * Array(b) + β * dref
+
+    c, = contract(a, (1, -1), b, (-1, 2))
+    dp = TensorAlgebra.permutedims(c, (2, 1))
+    randn!(matricize(dp).buffer)
+    dpref = Array(dp)
+    TensorAlgebra.contractadd!(dp, (2, 1), a, (1, -1), b, (-1, 2), α, β)
+    @test Array(dp) ≈ α * permutedims(Array(a) * Array(b), (2, 1)) + β * dpref
+
+    # β = 0 with a permuted destination takes the detached-product branch instead; the blocks
+    # the product misses must still come out zero.
+    dz = TensorAlgebra.permutedims(c, (2, 1))
+    randn!(matricize(dz).buffer)
+    TensorAlgebra.contractadd!(dz, (2, 1), a, (1, -1), b, (-1, 2), 1.0, 0.0)
+    @test Array(dz) ≈ permutedims(Array(a) * Array(b), (2, 1))
+end
+
+# `sectordata` is backed by the array's carried sorted-vector index structure (computed once at
+# construction) rather than a per-call `Dictionary` build; pin its dictionary interface (keys,
+# `getindex`, `pairs`, value iteration, lookup misses) against a reference `Dictionary` built the
+# old way — an intersect over the axes' sector sets plus a running-offset walk — for each storage
+# variant, so a backing change cannot silently reorder, drop, or misplace blocks.
+@testset "sectordata dictionary interface matches the reference build" begin
+    g_cod = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
+    g_dom = gradedrange([U1(0) => 2, U1(1) => 1, U1(3) => 2])   # mismatched sector sets
+    m = matricize(randn((g_cod,), (g_dom,)))
+    codl = GradedArrays.sectordatalengths(GradedArrays.axis_codomain(m))
+    doml = GradedArrays.sectordatalengths(GradedArrays.axis_domain(m))
+    coupled = sort!(intersect(collect(keys(codl)), collect(keys(doml))))
+    offset = 0
+    ref = dictionary(
+        map(coupled) do c
+            sz = (codl[c], doml[c])
+            block = reshape(m.buffer[(offset + 1):(offset + prod(sz))], sz)
+            offset += prod(sz)
+            return c => block
+        end
+    )
+    sd = sectordata(m)
+    @test collect(keys(sd)) == collect(keys(ref))
+    @test all(sd[c] == ref[c] for c in keys(ref))
+    @test collect(pairs(sd)) == collect(pairs(ref))
+    @test collect(sd) == collect(ref)
+    @test !haskey(sd, SectorRange(U1(2)))   # codomain-only sector is not coupled
+    @test !haskey(sd, SectorRange(U1(3)))   # domain-only sector is not coupled
+    @test isnothing(get(sd, SectorRange(U1(9)), nothing))
+
+    # Adjoint: same coupled sectors, each block the parent's adjoint.
+    sda = sectordata(m')
+    @test collect(keys(sda)) == collect(keys(ref))
+    @test all(sda[c] == ref[c]' for c in keys(ref))
+    @test collect(sda) == [ref[c]' for c in keys(ref)]
+
+    # Vector: one block per axis sector, offsets the prefix sums of the data lengths.
+    v = fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)])
+    vref = dictionary(
+        [SectorRange(U1(0)) => v.buffer[1:2], SectorRange(U1(1)) => v.buffer[3:5]]
+    )
+    sdv = sectordata(v)
+    @test collect(keys(sdv)) == collect(keys(vref))
+    @test all(sdv[c] == vref[c] for c in keys(vref))
+    @test collect(pairs(sdv)) == collect(pairs(vref))
+
+    # Diagonal: the vector blocks wrapped as `Diagonal`s.
+    d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
+    dv = sectordata(MAK.diagview(d))
+    sdd = sectordata(d)
+    @test collect(keys(sdd)) == collect(keys(dv))
+    @test all(sdd[c] == Diagonal(dv[c]) for c in keys(dv))
+    @test collect(pairs(sdd)) == [c => Diagonal(dv[c]) for c in keys(dv)]
+end
+
+# The carried index structure is immutable metadata determined by the axes, so constructions that
+# keep the axes (`similar`, `copy`) share it rather than recomputing it.
+@testset "carried index structure is shared under similar/copy" begin
+    g_cod = gradedrange([U1(0) => 2, U1(1) => 3])
+    g_dom = gradedrange([U1(0) => 2, U1(2) => 1])
+    m = matricize(randn((g_cod,), (g_dom,)))
+    for m′ in (similar(m), similar(m, ComplexF64), copy(m))
+        @test m′.datalayout === m.datalayout
+    end
+    v = fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)])
+    for v′ in (similar(v), similar(v, ComplexF64), copy(v))
+        @test v′.datalayout === v.datalayout
+    end
 end

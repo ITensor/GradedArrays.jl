@@ -71,6 +71,8 @@ ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 # matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
+Base.dataids(fa::GradedArray) = Base.dataids(matricize(fa))
+
 # ============================  block indexing (unique fusion)  ============================
 # Unique fusion only: for non-abelian symmetry a `Block`'s external leg sectors don't pin down the
 # block. The returned `UniqueSectorArray` is a view into the block's strided data, so get/set writes
@@ -99,7 +101,7 @@ function viewblock(
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
-            invblockmergeperm(g, sectorsortperm(g), sectormergesort(g))[bk[d]].indices
+            invblockmergeperm(g, sectorsortperm(g), fusesectors(g))[bk[d]].indices
         )
     end
     return UniqueSectorArray(view(blockdata, ranges...), cod, dom)
@@ -308,18 +310,18 @@ spaces from the per-leg axes and copying each coupled-sector block.
 function TK.TensorMap(fa::GradedArray)
     # Derive the space type from the sector type (not a leg) so the rank-0 case, with no legs, still
     # resolves the trivial `one(Sp)` codomain/domain. The `matricized` backing is over the fused-sorted
-    # coupled space, so build each leg's space from `sectormergesort` of the (possibly unsorted) stored
+    # coupled space, so build each leg's space from `fusesectors` of the (possibly unsorted) stored
     # axis; the `TensorMap` is the fused-sorted TensorKit view, and the stored-axis order is reapplied
     # only when going back to a dense array (`Array`).
     Sp = typeof(ElementarySpace(trivial_gradedrange(sectortype(fa))))
     codsp = mapreduce(
-        ElementarySpace ∘ sectormergesort,
+        ElementarySpace ∘ fusesectors,
         TK.:⊗,
         axes_codomain(fa);
         init = one(Sp)
     )
     domsp =
-        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_domain(fa); init = one(Sp))
+        mapreduce(ElementarySpace ∘ fusesectors, TK.:⊗, axes_domain(fa); init = one(Sp))
     return copy!(TK.TensorMap{eltype(fa)}(undef, codsp, domsp), fa)
 end
 
@@ -387,17 +389,14 @@ function GradedArray{T}(
     return GradedArray{T, S}(undef, axes_codomain, axes_domain)
 end
 
-# Fuse each side's per-leg axes into its coupled `GradedOneTo` (through the GradedArrays interface,
-# which uses the TensorKitSectors fusion rules), seeding empty groups with the trivial sector.
+# Fuse each side's per-leg axes into its coupled fused axis (through the GradedArrays interface,
+# which uses the TensorKitSectors fusion rules); an empty group fuses to the trivial sector.
 # `FusedGradedMatrix{T}(undef, …)` then allocates the reduced blocks. With `S` given as a type
 # parameter this also covers rank-0: both groups fuse to the trivial sector, giving a 1×1 scalar.
 function GradedArray{T, S}(
         ::UndefInitializer, axes_codomain::Tuple, axes_domain::Tuple
     ) where {T, S}
-    init = trivial_gradedrange(S)
-    coupled_codomain = reduce(tensor_product, axes_codomain; init)
-    coupled_domain = reduce(tensor_product, axes_domain; init)
-    m = FusedGradedMatrix{T}(undef, coupled_codomain, coupled_domain)
+    m = FusedGradedMatrix{T}(undef, fuseaxes(S, axes_codomain), fuseaxes(S, axes_domain))
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
@@ -484,11 +483,11 @@ end
 # canonical (blocks are keyed by coupled sector), so the data is unchanged: only the external axes are
 # re-labeled to their merged-sorted form, which re-slices the same coupled blocks into the merged
 # external blocks. Copies the matricized matrix so the result is an independent array.
-function sectormergesort(a::GradedArray)
+function fusesectors(a::GradedArray)
     return GradedArray(
         copy(matricize(a)),
-        map(sectormergesort, axes_codomain(a)),
-        map(sectormergesort, axes_domain(a))
+        map(fusesectors, axes_codomain(a)),
+        map(fusesectors, axes_domain(a))
     )
 end
 
@@ -543,14 +542,14 @@ end
 # are the copying counterparts.
 
 # The fused-sorted coupled `HomSpace` for the given external axes. Each leg's space is the
-# `sectormergesort` of its (possibly unfused/unsorted) axis; the rank-0 case resolves the trivial
+# `fusesectors` of its (possibly unfused/unsorted) axis; the rank-0 case resolves the trivial
 # space from the sector type since it has no legs.
 function tensormapspace(::Type{S}, axes_codomain::Tuple, axes_domain::Tuple) where {S}
     Sp = typeof(ElementarySpace(trivial_gradedrange(S)))
     codomain =
-        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_codomain; init = one(Sp))
+        mapreduce(ElementarySpace ∘ fusesectors, TK.:⊗, axes_codomain; init = one(Sp))
     domain =
-        mapreduce(ElementarySpace ∘ sectormergesort, TK.:⊗, axes_domain; init = one(Sp))
+        mapreduce(ElementarySpace ∘ fusesectors, TK.:⊗, axes_domain; init = one(Sp))
     return codomain ← domain
 end
 
@@ -564,7 +563,7 @@ function to_tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::T
 end
 function to_tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.DiagonalTensorMap(
-        MAK.diagview(d).buffer, ElementarySpace(sectormergesort(only(axes_codomain)))
+        MAK.diagview(d).buffer, ElementarySpace(fusesectors(only(axes_codomain)))
     )
 end
 # A lazy adjoint converts to TensorKit's lazy adjoint, still sharing the parent's buffer. `adjoint`
@@ -580,10 +579,7 @@ function to_gradedarray(t::TK.TensorMap)
     axes_codomain = map(GradedOneTo, Tuple(TK.codomain(t)))
     axes_domain = map(GradedOneTo, Tuple(TK.domain(t)))
     S = sectortype(first((axes_codomain..., axes_domain...)))
-    init = trivial_gradedrange(S)
-    coupled_codomain = reduce(tensor_product, axes_codomain; init)
-    coupled_domain = reduce(tensor_product, axes_domain; init)
-    m = FusedGradedMatrix(t.data, coupled_codomain, coupled_domain)
+    m = FusedGradedMatrix(t.data, fuseaxes(S, axes_codomain), fuseaxes(S, axes_domain))
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
@@ -618,18 +614,26 @@ end
 
 TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedMatricize()
 
-# When the requested split matches the stored split this is the stored matrix. Otherwise it is a
-# leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
-# legs stay in order and only the codomain/domain boundary moves), which for a `GradedArray` is
-# not a free reshape. Re-split with the array's own `bipermutedims`, then take its 1-arg
-# `matricize`. This is what lets a contraction over a subset of legs matricize a factor whose
-# stored split differs.
-function TensorAlgebra.matricize(
-        ::GradedMatricize,
-        fa::GradedArray,
-        ::Val{K}
+# The memory-sharing matricization is the stored matrix (a field read), available exactly at
+# the stored split; any other split is a leg bend, which for a `GradedArray` is not a free
+# reshape, so no sharing is declared there. Pure dispatch on the stored codomain rank.
+function TensorAlgebra.ismatricizeview(
+        ::GradedMatricize, ::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
+    ) where {NC}
+    return true
+end
+function TensorAlgebra.matricizeview(
+        ::GradedMatricize, fa::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
+    ) where {NC}
+    return matricize(fa)
+end
+# A leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
+# legs stay in order and only the codomain/domain boundary moves): re-split with the array's own
+# `bipermutedims`, then take the fresh result's stored matrix. This is what lets a contraction
+# over a subset of legs matricize a factor whose stored split differs.
+function TensorAlgebra.matricizecopy(
+        ::GradedMatricize, fa::GradedArray, ::Val{K}
     ) where {K}
-    K == ndims_codomain(fa) && return matricize(fa)
     N = ndims(fa)
     # TODO: Once `permutedims` on a `GradedArray` routes to `bipermutedimsopadd!`, bend with the
     # identity-permutation `permutedims` directly (ideally a `[bi]permutedims(fa, Val(K))` split-only
@@ -643,10 +647,10 @@ end
 function TensorAlgebra.check_input(
         ::typeof(unmatricize), m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple
     )
-    init = trivial_gradedrange(sectortype(m))
+    S = sectortype(m)
     (
-        axis_codomain(m) == reduce(tensor_product, axes_codomain; init) &&
-            axis_domain(m) == reduce(tensor_product, axes_domain; init)
+        axis_codomain(m) == fuseaxes(S, axes_codomain) &&
+            axis_domain(m) == fuseaxes(S, axes_domain)
     ) || throw(ArgumentError("axes do not fuse to the matrix's coupled axes"))
     return nothing
 end
@@ -753,15 +757,84 @@ for A in (:GradedArray, :AbstractFusedGradedArray)
     end
 end
 
-function TensorAlgebra.matricize(
-        ::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{K}
-    ) where {K}
-    K == 1 || throw(
+# Whether the two axis groups hold the same axes with the same repeats, in any order. Reordering
+# the factors changes the fusion trees but not the coupled sectors or their multiplicities
+# (`Nsymbol` is symmetric in the two fusing sectors), so the groups fuse to an equal coupled axis
+# for abelian and non-abelian sectors alike. The ordered pass comes first because in the common
+# case the axes are the operand's own stored objects.
+function ismultisetequal(axs1::Tuple, axs2::Tuple)
+    length(axs1) == length(axs2) || return false
+    all(((ax1, ax2),) -> ax1 === ax2, zip(axs1, axs2)) && return true
+    return all(ax -> count(isequal(ax), axs1) == count(isequal(ax), axs2), axs1)
+end
+
+# Allocate a graded destination over the given external axes, with the domain axes un-dualized,
+# reusing an operand's stored coupled axis instead of re-fusing whenever the destination side
+# holds a reordering of that operand's stored codomain/domain group.
+function allocate_graded(
+        ::Type{T}, a1::GradedArray, a2::GradedArray,
+        axes_codomain::Tuple, axes_domain::Tuple
+    ) where {T}
+    S = sectortype(a1)
+    coupled_codomain = if ismultisetequal(axes_codomain, GA.axes_codomain(a1))
+        axis_codomain(matricize(a1))
+    else
+        fuseaxes(S, axes_codomain)
+    end
+    coupled_domain = if ismultisetequal(axes_domain, GA.axes_domain(a2))
+        axis_domain(matricize(a2))
+    else
+        fuseaxes(S, axes_domain)
+    end
+    m = FusedGradedMatrix{T}(undef, coupled_codomain, coupled_domain)
+    return GradedArray(m, axes_codomain, axes_domain)
+end
+
+# Unlike the generic body this skips the `zero!`: every consumer overwrites the destination in
+# full — `mul!` into the stored matrix zero-fills the coupled blocks the product misses, and the
+# scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a strong-zero β) write
+# every block.
+function TensorAlgebra.allocate_contract_output(
+        a1::GradedArray, a2::GradedArray, T,
+        axes_codomain::Tuple, axes_domain::Tuple
+    )
+    return allocate_graded(T, a1, a2, axes_codomain, axes_domain)
+end
+
+function TensorAlgebra.allocate_output(
+        ::typeof(TensorAlgebra.permutedimsop), op, src::GradedArray,
+        perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
+    )
+    T = Base.promote_op(op, eltype(src))
+    axes_codomain = map(i -> op(axes(src, i)), perm_codomain)
+    axes_domain = map(i -> conj(op(axes(src, i))), perm_domain)
+    return allocate_graded(T, src, src, axes_codomain, axes_domain)
+end
+
+# A matrix-level fused array is already matricized at the `{1,1}` split, so the memory-sharing
+# matricization is the array itself. Any other codomain rank bends a leg, which matrix-level fused
+# storage cannot represent.
+function TensorAlgebra.ismatricizeview(
+        ::GradedMatricize,
+        ::AbstractFusedGradedMatrix,
+        ::Val{1}
+    )
+    return true
+end
+TensorAlgebra.matricizeview(::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{1}) = m
+function TensorAlgebra.matricizecopy(
+        ::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{1}
+    )
+    return copy(m)
+end
+function TensorAlgebra.matricizecopy(
+        ::GradedMatricize, ::AbstractFusedGradedMatrix, ::Val
+    )
+    throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"
         )
     )
-    return m
 end
 
 function TensorAlgebra.unmatricizeperm!(
@@ -769,12 +842,26 @@ function TensorAlgebra.unmatricizeperm!(
         m::AbstractFusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
     ) where {N}
-    # Permute `a_dest` into the matricized leg order to get the matricized-order axes with correct
-    # per-leg duality; the permuted data is discarded. Wrap `m` in those axes, then permute back.
-    # TODO: Switch to `permutedims` once it routes through `bipermutedimsopadd!` (see the "Unified
-    # `permutedims` surface" follow-up), as in the `matricize` leg-bend above.
-    template = TensorAlgebra.bipermutedims(a_dest, invperm_codomain, invperm_domain)
-    tmp = GradedArray(m, axes_codomain(template), axes_domain(template))
+    # Identity bipermutation with matching split and coupled axes: the buffers share one layout
+    # (it is determined by the coupled axes), so copy the buffer straight across instead of the
+    # block-wise `bipermutedims!` (which routes through `TensorMap` wrapping even for a plain copy).
+    md = matricize(a_dest)
+    if m isa FusedGradedMatrix && md isa FusedGradedMatrix &&
+            ndims_codomain(a_dest) == length(invperm_codomain) &&
+            (invperm_codomain..., invperm_domain...) == ntuple(identity, Val(N)) &&
+            axis_codomain(m) == axis_codomain(md) && axis_domain(m) == axis_domain(md)
+        copyto!(md.buffer, m.buffer)
+        return a_dest
+    end
+    # Wrap `m` in `a_dest`'s axes reordered into the matricized leg order: `bipartition_axes` takes
+    # the codomain group straight from `axes(a_dest)` and conjugates the domain group, so a leg
+    # moving from `a_dest`'s codomain into the matricized domain reads as dual. The permute back
+    # follows `a_dest`'s own codomain/domain split, not the matricized one: the graded
+    # `bipermutedimsopadd!` requires the destination's split.
+    axes_codomain_m, axes_domain_m = TensorAlgebra.bipartition_axes(
+        axes(a_dest), invperm_codomain, invperm_domain
+    )
+    tmp = GradedArray(m, axes_codomain_m, axes_domain_m)
     perm_dest = invperm((invperm_codomain..., invperm_domain...))
     ndims_cod_dest = ndims_codomain(a_dest)
     perm_codomain = ntuple(i -> perm_dest[i], Val(ndims_cod_dest))

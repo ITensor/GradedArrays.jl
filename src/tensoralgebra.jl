@@ -1,4 +1,3 @@
-using SplitApplyCombine: groupcount
 using StridedViews: StridedViews, StridedView, isstrided
 
 # ========================  bipartite-axes interface  ========================
@@ -64,23 +63,6 @@ function sectorsortperm(g::AbstractGradedOneTo)
     return Block.(sortperm(sectors(g)))
 end
 
-# Get the permutation for sorting, then group by common elements.
-# groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
-function groupsortperm(v; kwargs...)
-    perm = sortperm(v; kwargs...)
-    v_sorted = @view v[perm]
-    group_lengths = collect(groupcount(identity, v_sorted))
-    return BlockVector(perm, group_lengths)
-end
-
-# Used by `TensorAlgebra.splitdims` in `BlockSparseArraysGradedOneTosExt`.
-# Get the permutation for sorting, then group by common elements.
-# groupsortperm([2, 1, 2, 3]) == [[2], [1, 3], [4]]
-# Sort by SectorRange to use the custom isless ordering
-function sectormergesortperm(g::AbstractGradedOneTo)
-    return Block.(groupsortperm(sectors(g)))
-end
-
 # Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
 invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
 
@@ -117,23 +99,23 @@ function invblockmergeperm(
 end
 
 # The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`.
-function sectormergesort(g::AbstractGradedOneTo)
-    # Merge repeated sectors (summing their data lengths) and sort. The stored sectors are non-dual
-    # and the arrow is axis-level, so merge and sort them directly and carry `isdual` through.
-    dict = Dict{sectortype(g), Int}()
-    for (s, m) in zip(sectors(g), datalengths(g))
-        dict[s] = get(dict, s, 0) + m
-    end
-    merged = sort!(collect(pairs(dict)); by = first)
-    return FusedGradedOneTo(first.(merged), last.(merged), isdual(g))
+# encodes that invariant rather than a plain `GradedOneTo`. The `mergesectors` worker over the
+# axis parts lives in `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have
+# constant-time fast paths (the cached fused form and the identity).
+function fusesectors(g::AbstractGradedOneTo)
+    merged_sectors, merged_datalengths = mergesectors(sectors(g), datalengths(g))
+    return FusedGradedOneTo(to_labelvector(merged_sectors), merged_datalengths, isdual(g))
 end
 
-# tensor_product produces a fused-sorted, non-dual FusedGradedOneTo
-tensor_product(g::AbstractGradedOneTo) = sectormergesort(flip_dual(g))
+# Always returns a non-dual fused-sorted axis. Conjugation is a sector bijection, so flipping
+# the merged form equals merging the flipped axis.
+function tensor_product(g::AbstractGradedOneTo)
+    f = fusesectors(g)
+    return isdual(f) ? flip(f) : f
+end
 
 function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
-    return sectormergesort(unmerged_tensor_product(g1, g2))
+    return fusesectors(unmerged_tensor_product(g1, g2))
 end
 
 # ========================  mixed-type tensor_product  ========================
@@ -299,6 +281,22 @@ function TensorAlgebra.matricizeopperm(
         ::TwistedGradedMatricize, op, a::AbstractArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     )
+    # An identity bipermutation matching the stored split needs no permute: `permutedimsop`
+    # would just copy (identity permutation and unchanged split give no braiding or bend
+    # phases). When the twist is also a no-op — non-fermionic braiding (`twist!` early-returns)
+    # or no dual codomain leg — return the stored matrix directly; it may alias `a`, which
+    # `matricizeopperm`'s maybe-alias contract allows. Otherwise twist a plain copy in place.
+    if op === identity && a isa GradedArray &&
+            length(perm_codomain) == ndims_codomain(a) &&
+            (perm_codomain..., perm_domain...) == ntuple(identity, ndims(a))
+        needs_twist =
+            TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic &&
+            any(i -> isdual(axes(a, i)), perm_codomain)
+        needs_twist || return matricize(a)
+        a_twisted = copy(a)
+        contraction_twist!(a_twisted, length(perm_codomain))
+        return matricize(a_twisted)
+    end
     a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
     contraction_twist!(a_perm, length(perm_codomain))
     return matricize(GradedMatricize(), a_perm, Val(length(perm_codomain)))

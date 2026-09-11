@@ -30,7 +30,9 @@ Base.parent(a::AdjointFusedGradedArray) = a.parent
 
 # `adjoint` swaps codomain and domain and adjoints each block. All three are computed on demand from
 # the parent (like `LinearAlgebra.Adjoint`), so the wrapper stays a trivial parent-only type.
-sectordata(a::AdjointFusedGradedArray) = map(adjoint, sectordata(parent(a)))
+# `Iterators.map` is Dictionaries' lazy map (a tokenizable `MappedDictionary`), so no dictionary is
+# materialized per call.
+sectordata(a::AdjointFusedGradedArray) = Iterators.map(adjoint, sectordata(parent(a)))
 
 # `adjoint` of a fused graded matrix is the lazy wrapper; a second `adjoint` unwraps to the parent.
 Base.adjoint(a::AbstractFusedGradedMatrix) = AdjointFusedGradedArray(a)
@@ -50,6 +52,8 @@ end
 # `AbstractFusedGradedMatrix`.
 axes_codomain(a::AdjointFusedGradedArray) = axes_domain(parent(a))
 axes_domain(a::AdjointFusedGradedArray) = axes_codomain(parent(a))
+
+Base.dataids(a::AdjointFusedGradedArray) = Base.dataids(parent(a))
 
 function Base.similar(a::AdjointFusedGradedArray, ::Type{T}) where {T}
     return FusedGradedMatrix{T}(undef, axis_codomain(a), axis_domain(a))
