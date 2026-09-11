@@ -99,12 +99,12 @@ function invblockmergeperm(
 end
 
 # The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`. The `mergesectorlabels` worker over the
+# encodes that invariant rather than a plain `GradedOneTo`. The `mergesectors` worker over the
 # axis parts lives in `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have
 # constant-time fast paths (the cached fused form and the identity).
 function fusesectors(g::AbstractGradedOneTo)
-    merged_labels, merged_datalengths = mergesectorlabels(sectors(g), datalengths(g))
-    return FusedGradedOneTo(merged_labels, merged_datalengths, isdual(g))
+    merged_sectors, merged_datalengths = mergesectors(sectors(g), datalengths(g))
+    return FusedGradedOneTo(to_labelvector(merged_sectors), merged_datalengths, isdual(g))
 end
 
 # Always returns a non-dual fused-sorted axis. Conjugation is a sector bijection, so flipping

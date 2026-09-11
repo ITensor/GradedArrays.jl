@@ -108,12 +108,12 @@ end
 
 # Strip a vector of sectors to its bare labels. The lazy `sectors` view is a mapped view over a
 # label vector, so its parent is returned directly; any other vector is copied label by label.
-function sectorlabels(
+function to_labelvector(
         cs::ReadonlyMappedArray{SectorRange{I}, 1, <:Vector, Type{SectorRange{I}}}
     ) where {I}
     return parent(cs)
 end
-function sectorlabels(cs::AbstractVector{S}) where {S <: SectorRange}
+function to_labelvector(cs::AbstractVector{S}) where {S <: SectorRange}
     all(s -> !TensorAlgebra.isdual(s), cs) ||
         throw(ArgumentError("sectors must be non-dual"))
     return labeltype(S)[label(s) for s in cs]
@@ -216,13 +216,12 @@ end
 # gives the no-op on an already-fused axis.
 Base.convert(::Type{FusedGradedOneTo}, g::AbstractGradedOneTo) = FusedGradedOneTo(g)
 
-# ========================  mergesectorlabels  ========================
+# ========================  mergesectors  ========================
 
 # Merge repeated sectors (summing their data lengths) and sort. The sectors are non-dual and
-# the arrow is axis-level, so merging their labels is exact and the arrow plays no part.
-# Returns the canonical parts: the sorted bare labels, each appearing once, and their summed
-# data lengths.
-function mergesectorlabels(
+# the arrow is axis-level, so merging them is exact and the arrow plays no part. Returns the
+# sorted sectors, each appearing once, as a view over their labels, and the summed data lengths.
+function mergesectors(
         sectors::AbstractVector{S}, datalengths::AbstractVector{Int}
     ) where {S <: SectorRange}
     perm = sortperm(sectors)
@@ -237,7 +236,7 @@ function mergesectorlabels(
             push!(merged_datalengths, datalengths[p])
         end
     end
-    return (merged_labels, merged_datalengths)
+    return (mappedarray(SectorRange{labeltype(S)}, merged_labels), merged_datalengths)
 end
 
 # ========================  fusesectors  ========================

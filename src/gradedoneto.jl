@@ -28,8 +28,8 @@ struct GradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
                 "GradedOneTo stores non-dual sectors; pass the arrow via `isdual`"
             )
         )
-        merged_labels, merged_datalengths = mergesectorlabels(sectors, datalengths)
-        fused = FusedGradedOneTo(merged_labels, merged_datalengths, isdual)
+        merged_sectors, merged_datalengths = mergesectors(sectors, datalengths)
+        fused = FusedGradedOneTo(to_labelvector(merged_sectors), merged_datalengths, isdual)
         return new{S}(sectors, datalengths, isdual, fused)
     end
     # `fused` must equal the fused form of the other fields; unchecked.
