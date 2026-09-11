@@ -15,7 +15,6 @@ end
 # `GradedSpace` with no reordering. `GradedArray` axes may be unfused/unsorted, and the `project` / `Array`
 # conversions block-permute the dense data into this form at the TensorKit boundary.
 is_fused_sorted(g::AbstractGradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
-is_fused_sorted(::FusedGradedOneTo) = true
 # Allocation-free via the cached fused form: canonical iff the stored sectors already equal it.
 is_fused_sorted(g::GradedOneTo) = sectors(g) == sectors(sectormergesort(g))
 

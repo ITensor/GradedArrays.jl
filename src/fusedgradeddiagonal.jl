@@ -54,9 +54,9 @@ function FusedGradedMatrix(d::FusedGradedDiagonal{T, S, V}) where {T, S, V}
     return copyto!(m, d)
 end
 
-# `Iterators.map` is Dictionaries' lazy map (a tokenizable `MappedDictionary`), so no dictionary is
-# materialized per call. The closure (rather than `Diagonal` itself) keeps the map's function type
-# parameter concrete (`typeof(Diagonal)` is a `UnionAll`), so the return type infers.
+# `Iterators.map` is lazy here (see `sectordata(::AdjointFusedGradedArray)`). The closure (rather
+# than `Diagonal` itself) keeps the map's function type parameter concrete (`typeof(Diagonal)` is
+# a `UnionAll`), so the return type infers.
 function sectordata(d::FusedGradedDiagonal)
     return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
 end
@@ -109,7 +109,6 @@ end
 # the memory-sharing matricization is `d` itself. Any other codomain rank bends a leg, which
 # matrix-level fused storage cannot represent.
 TensorAlgebra.ismatricizeview(::GradedMatricize, ::FusedGradedDiagonal, ::Val{1}) = true
-TensorAlgebra.ismatricizeview(::GradedMatricize, ::FusedGradedDiagonal, ::Val) = false
 TensorAlgebra.matricizeview(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
 function TensorAlgebra.matricizecopy(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1})
     return FusedGradedDiagonal(copy(MAK.diagview(d)))

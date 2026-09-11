@@ -55,20 +55,3 @@ Dictionaries.istokenizable(::SortedArrayDictionary) = true
 Dictionaries.gettoken(d::SortedArrayDictionary, i) = gettoken(keys(d), i)
 Dictionaries.gettokenvalue(d::SortedArrayDictionary, t::Int) = d.values[t]
 Dictionaries.istokenassigned(::SortedArrayDictionary, ::Int) = true
-
-# Canonicalize any dictionary into the sorted parallel-vector form: collect the keys, sort them,
-# and permute the values to match. The identity method makes the already-canonical case a no-op
-# (no copy), so trusted paths that pass one through keep sharing it.
-function Base.convert(
-        ::Type{SortedArrayDictionary{K, V, KS, VS}}, d::SortedArrayDictionary{K, V, KS, VS}
-    ) where {K, V, KS <: AbstractVector{K}, VS <: AbstractVector{V}}
-    return d
-end
-function Base.convert(
-        ::Type{SortedArrayDictionary{K, V, KS, VS}}, d::AbstractDictionary
-    ) where {K, V, KS <: AbstractVector{K}, VS <: AbstractVector{V}}
-    ks = collect(K, keys(d))
-    vs = collect(V, d)
-    perm = sortperm(ks)
-    return SortedArrayDictionary(convert(KS, ks[perm])::KS, convert(VS, vs[perm])::VS)
-end

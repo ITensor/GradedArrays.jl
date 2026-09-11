@@ -18,16 +18,15 @@ end
 # each stored block's data in the contiguous buffer: a 0-based buffer `offset` plus the block's
 # data `size` (`(len,)` for a vector block, `(rows, cols)` for a matrix block). A
 # `SortedArrayDictionary` keyed by the lazy sector view over the sorted coupled-sector labels.
-# Computed once at array construction and carried by the array, so `sectordata` wraps it on each
-# call without rebuilding it.
 
 # The concrete type of a canonical `N`-dimensional layout for sector type `S`: it involves
 # `labeltype(S)`, so the `datalayout` struct fields are loosely typed and their `sectordatalayout`
 # accessors typeassert against this.
-function datalayouttype(::Type{S}, ::Val{N}) where {S <: SectorRange, N}
+function datalayouttype(::Type{SectorRange{I}}, ::Val{N}) where {I, N}
     return SortedArrayDictionary{
-        S, @NamedTuple{offset::Int, size::NTuple{N, Int}},
-        sectorstype(S), Vector{@NamedTuple{offset::Int, size::NTuple{N, Int}}}
+        SectorRange{I}, @NamedTuple{offset::Int, size::NTuple{N, Int}},
+        ReadonlyMappedArray{SectorRange{I}, 1, Vector{I}, Type{SectorRange{I}}},
+        Vector{@NamedTuple{offset::Int, size::NTuple{N, Int}}}
     }
 end
 

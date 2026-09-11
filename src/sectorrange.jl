@@ -17,7 +17,6 @@ SectorRange(r::SectorRange) = r
 
 label(r::SectorRange) = r.label
 labeltype(::Type{SectorRange{I}}) where {I} = I
-labeltype(r::SectorRange) = labeltype(typeof(r))
 TensorAlgebra.isdual(r::SectorRange) = r.isdual
 
 sectortype(x) = sectortype(typeof(x))

@@ -402,15 +402,6 @@ function GradedArray{T, S}(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# Trusted carrier variant: the coupled axes are the carried roots, so no fusion happens here
-# (`FusedAxes` construction is where the root is either carried or fused).
-function GradedArray{T}(
-        ::UndefInitializer, axes_codomain::FusedAxes{S}, axes_domain::FusedAxes{S}
-    ) where {T, S}
-    m = FusedGradedMatrix{T}(undef, root(axes_codomain), root(axes_domain))
-    return GradedArray(m, leaves(axes_codomain), leaves(axes_domain))
-end
-
 # A `GradedArray` source reproduces a `GradedArray`, routing straight to its `undef` constructor.
 function TensorAlgebra.similar_map(
         ::GradedArray, ::Type{T},
@@ -633,7 +624,6 @@ function TensorAlgebra.ismatricizeview(
     ) where {NC}
     return true
 end
-TensorAlgebra.ismatricizeview(::GradedMatricize, ::GradedArray, ::Val) = false
 function TensorAlgebra.matricizeview(
         ::GradedMatricize, fa::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
     ) where {NC}
@@ -673,15 +663,6 @@ function TensorAlgebra.unmatricize(
     )
     check_input(unmatricize, m, axes_codomain, axes_domain)
     return GradedArray(m, axes_codomain, axes_domain)
-end
-
-# Trusted carrier variant: the roots vouch that the leaves fuse to the matrix's coupled axes,
-# so skip `check_input`'s re-fusion.
-function TensorAlgebra.unmatricize(
-        ::GradedMatricize, m::AbstractFusedGradedMatrix,
-        axes_codomain::FusedAxes, axes_domain::FusedAxes
-    )
-    return GradedArray(m, leaves(axes_codomain), leaves(axes_domain))
 end
 
 # A `{1,1}` unmatricize (one codomain axis, one domain axis) reproduces the diagonal's own square
@@ -778,90 +759,56 @@ for A in (:GradedArray, :AbstractFusedGradedArray)
     end
 end
 
-# Whether `perm` is a permutation of `first:last`. The perms this is used on come from an
-# already-validated bipermutation, so the entries are distinct and containment plus length
-# suffice.
-function ispermofrange(perm::Tuple{Vararg{Int}}, first::Int, last::Int)
-    return length(perm) == last - first + 1 && all(p -> first <= p <= last, perm)
+# Whether two axis groups are the same multiset. Fusion is order-independent, so equal multisets
+# fuse to the same coupled axis; the ordered pass first is the common case (a grouping-preserving
+# destination), where the axes are the operand's own stored objects.
+function ismultisetequal(axs1::Tuple, axs2::Tuple)
+    length(axs1) == length(axs2) || return false
+    all(((ax1, ax2),) -> ax1 === ax2, zip(axs1, axs2)) && return true
+    return all(ax -> count(isequal(ax), axs1) == count(isequal(ax), axs2), axs1)
 end
 
-# Compute the contract output's leaves as the generic does (`a1`'s uncontracted axes then `a2`'s,
-# re-split by the dest bipermutation, domain un-dualized), but carry each side's root from the
-# operand's stored coupled axis when the side is exactly that operand's stored codomain/domain
-# group (in any order — the root depends only on the multiset of leaves). Any other split falls
-# back to fusing the leaves.
-function TensorAlgebra.output_axes(
-        ::typeof(TensorAlgebra.contract),
-        perm_dest_codomain, perm_dest_domain,
-        a1::GradedArray, perm1_codomain, perm1_domain,
-        a2::GradedArray, perm2_codomain, perm2_domain
-    )
-    axes1_codomain, _ = bipartition(axes(a1), perm1_codomain, perm1_domain)
-    _, axes2_domain = bipartition(axes(a2), perm2_codomain, perm2_domain)
-    axes_uncontracted = (axes1_codomain..., axes2_domain...)
-    leaves_codomain, leaves_domain = TensorAlgebra.bipartition_axes(
-        axes_uncontracted, perm_dest_codomain, perm_dest_domain
-    )
+# Allocate a graded destination over the given external axes (domain codomain-facing), reusing an
+# operand's stored coupled axis instead of re-fusing whenever the destination side holds the same
+# multiset of axes as that operand's stored codomain/domain group.
+function allocate_graded(
+        ::Type{T}, a1::GradedArray, a2::GradedArray,
+        axes_codomain::Tuple, axes_domain::Tuple
+    ) where {T}
     S = sectortype(a1)
-    n1 = length(perm1_codomain)
-    axes_codomain_dest =
-    if ispermofrange(perm1_codomain, 1, ndims_codomain(a1)) &&
-            ispermofrange(perm_dest_codomain, 1, n1)
-        FusedAxes(leaves_codomain, axis_codomain(matricize(a1)))
+    coupled_codomain = if ismultisetequal(axes_codomain, GA.axes_codomain(a1))
+        axis_codomain(matricize(a1))
     else
-        FusedAxes{S}(leaves_codomain)
+        fuseaxes(S, axes_codomain)
     end
-    axes_domain_dest =
-    if ispermofrange(perm2_domain, ndims_codomain(a2) + 1, ndims(a2)) &&
-            ispermofrange(perm_dest_domain, n1 + 1, length(axes_uncontracted))
-        FusedAxes(leaves_domain, axis_domain(matricize(a2)))
+    coupled_domain = if ismultisetequal(axes_domain, GA.axes_domain(a2))
+        axis_domain(matricize(a2))
     else
-        FusedAxes{S}(leaves_domain)
+        fuseaxes(S, axes_domain)
     end
-    return axes_codomain_dest, axes_domain_dest
+    m = FusedGradedMatrix{T}(undef, coupled_codomain, coupled_domain)
+    return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# The generic `allocate_contract_output` constrains the axes to `Tuple`, so the carrier form
-# needs its own method. Unlike the generic body it skips the `zero!`: every consumer overwrites
-# the destination in full — `mul!` into the stored matrix zero-fills the coupled blocks the
-# product misses, and the scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a
-# strong-zero β) write every block.
+# Unlike the generic body this skips the `zero!`: every consumer overwrites the destination in
+# full — `mul!` into the stored matrix zero-fills the coupled blocks the product misses, and the
+# scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a strong-zero β) write
+# every block.
 function TensorAlgebra.allocate_contract_output(
         a1::GradedArray, a2::GradedArray, T,
-        axes_codomain::FusedAxes, axes_domain::FusedAxes
+        axes_codomain::Tuple, axes_domain::Tuple
     )
-    return TensorAlgebra.similar_map(a1, T, axes_codomain, axes_domain)
+    return allocate_graded(T, a1, a2, axes_codomain, axes_domain)
 end
 
-function TensorAlgebra.similar_map(
-        ::GradedArray, ::Type{T}, axes_codomain::FusedAxes{S}, axes_domain::FusedAxes{S}
-    ) where {T, S}
-    return GradedArray{T}(undef, axes_codomain, axes_domain)
-end
-
-# Carry the stored roots through a grouping-preserving permute (each side a permutation of the
-# stored codomain/domain group), so the permute's output allocation skips re-fusing. Any other
-# case falls back to the generic fusing allocation (mirrored from the generic body).
 function TensorAlgebra.allocate_output(
         ::typeof(TensorAlgebra.permutedimsop), op, src::GradedArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     )
     T = Base.promote_op(op, eltype(src))
-    if op === identity && ispermofrange(perm_codomain, 1, ndims_codomain(src)) &&
-            ispermofrange(perm_domain, ndims_codomain(src) + 1, ndims(src))
-        return GradedArray{T}(
-            undef,
-            FusedAxes(
-                map(i -> axes(src, i), perm_codomain), axis_codomain(matricize(src))
-            ),
-            FusedAxes(
-                map(i -> conj(axes(src, i)), perm_domain), axis_domain(matricize(src))
-            )
-        )
-    end
     axes_codomain = map(i -> op(axes(src, i)), perm_codomain)
-    axes_domain = map(i -> op(axes(src, i)), perm_domain)
-    return TensorAlgebra.similar_map(src, T, axes_codomain, conj.(axes_domain))
+    axes_domain = map(i -> conj(op(axes(src, i))), perm_domain)
+    return allocate_graded(T, src, src, axes_codomain, axes_domain)
 end
 
 function TensorAlgebra.matricize(

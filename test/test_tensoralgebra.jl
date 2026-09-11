@@ -3,10 +3,11 @@ using BlockArrays: Block, blocklength
 using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, GradedArray,
     GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
     UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths, dual,
-    eachblockstoredindex, eachsectoraxis, flip, fusedgradedmatrix, fusedgradedvector,
-    gradedrange, isdual, sector, sectoraxes, sectordata, sectormergesort, sectors,
-    sectortype, tensor_product, with_block_indexing, with_scalar_indexing
+    eachblockstoredindex, eachsectoraxis, flip, fusedgradeddiagonal, fusedgradedmatrix,
+    fusedgradedvector, gradedrange, isdual, sector, sectoraxes, sectordata, sectormergesort,
+    sectors, sectortype, tensor_product, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: tr
+using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,
     matricizeperm, unmatricize
@@ -598,6 +599,16 @@ end
     # A bend is not declared shared; `matricize` routes it to the copy leaf.
     @test !TensorAlgebra.ismatricizeview(style, a, Val(1))
     @test matricize(style, a, Val(1)).buffer !== matricize(a).buffer
+
+    # A diagonal is already a matrix: the `{1,1}` split is the shared view, and its copy leaf
+    # stays diagonal but detached.
+    d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
+    @test TensorAlgebra.ismatricizeview(style, d, Val(1))
+    @test TensorAlgebra.matricizeview(style, d, Val(1)) === d
+    dcopy = TensorAlgebra.matricizecopy(style, d, Val(1))
+    @test dcopy isa typeof(d)
+    @test Array(dcopy) == Array(d)
+    @test MAK.diagview(dcopy).buffer !== MAK.diagview(d).buffer
 
     # Both destination branches of a consumer (`contractadd!`) behave: the shared-view route
     # for the identity destination bipermutation and the gather/scatter route for a permuted

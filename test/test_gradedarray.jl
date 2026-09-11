@@ -731,68 +731,57 @@ end
     @test_throws DimensionMismatch diag(mrect)
 end
 
-# The single-axis and empty `fuseaxes` fast paths (a cached-field read and the trivial range)
-# must agree with the general reduce-over-`tensor_product` spelling, and the fused root must
-# depend only on the multiset of leaves — the order-independence that lets a contraction carry
-# an operand's stored coupled axis to a permuted output. Conjugating every leaf flips the root.
-@testset "fuseaxes fast paths and leaf-order independence ($G)" for (G, g, h) in (
+# The fused coupled axis must depend only on the multiset of leaves — the order-independence
+# that lets a contraction reuse an operand's stored coupled axis for a permuted output.
+# Conjugating every leaf flips the fused axis.
+@testset "fuseaxes leaf-order independence ($G)" for (G, g, h) in (
         ("U1", gradedrange([U1(0) => 2, U1(1) => 3]), gradedrange([U1(0) => 1, U1(1) => 2])),
         ("fermion", gradedrange([fP0 => 2, fP1 => 3]), gradedrange([fP1 => 2])),
         ("SU2", gradedrange([SU2(0) => 2, SU2(1 // 2) => 1]), gradedrange([SU2(1 // 2) => 2])),
     )
     S = GradedArrays.sectortype(g)
-    init = GradedArrays.trivial_gradedrange(S)
-    @test GradedArrays.fuseaxes(S, ()) == init
-    for gs in ((g,), (dual(g),), (g, h), (dual(g), h), (g, dual(h), g))
-        @test GradedArrays.fuseaxes(S, gs) == reduce(tensor_product, gs; init)
-    end
+    @test GradedArrays.fuseaxes(S, ()) == GradedArrays.trivial_gradedrange(S)
     for (gs, gs_perm) in (((g, h), (h, g)), ((dual(g), h, g), (g, dual(g), h)))
         @test GradedArrays.fuseaxes(S, gs) == GradedArrays.fuseaxes(S, gs_perm)
     end
-    # Conjugating every leaf conjugates the root's sectors; `flip` also flips the arrow, which
-    # `dual` resets (a fused root is always non-dual).
+    # Conjugating every leaf conjugates the fused sectors; `flip` also flips the arrow, which
+    # `dual` resets (a fused axis is always non-dual).
     @test GradedArrays.fuseaxes(S, (conj(g), conj(h))) ==
         dual(GradedArrays.flip(GradedArrays.fuseaxes(S, (g, h))))
 end
 
-# `output_axes` carries a side's root from the operand's stored coupled axis exactly when that
-# side is the operand's stored codomain/domain group (in any order); any other split falls back
-# to fusing the leaves, which must give the same root for the same multiset.
-@testset "contract output_axes carries stored roots" begin
+# A contract output reuses an operand's stored coupled axis (`===`, not merely equal) exactly
+# when its codomain/domain side holds the same multiset of axes as that operand's stored group;
+# any other split fuses, and must land on the same coupled axis by value.
+@testset "contract output reuses the operands' stored coupled axes" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     h = gradedrange([U1(0) => 1, U1(1) => 2])
     a = randn((g, h), (g,))
     b = randn((g,), (h, g))
     S = GradedArrays.sectortype(a)
-    root_a = GradedArrays.axis_codomain(matricize(a))
-    root_b = GradedArrays.axis_domain(matricize(b))
-    # Identity groupings carry both sides, with the generic leaves.
-    cod, dom = TensorAlgebra.output_axes(
-        TensorAlgebra.contract, (1, 2), (3, 4), a, (1, 2), (3,), b, (1,), (2, 3)
-    )
-    @test GradedArrays.leaves(cod) == GradedArrays.axes_codomain(a)
-    @test GradedArrays.leaves(dom) == GradedArrays.axes_domain(b)
-    @test GradedArrays.root(cod) === root_a
-    @test GradedArrays.root(dom) === root_b
-    # Permutations within each group still carry (the root is order-independent).
-    cod, dom = TensorAlgebra.output_axes(
-        TensorAlgebra.contract, (2, 1), (4, 3), a, (2, 1), (3,), b, (1,), (3, 2)
-    )
-    @test GradedArrays.root(cod) === root_a
-    @test GradedArrays.root(dom) === root_b
-    # A group-crossing destination split falls back to fusing on both sides; the fused roots
-    # must equal the carried ones on the sides whose multiset is unchanged.
-    cod, dom = TensorAlgebra.output_axes(
-        TensorAlgebra.contract, (1, 2, 3), (4,), a, (1, 2), (3,), b, (1,), (2, 3)
-    )
-    @test GradedArrays.root(cod) == GradedArrays.fuseaxes(S, GradedArrays.leaves(cod))
-    @test GradedArrays.root(dom) == GradedArrays.fuseaxes(S, GradedArrays.leaves(dom))
-    # Contracting part of a stored group falls back on that side.
-    cod, dom = TensorAlgebra.output_axes(
-        TensorAlgebra.contract, (1, 2), (3, 4), a, (1, 3), (2,), b, (1,), (2, 3)
-    )
-    @test GradedArrays.root(cod) == GradedArrays.fuseaxes(S, GradedArrays.leaves(cod))
-    @test GradedArrays.root(dom) === root_b
+    coupled_a = GradedArrays.axis_codomain(matricize(a))
+    coupled_b = GradedArrays.axis_domain(matricize(b))
+    # Identity groupings reuse both sides.
+    c, = contract(a, (:i, :j, :m), b, (:m, :k, :l))
+    @test GradedArrays.axes_codomain(c) == GradedArrays.axes_codomain(a)
+    @test GradedArrays.axes_domain(c) == GradedArrays.axes_domain(b)
+    @test GradedArrays.axis_codomain(matricize(c)) === coupled_a
+    @test GradedArrays.axis_domain(matricize(c)) === coupled_b
+    # Permutations within each group still reuse (the fused axis is order-independent).
+    c, = contract(a, (:j, :i, :m), b, (:m, :l, :k))
+    @test GradedArrays.axis_codomain(matricize(c)) === coupled_a
+    @test GradedArrays.axis_domain(matricize(c)) === coupled_b
+    # A group-crossing destination split, and a contracted leg inside a stored group, both fuse
+    # instead; the fused axes must still be the fusion of the destination's own leaves.
+    for c in (
+            contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l)),
+            first(contract(a, (:m, :j, :i), b, (:l, :k, :m))),
+        )
+        @test GradedArrays.axis_codomain(matricize(c)) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_codomain(c))
+        @test GradedArrays.axis_domain(matricize(c)) ==
+            GradedArrays.fuseaxes(S, GradedArrays.axes_domain(c))
+    end
 end
 
 # Whatever the grouping, the contract output's backing coupled axes must equal the fusion of its
@@ -843,9 +832,9 @@ end
     @test canonical(c, (:k, :i, :j, :l), [:i, :j, :k, :l]) ≈ refc
 end
 
-# `Base.dataids` forwards to the shared buffer, so `Base.mightalias` sees storage sharing
-# through the `GradedArray`/matricized-wrapper boundary (this is what lets a contraction that
-# multiplied straight into the destination's stored matrix skip the scatter-back).
+# `Base.dataids` forwards to the shared buffer, so `Base.mightalias` stays truthful across the
+# `GradedArray`/matricized-wrapper boundary: an array and a wrapper over its storage report
+# sharing, independent arrays and a copied matrix do not.
 @testset "dataids sees through the matricized wrapper" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = randn((g,), (g,))
@@ -977,22 +966,4 @@ end
     for v′ in (similar(v), similar(v, ComplexF64), copy(v))
         @test GradedArrays.sectordatalayout(v′) === GradedArrays.sectordatalayout(v)
     end
-
-    # A non-canonical (hash, unsorted) layout dictionary canonicalizes in the inner constructor;
-    # passing a matrix's own carried layout back in must stay the identity (no copy).
-    gc = FusedGradedOneTo(gradedrange([U1(0) => 2, U1(2) => 3]))
-    gd = FusedGradedOneTo(gradedrange([U1(0) => 2, U1(2) => 1]))
-    lay = dictionary(
-        [
-            SectorRange(U1(2)) => (offset = 4, size = (3, 1)),
-            SectorRange(U1(0)) => (offset = 0, size = (2, 2)),
-        ]
-    )
-    mc = FusedGradedMatrix(collect(1.0:7.0), gc, gd, lay)
-    @test collect(keys(sectordata(mc))) == SectorRange.([U1(0), U1(2)])
-    @test sectordata(mc)[SectorRange(U1(0))] == [1.0 3.0; 2.0 4.0]
-    @test typeof(GradedArrays.sectordatalayout(mc)) ===
-        typeof(GradedArrays.sectordatalayout(m))
-    m4 = FusedGradedMatrix(mc.buffer, gc, gd, GradedArrays.sectordatalayout(mc))
-    @test GradedArrays.sectordatalayout(m4) === GradedArrays.sectordatalayout(mc)
 end

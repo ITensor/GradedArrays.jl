@@ -626,6 +626,30 @@ end
     end
 end  # @testset "Factorizations"
 
+# The mismatched-support matrices the two testsets below share: the codomain's U1(2) has no
+# domain partner (zero-column blocks in the kernels), and mirrored, the domain's U1(3) has no
+# codomain partner (zero-row blocks).
+function codomain_only_sector_matrix(rng, elt)
+    return randn!(
+        rng,
+        FusedGradedMatrix{elt}(
+            undef,
+            gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2]),
+            gradedrange([U1(0) => 2, U1(1) => 4])
+        )
+    )
+end
+function domain_only_sector_matrix(rng, elt)
+    return randn!(
+        rng,
+        FusedGradedMatrix{elt}(
+            undef,
+            gradedrange([U1(0) => 2, U1(1) => 4]),
+            gradedrange([U1(0) => 3, U1(1) => 2, U1(3) => 3])
+        )
+    )
+end
+
 # The factorization kernels co-iterate the sorted sector union of the input and outputs with one
 # positional walk per array, substituting a zero-size block for a sector an array lacks. Pin the
 # two absent-sector cases against the per-block dense reference: an output sector absent from
@@ -636,13 +660,8 @@ end  # @testset "Factorizations"
         ComplexF64,
     )
     rng = StableRNG(1234)
-    # The codomain's U1(2) has no domain partner, so A stores no block there; the null space
-    # and the full factorizations must still cover it.
-    cod = gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2])
-    dom = gradedrange([U1(0) => 2, U1(1) => 4])
-    A = randn!(rng, FusedGradedMatrix{elt}(undef, cod, dom))
+    A = codomain_only_sector_matrix(rng, elt)
     codl = GradedArrays.sectordatalengths(GradedArrays.axis_codomain(A))
-    doml = GradedArrays.sectordatalengths(GradedArrays.axis_domain(A))
 
     N = MAK.qr_null(A)
     @test isleftnull(N, A)
@@ -663,14 +682,7 @@ end  # @testset "Factorizations"
     @test Array(Q * R) ≈ Array(A)
 
     # The mirrored case: a domain sector the codomain lacks, covered by the right null space.
-    B = randn!(
-        rng,
-        FusedGradedMatrix{elt}(
-            undef,
-            gradedrange([U1(0) => 2, U1(1) => 4]),
-            gradedrange([U1(0) => 3, U1(1) => 2, U1(3) => 3])
-        )
-    )
+    B = domain_only_sector_matrix(rng, elt)
     Nᴴ = MAK.lq_null(B)
     @test isrightnull(Nᴴ, B)
     for (c, n2) in pairs(GradedArrays.sectordatalengths(GradedArrays.axis_domain(B)))
@@ -694,15 +706,7 @@ end
         ComplexF64,
     )
     rng = StableRNG(1234)
-    # The codomain's U1(2) has no domain partner (zero-column blocks in the kernels).
-    A = randn!(
-        rng,
-        FusedGradedMatrix{elt}(
-            undef,
-            gradedrange([U1(0) => 3, U1(1) => 2, U1(2) => 2]),
-            gradedrange([U1(0) => 2, U1(1) => 4])
-        )
-    )
+    A = codomain_only_sector_matrix(rng, elt)
 
     Q, R = MAK.qr_compact(A)
     @test isisometric(Q)
@@ -717,14 +721,7 @@ end
     @test GradedArrays.axis_domain(Vᴴ) == GradedArrays.axis_domain(A)
 
     # Mirrored: a domain sector the codomain lacks (zero-row blocks in the kernels).
-    B = randn!(
-        rng,
-        FusedGradedMatrix{elt}(
-            undef,
-            gradedrange([U1(0) => 2, U1(1) => 4]),
-            gradedrange([U1(0) => 3, U1(1) => 2, U1(3) => 3])
-        )
-    )
+    B = domain_only_sector_matrix(rng, elt)
     UB, SB, VBᴴ = MAK.svd_compact(B)
     @test Array(UB * SB * VBᴴ) ≈ Array(B)
     @test GradedArrays.axis_codomain(UB) == GradedArrays.axis_codomain(B)

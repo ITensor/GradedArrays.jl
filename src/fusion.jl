@@ -20,6 +20,15 @@ function trivial_gradedrange(::Type{S}) where {S <: SectorRange}
     return fusedgradedrange([trivial(S) => 1])
 end
 
+# ========================  fuseaxes  ========================
+
+# Fuse a group of leg axes into its coupled fused-sorted axis. A single leg reads its cached
+# fused form, and a multi-leg group reduces without a trivial init (which would add a pointless
+# trivial×leg merge per call).
+fuseaxes(::Type{S}, axs::Tuple{}) where {S <: SectorRange} = trivial_gradedrange(S)
+fuseaxes(::Type{<:SectorRange}, axs::Tuple{Any}) = tensor_product(only(axs))
+fuseaxes(::Type{<:SectorRange}, axs::Tuple) = reduce(tensor_product, axs)
+
 # ========================  unmerged_matricize_axes  ========================
 
 # Fuse a bipartitioned tuple of graded axes into the unmerged 2D row/column axes: one

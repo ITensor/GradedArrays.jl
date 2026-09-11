@@ -26,12 +26,10 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
     # stored. The stored axes are non-dual, with the domain's dual arrow implicit in `axes` (see
     # `biaxes`). `datalayout` must be the coupled-sector layout of the given axes: the fusing
     # constructors below compute it, and constructors deriving from an existing matrix with the same
-    # axes pass its layout through, sharing it (like the axes themselves). Any layout dictionary is
-    # accepted and canonicalized to the sorted parallel-vector form here, a no-op for an
-    # already-canonical layout.
+    # axes pass its layout through, sharing it (like the axes themselves).
     function FusedGradedMatrix{T, S, V}(
             buffer::V, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S},
-            datalayout::AbstractDictionary{S}
+            datalayout
         ) where {T, S <: SectorRange, V <: DenseVector{T}}
         (isdual(codomain) || isdual(domain)) && throw(
             ArgumentError(
@@ -46,7 +44,7 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
             )
         )
         return new{T, S, V}(
-            buffer, codomain, domain, convert(datalayouttype(S, Val(2)), datalayout)
+            buffer, codomain, domain, datalayout::datalayouttype(S, Val(2))
         )
     end
 end
@@ -196,8 +194,7 @@ axes_codomain(m::FusedGradedMatrix) = (m.axis_codomain,)
 axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 
 # Aliasing identity is the buffer's: `Base.mightalias` then detects sharing between the matrix,
-# its buffer, and wrappers of either (the `AbstractArray` fallback compares `objectid`s, which
-# never match across wrappers).
+# its buffer, and wrappers of either.
 Base.dataids(m::FusedGradedMatrix) = Base.dataids(m.buffer)
 
 # ========================  setsectors  ========================

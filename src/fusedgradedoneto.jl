@@ -78,34 +78,13 @@ function FusedGradedOneTo(
     return FusedGradedOneTo(sector_datalengths, false)
 end
 
-# ========================  zero-copy views over the stored vectors  ========================
-# The lazy read-only views over the stored sorted label vector: the positional `sectors(g)` vector
-# (a `mappedarray` whose entries materialize as `SectorRange`s on access, with the bare labels
-# reachable through `parent`) and, keyed by it, the `SortedArrayDictionary` returned by
-# `sectordatalengths` (sector → data length; lookups binary-search the sorted keys). Callers must
-# not mutate the vectors they wrap.
-
-# The concrete type of the lazy sector view over a bare-label vector, for typeasserts (the type
-# involves `labeltype(S)`, so a struct field cannot spell it).
-function sectorstype(::Type{SectorRange{I}}) where {I}
-    return ReadonlyMappedArray{SectorRange{I}, 1, Vector{I}, Type{SectorRange{I}}}
-end
-
-# Strip a vector of (non-dual) sectors to the lazy bare-label view form, for the generic
-# `SortedArrayDictionary` canonicalization.
-function Base.convert(
-        ::Type{ReadonlyMappedArray{SectorRange{I}, 1, Vector{I}, Type{SectorRange{I}}}},
-        v::AbstractVector{SectorRange{I}}
-    ) where {I}
-    all(s -> !TensorAlgebra.isdual(s), v) ||
-        throw(ArgumentError("sector keys must be non-dual"))
-    return mappedarray(SectorRange{I}, I[label(s) for s in v])
-end
-
 # ========================  primitive accessors  ========================
 
-# `sectors`/`datalengths`/`sectordatalengths` are zero-copy views over the stored parallel
-# vectors (see above); `sectorlabels` is the internal bare-label primitive. The remaining
+# `sectors`/`datalengths`/`sectordatalengths` are zero-copy read-only views over the stored
+# parallel vectors — `sectors(g)` a `mappedarray` materializing `SectorRange`s on access (bare
+# labels reachable through `parent`), and, keyed by it, the `SortedArrayDictionary` from
+# `sectordatalengths` (lookups binary-search the sorted keys). Callers must not mutate the
+# vectors they wrap. `sectorlabels` is the internal bare-label primitive; the remaining
 # range-interface methods are shared via `AbstractGradedOneTo`.
 TensorAlgebra.isdual(g::FusedGradedOneTo) = g.isdual
 sectorlabels(g::FusedGradedOneTo{SectorRange{I}}) where {I} = g.labels::Vector{I}
@@ -115,9 +94,8 @@ end
 datalengths(g::FusedGradedOneTo) = g.datalengths
 sectordatalengths(g::FusedGradedOneTo) = SortedArrayDictionary(sectors(g), datalengths(g))
 
-# Per-sector length accessors following the strict/lenient convention: the bare 2-arg form is
-# strict (throws on an absent sector), the `get`-prefixed form falls back to length 0.
-sectordatalengths(g::FusedGradedOneTo, c) = sectordatalengths(g)[c]
+# Lenient per-sector length: the `get`-prefixed name marks the fallback to length 0 for a sector
+# the axis does not carry.
 getsectordatalengths(g::FusedGradedOneTo, c) = get(sectordatalengths(g), c, 0)
 
 # Position of sector `c` among the sorted sectors (its block index in the axis); the axis
@@ -143,11 +121,9 @@ function sectorlabelvector(cs::AbstractVector{S}) where {S <: SectorRange}
     return labeltype(S)[label(s) for s in cs]
 end
 
-# The support-set axis: sector support exactly `ls`, keeping `g`'s per-sector lengths (length
-# zero for the added sectors) and arrow. `ls` must be sorted, unique, and cover `g`'s support
-# (`ArgumentError` otherwise); the allocation-free walk that gathers the lengths doubles as the
-# covering check, and the constructor rejects an unsorted or non-unique `ls`. The result stores
-# `ls` itself, so every axis set from one vector shares it. An `ls` equal to the stored support
+# The support-set axis (see the `setsectors` contract in `abstractfusedgradedarray.jl`). The
+# walk that gathers the lengths doubles as the `ls`-covers-`g` check. The result stores `ls`
+# itself, so every axis set from one vector shares it, and an `ls` equal to the stored support
 # returns `g` itself, so callers can detect the identity by `===` and skip rebuilding anything
 # derived from the axis.
 function setsectors(g::FusedGradedOneTo{SectorRange{I}}, ls::Vector{I}) where {I}
@@ -167,10 +143,6 @@ function setsectors(g::FusedGradedOneTo{SectorRange{I}}, ls::Vector{I}) where {I
         ArgumentError("sectors $(ls) do not cover the axis support $(gl)")
     )
     return FusedGradedOneTo(ls, lens, isdual(g))
-end
-
-function setsectors(g::FusedGradedOneTo{S}, cs::AbstractVector{S}) where {S <: SectorRange}
-    return setsectors(g, sectorlabelvector(cs))
 end
 
 # ========================  dual, flip  ========================

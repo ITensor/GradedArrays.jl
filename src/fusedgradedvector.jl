@@ -126,10 +126,9 @@ struct FusedGradedVector{T, S <: SectorRange, V <: DenseVector{T}} <:
     # the lazy `sectordata` view over it. The stored axis is non-dual. `datalayout` must be the
     # per-sector layout of the given axis: the fusing constructor below computes it, and constructors
     # deriving from an existing vector with the same axis pass its layout through, sharing it (like
-    # the axis itself). Any layout dictionary is accepted and canonicalized to the sorted
-    # parallel-vector form here, a no-op for an already-canonical layout.
+    # the axis itself).
     function FusedGradedVector{T, S, V}(
-            buffer::V, axis::FusedGradedOneTo{S}, datalayout::AbstractDictionary{S}
+            buffer::V, axis::FusedGradedOneTo{S}, datalayout
         ) where {T, S <: SectorRange, V <: DenseVector{T}}
         isdual(axis) && throw(
             ArgumentError("FusedGradedVector stores a non-dual axis")
@@ -141,7 +140,7 @@ struct FusedGradedVector{T, S <: SectorRange, V <: DenseVector{T}} <:
                 "buffer length $(length(buffer)) does not match block total $total"
             )
         )
-        return new{T, S, V}(buffer, axis, convert(datalayouttype(S, Val(1)), datalayout))
+        return new{T, S, V}(buffer, axis, datalayout::datalayouttype(S, Val(1)))
     end
 end
 

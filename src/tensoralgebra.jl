@@ -124,11 +124,8 @@ function sectormergesort(g::AbstractGradedOneTo)
     return sectormergesort(sectors(g), datalengths(g), isdual(g))
 end
 
-# tensor_product produces a fused-sorted, non-dual FusedGradedOneTo. Equivalent to
-# `sectormergesort(flip_dual(g))`, but flipping the merged form instead of merging the flipped
-# axis (conjugation is a sector bijection, so the two commute): `sectormergesort` is a cached
-# field read for `GradedOneTo`, and `flip` on the fused form is O(sectors), so a dual axis
-# avoids a re-fusion.
+# Conjugation is a sector bijection, so flipping the merged form equals merging the flipped
+# axis — and the merged form is cached, so this spelling avoids a re-fusion for a dual axis.
 function tensor_product(g::AbstractGradedOneTo)
     f = sectormergesort(g)
     return isdual(f) ? flip(f) : f
