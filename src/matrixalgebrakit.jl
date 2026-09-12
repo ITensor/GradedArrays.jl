@@ -604,9 +604,19 @@ for f! in (:eigh_trunc!, :eig_trunc!)
 
         keep = [i for i in eachindex(inds) if length(ev_blocks_all[i]) > 0]
         sectors_kept = sectors_all[keep]
+        bond_dims = [length(ev_blocks_all[i]) for i in keep]
 
         D̃ = MAK.diagonal(fusedgradedvector(sectors_kept .=> ev_blocks_all[keep]))
-        Ṽ = fusedgradedmatrix(sectors_kept .=> V_blocks_all[keep])
+
+        # V: rows = the input codomain (full), columns = the eigenvector bond (shrunk). A sector
+        # whose eigenvalues are all truncated keeps a zero-width row block, so the row axis comes
+        # from `V` rather than being derived from the surviving blocks — deriving it drops the
+        # emptied sector, and the result then fails to fuse back to the input's coupled axes.
+        Ṽ = fusedgradedmatrix(
+            Dictionary(sectors_kept, V_blocks_all[keep]),
+            axis_codomain(V),
+            FusedGradedOneTo(sectors_kept, bond_dims)
+        )
         return (D̃, Ṽ), inds
     end
 end

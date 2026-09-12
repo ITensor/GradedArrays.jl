@@ -450,6 +450,20 @@ end
                 @test all(≥(atol) ∘ abs, MAK.diagview(b))
             end
         end
+
+        # Truncating every eigenvalue out of a sector leaves that sector in `V`'s row axis as a
+        # zero-width block. Deriving the row axis from the surviving blocks instead drops it, and
+        # the factor then fails to fuse back to the input's coupled axes.
+        @testset "a fully truncated sector stays in the row axis" begin
+            A_split = fusedgradedmatrix(
+                [U1(0), U1(1)] .=> [[10.0 0.0; 0.0 9.0], [1.0 0.0; 0.0 0.5]]
+            )
+            D, V, ε = MAK.eigh_trunc(A_split; trunc = truncrank(2))
+            @test GradedArrays.sectors(GradedArrays.axis_codomain(V)) ==
+                GradedArrays.sectors(GradedArrays.axis_codomain(A_split))
+            @test size(V, 1) == size(A_split, 1)
+            @test A_split * V ≈ V * D
+        end
     end
 
     # -----------------------------------------------------------------------
