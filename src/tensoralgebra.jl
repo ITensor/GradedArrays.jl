@@ -260,6 +260,11 @@ end
 # `TwistedGradedMatricize` on the right factor only, and its `matricizeopperm` inserts the twist
 # between the permute and the matricize. The twist is a no-op for bosonic sectors.
 
+# A non-graded array carries no sector data, so there is no braiding and the twist is the identity.
+# `contraction_twist!` below accepts any array, so without this it throws a `MethodError` on the
+# dense and `Diagonal` factors that a factorization of an unsymmetric array produces.
+twist!(a::AbstractArray, dims) = a
+
 """
     contraction_twist!(a::UniqueSectorArray, ndims_codomain::Int) -> a
 
