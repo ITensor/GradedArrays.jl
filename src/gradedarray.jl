@@ -837,7 +837,7 @@ function TensorAlgebra.matricizecopy(
     )
 end
 
-function TensorAlgebra.unmatricizeperm!(
+function TensorAlgebra.unmatricize!(
         ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, N},
         m::AbstractFusedGradedMatrix,
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
