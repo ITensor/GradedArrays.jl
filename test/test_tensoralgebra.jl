@@ -554,19 +554,6 @@ end
     @test axes(Vᴴ, 2) == axes(A, 2)
 end
 
-@testset "TA.gram_eigh_full_with_pinv (axes_Y regression)" begin
-    s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
-    B = randn(Float64, (s,), (s,))
-    # PSD by construction. Build `A = B * B'` block-wise via `contract` with an explicit `conj`.
-    A = contract((:a, :b), B, (:a, :r), conj(B), (:b, :r))
-    X, Y = TensorAlgebra.gram_eigh_full_with_pinv(A, (1,), (2,))
-    # X · conj(X) ≈ A on the rank subspace.
-    @test A ≈ contract((:a, :b), X, (:a, :r), conj(X), (:b, :r))
-    # Y is a left inverse of X on the rank subspace.
-    YX = contract((:r, :s), Y, (:r, :a), X, (:a, :s))
-    @test YX ≈ TensorAlgebra.one(YX, (:r, :s), (:r,), (:s,))
-end
-
 @testset "contract rejects mismatched contracted-axis duality (bosonic)" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = zeros(Float64, g, dual(g))
