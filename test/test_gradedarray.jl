@@ -774,7 +774,7 @@ end
     # A group-crossing destination split, and a contracted leg inside a stored group, both fuse
     # instead; the fused axes must still be the fusion of the destination's own leaves.
     for c in (
-            contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l)),
+            contractalign((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l)),
             first(contract(a, (:m, :j, :i), b, (:l, :k, :m))),
         )
         @test GradedArrays.axis_codomain(matricize(c)) ==
@@ -827,7 +827,7 @@ end
     @test canonical(c, lc, [:i, :j, :k, :l]) ≈ TensorKit.permute(ref3, ((1, 2, 3, 4), ()))
 
     # Group-crossing destination split (a `b` leg lands in the destination codomain).
-    c = contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l))
+    c = contractalign((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l))
     check_coupled(c)
     @test canonical(c, (:k, :i, :j, :l), [:i, :j, :k, :l]) ≈ refc
 end

@@ -327,7 +327,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             a_dest = permutedims(contract(a2, (1, -2), a1, (-1, 1))[1], (2, 1))
             @test Array(a_dest) ≈ a_dest_dense
 
-            a_dest = contract((-1, -2), a2, (1, -2), a1, (-1, 1))
+            a_dest = contractalign((-1, -2), a2, (1, -2), a1, (-1, 1))
             @test Array(a_dest) ≈ a_dest_dense
 
             # does not depend on permutations
@@ -390,16 +390,16 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a1_dense = Array(a1)
         a2_dense = Array(a2)
 
-        parallel = contract((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
+        parallel = contractalign((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
         # Rank-0 result is a graded array.
         @test parallel isa GradedArray{elt, <:Any, 0}
         @test Array(parallel) ≈
-            contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
+            contractalign((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
 
-        crossed = contract((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
+        crossed = contractalign((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
         @test crossed isa GradedArray{elt, <:Any, 0}
         @test Array(crossed) ≈
-            -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
+            -1 * contractalign((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
     end
 end
 
@@ -456,11 +456,11 @@ end
     # Reversed bond (the contracted dual leg sits on the left factor): even+odd, not even-odd.
     M = const_blockdiagonal(Float64, (r, dual(r)), (1, 2))
     N = const_blockdiagonal(Float64, (dual(r), r), (3, 5))
-    @test only(Array(contract((), M, (1, 2), N, (1, 2)))) ≈ 13   # 1*3 + 2*5
+    @test only(Array(contractalign((), M, (1, 2), N, (1, 2)))) ≈ 13   # 1*3 + 2*5
     # Forward bond.
     A = const_blockdiagonal(Float64, (dual(r), r), (2, 3))
     B = const_blockdiagonal(Float64, (r, dual(r)), (1, 4))
-    @test only(Array(contract((), A, (1, 2), B, (1, 2)))) ≈ 14   # 2*1 + 3*4
+    @test only(Array(contractalign((), A, (1, 2), B, (1, 2)))) ≈ 14   # 2*1 + 3*4
 end
 
 # Triangle T1(a, b*) · T2(b, c*) · T3(c, a*) to a scalar: surviving odd legs braid past the
@@ -472,11 +472,11 @@ end
     T2 = randn_blockdiagonal(elt, (r, dual(r)))
     T3 = randn_blockdiagonal(elt, (r, dual(r)))
     t12, l12 = contract(T1, (1, 2), T2, (2, 3))
-    s = scalar(contract((), t12, l12, T3, (3, 1)))
+    s = scalar(contractalign((), t12, l12, T3, (3, 1)))
     t23, l23 = contract(T2, (2, 3), T3, (3, 1))
-    @test scalar(contract((), T1, (1, 2), t23, l23)) ≈ s
+    @test scalar(contractalign((), T1, (1, 2), t23, l23)) ≈ s
     t13, l13 = contract(T1, (1, 2), T3, (3, 1))
-    @test scalar(contract((), t13, l13, T2, (2, 3))) ≈ s
+    @test scalar(contractalign((), t13, l13, T2, (2, 3))) ≈ s
 end
 
 # The fused permuting `matricizeop` (folding the permute into the gather) must agree

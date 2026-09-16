@@ -696,41 +696,41 @@ end
 # A matrix-level fused operand carries no external axes, so it cannot serve as the allocation
 # prototype (`similar_map` with explicit axes is undefined for it), and `default_contract_algorithm`
 # below would not see a `GradedArray` right factor, skipping the fermionic contraction twist. Lift
-# it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the contraction entry
+# it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the bipermutation entry
 # point, before output allocation and algorithm selection, then recurse into the generic path.
-function TensorAlgebra.contract(
+function TensorAlgebra.contractperm(
         perm_dest_codomain, perm_dest_domain,
         a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
         a2::GradedArray, perm2_codomain, perm2_domain;
         kwargs...
     )
-    return TensorAlgebra.contract(
+    return TensorAlgebra.contractperm(
         perm_dest_codomain, perm_dest_domain,
         GradedArray(a1), perm1_codomain, perm1_domain,
         a2, perm2_codomain, perm2_domain;
         kwargs...
     )
 end
-function TensorAlgebra.contract(
+function TensorAlgebra.contractperm(
         perm_dest_codomain, perm_dest_domain,
         a1::GradedArray, perm1_codomain, perm1_domain,
         a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
         kwargs...
     )
-    return TensorAlgebra.contract(
+    return TensorAlgebra.contractperm(
         perm_dest_codomain, perm_dest_domain,
         a1, perm1_codomain, perm1_domain,
         GradedArray(a2), perm2_codomain, perm2_domain;
         kwargs...
     )
 end
-function TensorAlgebra.contract(
+function TensorAlgebra.contractperm(
         perm_dest_codomain, perm_dest_domain,
         a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
         a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
         kwargs...
     )
-    return TensorAlgebra.contract(
+    return TensorAlgebra.contractperm(
         perm_dest_codomain, perm_dest_domain,
         GradedArray(a1), perm1_codomain, perm1_domain,
         GradedArray(a2), perm2_codomain, perm2_domain;
@@ -790,10 +790,23 @@ end
 # full — `mul!` into the stored matrix zero-fills the coupled blocks the product misses, and the
 # scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a strong-zero β) write
 # every block.
-function TensorAlgebra.allocate_contract_output(
-        a1::GradedArray, a2::GradedArray, T,
-        axes_codomain::Tuple, axes_domain::Tuple
+function TensorAlgebra.allocate_output(
+        ::typeof(TensorAlgebra.contract),
+        perm_dest_codomain, perm_dest_domain,
+        a1::GradedArray, perm1_codomain, perm1_domain,
+        a2::GradedArray, perm2_codomain, perm2_domain
     )
+    check_input(
+        TensorAlgebra.contract,
+        a1, perm1_codomain, perm1_domain, a2, perm2_codomain, perm2_domain
+    )
+    axes_codomain, axes_domain = TensorAlgebra.output_axes(
+        TensorAlgebra.contract,
+        perm_dest_codomain, perm_dest_domain,
+        a1, perm1_codomain, perm1_domain,
+        a2, perm2_codomain, perm2_domain
+    )
+    T = Base.promote_op(LinearAlgebra.matprod, eltype(a1), eltype(a2))
     return allocate_graded(T, a1, a2, axes_codomain, axes_domain)
 end
 

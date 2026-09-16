@@ -309,7 +309,7 @@ end
     a = randn(elt, (g, dual(g)))
     b = randn(elt, (dual(g), g))
 
-    result = contract((), a, (1, 2), b, (1, 2))
+    result = contractalign((), a, (1, 2), b, (1, 2))
     # A rank-0 contraction result is a graded array.
     @test result isa GradedArray{elt, <:Any, 0}
     @test ndims(result) == 0
@@ -534,8 +534,8 @@ end
     s = gradedrange([U1(0) => 2, U1(1) => 3, U1(2) => 2])
     A = randn(Float64, (s, dual(s)))
     U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
-    US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
-    USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
+    US = contractalign((:a, :r), U, (:a, :i), S, (:i, :r))
+    USV = contractalign((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
     @test A ≈ USV
 end
 
@@ -547,8 +547,8 @@ end
     s_dom = gradedrange([U1(0) => 2, U1(1) => 4])
     A = randn(Float64, (s_cod, dual(s_dom)))
     U, S, Vᴴ = TensorAlgebra.svd_compact(A, (1,), (2,))
-    US = contract((:a, :r), U, (:a, :i), S, (:i, :r))
-    USV = contract((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
+    US = contractalign((:a, :r), U, (:a, :i), S, (:i, :r))
+    USV = contractalign((:a, :b), US, (:a, :r), Vᴴ, (:r, :b))
     @test A ≈ USV
     @test axes(U, 1) == axes(A, 1)
     @test axes(Vᴴ, 2) == axes(A, 2)
@@ -643,13 +643,13 @@ end
     # destination.
     a1 = randn(Float64, (g, g), (g,))
     a2 = randn(Float64, (g,), (g, g))
-    ref = contract((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
-    dest_id = contract((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    ref = contractalign((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    dest_id = contractalign((:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l))
     TensorAlgebra.contractadd!(
         dest_id, (:i, :j, :k, :l), a1, (:i, :j, :m), a2, (:m, :k, :l), 1.0, 1.0
     )
     @test Array(dest_id) ≈ 2 .* Array(ref)
-    dest_p = contract((:k, :i, :l, :j), a1, (:i, :j, :m), a2, (:m, :k, :l))
+    dest_p = contractalign((:k, :i, :l, :j), a1, (:i, :j, :m), a2, (:m, :k, :l))
     TensorAlgebra.contractadd!(
         dest_p, (:k, :i, :l, :j), a1, (:i, :j, :m), a2, (:m, :k, :l), 1.0, 1.0
     )
