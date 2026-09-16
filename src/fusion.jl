@@ -53,32 +53,43 @@ end
 # ========================  UniqueSectorDelta matricize  ========================
 
 # A delta is structural (no data storage), so nothing is shared and the rebuilt identity is
-# the copy leaf.
-function TensorAlgebra.matricizecopy(
-        ::SectorMatricize, a::UniqueSectorDelta, ndims_codomain::Val{Ncodomain}
-    ) where {Ncodomain}
-    ax_codomain = first(bipartition(axes(a), ndims_codomain))
+# the copy leaf. `op` applies to the axes, dualizing them for `conj`, the same convention
+# `allocate_output(permutedimsop, ...)` follows.
+function TensorAlgebra.matricizeopcopy(
+        ::SectorMatricize, op, a::UniqueSectorDelta, perm_codomain, perm_domain
+    )
+    ax_codomain = map(i -> op(axes(a, i)), perm_codomain)
     ax_codomain =
         isempty(ax_codomain) ? trivial(sectortype(a)) : tensor_product(ax_codomain...)
-    return SectorIdentity{eltype(a)}(ax_codomain)
+    return SectorIdentity{Base.promote_op(op, eltype(a))}(ax_codomain)
 end
 
 # ========================  UniqueSectorArray matricize  ========================
 
 # The reduced data matricizes to a reshaped view, so the matricization shares `a`'s memory at
-# every trivial split; the structural factor stores no data and is rebuilt as a `SectorIdentity`.
-TensorAlgebra.ismatricizeview(::SectorMatricize, ::UniqueSectorArray, ::Val) = true
-function TensorAlgebra.matricizeview(
-        ::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val{K}
-    ) where {K}
-    asectors_reshaped = matricize(sector(a), Val(K))
-    adata_reshaped = matricize(data(a), Val(K))
+# every split that leaves the legs in order; the structural factor stores no data and is rebuilt
+# as a `SectorIdentity`.
+function TensorAlgebra.is_output_view(
+        ::typeof(TensorAlgebra.matricizeop), ::SectorMatricize, op,
+        ::UniqueSectorArray, perm_codomain, perm_domain
+    )
+    return op === identity && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
+end
+function TensorAlgebra.matricizeopview(
+        ::SectorMatricize, op, a::UniqueSectorArray, perm_codomain, perm_domain
+    )
+    ndims_codomain = Val(length(perm_codomain))
+    asectors_reshaped = matricize(sector(a), ndims_codomain)
+    adata_reshaped = matricize(data(a), ndims_codomain)
     return sector_kron(asectors_reshaped, adata_reshaped)
 end
-function TensorAlgebra.matricizecopy(
-        style::SectorMatricize, a::UniqueSectorArray, ndims_codomain::Val
+# Permute into fresh storage, then read off that copy's view. At the identity bipermutation
+# `permutedimsop` is itself the copy, so this costs one pass either way.
+function TensorAlgebra.matricizeopcopy(
+        style::SectorMatricize, op, a::UniqueSectorArray, perm_codomain, perm_domain
     )
-    return copy(TensorAlgebra.matricizeview(style, a, ndims_codomain))
+    a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
+    return matricize(style, a_perm, Val(length(perm_codomain)))
 end
 
 # ========================  SectorMatricize unmatricize  ========================

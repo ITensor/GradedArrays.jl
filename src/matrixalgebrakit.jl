@@ -404,7 +404,7 @@ MAK.diagonal(v::FusedGradedVector) = FusedGradedDiagonal(v)
 
 # `pow_diag_safe!` for a graded matrix that is diagonal: a `FusedGradedDiagonal`, or a
 # `FusedGradedMatrix` that happens to be runtime-diagonal (the `isdiag` fast path in
-# `sqrth_invsqrth_safe` powers such a matrix directly, without an eigendecomposition).
+# `powh_safe` powers such a matrix directly, without an eigendecomposition).
 # Delegating per reduced block reuses the generic diagonal-only kernel, which is correct even
 # in the non-abelian case: a diagonal factor is `Diagonal(λ) ⊗ I` per sector, and `f(A ⊗ I) =
 # f(A) ⊗ I`, so the power passes straight to the reduced eigenvalues. This is why the diagonal
