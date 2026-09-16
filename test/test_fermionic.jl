@@ -5,8 +5,8 @@ using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArr
     isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: contract, matricize, matricizeop, permutedimsop, project, unmatricize,
-    unmatricize!, unproject
+using TensorAlgebra: contract, contractalign, matricize, matricizeop, permutedimsop,
+    project, unmatricize, unmatricize!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 

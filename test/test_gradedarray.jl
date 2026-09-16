@@ -8,8 +8,8 @@ using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedG
 using LinearAlgebra: Diagonal, diag, lmul!, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, bipermutedims, contract, eig_full, eigh_full, matricize,
-    project_hermitian, svd_compact, unmatricize
+using TensorAlgebra: TensorAlgebra, bipermutedims, contract, contractalign, eig_full,
+    eigh_full, matricize, project_hermitian, svd_compact, unmatricize
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset

@@ -9,8 +9,8 @@ using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, Gra
 using LinearAlgebra: I, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra:
-    TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize, unmatricize
+using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, contractalign,
+    linearbroadcasted, matricize, unmatricize
 using TensorKitSectors: FermionNumber
 using Test: @test, @test_broken, @test_throws, @testset
 
