@@ -614,34 +614,30 @@ end
 
 TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedMatricize()
 
-# The memory-sharing matricization is the stored matrix (a field read), available exactly at
-# the stored split; any other split is a leg bend, which for a `GradedArray` is not a free
-# reshape, so no sharing is declared there. Pure dispatch on the stored codomain rank.
-function TensorAlgebra.ismatricizeview(
-        ::GradedMatricize, ::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
+# The memory-sharing matricization is the stored matrix (a field read), available exactly when the
+# legs stay in order, the split falls on the stored boundary and there is no operation to fold in.
+# Anything else permutes or bends a leg, which for a `GradedArray` is not a free reshape.
+function TensorAlgebra.is_output_view(
+        ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
+        ::GradedArray{<:Any, <:Any, <:Any, NC}, perm_codomain, perm_domain
     ) where {NC}
-    return true
+    return op === identity && length(perm_codomain) == NC &&
+        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
-function TensorAlgebra.matricizeview(
-        ::GradedMatricize, fa::GradedArray{<:Any, <:Any, <:Any, NC}, ::Val{NC}
-    ) where {NC}
+function TensorAlgebra.matricizeopview(
+        ::GradedMatricize, op, fa::GradedArray, perm_codomain, perm_domain
+    )
     return matricize(fa)
 end
-# A leg bend (the `matricizeopperm` fast path only reaches here with an identity permutation, so
-# legs stay in order and only the codomain/domain boundary moves): re-split with the array's own
-# `bipermutedims`, then take the fresh result's stored matrix. This is what lets a contraction
-# over a subset of legs matricize a factor whose stored split differs.
-function TensorAlgebra.matricizecopy(
-        ::GradedMatricize, fa::GradedArray, ::Val{K}
-    ) where {K}
-    N = ndims(fa)
-    # TODO: Once `permutedims` on a `GradedArray` routes to `bipermutedimsopadd!`, bend with the
-    # identity-permutation `permutedims` directly (ideally a `[bi]permutedims(fa, Val(K))` split-only
-    # spelling). See the "Unified `permutedims` surface" follow-up.
-    fa_bent = TensorAlgebra.bipermutedims(
-        fa, ntuple(identity, Val(K)), ntuple(i -> K + i, Val(N - K))
+# A permute or a leg bend: re-split with the array's own `permutedimsop`, then take the fresh
+# result's stored matrix. This is what lets a contraction over a subset of legs matricize a factor
+# whose stored split differs. Overloads the copy rather than `allocate_output`/`matricizeop!`
+# because `permutedimsop` already returns owned storage whose stored matrix is the answer.
+function TensorAlgebra.matricizeopcopy(
+        ::GradedMatricize, op, fa::GradedArray, perm_codomain, perm_domain
     )
-    return matricize(fa_bent)
+    fa_perm = TensorAlgebra.permutedimsop(op, fa, perm_codomain, perm_domain)
+    return matricize(fa_perm)
 end
 
 function TensorAlgebra.check_input(
@@ -814,27 +810,31 @@ end
 # A matrix-level fused array is already matricized at the `{1,1}` split, so the memory-sharing
 # matricization is the array itself. Any other codomain rank bends a leg, which matrix-level fused
 # storage cannot represent.
-function TensorAlgebra.ismatricizeview(
-        ::GradedMatricize,
-        ::AbstractFusedGradedMatrix,
-        ::Val{1}
+function TensorAlgebra.is_output_view(
+        ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
+        ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
-    return true
+    return op === identity && length(perm_codomain) == 1 &&
+        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
-TensorAlgebra.matricizeview(::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{1}) = m
-function TensorAlgebra.matricizecopy(
-        ::GradedMatricize, m::AbstractFusedGradedMatrix, ::Val{1}
+function TensorAlgebra.matricizeopview(
+        ::GradedMatricize, op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
-    return copy(m)
+    return m
 end
-function TensorAlgebra.matricizecopy(
-        ::GradedMatricize, ::AbstractFusedGradedMatrix, ::Val
+function TensorAlgebra.matricizeopcopy(
+        ::GradedMatricize, op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
-    throw(
+    length(perm_codomain) == 1 || throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"
         )
     )
+    # Already in the stored layout, so the owned form is a buffer copy. Going through
+    # `permutedimsop` would instead permute block-wise through a `TensorMap` wrapping.
+    op === identity && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
+        return copy(m)
+    return TensorAlgebra.permutedimsop(op, m, perm_codomain, perm_domain)
 end
 
 function TensorAlgebra.unmatricize!(

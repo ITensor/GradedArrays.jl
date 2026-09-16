@@ -9,8 +9,8 @@ using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, Gra
 using LinearAlgebra: I, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize,
-    matricizeperm, unmatricize
+using TensorAlgebra:
+    TensorAlgebra, MatricizeStyle, contract, linearbroadcasted, matricize, unmatricize
 using TensorKitSectors: FermionNumber
 using Test: @test, @test_broken, @test_throws, @testset
 
@@ -180,7 +180,7 @@ end
         return a[Block(2, 2)] = UniqueSectorArray(block_22, (U1(1), U1(-1)))
     end
 
-    fsm = matricizeperm(a, (1,), (2,))
+    fsm = matricize(a, (1,), (2,))
     @test fsm isa FusedGradedMatrix{Float64}
     # Each stored N-D block lands in the coupled sector pairing its row charge with
     # the dual of its column charge: (U1(0), U1(0)) → U1(0), (U1(1), U1(-1)) → U1(1).
@@ -205,7 +205,7 @@ end
         )
     end
 
-    fsm = matricizeperm(a, (1, 2), (3, 4))
+    fsm = matricize(a, (1, 2), (3, 4))
     @test fsm isa FusedGradedMatrix{Float64}
     @test collect(keys(sectordata(fsm))) == [U1(0), U1(1), U1(2)]
     @test blocklength(axes(fsm, 1)) == 3
@@ -224,7 +224,7 @@ end
     end
 
     # `tr` on the matricized graded matrix sums the diagonal blocks and matches the dense trace.
-    fsm = matricizeperm(a, (1, 2), (3, 4))
+    fsm = matricize(a, (1, 2), (3, 4))
     @test tr(fsm) ≈ tr(Array(fsm))
     # `TensorAlgebra.tr` over the (1, 2) | (3, 4) bipartition routes through the same path.
     @test TensorAlgebra.tr(a, (1, 2, 3, 4), (1, 2), (3, 4)) ≈ tr(Array(fsm))
@@ -243,7 +243,7 @@ end
         return a[Block(2, 1, 2)] = fill(3.0, 2, 1, 2)
     end
 
-    fsm = matricizeperm(a, (1, 2), (3,))
+    fsm = matricize(a, (1, 2), (3,))
     @test fsm isa FusedGradedMatrix{Float64}
     # Codomain carries all three sectors, domain only the two that exist on
     # the contracted leg — the new asymmetric design.
@@ -572,19 +572,33 @@ end
     @test result isa GradedArray
 end
 
-@testset "ismatricizeview coherence" begin
+# The identity bipermutation for a split after `k` dimensions, plus the hook spellings it feeds.
+splitperms(a, k) = (ntuple(identity, k), ntuple(i -> k + i, ndims(a) - k))
+function is_split_view(style, a, k)
+    return TensorAlgebra.is_output_view(
+        TensorAlgebra.matricizeop, style, identity, a, splitperms(a, k)...
+    )
+end
+function split_view(style, a, k)
+    return TensorAlgebra.matricizeopview(style, identity, a, splitperms(a, k)...)
+end
+function split_copy(style, a, k)
+    return TensorAlgebra.matricizeopcopy(style, identity, a, splitperms(a, k)...)
+end
+
+@testset "matricize hook coherence" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = randn(Float64, (g, g), (g, g))
     style = MatricizeStyle(a)
 
     # The stored split is declared shared and its view is the stored matrix itself; the copy
     # leaf is detached even there.
-    @test TensorAlgebra.ismatricizeview(style, a, Val(2))
-    @test TensorAlgebra.matricizeview(style, a, Val(2)) === matricize(a)
-    @test TensorAlgebra.matricizecopy(style, a, Val(2)).buffer !== matricize(a).buffer
+    @test is_split_view(style, a, 2)
+    @test split_view(style, a, 2) === matricize(a)
+    @test split_copy(style, a, 2).buffer !== matricize(a).buffer
 
     # A bend is not declared shared; `matricize` routes it to the copy leaf.
-    @test !TensorAlgebra.ismatricizeview(style, a, Val(1))
+    @test !is_split_view(style, a, 1)
     @test matricize(style, a, Val(1)).buffer !== matricize(a).buffer
 
     # A matrix-level fused array is already matricized at the `{1,1}` split: the view is the
@@ -592,34 +606,34 @@ end
     # goes through the same leaves and materializes its copy.
     ma = matricize(a)
     for m in (ma, ma')
-        @test TensorAlgebra.ismatricizeview(style, m, Val(1))
-        @test TensorAlgebra.matricizeview(style, m, Val(1)) === m
-        mcopy = TensorAlgebra.matricizecopy(style, m, Val(1))
+        @test is_split_view(style, m, 1)
+        @test split_view(style, m, 1) === m
+        mcopy = split_copy(style, m, 1)
         @test mcopy == m
         @test mcopy.buffer !== ma.buffer
-        @test !TensorAlgebra.ismatricizeview(style, m, Val(2))
+        @test !is_split_view(style, m, 2)
         @test_throws ArgumentError matricize(style, m, Val(2))
     end
 
     # A diagonal is already a matrix: the `{1,1}` split is the shared view, and its copy leaf
     # stays diagonal but detached.
     d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
-    @test TensorAlgebra.ismatricizeview(style, d, Val(1))
-    @test TensorAlgebra.matricizeview(style, d, Val(1)) === d
-    dcopy = TensorAlgebra.matricizecopy(style, d, Val(1))
+    @test is_split_view(style, d, 1)
+    @test split_view(style, d, 1) === d
+    dcopy = split_copy(style, d, 1)
     @test dcopy isa typeof(d)
     @test Array(dcopy) == Array(d)
     @test MAK.diagview(dcopy).buffer !== MAK.diagview(d).buffer
-    @test !TensorAlgebra.ismatricizeview(style, d, Val(2))
+    @test !is_split_view(style, d, 2)
     @test_throws ArgumentError matricize(style, d, Val(2))
 
-    # A `UniqueSectorArray` shares its reduced data at every split, so the trait holds there and
-    # only the copy leaf detaches.
+    # A `UniqueSectorArray` shares its reduced data at every in-order split, so the trait holds
+    # there and only the copy leaf detaches.
     sa = UniqueSectorArray(randn(2, 3, 4), (U1(0), U1(1), dual(U1(1))))
     sector_style = MatricizeStyle(sa)
-    @test TensorAlgebra.ismatricizeview(sector_style, sa, Val(2))
-    sa_view = TensorAlgebra.matricizeview(sector_style, sa, Val(2))
-    sa_copy = TensorAlgebra.matricizecopy(sector_style, sa, Val(2))
+    @test is_split_view(sector_style, sa, 2)
+    sa_view = split_view(sector_style, sa, 2)
+    sa_copy = split_copy(sector_style, sa, 2)
     @test Base.mightalias(data(sa_view), data(sa))
     @test !Base.mightalias(data(sa_copy), data(sa))
     @test Array(sa_copy) == Array(sa_view)

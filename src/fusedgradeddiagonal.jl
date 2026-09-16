@@ -107,19 +107,30 @@ end
 # A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix), so
 # the memory-sharing matricization is `d` itself. Any other codomain rank bends a leg, which
 # matrix-level fused storage cannot represent.
-TensorAlgebra.ismatricizeview(::GradedMatricize, ::FusedGradedDiagonal, ::Val{1}) = true
-TensorAlgebra.matricizeview(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1}) = d
-function TensorAlgebra.matricizecopy(::GradedMatricize, d::FusedGradedDiagonal, ::Val{1})
-    return FusedGradedDiagonal(copy(MAK.diagview(d)))
-end
-function TensorAlgebra.matricizecopy(
-        style::GradedMatricize, d::FusedGradedDiagonal, ndims_codomain::Val
+function TensorAlgebra.is_output_view(
+        ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
+        ::FusedGradedDiagonal, perm_codomain, perm_domain
     )
-    throw(
+    return op === identity && length(perm_codomain) == 1 &&
+        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
+end
+function TensorAlgebra.matricizeopview(
+        ::GradedMatricize, op, d::FusedGradedDiagonal, perm_codomain, perm_domain
+    )
+    return d
+end
+# Copying the diagonal keeps the structure, where `similar` on a diagonal would densify.
+function TensorAlgebra.matricizeopcopy(
+        ::GradedMatricize, op, d::FusedGradedDiagonal, perm_codomain, perm_domain
+    )
+    length(perm_codomain) == 1 || throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"
         )
     )
+    op === identity && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
+        return FusedGradedDiagonal(copy(MAK.diagview(d)))
+    return TensorAlgebra.permutedimsop(op, d, perm_codomain, perm_domain)
 end
 
 # The product of two diagonal fused matrices over a single contracted leg is again diagonal, so
