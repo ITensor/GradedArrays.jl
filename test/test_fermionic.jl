@@ -26,11 +26,22 @@ const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
 
-    # The same holds for GradedArrays' own `SectorProduct`.
+    # The same holds for GradedArrays' own `SectorProduct`, in both tuple and named form.
     for n in -2:2
         c = SectorRange(SectorProduct(TKS.U1Irrep(n), TKS.FermionParity(isodd(n))))
+        @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
+        @test GradedArrays.fermionparity(c) == isodd(n)
+        c = SectorRange(
+            SectorProduct(; N = TKS.U1Irrep(n), f = TKS.FermionParity(isodd(n)))
+        )
+        @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
+
+    # A product of bosonic sectors, and the empty product, twist trivially.
+    boson = SectorProduct(TKS.U1Irrep(1), TKS.SU2Irrep(1))
+    @test GradedArrays.twist(SectorRange(boson)) == 1
+    @test GradedArrays.twist(SectorRange(SectorProduct(()))) == 1
 
     # Plain bosonic group irreps have even fermion parity.
     @test GradedArrays.fermionparity(SectorRange(TKS.U1Irrep(2))) == false
