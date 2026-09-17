@@ -51,6 +51,11 @@ TKS.dim(s::SectorProduct) = prod(TKS.dim, arguments(s); init = 1)
 # `TKS.fermionparity(::ProductSector)` (see `fermionparity` in `sectorrange.jl`).
 fermionparity(s::SectorProduct) = mapreduce(fermionparity, ⊻, arguments(s); init = false)
 
+# Twist of a product sector: the product of its components' twists, the same shape as
+# `TKS.frobenius_schur_phase(::ProductSector)`. The generic `TKS.twist` is defined through
+# `Rsymbol`, which `SectorProduct` does not define, so without this it throws a `MethodError`.
+TKS.twist(s::SectorProduct) = prod(TKS.twist, arguments(s); init = 1)
+
 # use map instead of broadcast to support both Tuple and NamedTuple
 TKS.dual(s::SectorProduct) = SectorProduct(map(TKS.dual, arguments(s)))
 
