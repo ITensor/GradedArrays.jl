@@ -694,10 +694,11 @@ end
 # ============================  contraction  ============================
 
 # A matrix-level fused operand carries no external axes, so it cannot serve as the allocation
-# prototype (`similar_map` with explicit axes is undefined for it), and `default_contract_algorithm`
-# below would not see a `GradedArray` right factor, skipping the fermionic contraction twist. Lift
-# it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the bipermutation entry
-# point, before output allocation and algorithm selection, then recurse into the generic path.
+# prototype (`similar_map` with explicit axes is undefined for it), and the `default_algorithm`
+# method below would not see a `GradedArray` right factor, skipping the fermionic contraction
+# twist. Lift it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the
+# bipermutation entry point, before output allocation and algorithm selection, then recurse into
+# the generic path.
 function TensorAlgebra.contractperm(
         perm_dest_codomain, perm_dest_domain,
         a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
@@ -739,15 +740,18 @@ function TensorAlgebra.contractperm(
 end
 
 # A general graded right factor is twisted; the per-position `TwistedGradedMatricize` can only come
-# from an explicit override. A matrix-level right factor needs no twist and falls out of the default
-# `default_contract_algorithm`: both operands share `GradedMatricize`, which the default combinator
-# maps to itself.
+# from an explicit override. A matrix-level right factor needs no twist and falls out of the
+# generic default: both operands share `GradedMatricize`, which the default combinator maps to
+# itself. The destination is left unconstrained because the twist follows from the operands'
+# braiding, not from where the result is written.
 for A in (:GradedArray, :AbstractFusedGradedArray)
-    @eval function TensorAlgebra.default_contract_algorithm(
+    @eval function TensorAlgebra.default_algorithm(
+            ::typeof(TensorAlgebra.contract!),
+            ::Type{<:AbstractArray},
             ::Type{<:$A},
             ::Type{<:GradedArray}
         )
-        return TensorAlgebra.Matricize(
+        return TensorAlgebra.MatricizeContract(
             GradedMatricize(), TwistedGradedMatricize(), GradedMatricize()
         )
     end

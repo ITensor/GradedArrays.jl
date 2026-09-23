@@ -256,9 +256,10 @@ end
 # ========================  fermionic contraction twist  ========================
 # Fermionic contractions need the second (right) factor's contracted legs twisted before
 # matricization, so the result does not depend on contraction order. This rides on
-# TensorAlgebra's per-position matricize styles: `default_contract_algorithm` puts
-# `TwistedGradedMatricize` on the right factor only, and its matricize hooks insert the twist
-# between the permute and the matricize. The twist is a no-op for bosonic sectors.
+# TensorAlgebra's per-position matricize styles: the `default_algorithm` method for graded
+# operands puts `TwistedGradedMatricize` on the right factor only, and its matricize hooks
+# insert the twist between the permute and the matricize. The twist is a no-op for bosonic
+# sectors.
 
 # A non-graded array carries no sector data, so there is no braiding and the twist is the identity.
 # `contraction_twist!` below accepts any array, so without this it throws a `MethodError` on the
