@@ -747,9 +747,7 @@ end
 for A in (:GradedArray, :AbstractFusedGradedArray)
     @eval function TensorAlgebra.default_algorithm(
             ::typeof(TensorAlgebra.contract!),
-            ::Type{<:AbstractArray},
-            ::Type{<:$A},
-            ::Type{<:GradedArray}
+            ::Type{<:Tuple{AbstractArray, $A, GradedArray}}
         )
         return TensorAlgebra.MatricizeContract(
             GradedMatricize(), TwistedGradedMatricize(), GradedMatricize()
