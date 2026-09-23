@@ -699,39 +699,39 @@ end
 # twist. Lift it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the
 # bipermutation entry point, before output allocation and algorithm selection, then recurse into
 # the generic path.
-function TensorAlgebra.contractperm(
+function TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
         a2::GradedArray, perm2_codomain, perm2_domain;
         kwargs...
     )
-    return TensorAlgebra.contractperm(
+    return TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         GradedArray(a1), perm1_codomain, perm1_domain,
         a2, perm2_codomain, perm2_domain;
         kwargs...
     )
 end
-function TensorAlgebra.contractperm(
+function TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         a1::GradedArray, perm1_codomain, perm1_domain,
         a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
         kwargs...
     )
-    return TensorAlgebra.contractperm(
+    return TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         a1, perm1_codomain, perm1_domain,
         GradedArray(a2), perm2_codomain, perm2_domain;
         kwargs...
     )
 end
-function TensorAlgebra.contractperm(
+function TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
         a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
         kwargs...
     )
-    return TensorAlgebra.contractperm(
+    return TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         GradedArray(a1), perm1_codomain, perm1_domain,
         GradedArray(a2), perm2_codomain, perm2_domain;
