@@ -1,11 +1,12 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
-using GradedArrays: FusedGradedMatrix, FusedGradedVector, FusedSectorMatrix, GradedArray,
-    GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1, UniqueSectorArray,
-    UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths, dual,
-    eachblockstoredindex, eachsectoraxis, flip, fusedgradeddiagonal, fusedgradedmatrix,
-    fusedgradedvector, fusesectors, gradedrange, isdual, sector, sectoraxes, sectordata,
-    sectors, sectortype, tensor_product, with_block_indexing, with_scalar_indexing
+using GradedArrays: FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
+    FusedSectorMatrix, GradedArray, GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1,
+    UniqueSectorArray, UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths,
+    dual, eachblockstoredindex, eachsectoraxis, flip, fusedgradeddiagonal,
+    fusedgradedmatrix, fusedgradedvector, fusesectors, gradedrange, isdual, sector,
+    sectoraxes, sectordata, sectors, sectortype, tensor_product, with_block_indexing,
+    with_scalar_indexing
 using LinearAlgebra: I, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -671,4 +672,35 @@ end
     # Only the `{1,1}` split is representable as matrix-level fused storage.
     @test_throws ArgumentError TensorAlgebra.one!(m, Val(2))
     @test_throws ArgumentError TensorAlgebra.one!(d, Val(2))
+end
+
+# `check_input` for a fused permute admits the identity copy and the adjoint. The adjoint
+# exchanges the stored codomain/domain axes, so a non-square operand needs a destination with
+# swapped axes rather than a `similar` of itself.
+@testset "fused graded matrix adjoint permute (eltype=$elt)" for elt in
+    (Float64, ComplexF64)
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    h = gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 4])
+
+    for a in (randn(elt, (g, dual(g))), randn(elt, (g, g, dual(h))))
+        m = matricize(a)
+        @test size(m, 1) != size(m, 2) # the case a square-only allocation would miss
+        # `similar` of the adjoint allocates over the adjoint's own axes.
+        @test axes(similar(m')) == axes(m')
+        adj = TensorAlgebra.permutedimsop(conj, m, (2,), (1,))
+        @test axes(adj) == axes(m')
+        @test Array(adj) ≈ Array(m')
+        # The identity copy is unaffected.
+        @test Array(TensorAlgebra.permutedimsop(identity, m, (1,), (2,))) ≈ Array(m)
+    end
+
+    # A diagonal is square, and its adjoint stays diagonal rather than densifying: `similar`
+    # follows the parent's structure, which is what the allocation above relies on.
+    d = fusedgradeddiagonal([U1(0) => randn(elt, 2), U1(1) => randn(elt, 3)])
+    @test similar(d') isa typeof(d)
+    @test axes(similar(d')) == axes(d')
+    @test similar(d', ComplexF64) isa FusedGradedDiagonal
+    dadj = TensorAlgebra.permutedimsop(conj, d, (2,), (1,))
+    @test dadj isa typeof(d)
+    @test Array(dadj) ≈ Array(d')
 end

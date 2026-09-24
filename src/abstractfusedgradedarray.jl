@@ -568,15 +568,16 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-# A fused graded matrix permute stays fused with the same axes and eltype (`check_input` allows only
-# the identity copy or, for a square operand, the adjoint), so allocate with `similar`. Covers the
-# diagonal too, via `AbstractFusedGradedMatrix`.
+# A fused graded matrix permute stays fused with the same eltype, and `check_input` leaves only the
+# identity copy or the adjoint. The copy keeps `src`'s axes; the adjoint exchanges them, which
+# differs from `src`'s own pair whenever the operand is not square.
 function TensorAlgebra.allocate_output(
         ::typeof(TA.permutedimsop), op, src::AbstractFusedGradedMatrix, perm_codomain,
         perm_domain
     )
     check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
-    return similar(src)
+    perm_codomain == (1,) && return similar(src)
+    return similar(src')
 end
 
 # A fused graded vector has a single canonical non-dual axis, so only the identity copy is valid: `conj`

@@ -112,6 +112,21 @@ function TensorAlgebra.matricizeopview(
     )
     return d
 end
+# The explicit-axes `similar`, as `FusedGradedMatrix` has. A diagonal is square and carries no
+# axes beyond its own, so the only allocation it can serve is over that square pair (which is
+# what its adjoint asks for).
+function Base.similar(
+        d::FusedGradedDiagonal, ::Type{T},
+        codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
+    ) where {T, S}
+    (codomain == axis_codomain(d) && domain == axis_domain(d)) || throw(
+        ArgumentError(
+            "a `FusedGradedDiagonal` allocates only over its own square codomain/domain axes"
+        )
+    )
+    return similar(d, T)
+end
+
 # Copying the diagonal keeps the structure, where `similar` on a diagonal would densify.
 function TensorAlgebra.matricizeopcopy(
         ::GradedMatricize, op, d::FusedGradedDiagonal, perm_codomain, perm_domain
