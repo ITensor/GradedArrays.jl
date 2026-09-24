@@ -283,26 +283,20 @@ function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
     return twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
 end
 
-# An identity bipermutation matching the stored split needs no permute: `permutedimsop` would just
-# copy (identity permutation and unchanged split give no braiding or bend phases). So the stored
-# matrix is the answer, provided the twist is also a no-op, which it is under non-fermionic braiding
-# (`twist!` early-returns) or with no dual codomain leg.
-function is_stored_matricization(op, a, perm_codomain, perm_domain)
-    return op === identity && a isa GradedArray &&
-        length(perm_codomain) == ndims_codomain(a) &&
-        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
-end
 function needs_contraction_twist(a, perm_codomain)
     return TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic &&
         any(i -> isdual(axes(a, i)), perm_codomain)
 end
 
+# The twist is the only thing the twisted style adds, so it aliases wherever the untwisted style
+# does and the twist is a no-op (non-fermionic braiding, or no dual codomain leg).
 function TensorAlgebra.is_output_view(
         ::typeof(TensorAlgebra.matricizeop), ::TwistedGradedMatricize, op, a::AbstractArray,
         perm_codomain, perm_domain
     )
-    return is_stored_matricization(op, a, perm_codomain, perm_domain) &&
-        !needs_contraction_twist(a, perm_codomain)
+    return TensorAlgebra.is_output_view(
+        TensorAlgebra.matricizeop, GradedMatricize(), op, a, perm_codomain, perm_domain
+    ) && !needs_contraction_twist(a, perm_codomain)
 end
 function TensorAlgebra.matricizeopview(
         ::TwistedGradedMatricize, op, a::AbstractArray, perm_codomain, perm_domain
@@ -314,7 +308,9 @@ function TensorAlgebra.matricizeopcopy(
     )
     # Nothing to permute, so twist a plain copy in place rather than paying for a block-wise
     # permute that would be the identity.
-    if is_stored_matricization(op, a, perm_codomain, perm_domain)
+    if TensorAlgebra.is_output_view(
+            TensorAlgebra.matricizeop, GradedMatricize(), op, a, perm_codomain, perm_domain
+        )
         a_twisted = copy(a)
         contraction_twist!(a_twisted, length(perm_codomain))
         return matricize(a_twisted)

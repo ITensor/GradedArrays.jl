@@ -13,6 +13,10 @@ const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}
 # the matrix form, none for the vector form.
 TensorAlgebra.ndims_codomain(::AbstractFusedGradedArray) = 1
 
+# The matrix form is already its own stored matricization, the same thing
+# `matricizeopview(::GradedMatricize, ...)` returns for it.
+TensorAlgebra.matricize(m::AbstractFusedGradedMatrix) = m
+
 using BlockArrays: mortar
 using FillArrays: Zeros
 
