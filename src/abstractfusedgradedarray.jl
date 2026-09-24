@@ -8,6 +8,11 @@ abstract type AbstractFusedGradedArray{T, S, N} <: AbstractArray{T, N} end
 const AbstractFusedGradedMatrix{T, S} = AbstractFusedGradedArray{T, S, 2}
 const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}
 
+# The fused form couples every codomain leg into one and every domain leg into one, so the stored
+# split is always a single codomain leg. `ndims_domain` falls out as the remaining rank: one for
+# the matrix form, none for the vector form.
+TensorAlgebra.ndims_codomain(::AbstractFusedGradedArray) = 1
+
 using BlockArrays: mortar
 using FillArrays: Zeros
 

@@ -107,13 +107,6 @@ end
 # A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix), so
 # the memory-sharing matricization is `d` itself. Any other codomain rank bends a leg, which
 # matrix-level fused storage cannot represent.
-function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
-        ::FusedGradedDiagonal, perm_codomain, perm_domain
-    )
-    return op === identity && length(perm_codomain) == 1 &&
-        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
-end
 function TensorAlgebra.matricizeopview(
         ::GradedMatricize, op, d::FusedGradedDiagonal, perm_codomain, perm_domain
     )

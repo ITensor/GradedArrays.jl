@@ -64,8 +64,8 @@ bispace(codomain, domain) = BiTuple(codomain, map(conj, domain))
 codomain(bt::BiTuple) = bt.t1
 domain(bt::BiTuple) = map(conj, bt.t2)
 
-ndims_codomain(fa::GradedArray) = length(axes_codomain(fa))
-ndims_domain(fa::GradedArray) = length(axes_domain(fa))
+TensorAlgebra.ndims_codomain(fa::GradedArray) = length(axes_codomain(fa))
+TensorAlgebra.ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
 # matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).
@@ -619,9 +619,9 @@ TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedMatricize()
 # Anything else permutes or bends a leg, which for a `GradedArray` is not a free reshape.
 function TensorAlgebra.is_output_view(
         ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
-        ::GradedArray{<:Any, <:Any, <:Any, NC}, perm_codomain, perm_domain
-    ) where {NC}
-    return op === identity && length(perm_codomain) == NC &&
+        a::GradedArray, perm_codomain, perm_domain
+    )
+    return op === identity && length(perm_codomain) == ndims_codomain(a) &&
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
 function TensorAlgebra.matricizeopview(
@@ -827,9 +827,9 @@ end
 # storage cannot represent.
 function TensorAlgebra.is_output_view(
         ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
-        ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+        a::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
-    return op === identity && length(perm_codomain) == 1 &&
+    return op === identity && length(perm_codomain) == ndims_codomain(a) &&
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
 function TensorAlgebra.matricizeopview(
