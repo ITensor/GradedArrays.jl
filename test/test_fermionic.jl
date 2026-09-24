@@ -5,8 +5,8 @@ using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArr
     isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: contract, matricize, matricizeopperm, permutedimsop, project,
-    unmatricize, unmatricizeperm!, unproject
+using TensorAlgebra: contract, contractalign, matricize, matricizeop, permutedimsop,
+    project, unmatricize, unmatricize!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -338,7 +338,7 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
             a_dest = permutedims(contract(a2, (1, -2), a1, (-1, 1))[1], (2, 1))
             @test Array(a_dest) ≈ a_dest_dense
 
-            a_dest = contract((-1, -2), a2, (1, -2), a1, (-1, 1))
+            a_dest = contractalign((-1, -2), a2, (1, -2), a1, (-1, 1))
             @test Array(a_dest) ≈ a_dest_dense
 
             # does not depend on permutations
@@ -401,16 +401,16 @@ const elts = (Float32, Float64, Complex{Float32}, Complex{Float64})
         a1_dense = Array(a1)
         a2_dense = Array(a2)
 
-        parallel = contract((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
+        parallel = contractalign((), a1, (-1, -2, -3, -4), a2, (-1, -2, -3, -4))
         # Rank-0 result is a graded array.
         @test parallel isa GradedArray{elt, <:Any, 0}
         @test Array(parallel) ≈
-            contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
+            contractalign((), a1_dense, (-1, -2, -3, -4), a2_dense, (-1, -2, -3, -4))
 
-        crossed = contract((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
+        crossed = contractalign((), a1, (-1, -2, -3, -4), a2, (-2, -1, -3, -4))
         @test crossed isa GradedArray{elt, <:Any, 0}
         @test Array(crossed) ≈
-            -1 * contract((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
+            -1 * contractalign((), a1_dense, (-1, -2, -3, -4), a2_dense, (-2, -1, -3, -4))
     end
 end
 
@@ -467,11 +467,11 @@ end
     # Reversed bond (the contracted dual leg sits on the left factor): even+odd, not even-odd.
     M = const_blockdiagonal(Float64, (r, dual(r)), (1, 2))
     N = const_blockdiagonal(Float64, (dual(r), r), (3, 5))
-    @test only(Array(contract((), M, (1, 2), N, (1, 2)))) ≈ 13   # 1*3 + 2*5
+    @test only(Array(contractalign((), M, (1, 2), N, (1, 2)))) ≈ 13   # 1*3 + 2*5
     # Forward bond.
     A = const_blockdiagonal(Float64, (dual(r), r), (2, 3))
     B = const_blockdiagonal(Float64, (r, dual(r)), (1, 4))
-    @test only(Array(contract((), A, (1, 2), B, (1, 2)))) ≈ 14   # 2*1 + 3*4
+    @test only(Array(contractalign((), A, (1, 2), B, (1, 2)))) ≈ 14   # 2*1 + 3*4
 end
 
 # Triangle T1(a, b*) · T2(b, c*) · T3(c, a*) to a scalar: surviving odd legs braid past the
@@ -483,24 +483,24 @@ end
     T2 = randn_blockdiagonal(elt, (r, dual(r)))
     T3 = randn_blockdiagonal(elt, (r, dual(r)))
     t12, l12 = contract(T1, (1, 2), T2, (2, 3))
-    s = scalar(contract((), t12, l12, T3, (3, 1)))
+    s = scalar(contractalign((), t12, l12, T3, (3, 1)))
     t23, l23 = contract(T2, (2, 3), T3, (3, 1))
-    @test scalar(contract((), T1, (1, 2), t23, l23)) ≈ s
+    @test scalar(contractalign((), T1, (1, 2), t23, l23)) ≈ s
     t13, l13 = contract(T1, (1, 2), T3, (3, 1))
-    @test scalar(contract((), t13, l13, T2, (2, 3))) ≈ s
+    @test scalar(contractalign((), t13, l13, T2, (2, 3))) ≈ s
 end
 
-# The fused permuting `matricizeopperm` (folding the permute into the gather) must agree
+# The fused permuting `matricizeop` (folding the permute into the gather) must agree
 # block-by-block with the reference two-pass `permutedimsop` then `matricize`, including
 # the per-block fermion permutation sign. `U1` exercises the non-self-dual `op = conj`
 # axis dualization that `FermionParity` (self-dual) hides.
-@testset "fused matricizeopperm matches permute-then-matricize (eltype=$elt)" for elt in
+@testset "fused matricizeop matches permute-then-matricize (eltype=$elt)" for elt in
     (
         Float64,
         ComplexF64,
     )
-    # The two-pass permute-then-matricize that the fused `matricizeopperm` replaces.
-    matricizeopperm_ref(op, a, perm_codomain, perm_domain) =
+    # The two-pass permute-then-matricize that the fused `matricizeop` replaces.
+    matricizeop_ref(op, a, perm_codomain, perm_domain) =
         matricize(
         permutedimsop(op, a, perm_codomain, perm_domain),
         Val(length(perm_codomain))
@@ -521,21 +521,22 @@ end
             (randn(elt, (gb, dual(gb), gb, dual(gb))), (3, 1), (2, 4)),
         ]
         for (a, perm_codomain, perm_domain) in cases
-            @test matricizeopperm(op, a, perm_codomain, perm_domain) ≈
-                matricizeopperm_ref(op, a, perm_codomain, perm_domain)
+            @test matricizeop(op, a, perm_codomain, perm_domain) ≈
+                matricizeop_ref(op, a, perm_codomain, perm_domain)
         end
     end
 end
 
-# The fused `unmatricizeperm!` folds the permutation into the scatter. Check it against the
+# The bipermutation form of `unmatricize!` folds the permutation into the scatter. Check it
+# against the
 # two-pass it replaces: the non-permuting `unmatricize` into codomain/domain order, then an
 # array-level permute back to destination order, carrying the per-block fermion sign.
-@testset "fused unmatricizeperm! matches unmatricize-then-permute (eltype=$elt)" for elt in
+@testset "bipermuted unmatricize! matches unmatricize-then-permute (eltype=$elt)" for elt in
     (
         Float64,
         ComplexF64,
     )
-    function unmatricizeperm_ref(a_dest, m, invperm_codomain, invperm_domain)
+    function unmatricize_ref(a_dest, m, invperm_codomain, invperm_domain)
         K = length(invperm_codomain)
         codomain_axes = ntuple(i -> axes(a_dest)[invperm_codomain[i]], K)
         domain_axes = ntuple(i -> axes(a_dest)[invperm_domain[i]], ndims(a_dest) - K)
@@ -561,9 +562,9 @@ end
         (randn(elt, (gb, dual(gb), gb, dual(gb))), (3, 1), (2, 4)),
     ]
     for (a, invperm_codomain, invperm_domain) in cases
-        m = matricizeopperm(identity, a, invperm_codomain, invperm_domain)
-        @test unmatricizeperm!(similar(a), m, invperm_codomain, invperm_domain) ≈
-            unmatricizeperm_ref(similar(a), m, invperm_codomain, invperm_domain)
+        m = matricizeop(identity, a, invperm_codomain, invperm_domain)
+        @test unmatricize!(similar(a), m, invperm_codomain, invperm_domain) ≈
+            unmatricize_ref(similar(a), m, invperm_codomain, invperm_domain)
     end
 end
 
@@ -589,7 +590,7 @@ end
         @test Array(a2) ≈ a2_dense_before
         # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
         # returns the stored matrix itself.
-        m = matricizeopperm(
+        m = matricizeop(
             GradedArrays.TwistedGradedMatricize(), identity, a2, (1,), (2,)
         )
         if isdual(rc)

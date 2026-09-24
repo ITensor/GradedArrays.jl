@@ -8,8 +8,8 @@ using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedG
 using LinearAlgebra: Diagonal, diag, lmul!, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, bipermutedims, contract, eig_full, eigh_full, matricize,
-    project_hermitian, svd_compact, unmatricize
+using TensorAlgebra: TensorAlgebra, bipermutedims, contract, contractalign, eig_full,
+    eigh_full, matricize, project_hermitian, svd_compact, unmatricize
 using TensorKit: TensorKit, @tensor
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -774,7 +774,7 @@ end
     # A group-crossing destination split, and a contracted leg inside a stored group, both fuse
     # instead; the fused axes must still be the fusion of the destination's own leaves.
     for c in (
-            contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l)),
+            contractalign((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l)),
             first(contract(a, (:m, :j, :i), b, (:l, :k, :m))),
         )
         @test GradedArrays.axis_codomain(matricize(c)) ==
@@ -827,7 +827,7 @@ end
     @test canonical(c, lc, [:i, :j, :k, :l]) ≈ TensorKit.permute(ref3, ((1, 2, 3, 4), ()))
 
     # Group-crossing destination split (a `b` leg lands in the destination codomain).
-    c = contract((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l))
+    c = contractalign((:k, :i, :j, :l), a, (:i, :j, :m), b, (:m, :k, :l))
     check_coupled(c)
     @test canonical(c, (:k, :i, :j, :l), [:i, :j, :k, :l]) ≈ refc
 end

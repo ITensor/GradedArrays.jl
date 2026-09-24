@@ -47,8 +47,8 @@ function UniqueSectorDelta{T, S, N}(sectors::NTuple{N, S}) where {T, S <: Sector
 end
 
 # Codomain/domain leg counts, used by the bend-phase bookkeeping in `bipermutedimsopadd!`.
-ndims_codomain(d::UniqueSectorDelta) = length(d.sectors_codomain)
-ndims_domain(d::UniqueSectorDelta) = length(d.sectors_domain)
+TensorAlgebra.ndims_codomain(d::UniqueSectorDelta) = length(d.sectors_codomain)
+TensorAlgebra.ndims_domain(d::UniqueSectorDelta) = length(d.sectors_domain)
 
 # ========================  AbstractArray interface  ========================
 
