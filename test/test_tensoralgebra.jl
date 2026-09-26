@@ -1,17 +1,17 @@
 import GradedArrays
 using BlockArrays: Block, blocklength
 using GradedArrays: FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
-    FusedSectorMatrix, GradedArray, GradedOneTo, SU2, SectorOneTo, SectorOnesVector, U1,
-    UniqueSectorArray, UniqueSectorDelta, axis_codomain, axis_domain, data, datalengths,
-    dual, eachblockstoredindex, eachsectoraxis, flip, fusedgradeddiagonal,
-    fusedgradedmatrix, fusedgradedvector, fusesectors, gradedrange, isdual, sector,
-    sectoraxes, sectordata, sectors, sectortype, tensor_product, with_block_indexing,
-    with_scalar_indexing
+    FusedSectorMatrix, GradedArray, GradedOneTo, SU2, SectorIdentity, SectorOneTo,
+    SectorOnesVector, U1, UniqueSectorArray, UniqueSectorDelta, axis_codomain, axis_domain,
+    data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
+    fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, fusesectors, gradedrange,
+    isdual, sector, sectoraxes, sectordata, sectors, sectortype, tensor_product,
+    with_block_indexing, with_scalar_indexing
 using LinearAlgebra: I, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, contractalign,
-    linearbroadcasted, matricize, unmatricize
+    has_bipartition, linearbroadcasted, matricize, unmatricize
 using TensorKitSectors: FermionNumber
 using Test: @test, @test_broken, @test_throws, @testset
 
@@ -703,4 +703,19 @@ end
     dadj = TensorAlgebra.permutedimsop(conj, d, (2,), (1,))
     @test dadj isa typeof(d)
     @test Array(dadj) ≈ Array(d')
+end
+
+@testset "has_bipartition" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn(Float64, (g,), (g,))
+    @test a isa GradedArray
+    @test has_bipartition(a)
+    @test matricize(a) isa FusedGradedMatrix
+    @test has_bipartition(matricize(a))
+    @test has_bipartition(fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)]))
+    @test has_bipartition(fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)]))
+    @test has_bipartition(SectorIdentity{Float64}(U1(1)))
+    @test has_bipartition(SectorOnesVector{Float64}(U1(1)))
+    @test has_bipartition(UniqueSectorDelta{Float64}((U1(0), dual(U1(0)))))
+    @test !has_bipartition(randn(2, 3))
 end
