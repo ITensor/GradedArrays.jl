@@ -66,6 +66,7 @@ domain(bt::BiTuple) = map(conj, bt.t2)
 
 TensorAlgebra.ndims_codomain(fa::GradedArray) = length(axes_codomain(fa))
 TensorAlgebra.ndims_domain(fa::GradedArray) = length(axes_domain(fa))
+TensorAlgebra.has_bipartition(::GradedArray) = true
 
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
 # matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).

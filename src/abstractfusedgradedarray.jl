@@ -12,6 +12,7 @@ const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}
 # split is always a single codomain leg. `ndims_domain` falls out as the remaining rank: one for
 # the matrix form, none for the vector form.
 TensorAlgebra.ndims_codomain(::AbstractFusedGradedArray) = 1
+TensorAlgebra.has_bipartition(::AbstractFusedGradedArray) = true
 
 # The matrix form is already its own stored matricization, the same thing
 # `matricizeopview(::GradedMatricize, ...)` returns for it.
