@@ -256,10 +256,10 @@ end
 # ========================  fermionic contraction twist  ========================
 # Fermionic contractions need the second (right) factor's contracted legs twisted before
 # matricization, so the result does not depend on contraction order. This rides on
-# TensorAlgebra's per-position matricize styles: the `default_algorithm` method for graded
-# operands puts `TwistedGradedMatricize` on the right factor only, and its matricize hooks
-# insert the twist between the permute and the matricize. The twist is a no-op for bosonic
-# sectors.
+# TensorAlgebra's `matricize_inputs` hook, the one place a contraction prepares both operands
+# together: the graded overload (see `gradedarray.jl`) matricizes the left factor as usual and
+# sends the right factor through `contraction_matricizeop`, which inserts the twist between the
+# permute and the matricize. The twist is a no-op for bosonic sectors.
 
 # A non-graded array carries no sector data, so there is no braiding and the twist is the identity.
 # `contraction_twist!` below accepts any array, so without this it throws a `MethodError` on the
@@ -288,34 +288,21 @@ function needs_contraction_twist(a, perm_codomain)
         any(i -> isdual(axes(a, i)), perm_codomain)
 end
 
-# The twist is the only thing the twisted style adds, so it aliases wherever the untwisted style
-# does and the twist is a no-op (non-fermionic braiding, or no dual codomain leg).
-function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.matricizeop), ::TwistedGradedMatricize, op, a::AbstractArray,
-        perm_codomain, perm_domain
-    )
-    return TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, GradedMatricize(), op, a, perm_codomain, perm_domain
-    ) && !needs_contraction_twist(a, perm_codomain)
-end
-function TensorAlgebra.matricizeopview(
-        ::TwistedGradedMatricize, op, a::AbstractArray, perm_codomain, perm_domain
-    )
-    return matricize(a)
-end
-function TensorAlgebra.matricizeopcopy(
-        ::TwistedGradedMatricize, op, a::AbstractArray, perm_codomain, perm_domain
-    )
-    # Nothing to permute, so twist a plain copy in place rather than paying for a block-wise
-    # permute that would be the identity.
+# `matricizeop` with the contraction twist folded in. When no twist is needed this is exactly
+# `matricizeop`, aliasing included. Otherwise the twist is applied to a copy so `a` is untouched:
+# when the memory-sharing matricization exists there is nothing to permute, so the copy is a plain
+# `copy` twisted in place rather than a block-wise permute that would be the identity.
+function contraction_matricizeop(op, a::AbstractArray, perm_codomain, perm_domain)
+    needs_contraction_twist(a, perm_codomain) ||
+        return TensorAlgebra.matricizeop(op, a, perm_codomain, perm_domain)
+    a_twisted =
     if TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, GradedMatricize(), op, a, perm_codomain, perm_domain
+            TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
         )
-        a_twisted = copy(a)
-        contraction_twist!(a_twisted, length(perm_codomain))
-        return matricize(a_twisted)
+        copy(a)
+    else
+        TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
     end
-    a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
-    contraction_twist!(a_perm, length(perm_codomain))
-    return matricize(GradedMatricize(), a_perm, Val(length(perm_codomain)))
+    contraction_twist!(a_twisted, length(perm_codomain))
+    return matricize(a_twisted)
 end

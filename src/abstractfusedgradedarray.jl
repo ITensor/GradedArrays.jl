@@ -15,7 +15,7 @@ TensorAlgebra.ndims_codomain(::AbstractFusedGradedArray) = 1
 TensorAlgebra.has_bipartition(::AbstractFusedGradedArray) = true
 
 # The matrix form is already its own stored matricization, the same thing
-# `matricizeopview(::GradedMatricize, ...)` returns for it.
+# `matricizeopview` returns for it.
 TensorAlgebra.matricize(m::AbstractFusedGradedMatrix) = m
 
 using BlockArrays: mortar

@@ -5,8 +5,8 @@ using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArr
     isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: contract, contractalign, matricize, matricizeop, permutedimsop,
-    project, unmatricize, unmatricize!, unproject
+using TensorAlgebra: TensorAlgebra, contract, contractalign, matricize, matricizeop,
+    permutedimsop, project, unmatricize, unmatricize!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -590,8 +590,9 @@ end
         @test Array(a2) ≈ a2_dense_before
         # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
         # returns the stored matrix itself.
-        m = matricizeop(
-            GradedArrays.TwistedGradedMatricize(), identity, a2, (1,), (2,)
+        _, m = TensorAlgebra.matricize_inputs(
+            TensorAlgebra.contractpermopadd!, identity, a1, (1,), (2,), identity, a2,
+            (1,), (2,)
         )
         if isdual(rc)
             @test m !== matricize(a2)
