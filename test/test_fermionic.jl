@@ -591,8 +591,8 @@ end
         # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
         # returns the stored matrix itself.
         _, m = TensorAlgebra.matricize_inputs(
-            TensorAlgebra.contractpermopadd!, identity, a1, (1,), (2,), identity, a2,
-            (1,), (2,)
+            TensorAlgebra.contractpermopadd!, TensorAlgebra.MatricizeContract(),
+            identity, a1, (1,), (2,), identity, a2, (1,), (2,)
         )
         if isdual(rc)
             @test m !== matricize(a2)

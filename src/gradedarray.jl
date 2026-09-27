@@ -740,7 +740,7 @@ end
 # matricized (see `contraction_matricizeop`); the left factor matricizes as usual, and so does a
 # matrix-level right factor, which needs no twist and falls through to the generic default.
 function TensorAlgebra.matricize_inputs(
-        ::typeof(TensorAlgebra.contractpermopadd!),
+        ::typeof(TensorAlgebra.contractpermopadd!), ::TensorAlgebra.MatricizeContract,
         op1, a1::Union{GradedArray, AbstractFusedGradedArray}, perm1_codomain, perm1_domain,
         op2, a2::GradedArray, perm2_codomain, perm2_domain
     )
