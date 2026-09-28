@@ -691,11 +691,10 @@ end
 # ============================  contraction  ============================
 
 # A matrix-level fused operand carries no external axes, so it cannot serve as the allocation
-# prototype (`similar_map` with explicit axes is undefined for it), and the `matricize_inputs`
-# method below would not see a `GradedArray` right factor, skipping the fermionic contraction
-# twist. Lift it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the
-# bipermutation entry point, before output allocation and algorithm selection, then recurse into
-# the generic path.
+# prototype (`similar_map` with explicit axes is undefined for it), and algorithm selection below
+# would not see a `GradedArray` right factor, skipping the fermionic contraction twist. Lift it to
+# its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the bipermutation entry point,
+# before output allocation and algorithm selection, then recurse into the generic path.
 function TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
@@ -736,16 +735,18 @@ function TensorAlgebra.contractpermalign(
     )
 end
 
-# The right factor of a fermionic contraction is twisted on its contracted legs before it is
-# matricized (see `contraction_matricizeop`); the left factor matricizes as usual, and so does a
-# matrix-level right factor, which needs no twist and falls through to the generic default.
-function TensorAlgebra.matricize_inputs(
-        ::typeof(TensorAlgebra.contractpermopadd!), ::TensorAlgebra.MatricizeContract,
-        op1, a1::Union{GradedArray, AbstractFusedGradedArray}, perm1_codomain, perm1_domain,
-        op2, a2::GradedArray, perm2_codomain, perm2_domain
-    )
-    return TensorAlgebra.matricizeop(op1, a1, perm1_codomain, perm1_domain),
-        contraction_matricizeop(op2, a2, perm2_codomain, perm2_domain)
+# A contraction whose right factor is a `GradedArray` runs the graded kernel (`GradedContract`,
+# see `tensoralgebra.jl`), which twists that factor's contracted legs before matricizing it. The
+# left factor may be a tensor-level or matrix-level fused operand. A matrix-level right factor
+# needs no twist and stays on the generic `MatricizeContract`. Keyed on the right factor only,
+# since the twist comes from the contraction braiding, not from where the result is written.
+for A in (:GradedArray, :AbstractFusedGradedArray)
+    @eval function TensorAlgebra.default_algorithm(
+            ::typeof(TensorAlgebra.contract!),
+            ::Type{<:Tuple{AbstractArray, $A, GradedArray}}
+        )
+        return GradedContract()
+    end
 end
 
 # Whether the two axis groups hold the same axes with the same repeats, in any order. Reordering

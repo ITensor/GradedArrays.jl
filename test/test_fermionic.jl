@@ -1,8 +1,8 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
-    UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
-    isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
+using GradedArrays: GradedArray, GradedContract, SectorProduct, SectorRange, U1,
+    UniqueSectorArray, UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip,
+    gradedrange, isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, contractalign, matricize, matricizeop,
@@ -597,12 +597,13 @@ end
         @test Array(c_fast) ≈ Array(c_ref)
         @test axes(c_fast) == axes(c_ref)
         @test Array(a2) ≈ a2_dense_before
-        # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
-        # returns the stored matrix itself.
-        _, m = TensorAlgebra.matricize_inputs(
-            TensorAlgebra.contractpermopadd!, TensorAlgebra.MatricizeContract(),
-            identity, a1, (1,), (2,), identity, a2, (1,), (2,)
-        )
+        # Graded operands select the graded kernel, whose right factor goes through
+        # `contraction_matricizeop`. With a non-dual contracted (codomain) leg the twist is a
+        # no-op, so the fast path returns the stored matrix itself.
+        @test TensorAlgebra.default_algorithm(
+            TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
+        ) === GradedContract()
+        m = GradedArrays.contraction_matricizeop(identity, a2, (1,), (2,))
         if isdual(rc)
             @test m !== matricize(a2)
         else

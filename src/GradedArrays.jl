@@ -9,7 +9,7 @@ export dual, isdual
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public SectorRange, sectors, with_scalar_indexing, with_block_indexing"
+            "public GradedContract, SectorRange, sectors, with_scalar_indexing, with_block_indexing"
         )
     )
 end
