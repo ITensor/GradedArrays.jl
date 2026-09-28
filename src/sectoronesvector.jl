@@ -15,6 +15,7 @@ SectorOnesVector{T}(s::S) where {T, S <: Sector} = SectorOnesVector{T, S}(s)
 # A single non-dual leg: all codomain, no domain.
 TensorAlgebra.ndims_codomain(::SectorOnesVector) = 1
 TensorAlgebra.ndims_domain(::SectorOnesVector) = 0
+TensorAlgebra.has_bipartition(::SectorOnesVector) = true
 
 Base.@propagate_inbounds function Base.getindex(A::SectorOnesVector{T}, i::Int) where {T}
     @boundscheck checkbounds(A, i)
