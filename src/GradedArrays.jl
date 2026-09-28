@@ -9,7 +9,7 @@ export dual, isdual
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public SectorRange, sectors, with_scalar_indexing, with_block_indexing"
+            "public GradedContract, SectorRange, sectors, with_scalar_indexing, with_block_indexing"
         )
     )
 end
@@ -22,10 +22,9 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
-using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, MatricizeStyle,
-    bipartition, bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear,
-    isdual, matricize, ndims_codomain, ndims_domain, permutedimsadd!, scale!, unmatricize,
-    zero!
+using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, bipartition,
+    bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear, isdual,
+    matricize, ndims_codomain, ndims_domain, permutedimsadd!, scale!, unmatricize, zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 

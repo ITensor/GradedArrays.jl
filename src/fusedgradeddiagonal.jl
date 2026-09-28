@@ -108,7 +108,7 @@ end
 # the memory-sharing matricization is `d` itself. Any other codomain rank bends a leg, which
 # matrix-level fused storage cannot represent.
 function TensorAlgebra.matricizeopview(
-        ::GradedMatricize, op, d::FusedGradedDiagonal, perm_codomain, perm_domain
+        op, d::FusedGradedDiagonal, perm_codomain, perm_domain
     )
     return d
 end
@@ -129,7 +129,7 @@ end
 
 # Copying the diagonal keeps the structure, where `similar` on a diagonal would densify.
 function TensorAlgebra.matricizeopcopy(
-        ::GradedMatricize, op, d::FusedGradedDiagonal, perm_codomain, perm_domain
+        op, d::FusedGradedDiagonal, perm_codomain, perm_domain
     )
     length(perm_codomain) == 1 || throw(
         ArgumentError(

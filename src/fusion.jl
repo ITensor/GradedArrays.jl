@@ -1,16 +1,3 @@
-struct SectorMatricize <: MatricizeStyle end
-struct GradedMatricize <: MatricizeStyle end
-
-# Matricize style for the right factor of a fermionic contraction: matricize as `GradedMatricize`
-# after twisting the contracted legs (see `contraction_twist!`). A no-op twist for bosonic
-# sectors, so it matricizes identically to `GradedMatricize` there.
-struct TwistedGradedMatricize <: MatricizeStyle end
-
-TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorDelta}) = SectorMatricize()
-TensorAlgebra.MatricizeStyle(::Type{<:AbstractSectorArray}) = SectorMatricize()
-TensorAlgebra.MatricizeStyle(::Type{<:AbstractFusedGradedArray}) = GradedMatricize()
-TensorAlgebra.MatricizeStyle(::Type{<:SectorOneTo}) = SectorMatricize()
-
 # ========================  trivial_gradedrange  ========================
 
 function trivial_gradedrange(t::Tuple{Vararg{AbstractGradedOneTo}})
@@ -56,7 +43,7 @@ end
 # the copy leaf. `op` applies to the axes, dualizing them for `conj`, the same convention
 # `allocate_output(permutedimsop, ...)` follows.
 function TensorAlgebra.matricizeopcopy(
-        ::SectorMatricize, op, a::UniqueSectorDelta, perm_codomain, perm_domain
+        op, a::UniqueSectorDelta, perm_codomain, perm_domain
     )
     ax_codomain = map(i -> op(axes(a, i)), perm_codomain)
     ax_codomain =
@@ -70,13 +57,12 @@ end
 # every split that leaves the legs in order; the structural factor stores no data and is rebuilt
 # as a `SectorIdentity`.
 function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.matricizeop), ::SectorMatricize, op,
-        ::UniqueSectorArray, perm_codomain, perm_domain
+        ::typeof(TensorAlgebra.matricizeop), op, ::UniqueSectorArray, perm_codomain, perm_domain
     )
     return op === identity && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
 function TensorAlgebra.matricizeopview(
-        ::SectorMatricize, op, a::UniqueSectorArray, perm_codomain, perm_domain
+        op, a::UniqueSectorArray, perm_codomain, perm_domain
     )
     ndims_codomain = Val(length(perm_codomain))
     asectors_reshaped = matricize(sector(a), ndims_codomain)
@@ -86,18 +72,18 @@ end
 # Permute into fresh storage, then read off that copy's view. At the identity bipermutation
 # `permutedimsop` is itself the copy, so this costs one pass either way.
 function TensorAlgebra.matricizeopcopy(
-        style::SectorMatricize, op, a::UniqueSectorArray, perm_codomain, perm_domain
+        op, a::UniqueSectorArray, perm_codomain, perm_domain
     )
     a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
-    return matricize(style, a_perm, Val(length(perm_codomain)))
+    return matricize(a_perm, Val(length(perm_codomain)))
 end
 
-# ========================  SectorMatricize unmatricize  ========================
+# ========================  sector array unmatricize  ========================
 
 # `unmatricize` receives the domain axes codomain-facing (un-dualized); a graded array stores
 # them dualized, so `conj` re-dualizes them before they are placed.
 function TensorAlgebra.unmatricize(
-        ::SectorMatricize, m::AbstractSectorDelta,
+        m::AbstractSectorDelta{<:Any, <:Any, 2},
         codomain_axes::Tuple{Vararg{SectorRange}},
         domain_axes::Tuple{Vararg{SectorRange}}
     )
@@ -108,7 +94,7 @@ end
 # codomain/domain axes must be SectorOneTo (carrying multiplicity info).
 # Works for both UniqueSectorMatrix and FusedSectorMatrix.
 function TensorAlgebra.unmatricize(
-        ::SectorMatricize, m::AbstractSectorArray{<:Any, <:Any, 2},
+        m::AbstractSectorArray{<:Any, <:Any, 2},
         codomain_axes::Tuple{Vararg{SectorOneTo}},
         domain_axes::Tuple{Vararg{SectorOneTo}}
     )
@@ -125,16 +111,16 @@ function TensorAlgebra.unmatricize(
     return UniqueSectorArray(mdata, msectors)
 end
 
-# ========================  GradedMatricize adjoint unmatricize  ========================
+# ========================  adjoint fused graded unmatricize  ========================
 
 # A lazy adjoint has no owned contiguous buffer to reshape; materialize it into a `FusedGradedMatrix`
 # first, then unmatricize that.
 function TensorAlgebra.unmatricize(
-        style::GradedMatricize, m::AdjointFusedGradedArray,
+        m::AdjointFusedGradedMatrix,
         codomain_axes::Tuple{Vararg{AbstractGradedOneTo}},
         domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
     )
-    return TensorAlgebra.unmatricize(style, copy(m), codomain_axes, domain_axes)
+    return TensorAlgebra.unmatricize(copy(m), codomain_axes, domain_axes)
 end
 
 # ========================  Allowed block keys  ========================

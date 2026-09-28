@@ -1,12 +1,12 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
-    UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
-    isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
+using GradedArrays: GradedArray, GradedContract, SectorProduct, SectorRange, U1,
+    UniqueSectorArray, UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip,
+    gradedrange, isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: contract, contractalign, matricize, matricizeop, permutedimsop,
-    project, unmatricize, unmatricize!, unproject
+using TensorAlgebra: TensorAlgebra, contract, contractalign, matricize, matricizeop,
+    permutedimsop, project, unmatricize, unmatricize!, unmatricizeadd!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -565,6 +565,15 @@ end
         m = matricizeop(identity, a, invperm_codomain, invperm_domain)
         @test unmatricize!(similar(a), m, invperm_codomain, invperm_domain) ≈
             unmatricize_ref(similar(a), m, invperm_codomain, invperm_domain)
+        # `unmatricizeadd!` accumulates during the same scatter (both the buffer fast path at the
+        # identity bipermutation and the block-wise permute).
+        α, β = elt(2), elt(-3)
+        a_dest = randn(elt, axes(a))
+        a_expected =
+            α * unmatricize_ref(similar(a), m, invperm_codomain, invperm_domain) +
+            β * a_dest
+        @test unmatricizeadd!(a_dest, m, invperm_codomain, invperm_domain, α, β) ≈
+            a_expected
     end
 end
 
@@ -588,11 +597,13 @@ end
         @test Array(c_fast) ≈ Array(c_ref)
         @test axes(c_fast) == axes(c_ref)
         @test Array(a2) ≈ a2_dense_before
-        # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
-        # returns the stored matrix itself.
-        m = matricizeop(
-            GradedArrays.TwistedGradedMatricize(), identity, a2, (1,), (2,)
-        )
+        # Graded operands select the graded kernel, whose right factor goes through
+        # `twisted_matricizeop`. With a non-dual contracted (codomain) leg the twist is a
+        # no-op, so the fast path returns the stored matrix itself.
+        @test TensorAlgebra.default_algorithm(
+            TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
+        ) === GradedContract()
+        m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,))
         if isdual(rc)
             @test m !== matricize(a2)
         else
