@@ -598,12 +598,12 @@ end
         @test axes(c_fast) == axes(c_ref)
         @test Array(a2) ≈ a2_dense_before
         # Graded operands select the graded kernel, whose right factor goes through
-        # `contraction_matricizeop`. With a non-dual contracted (codomain) leg the twist is a
+        # `twisted_matricizeop`. With a non-dual contracted (codomain) leg the twist is a
         # no-op, so the fast path returns the stored matrix itself.
         @test TensorAlgebra.default_algorithm(
             TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
         ) === GradedContract()
-        m = GradedArrays.contraction_matricizeop(identity, a2, (1,), (2,))
+        m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,))
         if isdual(rc)
             @test m !== matricize(a2)
         else
