@@ -6,7 +6,7 @@ using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArr
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, contractalign, matricize, matricizeop,
-    permutedimsop, project, unmatricize, unmatricize!, unproject
+    permutedimsop, project, unmatricize, unmatricize!, unmatricizeadd!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -565,6 +565,15 @@ end
         m = matricizeop(identity, a, invperm_codomain, invperm_domain)
         @test unmatricize!(similar(a), m, invperm_codomain, invperm_domain) ≈
             unmatricize_ref(similar(a), m, invperm_codomain, invperm_domain)
+        # `unmatricizeadd!` accumulates during the same scatter (both the buffer fast path at the
+        # identity bipermutation and the block-wise permute).
+        α, β = elt(2), elt(-3)
+        a_dest = randn(elt, axes(a))
+        a_expected =
+            α * unmatricize_ref(similar(a), m, invperm_codomain, invperm_domain) +
+            β * a_dest
+        @test unmatricizeadd!(a_dest, m, invperm_codomain, invperm_domain, α, β) ≈
+            a_expected
     end
 end
 

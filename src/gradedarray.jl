@@ -845,19 +845,21 @@ function TensorAlgebra.matricizeopcopy(
     return TensorAlgebra.permutedimsop(op, m, perm_codomain, perm_domain)
 end
 
-function TensorAlgebra.unmatricize!(
+function TensorAlgebra.unmatricizeadd!(
         a_dest::GradedArray{<:Any, <:Any, N}, m::AbstractFusedGradedMatrix,
-        invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
+        invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}},
+        α::Number, β::Number
     ) where {N}
     # Identity bipermutation with matching split and coupled axes: the buffers share one layout
-    # (it is determined by the coupled axes), so copy the buffer straight across instead of the
-    # block-wise `bipermutedims!` (which routes through `TensorMap` wrapping even for a plain copy).
+    # (it is determined by the coupled axes), so accumulate the buffer straight across instead of
+    # the block-wise `bipermutedimsopadd!` (which routes through `TensorMap` wrapping even for a
+    # plain copy).
     md = matricize(a_dest)
     if m isa FusedGradedMatrix && md isa FusedGradedMatrix &&
             ndims_codomain(a_dest) == length(invperm_codomain) &&
             (invperm_codomain..., invperm_domain...) == ntuple(identity, Val(N)) &&
             axis_codomain(m) == axis_codomain(md) && axis_domain(m) == axis_domain(md)
-        copyto!(md.buffer, m.buffer)
+        TensorAlgebra.add!(md.buffer, m.buffer, α, β)
         return a_dest
     end
     # Wrap `m` in `a_dest`'s axes reordered into the matricized leg order: `bipartition_axes` takes
@@ -873,8 +875,15 @@ function TensorAlgebra.unmatricize!(
     ndims_cod_dest = ndims_codomain(a_dest)
     perm_codomain = ntuple(i -> perm_dest[i], Val(ndims_cod_dest))
     perm_domain = ntuple(i -> perm_dest[ndims_cod_dest + i], Val(N - ndims_cod_dest))
-    # TODO: Switch to `Base.permutedims!` once it is defined to route through `bipermutedimsopadd!`.
-    bipermutedims!(a_dest, tmp, perm_codomain, perm_domain)
+    TensorAlgebra.bipermutedimsopadd!(
+        a_dest,
+        identity,
+        tmp,
+        perm_codomain,
+        perm_domain,
+        α,
+        β
+    )
     return a_dest
 end
 
