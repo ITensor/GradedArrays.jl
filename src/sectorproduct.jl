@@ -251,9 +251,8 @@ end
 Base.:(==)(::SectorProduct, ::Sector) = false
 Base.:(==)(::Sector, ::SectorProduct) = false
 Base.:(==)(::SectorProduct, ::SectorProduct) = false
-Base.:(==)(::SectorProduct, ::TKS.Sector) = false
-Base.:(==)(::TKS.Sector, ::SectorProduct) = false
-# `(SectorProduct, TrivialSector)` is ambiguous between the first method above and
+
+# `(SectorProduct, TrivialSector)` is ambiguous between `==(::SectorProduct, ::Sector)` above and
 # `==(::Sector, ::TrivialSector)`, which agree; these state that answer.
 Base.:(==)(::SectorProduct, ::TrivialSector) = false
 Base.:(==)(::TrivialSector, ::SectorProduct) = false

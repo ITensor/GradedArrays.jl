@@ -1,6 +1,6 @@
 using BlockArrays: blocklengths
 using GradedArrays: SU2, Sector, SectorOneTo, SectorProduct, TrivialSector, U1, Z,
-    arguments, dual, flip, gradedrange, istrivial, sectorproduct, sectortype,
+    arguments, dual, fU1, flip, gradedrange, istrivial, sectorproduct, sectortype,
     tensor_product, trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -12,15 +12,15 @@ using TestExtras: @constinferred
         @test length(arguments(s)) == 1
         @test (@constinferred length(s)) == 1
         @test (@constinferred flip(dual(s))) == Sector((TKS.U1Irrep(-1),))
-        @test arguments(s)[1] == TKS.U1Irrep(1)
+        @test arguments(s)[1] == U1(1)
         @test (@constinferred trivial(s)) == Sector((TKS.U1Irrep(0),))
 
         s = Sector(TKS.U1Irrep(1), TKS.U1Irrep(2))
         @test length(arguments(s)) == 2
         @test (@constinferred length(s)) == 1
         @test (@constinferred flip(dual(s))) == Sector(TKS.U1Irrep(-1), TKS.U1Irrep(-2))
-        @test arguments(s)[1] == TKS.U1Irrep(1)
-        @test arguments(s)[2] == TKS.U1Irrep(2)
+        @test arguments(s)[1] == U1(1)
+        @test arguments(s)[2] == U1(2)
         @test (@constinferred trivial(s)) == Sector(TKS.U1Irrep(0), TKS.U1Irrep(0))
 
         s = U1(1) × SU2(1 // 2) × U1(3)
@@ -367,6 +367,19 @@ end
     @test_throws ArgumentError tensor_product(sA1, st1)
     # Ordering across the two is arbitrary, but it is still an order, so mixed vectors sort.
     @test isless(sA1, st1) != isless(st1, sA1)
+end
+
+@testset "Comparison does not cross the library boundary" begin
+    # A product and the TensorKitSectors sector it converts to are values of two libraries'
+    # types. `Sector` is how you cross, and the two conversions are inverses.
+    for s in (Sector((U1(1),)), Sector(U1(1), U1(2)), fU1(2), Sector(; A = U1(1)))
+        c = TKS.Sector(s)
+        @test s != c
+        @test c != s
+        @test Sector(c) == s
+    end
+    @test fU1(2) != TKS.FermionNumber(2)
+    @test Sector(TKS.FermionNumber(2)) == fU1(2)
 end
 
 @testset "TrivialSector as the unit of the product" begin

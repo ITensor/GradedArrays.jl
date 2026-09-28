@@ -72,11 +72,13 @@ Base.axes(s::Sector) = (s,)
 function Base.isless(s1::Sector, s2::Sector)
     return isless(TKS.Sector(s1), TKS.Sector(s2))
 end
-Base.isless(s1::Sector, c2::TKS.Sector) = isless(TKS.Sector(s1), c2)
-Base.isless(c1::TKS.Sector, s2::Sector) = isless(c1, TKS.Sector(s2))
 Base.:(==)(s1::Sector, s2::Sector) = TKS.Sector(s1) == TKS.Sector(s2)
-Base.:(==)(s1::Sector, c2::TKS.Sector) = TKS.Sector(s1) == c2
-Base.:(==)(c1::TKS.Sector, s2::Sector) = c1 == TKS.Sector(s2)
+# Comparison does not cross the library boundary: a sector here and the TensorKitSectors sector
+# it converts to are values of two libraries' types, and `Sector` is how you move between them.
+# Defining `==` across would also oblige `hash` to agree, which it cannot, since it takes one
+# operand and so has to read one library's notion of identity. Products make that concrete: a
+# named product equals one that leaves a trivially-valued name out, while the `NamedSector`s they
+# convert to differ, so equating either with its own converted form would not even be transitive.
 # `isequal` delegates to `==` and must never reimplement it. Reimplementing is what let the two
 # drift, so that hash-based containers disagreed with `==` about padded products. Leaving it
 # undefined is not an option: a `Sector` is an `AbstractUnitRange{Int}`, so it would inherit
