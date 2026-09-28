@@ -28,25 +28,25 @@ const SectorDataLayout{S, N} = SortedArrayDictionary{
 
 # Matrix form: one block per coupled sector (present on both codomain and domain), in sorted
 # coupled-sector order and column-major within each block (TensorKit's `.data` layout). A single
-# sorted merge over the two axes' sorted label vectors finds the coupled sectors and accumulates
+# sorted merge over the two axes' sorted sector vectors finds the coupled sectors and accumulates
 # the offsets.
 function sectordatalayout(
         codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
-    ) where {S <: SectorRange}
-    codl, codd = sectorlabels(codomain), datalengths(codomain)
-    doml, domd = sectorlabels(domain), datalengths(domain)
+    ) where {S <: Sector}
+    cods, codd = sectors(codomain), datalengths(codomain)
+    doms, domd = sectors(domain), datalengths(domain)
     coupled = S[]
     layouts = @NamedTuple{offset::Int, size::NTuple{2, Int}}[]
     offset = 0
     i = j = 1
-    while i <= length(codl) && j <= length(doml)
-        if isless(codl[i], doml[j])
+    while i <= length(cods) && j <= length(doms)
+        if isless(cods[i], doms[j])
             i += 1
-        elseif isless(doml[j], codl[i])
+        elseif isless(doms[j], cods[i])
             j += 1
         else
             sz = (codd[i], domd[j])
-            push!(coupled, S(codl[i]))
+            push!(coupled, cods[i])
             push!(layouts, (offset = offset, size = sz))
             offset += prod(sz)
             i += 1

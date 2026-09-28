@@ -1,12 +1,12 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, FusedGradedOneTo, GradedOneTo, SU2, SectorRange, U1,
-    datalengths, dual, flip, gradedrange, isdual, label, sectors, sectortype, tensor_product
+using GradedArrays: FusedGradedOneTo, GradedOneTo, SU2, U1, datalengths, dual, flip,
+    gradedrange, isdual, sectors, sectortype, tensor_product
 using TensorAlgebra: TensorAlgebra
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
 @testset "GradedOneTo" begin
-    @testset "gradedrange from SectorRange (U1)" begin
+    @testset "gradedrange from sectors (U1)" begin
         g = gradedrange([U1(0) => 2, U1(1) => 3])
         @test g isa GradedOneTo{U1}
         @test sectors(g) == [U1(0), U1(1)]
@@ -168,7 +168,7 @@ using Test: @test, @test_throws, @testset
         @test sectors(gd) == [SU2(0), SU2(1 // 2)]
     end
 
-    @testset "SU2 gradedrange from SectorRange" begin
+    @testset "SU2 gradedrange from sectors" begin
         g = gradedrange([SU2(0) => 1, SU2(1) => 2])
         @test g isa GradedOneTo{SU2}
         @test sectors(g) == [SU2(0), SU2(1)]
@@ -216,14 +216,14 @@ using Test: @test, @test_throws, @testset
         @test !isdual(tp)
     end
 
-    @testset "to_range from SectorRange keys" begin
+    @testset "to_range from Sector keys" begin
         g = TensorAlgebra.to_range([U1(0) => 2, U1(1) => 3])
         @test g isa GradedOneTo{U1}
         @test g == gradedrange([U1(0) => 2, U1(1) => 3])
     end
 
-    @testset "to_range from bare Sector keys" begin
-        g = TensorAlgebra.to_range([label(U1(0)) => 2, label(U1(1)) => 3])
+    @testset "to_range from bare TensorKitSectors keys" begin
+        g = TensorAlgebra.to_range([TKS.U1Irrep(0) => 2, TKS.U1Irrep(1) => 3])
         @test g isa GradedOneTo{U1}
         @test g == gradedrange([U1(0) => 2, U1(1) => 3])
     end
@@ -249,7 +249,10 @@ using Test: @test, @test_throws, @testset
                 dual(SU2(1)) => 2,
             ]
         )
-        @test_throws ArgumentError TensorAlgebra.to_range([SU2(0) => 1, dual(SU2(1)) => 2])
+        # Mixing bare and oriented keys widens the vector to
+        # `Vector{Pair{AbstractUnitRange{Int},Int}}`, which no `to_range` method claims, so the
+        # rejection is a `MethodError` rather than the `ArgumentError` the homogeneous case raises.
+        @test_throws MethodError TensorAlgebra.to_range([SU2(0) => 1, dual(SU2(1)) => 2])
     end
 
     @testset "ungrade drops sectors and arrow" begin

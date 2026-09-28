@@ -5,13 +5,13 @@
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
 """
-    FusedGradedMatrix{T,S<:SectorRange,V<:DenseVector{T}}
+    FusedGradedMatrix{T,S<:Sector,V<:DenseVector{T}}
 
 Block-diagonal matrix produced by matricizing a `GradedArray`. Stores a contiguous `buffer` in
 TensorKit `.data` layout plus the fused codomain/domain axes; the per-coupled-sector blocks are the
 lazy `sectordata(m)` view carved from the buffer on demand.
 """
-struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
+struct FusedGradedMatrix{T, S <: Sector, V <: DenseVector{T}} <:
     AbstractFusedGradedMatrix{T, S}
     buffer::V
     axis_codomain::FusedGradedOneTo{S}
@@ -28,7 +28,7 @@ struct FusedGradedMatrix{T, S <: SectorRange, V <: DenseVector{T}} <:
     function FusedGradedMatrix{T, S, V}(
             buffer::V, codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S},
             datalayout
-        ) where {T, S <: SectorRange, V <: DenseVector{T}}
+        ) where {T, S <: Sector, V <: DenseVector{T}}
         (isdual(codomain) || isdual(domain)) && throw(
             ArgumentError(
                 "FusedGradedMatrix stores non-dual codomain/domain axes; the domain's dual arrow is implicit in `axes` (see `biaxes`)"
@@ -49,7 +49,7 @@ end
 # their coupled-sector layout computed); every axes-only construction routes through here.
 function FusedGradedMatrix{T, S, V}(
         buffer::V, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
-    ) where {T, S <: SectorRange, V <: DenseVector{T}}
+    ) where {T, S <: Sector, V <: DenseVector{T}}
     cod = FusedGradedOneTo(codomain)
     dom = FusedGradedOneTo(domain)
     return FusedGradedMatrix{T, S, V}(buffer, cod, dom, sectordatalayout(cod, dom))
@@ -111,14 +111,14 @@ end
 Build a block-diagonal `FusedGradedMatrix` from per-coupled-sector block data (`sector => block`
 pairs, any iterator of pairs, or a `Dictionary` keyed by sector) with the given codomain and domain
 axes. The codomain and domain sectors need not coincide; the stored blocks are keyed by the sectors
-common to both. Bare `TKS.Sector`s are accepted alongside `SectorRange`s; the sectors must be unique.
+common to both. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be unique.
 To wrap an existing contiguous buffer instead, use [`FusedGradedMatrix`](@ref).
 """
 function fusedgradedmatrix(
         sectordata, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
     )
     ps = collect(sectordata)
-    sectors = [SectorRange(first(p)) for p in ps]
+    sectors = [to_sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     m = FusedGradedMatrix{eltype(eltype(data))}(undef, codomain, domain)
@@ -146,12 +146,12 @@ end
 Build a block-diagonal `FusedGradedMatrix` from per-coupled-sector block data, deriving the codomain
 and domain from the blocks' row and column lengths (`codomain[sectors[i]]` is `size(data[i], 1)`,
 `domain[sectors[i]]` is `size(data[i], 2)`). Valid only when the codomain, domain, and block sectors
-all coincide; pass explicit axes otherwise. Bare `TKS.Sector`s are accepted alongside `SectorRange`s;
+all coincide; pass explicit axes otherwise. Bare `TKS.Sector`s are accepted alongside `Sector`s;
 the sectors must be sorted and unique.
 """
 function fusedgradedmatrix(sectordata)
     ps = collect(sectordata)
-    sectors = [SectorRange(first(p)) for p in ps]
+    sectors = [to_sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
@@ -190,13 +190,13 @@ Base.dataids(m::FusedGradedMatrix) = Base.dataids(m.buffer)
 
 # ========================  setsectors  ========================
 
-# Set both axes to exactly `ls` (the `FusedGradedOneTo` method) and wrap the same buffer as `m`.
+# Set both axes to exactly `ss` (the `FusedGradedOneTo` method) and wrap the same buffer as `m`.
 # The added sectors are zero-length, so the layout carves the stored blocks at their existing
 # offsets and the added blocks as zero-size views, and writes through the result land in `m` (see
 # `setsectors` in `abstractfusedgradedarray.jl` for the full contract).
-function setsectors(m::FusedGradedMatrix, ls::Vector{<:TKS.Sector})
-    cod = setsectors(axis_codomain(m), ls)
-    dom = setsectors(axis_domain(m), ls)
+function setsectors(m::FusedGradedMatrix, ss::AbstractVector{<:Sector})
+    cod = setsectors(axis_codomain(m), ss)
+    dom = setsectors(axis_domain(m), ss)
     # Both axes unchanged means the set is the identity; return `m` itself.
     (cod === axis_codomain(m) && dom === axis_domain(m)) && return m
     return FusedGradedMatrix(m.buffer, cod, dom, sectordatalayout(cod, dom))

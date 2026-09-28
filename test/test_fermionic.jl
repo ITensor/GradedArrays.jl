@@ -1,8 +1,8 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: GradedArray, SectorProduct, SectorRange, U1, UniqueSectorArray,
-    UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip, gradedrange,
-    isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
+using GradedArrays: GradedArray, SectorProduct, U1, UniqueSectorArray, UniqueSectorDelta,
+    dual, eachblockstoredindex, eachsectoraxis, fZ2, flip, gradedrange, isdual, sectoraxes,
+    sectors, to_sector, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: contract, contractalign, matricize, matricizeop, permutedimsop,
@@ -10,8 +10,8 @@ using TensorAlgebra: contract, contractalign, matricize, matricizeop, permutedim
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
-const fP0 = SectorRange(TKS.FermionParity(false))  # even parity
-const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
+const fP0 = fZ2(false)  # even parity
+const fP1 = fZ2(true)   # odd parity
 
 # `Array(::GradedArray)` matches TensorKit's `convert(Array, ::TensorMap)`: split-dependent, with no
 # fermion domain-bend sign baked into the dense entries.
@@ -21,30 +21,28 @@ const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
     # component, on which `TKS.fermionparity` errors; decomposing over components with a
     # bosonic-irrep fallback handles it.
     for n in -2:2
-        c = SectorRange(TKS.FermionNumber(n))
+        c = to_sector(TKS.FermionNumber(n))
         @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
 
     # The same holds for GradedArrays' own `SectorProduct`, in both tuple and named form.
     for n in -2:2
-        c = SectorRange(SectorProduct(TKS.U1Irrep(n), TKS.FermionParity(isodd(n))))
+        c = SectorProduct(TKS.U1Irrep(n), TKS.FermionParity(isodd(n)))
         @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
-        c = SectorRange(
-            SectorProduct(; N = TKS.U1Irrep(n), f = TKS.FermionParity(isodd(n)))
-        )
+        c = SectorProduct(; N = TKS.U1Irrep(n), f = TKS.FermionParity(isodd(n)))
         @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
 
     # A product of bosonic sectors, and the empty product, twist trivially.
     boson = SectorProduct(TKS.U1Irrep(1), TKS.SU2Irrep(1))
-    @test GradedArrays.twist(SectorRange(boson)) == 1
-    @test GradedArrays.twist(SectorRange(SectorProduct(()))) == 1
+    @test GradedArrays.twist(boson) == 1
+    @test GradedArrays.twist(SectorProduct(())) == 1
 
     # Plain bosonic group irreps have even fermion parity.
-    @test GradedArrays.fermionparity(SectorRange(TKS.U1Irrep(2))) == false
+    @test GradedArrays.fermionparity(U1(2)) == false
     @test GradedArrays.fermionparity(U1(0)) == false
 
     # `FermionParity` delegates to TensorKitSectors unchanged.
@@ -52,7 +50,7 @@ const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
     @test GradedArrays.fermionparity(fP1) == true
 
     # A sector with no fermion parity (an anyon) has no method.
-    @test_throws MethodError GradedArrays.fermionparity(SectorRange(TKS.FibonacciAnyon(:τ)))
+    @test_throws MethodError GradedArrays.fermionparity(to_sector(TKS.FibonacciAnyon(:τ)))
 
     # `twist!` is total over array types: a non-graded array has no sectors, so no braiding and no
     # twist. `contraction_twist!` accepts any array, and reaches dense and `Diagonal` factors.
@@ -113,8 +111,8 @@ end
     fpp = GradedArrays.fermion_permutation_phase
 
     # Bosonic (U1): always +1 regardless of permutation
-    u0 = SectorRange(TKS.U1Irrep(0))
-    u1 = SectorRange(TKS.U1Irrep(1))
+    u0 = U1(0)
+    u1 = U1(1)
     d_bos = UniqueSectorDelta{Float64}((u0, u1))
     @test fpp(d_bos, (2, 1)) == 1
     @test fpp(d_bos, (1, 2)) == 1
@@ -177,7 +175,7 @@ end
         @test permutedims(sa_val, (2, 1))[1, 1] ≈ -7.5
 
         # No phase for bosonic (U1) sectors even though same permutation
-        u1 = SectorRange(TKS.U1Irrep(1))
+        u1 = U1(1)
         sa_u1 = UniqueSectorArray(fill(3.0, 1, 1), (u1, u1))
         sp_u1 = permutedims(sa_u1, (2, 1))
         @test sp_u1[1, 1] ≈ 3.0
@@ -218,7 +216,7 @@ end
         @test sa_mut[1, 1] ≈ 5.0
 
         # Bosonic (U1) sectors: no fermionic phase, just data conj
-        u1 = SectorRange(TKS.U1Irrep(1))
+        u1 = U1(1)
         @test conj(UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (u1, u1)))[1, 1] ≈ 1.0 - 2.0im
     end
 end

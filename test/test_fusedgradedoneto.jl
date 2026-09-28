@@ -1,14 +1,14 @@
 using BlockArrays: blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractGradedOneTo, FusedGradedOneTo, GradedOneTo, SU2,
-    SectorRange, U1, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, label,
-    sectorlengths, sectors, sectortype
+    U1, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, sectorlengths,
+    sectors, sectortype
 using TensorAlgebra: TensorAlgebra
 using TensorKit: TensorKit
 using Test: @test, @test_throws, @testset
 
 @testset "FusedGradedOneTo" begin
-    @testset "fusedgradedrange from SectorRange (U1)" begin
+    @testset "fusedgradedrange from sectors (U1)" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
         @test g isa FusedGradedOneTo{U1}
         @test g isa AbstractGradedOneTo{U1}
@@ -130,9 +130,7 @@ using Test: @test, @test_throws, @testset
     # spaces drop them, so the space must come out as if those sectors were never there.
     @testset "ElementarySpace from an axis with a zero-length sector" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
-        g0 = GradedArrays.setsectors(
-            g, GradedArrays.to_labelvector([U1(0), U1(1), U1(2)])
-        )
+        g0 = GradedArrays.setsectors(g, [U1(0), U1(1), U1(2)])
         @test datalengths(g0) == [2, 3, 0]
         @test TensorKit.ElementarySpace(g0) == TensorKit.ElementarySpace(g)
         @test TensorKit.ElementarySpace(dual(g0)) == TensorKit.ElementarySpace(dual(g))

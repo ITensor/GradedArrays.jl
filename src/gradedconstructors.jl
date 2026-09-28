@@ -7,7 +7,7 @@
 # independent of the concrete array.
 
 # An axis is a `GradedOneTo` or a vector of `sector => multiplicity` pairs (keyed by a
-# `SectorRange` or a bare `TensorKitSectors.Sector`), normalized to a `GradedOneTo` by
+# GradedArrays `Sector` or a bare `TensorKitSectors.Sector`), normalized to a `GradedOneTo` by
 # `TA.to_range`. Each of `rand`/`randn`/`zeros`/`ones`/`fill` supports three shapes:
 #     f(axs...) / f((axs...,))         codomain-only, allocated directly
 #     f((cod...), (dom...))            tensor map, `dom` axes stored dual
@@ -71,12 +71,12 @@ function TA.fill_map(
 end
 
 # Public `Base` constructors: normalize pairs-vector axes with `to_range` and route to `*_map`.
-# Pairs-vector axes are keyed by `SectorRange` (which every GradedArrays sector subtypes); keying
-# by a bare `TensorKitSectors.Sector` is not accepted, since overloading `Base` constructors on a
-# purely TensorKitSectors signature would be type piracy. Wrap such sectors with `SectorRange`.
+# Pairs-vector axes are keyed by a GradedArrays `Sector`; keying by a bare
+# `TensorKitSectors.Sector` is not accepted, since overloading `Base` constructors on a purely
+# TensorKitSectors signature would be type piracy. Convert such sectors with `to_sector`.
 for axis_type in (
         :AbstractGradedOneTo,
-        :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
+        :(AbstractVector{<:Pair{<:Sector, <:Integer}}),
     )
     axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
     for f in (:rand, :randn)
@@ -204,17 +204,17 @@ for axis_type in (
 end
 
 # Flux `f(flux, (cod...)[, (dom...)])`: append a multiplicity-1 leg carrying `flux` to the
-# dualized domain, so the physical axes fuse to that total charge. The flux may be a `SectorRange`
-# or a bare `TensorKitSectors.Sector`: these forms always carry a physical axis (`GradedOneTo` or
-# a `SectorRange`-keyed pairs vector), so the signature contains a GradedArrays-owned type and
-# accepting a bare sector is not type piracy. The axis-less flux-only forms below stay
-# `SectorRange`-only, where a bare-sector method would be piracy.
+# dualized domain, so the physical axes fuse to that total charge. The flux may be a GradedArrays
+# `Sector` or a bare `TensorKitSectors.Sector`: these forms always carry a physical axis
+# (`GradedOneTo` or a `Sector`-keyed pairs vector), so the signature contains a GradedArrays-owned
+# type and accepting a bare sector is not type piracy. The axis-less flux-only forms below stay
+# `Sector`-only, where a bare-sector method would be piracy.
 for axis_type in (
         :AbstractGradedOneTo,
-        :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
+        :(AbstractVector{<:Pair{<:Sector, <:Integer}}),
     )
     axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
-    for flux_type in (:(TKS.Sector), :SectorRange)
+    for flux_type in (:(TKS.Sector), :Sector)
         for f in (:rand, :randn)
             fmap = Symbol(f, :_map)
             @eval begin
@@ -395,76 +395,76 @@ for axis_type in (
 end
 # Flux-only forms: no physical axes, just the flux leg. Independent of `axis_type`, so defined
 # outside the `axis_type` loop. `f(flux, ())` and `f(flux)` are shorthands for `f(flux, (), ())`,
-# mirroring how the codomain-only and empty-domain forms collapse. These dispatch on `SectorRange`
+# mirroring how the codomain-only and empty-domain forms collapse. These dispatch on `Sector`
 # and so take precedence over `Base.rand`/`zeros`/`fill` on a plain range, returning a graded
 # array carrying the flux rather than a plain array over that range.
 for f in (:rand, :randn)
     fmap = Symbol(f, :_map)
     @eval begin
         function Base.$f(
-                rng::AbstractRNG, ::Type{T}, c::SectorRange, ::Tuple{}, ::Tuple{}
+                rng::AbstractRNG, ::Type{T}, c::Sector, ::Tuple{}, ::Tuple{}
             ) where {T}
             return TA.$fmap(rng, T, (), (to_gradedrange(c),))
         end
-        function Base.$f(::Type{T}, c::SectorRange, cod::Tuple{}, dom::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, cod::Tuple{}, dom::Tuple{}) where {T}
             return $f(Random.default_rng(), T, c, cod, dom)
         end
-        function Base.$f(rng::AbstractRNG, c::SectorRange, cod::Tuple{}, dom::Tuple{})
+        function Base.$f(rng::AbstractRNG, c::Sector, cod::Tuple{}, dom::Tuple{})
             return $f(rng, Float64, c, cod, dom)
         end
-        function Base.$f(c::SectorRange, cod::Tuple{}, dom::Tuple{})
+        function Base.$f(c::Sector, cod::Tuple{}, dom::Tuple{})
             return $f(Random.default_rng(), Float64, c, cod, dom)
         end
         function Base.$f(
                 rng::AbstractRNG,
                 ::Type{T},
-                c::SectorRange,
+                c::Sector,
                 dom::Tuple{}
             ) where {T}
             return $f(rng, T, c, (), dom)
         end
-        function Base.$f(::Type{T}, c::SectorRange, dom::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, dom::Tuple{}) where {T}
             return $f(T, c, (), dom)
         end
-        function Base.$f(rng::AbstractRNG, c::SectorRange, dom::Tuple{})
+        function Base.$f(rng::AbstractRNG, c::Sector, dom::Tuple{})
             return $f(rng, c, (), dom)
         end
-        Base.$f(c::SectorRange, dom::Tuple{}) = $f(c, (), dom)
-        function Base.$f(rng::AbstractRNG, ::Type{T}, c::SectorRange) where {T}
+        Base.$f(c::Sector, dom::Tuple{}) = $f(c, (), dom)
+        function Base.$f(rng::AbstractRNG, ::Type{T}, c::Sector) where {T}
             return $f(rng, T, c, ())
         end
-        function Base.$f(::Type{T}, c::SectorRange) where {T}
+        function Base.$f(::Type{T}, c::Sector) where {T}
             return $f(T, c, ())
         end
-        Base.$f(rng::AbstractRNG, c::SectorRange) = $f(rng, c, ())
-        Base.$f(c::SectorRange) = $f(c, ())
+        Base.$f(rng::AbstractRNG, c::Sector) = $f(rng, c, ())
+        Base.$f(c::Sector) = $f(c, ())
     end
 end
 for f in (:zeros, :ones)
     fmap = Symbol(f, :_map)
     @eval begin
-        function Base.$f(::Type{T}, c::SectorRange, ::Tuple{}, ::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, ::Tuple{}, ::Tuple{}) where {T}
             return TA.$fmap(T, (), (to_gradedrange(c),))
         end
-        function Base.$f(c::SectorRange, cod::Tuple{}, dom::Tuple{})
+        function Base.$f(c::Sector, cod::Tuple{}, dom::Tuple{})
             return $f(Float64, c, cod, dom)
         end
-        function Base.$f(::Type{T}, c::SectorRange, dom::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, dom::Tuple{}) where {T}
             return $f(T, c, (), dom)
         end
-        Base.$f(c::SectorRange, dom::Tuple{}) = $f(Float64, c, (), dom)
-        function Base.$f(::Type{T}, c::SectorRange) where {T}
+        Base.$f(c::Sector, dom::Tuple{}) = $f(Float64, c, (), dom)
+        function Base.$f(::Type{T}, c::Sector) where {T}
             return $f(T, c, ())
         end
-        Base.$f(c::SectorRange) = $f(c, ())
+        Base.$f(c::Sector) = $f(c, ())
     end
 end
 @eval begin
-    function Base.fill(value, c::SectorRange, ::Tuple{}, ::Tuple{})
+    function Base.fill(value, c::Sector, ::Tuple{}, ::Tuple{})
         return TA.fill_map(value, (), (to_gradedrange(c),))
     end
-    Base.fill(value, c::SectorRange, dom::Tuple{}) = fill(value, c, (), dom)
-    Base.fill(value, c::SectorRange) = fill(value, c, ())
+    Base.fill(value, c::Sector, dom::Tuple{}) = fill(value, c, (), dom)
+    Base.fill(value, c::Sector) = fill(value, c, ())
 end
 
 """

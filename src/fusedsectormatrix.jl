@@ -1,5 +1,5 @@
 """
-    FusedSectorMatrix{T,S<:SectorRange,D<:AbstractMatrix{T}} <: AbstractSectorArray{T, S, 2}
+    FusedSectorMatrix{T,S<:Sector,D<:AbstractMatrix{T}} <: AbstractSectorArray{T, S, 2}
 
 Fused 2D data matrix for a single coupled sector. One block of a
 [`FusedGradedMatrix`](@ref). In the representation-theoretic sense, this is an
@@ -8,28 +8,11 @@ element of Hom_G(V_c, W_c) for coupled sector c — the reduced matrix element
 structural part ([`SectorIdentity`](@ref)).
 
 The codomain (row) axis is non-dual; the domain (column) axis is dual.
-The stored `SectorRange` is always non-dual (codomain convention).
 """
-struct FusedSectorMatrix{T, S <: SectorRange, D <: AbstractMatrix{T}} <:
+struct FusedSectorMatrix{T, S <: Sector, D <: AbstractMatrix{T}} <:
     AbstractSectorArray{T, S, 2}
     data::D
     sector::S
-    function FusedSectorMatrix{T, S, D}(
-            data::D, sector::S
-        ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
-        !isdual(sector) ||
-            throw(
-            ArgumentError(
-                "`FusedSectorMatrix` requires a non-dual sector, got `$sector`"
-            )
-        )
-        return new{T, S, D}(data, sector)
-    end
-end
-
-# Default the parameters from the data and sector types.
-function FusedSectorMatrix(data::D, sector::S) where {S <: SectorRange, D <: AbstractMatrix}
-    return FusedSectorMatrix{eltype(D), S, D}(data, sector)
 end
 
 # ---- undef constructors ----
@@ -37,20 +20,20 @@ end
 # Innermost: fully parameterized, takes AbstractUnitRange axes.
 function FusedSectorMatrix{T, S, D}(
         ::UndefInitializer, sector::S, r1::AbstractUnitRange, r2::AbstractUnitRange
-    ) where {T, S <: SectorRange, D <: AbstractMatrix{T}}
+    ) where {T, S <: Sector, D <: AbstractMatrix{T}}
     return FusedSectorMatrix{T, S, D}(similar(D, (r1, r2)), sector)
 end
 
 # Convenience: default D = Matrix{T}.
 function FusedSectorMatrix{T}(
         ::UndefInitializer, sector::S, r1::AbstractUnitRange, r2::AbstractUnitRange
-    ) where {T, S <: SectorRange}
+    ) where {T, S <: Sector}
     return FusedSectorMatrix{T, S, Matrix{T}}(undef, sector, r1, r2)
 end
 
 # Int convenience: maps to Base.OneTo.
 function FusedSectorMatrix{T}(
-        ::UndefInitializer, sector::SectorRange, m::Int, n::Int
+        ::UndefInitializer, sector::Sector, m::Int, n::Int
     ) where {T}
     return FusedSectorMatrix{T}(undef, sector, Base.OneTo(m), Base.OneTo(n))
 end
@@ -58,7 +41,7 @@ end
 # ---- accessors ----
 
 # Primitive accessor: sector(sm) returns the structural delta factor (SectorIdentity), not the
-# stored SectorRange. Access the stored SectorRange via sm.sector or sectoraxes(sm)[1]. sectoraxes,
+# stored sector. Access the stored sector via sm.sector or sectoraxes(sm)[1]. sectoraxes,
 # dataaxes, and axes are derived generically on AbstractSectorArray from sector and data.
 sector(sm::FusedSectorMatrix) = SectorIdentity{eltype(sm)}(sm.sector)
 

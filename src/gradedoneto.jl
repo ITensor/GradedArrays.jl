@@ -1,50 +1,43 @@
 """
-    GradedOneTo{S<:SectorRange}
+    GradedOneTo{S<:Sector}
 
 Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
 This is the axis type for `GradedArray`.
 
-Stores non-dual `SectorRange` values in `sectors`, sector lengths, and a single
-`isdual` flag. The `sectors` accessor returns those stored non-dual sectors; query the
-duality separately with `isdual`. The dual flag is applied per block by `eachblockaxis`
-(and hence `eachsectoraxis`). The fused (merged-sorted) form of the axis is computed once
-at construction and cached in `fused`, so `fusesectors` is a field read; the
+Stores `Sector` values in `sectors`, sector lengths, and a single `isdual` flag. The sectors
+carry no arrow of their own, so the flag is the axis's entire duality; it is applied per block
+by `eachblockaxis` (and hence `eachsectoraxis`). The fused (merged-sorted) form of the axis is
+computed once at construction and cached in `fused`, so `fusesectors` is a field read; the
 `FusedGradedOneTo` conversion compares the stored sectors against that cache and throws for
 a non-canonical axis.
 """
-struct GradedOneTo{S <: SectorRange} <: AbstractGradedOneTo{S}
+struct GradedOneTo{S <: Sector} <: AbstractGradedOneTo{S}
     sectors::Vector{S}
     datalengths::Vector{Int}
     isdual::Bool
     fused::FusedGradedOneTo{S}
     function GradedOneTo(
             sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
-        ) where {S <: SectorRange}
+        ) where {S <: Sector}
         length(sectors) == length(datalengths) ||
             throw(ArgumentError("sectors and datalengths must have the same length"))
-        all(s -> !TensorAlgebra.isdual(s), sectors) ||
-            throw(
-            ArgumentError(
-                "GradedOneTo stores non-dual sectors; pass the arrow via `isdual`"
-            )
-        )
         merged_sectors, merged_datalengths = mergesectors(sectors, datalengths)
-        fused = FusedGradedOneTo(to_labelvector(merged_sectors), merged_datalengths, isdual)
+        fused = FusedGradedOneTo(merged_sectors, merged_datalengths, isdual)
         return new{S}(sectors, datalengths, isdual, fused)
     end
     # `fused` must equal the fused form of the other fields; unchecked.
     global function unchecked_gradedoneto(
             sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool,
             fused::FusedGradedOneTo{S}
-        ) where {S <: SectorRange}
+        ) where {S <: Sector}
         return new{S}(sectors, datalengths, isdual, fused)
     end
 end
-# Arrow defaults to non-dual (sectors assumed non-dual, checked by the inner constructor).
+# Arrow defaults to non-dual.
 function GradedOneTo(
         sectors::Vector{S},
         datalengths::Vector{Int}
-    ) where {S <: SectorRange}
+    ) where {S <: Sector}
     return GradedOneTo(sectors, datalengths, false)
 end
 
@@ -60,7 +53,9 @@ fusesectors(g::GradedOneTo) = g.fused
 # ========================  conversions between graded-axis types  ========================
 
 GradedOneTo(g::GradedOneTo) = g
-GradedOneTo(g::AbstractGradedOneTo) = GradedOneTo(sectors(g), datalengths(g), isdual(g))
+function GradedOneTo(g::AbstractGradedOneTo)
+    return GradedOneTo(collect(sectors(g)), datalengths(g), isdual(g))
+end
 # An already-fused axis is its own fused form, so pass it through as the cache.
 function GradedOneTo(g::FusedGradedOneTo)
     return unchecked_gradedoneto(collect(sectors(g)), datalengths(g), isdual(g), g)
@@ -113,12 +108,9 @@ function mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
     isempty(axs) && return GradedOneTo(S[], Int[])
     allequal_compat(isdual, axs) ||
         throw(ArgumentError("Cannot combine sectors with different arrows"))
-    d = isdual(first(axs))
-    # Store non-dual sectors; apply isdual via dual() if needed
-    ss = S[d ? dual(sector(r)) : sector(r) for r in axs]
+    ss = S[sector(r) for r in axs]
     ms = Int[datalength(r) for r in axs]
-    g = GradedOneTo(ss, ms)
-    return d ? dual(g) : g
+    return GradedOneTo(ss, ms, isdual(first(axs)))
 end
 
 # Non-abelian fusion: flatten GradedOneTo elements into a single GradedOneTo
@@ -129,10 +121,10 @@ end
 
 # ========================  × with GradedOneTo  ========================
 
-function ×(g::GradedOneTo, s::SectorRange)
+function ×(g::GradedOneTo, s::Sector)
     return ×(g, to_gradedrange(s))
 end
-function ×(s::SectorRange, g::GradedOneTo)
+function ×(s::Sector, g::GradedOneTo)
     return ×(to_gradedrange(s), g)
 end
 function ×(g1::GradedOneTo, g2::GradedOneTo)
@@ -149,9 +141,7 @@ function TensorAlgebra.dual(g::GradedOneTo)
     )
 end
 function flip(g::GradedOneTo)
-    # Conjugate labels but keep stored sectors non-dual
-    new_nondual = [SectorRange(dual(label(s))) for s in g.sectors]
-    return GradedOneTo(new_nondual, datalengths(g), !isdual(g))
+    return GradedOneTo(map(charge_conjugate, sectors(g)), datalengths(g), !isdual(g))
 end
 to_gradedrange(g::GradedOneTo) = g
 
@@ -166,7 +156,7 @@ function Base.getindex(
     dest = map(blocks(I)) do group
         src = [ea[Int(b)] for b in group]
         total_mult = sum(datalength, src)
-        return SectorOneTo(sector(first(src)), total_mult)
+        return SectorOneTo(sector(first(src)), isdual(g), total_mult)
     end
     return mortar_axis(collect(dest))
 end
@@ -183,7 +173,7 @@ function Base.getindex(
         src = ea[b]
         # multiplicity of the sub-range: sub-range length / sector length
         sub_mult = div(length(r_range), length(sector(src)))
-        return SectorOneTo(sector(src), sub_mult)
+        return SectorOneTo(sector(src), isdual(g), sub_mult)
     end
     return mortar_axis(collect(dest))
 end
@@ -248,10 +238,10 @@ end
 # ========================  gradedrange constructors  ========================
 
 """
-    gradedrange(xs::AbstractVector{<:Pair{<:SectorRange, <:Integer}})
+    gradedrange(xs::AbstractVector{<:Pair{<:Sector, <:Integer}})
 
-Construct a non-dual `GradedOneTo` from `sector => multiplicity` pairs. The sectors must be
-non-dual; wrap the result in `dual` for a dual axis.
+Construct a non-dual `GradedOneTo` from `sector => multiplicity` pairs. Wrap the result in
+`dual` for a dual axis.
 
 # Examples
 
@@ -262,8 +252,16 @@ dual(gradedrange([U1(0) => 2, U1(1) => 3]))    # dual
 """
 function gradedrange(
         xs::AbstractVector{<:Pair{S, <:Integer}}
-    ) where {S <: SectorRange}
+    ) where {S <: Sector}
     return GradedOneTo(S[first(p) for p in xs], Int[last(p) for p in xs], false)
+end
+
+# A `GradedOneTo` stores bare sectors and carries the arrow itself, so an oriented sector vector
+# is rejected by `to_sector` rather than silently dropping or absorbing the arrows.
+function GradedOneTo(
+        sectors::Vector{<:OrientedSector}, datalengths::Vector{Int}, isdual::Bool
+    )
+    return GradedOneTo(map(to_sector, sectors), datalengths, isdual)
 end
 
 # Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
@@ -274,7 +272,9 @@ end
 # (GradedArrays owns neither `to_range` nor `TKS.Sector`), kept for now so raw sectors work as
 # axis descriptors (e.g. behind `Index([FermionNumber(0) => 2])`); it is allowlisted in the
 # Aqua piracy test and tracked as a follow-up to rehome onto a GradedArrays-owned entry point.
-for S in (:(TKS.Sector), :SectorRange)
+# The `OrientedSector` key is there to reject, not to accept: it routes to the generic
+# `gradedrange` fallback, whose `to_sector` points the caller at the axis.
+for S in (:(TKS.Sector), :Sector, :OrientedSector)
     @eval function TensorAlgebra.to_range(
             space::AbstractVector{<:Pair{K, <:Integer}}
         ) where {K <: $S}
@@ -298,15 +298,10 @@ function to_tensorkit_space(space)
     )
 end
 
-# `SectorRange` sector-pairs carry an arrow: strip to sector labels, check the shared arrow,
-# and apply it as a whole-space `dual` (distinct from a space of dual sectors, and the form a
-# dual index must take for contraction). The label-keyed `to_tensorkit_space` builder and
-# `dual` on the resulting space are defined in `src/tensorkit.jl`.
-function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: SectorRange}
-    arrows = isdual.(first.(space))
-    allequal_compat(arrows) ||
-        throw(ArgumentError("All sectors must have the same isdual flag"))
-    labels_space = [label(first(p)) => last(p) for p in space]
-    nondual_space = to_tensorkit_space(labels_space)
-    return first(arrows) ? dual(nondual_space) : nondual_space
+# A `Sector` carries no arrow, so a `Sector`-keyed pairs vector always describes a non-dual
+# space: hand the TensorKitSectors counterparts to the label-keyed builder in `src/tensorkit.jl`.
+# A dual space is `dual` of this one, which is distinct from a space of conjugated sectors and is
+# the form a dual index must take for contraction.
+function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: Sector}
+    return to_tensorkit_space([tensorkitsector(first(p)) => last(p) for p in space])
 end

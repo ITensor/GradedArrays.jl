@@ -41,25 +41,22 @@ function sectordata end
 
 # The sorted union of the arguments' axis supports (analogous to `eachindex(A...)`): ordered
 # random access for a positional walk over each argument's support-set form (see `setsectors`),
-# and a valid `setsectors` target for every argument by construction (it covers each axis).
-# Returned as the lazy sector view over one bare-label vector, which `setsectors` stores
-# directly, so every axis set from one union shares that vector.
+# and a valid `setsectors` target for every argument by construction (it covers each axis). The
+# sectors carry no arrow, so one union covers axes of either arrow, and `setsectors` stores the
+# returned vector directly, so every axis set from one union shares it.
 function sectorsupport(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
-    ls = mapreduce(mergesortedunique, (a, as...)) do x
+    return mapreduce(mergesortedunique, (a, as...)) do x
         return mapreduce(
-            sectorlabels,
+            sectors,
             mergesortedunique,
             (axes_codomain(x)..., axes_domain(x)...)
         )
     end
-    # The concrete `SectorRange{...}` (not the bare `UnionAll`) keeps the view's eltype concrete:
-    # `mappedarray` takes a given type verbatim as the eltype.
-    return mappedarray(SectorRange{eltype(ls)}, ls)
 end
 
 # Union of two sorted, unique vectors, returned in sorted order. Sorted inputs make the union a
 # merge.
-function mergesortedunique(a::Vector{S}, b::Vector{S}) where {S}
+function mergesortedunique(a::AbstractVector{S}, b::AbstractVector{S}) where {S}
     out = S[]
     i = j = 1
     while i <= length(a) && j <= length(b)
@@ -80,25 +77,19 @@ function mergesortedunique(a::Vector{S}, b::Vector{S}) where {S}
     return out
 end
 
-# `setsectors(a, cs)` (one method per concrete fused array) sets every axis's sector support to
-# exactly `cs`, keeping the stored per-sector lengths and giving the added sectors length zero.
+# `setsectors(a, ss)` (one method per concrete fused array) sets every axis's sector support to
+# exactly `ss`, keeping the stored per-sector lengths and giving the added sectors length zero.
 # The result shares `a`'s buffer: a zero-length sector contributes no data, so the layout carves
-# the stored blocks at their existing offsets. `cs` must be sorted (`SectorRange` order) and
-# cover every axis's support; setting arrays that will be co-iterated from one shared `cs` (the
+# the stored blocks at their existing offsets. `ss` must be sorted (`Sector` order) and
+# cover every axis's support; setting arrays that will be co-iterated from one shared `ss` (the
 # axis-support union `sectorsupport(a, bs...)`) makes a single position index them all. An
 # unchanged support returns `a` itself.
 setsectors(a::AbstractFusedGradedArray) = setsectors(a, sectorsupport(a))
 
-# Strip a sector vector to its bare label vector once per array (zero-copy for the lazy
-# `sectors` view), so both axes of the array are set from the same vector.
-function setsectors(a::AbstractFusedGradedArray, cs::AbstractVector{<:SectorRange})
-    return setsectors(a, to_labelvector(cs))
-end
-
 sectordata(a::AbstractFusedGradedArray, c) = sectordata(a)[c]
 
 # Positional form: the block of the i-th stored sector (the tokens of the sorted storage are
-# positions). Unambiguous with the keyed form because sector keys are `SectorRange`s, never `Int`s.
+# positions). Unambiguous with the keyed form because sector keys are `Sector`s, never `Int`s.
 sectordata(a::AbstractFusedGradedArray, i::Int) = gettokenvalue(sectordata(a), i)
 
 # Each concrete type implements the bipartite-axes primitives `axes_codomain`/`axes_domain` (its

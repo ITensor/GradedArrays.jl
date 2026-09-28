@@ -2,10 +2,10 @@ using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractFusedGradedMatrix, AdjointFusedGradedArray,
     FusedGradedMatrix, FusedGradedOneTo, FusedGradedVector, GradedArray, GradedOneTo, SU2,
-    SectorRange, U1, UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data,
-    datalengths, dual, eachblockstoredindex, fusedgradedmatrix, fusedgradedvector,
-    gradedrange, isdual, isstored, sectoraxes, sectordata, sectors, sectortype,
-    to_gradedrange, with_block_indexing, with_scalar_indexing
+    U1, UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data, datalengths,
+    dual, eachblockstoredindex, fusedgradedmatrix, fusedgradedvector, gradedrange, isdual,
+    isstored, sectoraxes, sectordata, sectors, sectortype, to_gradedrange, to_sector,
+    with_block_indexing, with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using TensorAlgebra: TensorAlgebra, fill_map, matricize, ones_map, rand_map, randn_map,
@@ -824,9 +824,9 @@ end
     @test sectors(axes(randn(U1(0), (r1, r2)), 3)) == [U1(0)]
 
     # A raw `TensorKitSectors.Sector` (here a fermionic sector) works directly as the flux, with
-    # no `SectorRange` wrap: these forms carry a physical graded axis, so the signature holds a
-    # GradedArrays-owned type and a bare-sector flux is not type piracy. It matches the wrapped
-    # flux, and the empty-codomain form does too.
+    # no conversion to a GradedArrays sector: these forms carry a physical graded axis, so the
+    # signature holds a GradedArrays-owned type and a bare-sector flux is not type piracy. It
+    # matches the converted flux, and the empty-codomain form does too.
     fn(n) = TKS.FermionNumber(n)
     sf = gradedrange([fn(0) => 2, fn(1) => 2])
     ferm = randn(Random.Xoshiro(4), fn(2), (sf, sf, sf, sf))
@@ -834,8 +834,8 @@ end
         Random.Xoshiro(4), Float64, (sf, sf, sf, sf),
         (to_gradedrange(fn(2)),)
     )
-    @test ferm == randn(Random.Xoshiro(4), SectorRange(fn(2)), (sf, sf, sf, sf))
-    @test zeros(fn(0), (), (sf,)) == zeros(SectorRange(fn(0)), (), (sf,))
+    @test ferm == randn(Random.Xoshiro(4), to_sector(fn(2)), (sf, sf, sf, sf))
+    @test zeros(fn(0), (), (sf,)) == zeros(to_sector(fn(0)), (), (sf,))
     @test ndims(ferm) == 5
     @test isdual(axes(ferm, 5))
 
@@ -880,10 +880,10 @@ end
 @testset "pairs-vector axis constructors" begin
     g = gradedrange([U1(0) => 2, U1(1) => 2])
     # An axis given as `sector => multiplicity` pairs is normalized to a `GradedOneTo`. Keys are
-    # `SectorRange`s, whether a native GradedArrays sector or a raw TensorKitSectors sector wrapped
-    # with `SectorRange`.
-    ps = [U1(0) => 2, U1(1) => 2]                                       # native SectorRange keys
-    pk = [SectorRange(TKS.U1Irrep(0)) => 2, SectorRange(TKS.U1Irrep(1)) => 2]  # wrapped raw keys
+    # `Sector`s, reached either through a named constructor or through `to_sector` on a raw
+    # TensorKitSectors sector.
+    ps = [U1(0) => 2, U1(1) => 2]                                             # named keys
+    pk = [to_sector(TKS.U1Irrep(0)) => 2, to_sector(TKS.U1Irrep(1)) => 2]     # converted raw keys
     @testset "$f codomain-only" for (f, ref) in
         ((zeros, zeros(g, g)), (ones, ones(g, g)))
         @test f(ps, ps) == ref

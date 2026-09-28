@@ -1,4 +1,4 @@
-using GradedArrays: GradedArrays, SU2, SectorOneTo, SectorRange, U1, UniqueSectorArray,
+using GradedArrays: GradedArrays, SU2, SectorOneTo, U1, UniqueSectorArray,
     UniqueSectorDelta, UniqueSectorMatrix, UniqueSectorVector, data, dual, isdual, sector,
     sector_kron, sectoraxes, sectortype, with_scalar_indexing
 using LinearAlgebra: tr
@@ -6,7 +6,7 @@ using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
 @testset "UniqueSectorArray" begin
-    @testset "Construction from SectorRange tuples" begin
+    @testset "Construction from sector tuples" begin
         data = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
         @test sa isa UniqueSectorArray{Float64, U1, 2, <:Any, <:Any, Matrix{Float64}}
@@ -67,7 +67,9 @@ using Test: @test, @test_throws, @testset
     @testset "rank-0 (scalar) array" begin
         # A rank-0 array has an empty `sectors` tuple, so `sector` and the delta/data
         # constructor take the sector type from the type rather than inferring it.
-        sa = UniqueSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(fill(2.0), (), ())
+        sa = UniqueSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(
+            fill(2.0), (), (), (), ()
+        )
         @test ndims(sa) == 0
         @test sectortype(sa) === U1
         with_scalar_indexing() do

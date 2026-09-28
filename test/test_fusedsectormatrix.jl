@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, FusedSectorMatrix, FusedSectorVector, SU2, SectorIdentity,
-    SectorOneTo, SectorRange, U1, UniqueSectorArray, data, dataaxes, dual, isdual, sector,
-    sector_kron, sectoraxes, sectortype, with_scalar_indexing
+    SectorOneTo, U1, UniqueSectorArray, data, dataaxes, dual, isdual, sector, sector_kron,
+    sectoraxes, sectortype, with_scalar_indexing
 using LinearAlgebra: dot, norm, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -9,7 +9,7 @@ using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
 @testset "FusedSectorMatrix" begin
-    @testset "Construction from SectorRange + data" begin
+    @testset "Construction from a sector + data" begin
         d = [1.0 2.0; 3.0 4.0]
         sm = FusedSectorMatrix(d, U1(1))
         @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}

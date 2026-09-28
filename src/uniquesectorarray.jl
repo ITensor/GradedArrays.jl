@@ -1,23 +1,29 @@
 """
     UniqueSectorArray{T,S,N,NC,ND,A} <: AbstractSectorArray{T,S,N}
 
-Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus one `SectorRange`
-per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
+Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus one sector and one
+arrow per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
 Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker product of the
 structural [`UniqueSectorDelta`](@ref) (`sector`) with the data array (reduced matrix elements).
 The all-codomain case (`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`).
 """
-struct UniqueSectorArray{T, S <: SectorRange, N, NC, ND, A <: AbstractArray{T, N}} <:
+struct UniqueSectorArray{T, S <: Sector, N, NC, ND, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, S, N}
     data::A
     sectors_codomain::NTuple{NC, S}
+    isduals_codomain::NTuple{NC, Bool}
     sectors_domain::NTuple{ND, S}
+    isduals_domain::NTuple{ND, Bool}
     function UniqueSectorArray{T, S, N, NC, ND, A}(
-            data::A, sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
-        ) where {T, S <: SectorRange, N, NC, ND, A <: AbstractArray{T, N}}
+            data::A,
+            sectors_codomain::NTuple{NC, S}, isduals_codomain::NTuple{NC, Bool},
+            sectors_domain::NTuple{ND, S}, isduals_domain::NTuple{ND, Bool}
+        ) where {T, S <: Sector, N, NC, ND, A <: AbstractArray{T, N}}
         NC + ND == N ||
             throw(ArgumentError("codomain ($NC) + domain ($ND) legs must equal N ($N)"))
-        return new{T, S, N, NC, ND, A}(data, sectors_codomain, sectors_domain)
+        return new{T, S, N, NC, ND, A}(
+            data, sectors_codomain, isduals_codomain, sectors_domain, isduals_domain
+        )
     end
 end
 
@@ -25,13 +31,14 @@ end
 # `UniqueSectorArray` is a block type (the `fa[Block]` view), not meant to be built directly;
 # these are the forms used internally.
 
-# Primary: data plus the two sector tuples, inferring the parameters. `N == NC + ND`.
+# Primary: data plus the two sector/arrow tuple pairs, inferring the parameters. `N == NC + ND`.
 function UniqueSectorArray(
         data::AbstractArray{T, N},
-        sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
-    ) where {T, S <: SectorRange, N, NC, ND}
+        sectors_codomain::NTuple{NC, S}, isduals_codomain::NTuple{NC, Bool},
+        sectors_domain::NTuple{ND, S}, isduals_domain::NTuple{ND, Bool}
+    ) where {T, S <: Sector, N, NC, ND}
     return UniqueSectorArray{T, S, N, NC, ND, typeof(data)}(
-        data, sectors_codomain, sectors_domain
+        data, sectors_codomain, isduals_codomain, sectors_domain, isduals_domain
     )
 end
 
@@ -40,18 +47,28 @@ end
 # primary cannot infer. Used by `conj`.
 function UniqueSectorArray{T, S, N}(
         data::AbstractArray{T, N},
-        sectors_codomain::NTuple{NC, S}, sectors_domain::NTuple{ND, S}
-    ) where {T, S <: SectorRange, N, NC, ND}
+        sectors_codomain::NTuple{NC, S}, isduals_codomain::NTuple{NC, Bool},
+        sectors_domain::NTuple{ND, S}, isduals_domain::NTuple{ND, Bool}
+    ) where {T, S <: Sector, N, NC, ND}
     return UniqueSectorArray{T, S, N, NC, ND, typeof(data)}(
-        data, sectors_codomain, sectors_domain
+        data, sectors_codomain, isduals_codomain, sectors_domain, isduals_domain
+    )
+end
+
+# Leg-tuple forms: each leg given as a sector, bare or oriented, with the arrows split out here.
+function UniqueSectorArray(
+        data::AbstractArray,
+        sectors_codomain::Tuple{Vararg{AnySector}},
+        sectors_domain::Tuple{Vararg{AnySector}}
+    )
+    return UniqueSectorArray(
+        data, splitarrows(sectors_codomain)..., splitarrows(sectors_domain)...
     )
 end
 
 # All-codomain shorthand from a flat sector tuple: what `fa[Block]` returns when there is no
 # domain leg. Flat always means all-codomain.
-function UniqueSectorArray(
-        data::AbstractArray{T, N}, sectors::NTuple{N, S}
-    ) where {T, S <: SectorRange, N}
+function UniqueSectorArray(data::AbstractArray, sectors::Tuple{Vararg{AnySector}})
     return UniqueSectorArray(data, sectors, ())
 end
 
@@ -62,7 +79,8 @@ function UniqueSectorArray(
         data::AbstractArray{T}, delta::UniqueSectorDelta{<:Any, S, N, NC, ND}
     ) where {T, S, N, NC, ND}
     return UniqueSectorArray{T, S, N, NC, ND, typeof(data)}(
-        data, delta.sectors_codomain, delta.sectors_domain
+        data, delta.sectors_codomain, delta.isduals_codomain,
+        delta.sectors_domain, delta.isduals_domain
     )
 end
 
@@ -74,27 +92,29 @@ function UniqueSectorArray{T}(
     N = length(axs)
     S = sectortype(eltype(axs))
     return UniqueSectorArray{T, S, N, N, 0, Array{T, N}}(
-        similar(Array{T, N}, data.(axs)), sector.(axs), ()
+        similar(Array{T, N}, data.(axs)), sector.(axs), isdual.(axs), (), ()
     )
 end
 
-const UniqueSectorVector{T, S <: SectorRange, NC, ND, A <: AbstractVector{T}} =
+const UniqueSectorVector{T, S <: Sector, NC, ND, A <: AbstractVector{T}} =
     UniqueSectorArray{T, S, 1, NC, ND, A}
-const UniqueSectorMatrix{T, S <: SectorRange, NC, ND, A <: AbstractMatrix{T}} =
+const UniqueSectorMatrix{T, S <: Sector, NC, ND, A <: AbstractMatrix{T}} =
     UniqueSectorArray{T, S, 2, NC, ND, A}
 
 # Accessors
 
 # Kronecker factor decomposition: UniqueSectorArray = sector ⊗ data. `sector` wraps the stored
-# codomain/domain sector tuples in a delta, so `sector_kron(sector(a), data(a)) === a`.
+# codomain/domain sector and arrow tuples in a delta, so `sector_kron(sector(a), data(a)) === a`.
 function sector(sa::UniqueSectorArray{T, S, N, NC, ND, A}) where {T, S, N, NC, ND, A}
-    return UniqueSectorDelta{T, S, N, NC, ND}(sa.sectors_codomain, sa.sectors_domain)
+    return UniqueSectorDelta{T, S, N, NC, ND}(
+        sa.sectors_codomain, sa.isduals_codomain, sa.sectors_domain, sa.isduals_domain
+    )
 end
 
 datatype(::Type{<:UniqueSectorArray{T, S, N, NC, ND, A}}) where {T, S, N, NC, ND, A} = A
 
 function Base.copy(a::UniqueSectorArray)
-    return UniqueSectorArray(copy(data(a)), a.sectors_codomain, a.sectors_domain)
+    return UniqueSectorArray(copy(data(a)), sector(a))
 end
 
 # A range sub-view keeps the sector labels and shrinks the reduced data: the degeneracy dimensions
@@ -142,13 +162,15 @@ end
 # ========================  conj  ========================
 
 # Conjugate while keeping the codomain/domain split, mirroring `conj(::GradedArray)` (the generic
-# `conj.(a)` broadcast collapses to all-codomain). A same-split destination with every stored sector
-# dualized is filled by a single `op = conj` permute-add over the identity biperm; the fermionic
+# `conj.(a)` broadcast collapses to all-codomain). A same-split destination with every leg's arrow
+# flipped is filled by a single `op = conj` permute-add over the identity biperm; the fermionic
 # leg-reversal sign rides `bipermutedimsopadd!` (folded in by `fermion_permutation_phase`), which a
 # bare data `conj` would drop.
 function Base.conj(a::UniqueSectorArray{T, S, N, NC, ND}) where {T, S, N, NC, ND}
     dest = UniqueSectorArray{T, S, N}(
-        similar(data(a)), map(dual, a.sectors_codomain), map(dual, a.sectors_domain)
+        similar(data(a)),
+        a.sectors_codomain, map(!, a.isduals_codomain),
+        a.sectors_domain, map(!, a.isduals_domain)
     )
     TensorAlgebra.bipermutedimsopadd!(
         dest, conj, a, ntuple(identity, Val(NC)), ntuple(i -> NC + i, Val(ND)), true, false
@@ -185,7 +207,7 @@ end
 
 function twist!(a::UniqueSectorArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    phase = mapreduce(i -> twist(sectoraxes(a, i)), *, dims; init = 1)
+    phase = mapreduce(i -> twist(sector(sectoraxes(a, i))), *, dims; init = 1)
     isone(phase) || (data(a) .*= phase)
     return a
 end

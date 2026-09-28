@@ -58,7 +58,7 @@ end
 # ========================  sorting utilities  ========================
 
 # convention: sort dual GradedOneTo according to nondual blocks
-# Sort by SectorRange to use the custom isless ordering
+# Sort by sector to use the custom isless ordering
 function sectorsortperm(g::AbstractGradedOneTo)
     return Block.(sortperm(sectors(g)))
 end
@@ -104,7 +104,7 @@ end
 # constant-time fast paths (the cached fused form and the identity).
 function fusesectors(g::AbstractGradedOneTo)
     merged_sectors, merged_datalengths = mergesectors(sectors(g), datalengths(g))
-    return FusedGradedOneTo(to_labelvector(merged_sectors), merged_datalengths, isdual(g))
+    return FusedGradedOneTo(merged_sectors, merged_datalengths, isdual(g))
 end
 
 # Always returns a non-dual fused-sorted axis. Conjugation is a sector bijection, so flipping
@@ -112,6 +112,16 @@ end
 function tensor_product(g::AbstractGradedOneTo)
     f = fusesectors(g)
     return isdual(f) ? flip(f) : f
+end
+
+# `reduce` over a one-element collection hands back the element through `reduce_first`
+# without calling the operation, which would skip the arrow normalization that the
+# one-argument `tensor_product` performs.
+function Base.reduce_first(
+        ::typeof(tensor_product),
+        x::Union{AnySector, SectorOneTo, AbstractGradedOneTo}
+    )
+    return tensor_product(x)
 end
 
 function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
@@ -130,19 +140,36 @@ function tensor_product(g::AbstractGradedOneTo, s::SectorOneTo)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# SectorRange ↔ GradedOneTo
-function tensor_product(s::SectorRange, g::AbstractGradedOneTo)
+# Sector ↔ GradedOneTo
+function tensor_product(s::Sector, g::AbstractGradedOneTo)
     return tensor_product(to_gradedrange(s), g)
 end
-function tensor_product(g::AbstractGradedOneTo, s::SectorRange)
+function tensor_product(g::AbstractGradedOneTo, s::Sector)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# SectorRange ↔ SectorOneTo
-function tensor_product(s::SectorRange, r::SectorOneTo)
+# OrientedSector ↔ GradedOneTo. Reached mid-`reduce` over oriented sectors once a non-abelian
+# fusion step has turned the accumulator into a graded range.
+function tensor_product(s::OrientedSector, g::AbstractGradedOneTo)
+    return tensor_product(to_gradedrange(s), g)
+end
+function tensor_product(g::AbstractGradedOneTo, s::OrientedSector)
+    return tensor_product(g, to_gradedrange(s))
+end
+
+# OrientedSector ↔ SectorOneTo
+function tensor_product(s::OrientedSector, r::SectorOneTo)
     return tensor_product(to_gradedrange(s), to_gradedrange(r))
 end
-function tensor_product(r::SectorOneTo, s::SectorRange)
+function tensor_product(r::SectorOneTo, s::OrientedSector)
+    return tensor_product(to_gradedrange(r), to_gradedrange(s))
+end
+
+# Sector ↔ SectorOneTo
+function tensor_product(s::Sector, r::SectorOneTo)
+    return tensor_product(to_gradedrange(s), to_gradedrange(r))
+end
+function tensor_product(r::SectorOneTo, s::Sector)
     return tensor_product(to_gradedrange(r), to_gradedrange(s))
 end
 

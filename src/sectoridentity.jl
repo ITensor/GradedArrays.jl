@@ -1,24 +1,17 @@
 """
-    SectorIdentity{T,S<:SectorRange} <: AbstractSectorDelta{T,S,2}
+    SectorIdentity{T,S<:Sector} <: AbstractSectorDelta{T,S,2}
 
 Fused 2D structural factor for a single coupled sector. By Schur's lemma, the
 structural part of each block in the fused (matricized) basis is the identity
 matrix for the irrep. Carries no free data — completely determined by the sector.
 The codomain axis is non-dual, the domain axis is dual.
 """
-struct SectorIdentity{T, S <: SectorRange} <: AbstractSectorDelta{T, S, 2}
+struct SectorIdentity{T, S <: Sector} <: AbstractSectorDelta{T, S, 2}
     sector::S
-    function SectorIdentity{T, S}(sector::S) where {T, S <: SectorRange}
-        !isdual(sector) ||
-            throw(
-            ArgumentError("`SectorIdentity` requires a non-dual sector, got `$sector`")
-        )
-        return new{T, S}(sector)
-    end
 end
-function SectorIdentity{T}(s::S) where {T, S <: SectorRange}
-    return SectorIdentity{T, S}(s)
-end
+SectorIdentity{T}(s::S) where {T, S <: Sector} = SectorIdentity{T, S}(s)
+# The arrows live on the two axes, not the sector, so an oriented key is rejected by `to_sector`.
+SectorIdentity{T}(s::OrientedSector) where {T} = SectorIdentity{T}(to_sector(s))
 
 # The fused structural factor is always a coupled-sector matrix: one codomain, one domain leg.
 TensorAlgebra.ndims_codomain(::SectorIdentity) = 1
@@ -31,7 +24,9 @@ Base.@propagate_inbounds function Base.getindex(
     return ifelse(i == j, one(T), zero(T))
 end
 
-biaxes(A::SectorIdentity) = bispace((A.sector,), (A.sector,))
+function biaxes(A::SectorIdentity)
+    return bispace((OrientedSector(A.sector),), (OrientedSector(A.sector),))
+end
 Base.axes(A::SectorIdentity) = Tuple(biaxes(A))
 
 # Structural inner product: the identity contracts to its dimension, the quantum dimension.
@@ -47,8 +42,7 @@ function LinearAlgebra.norm(a::SectorIdentity{T}, p::Real = 2) where {T}
 end
 
 # The identity structural factor is a matrix, so its trace is defined (unlike the general structural
-# deltas): the sector's quantum dimension, the length of the diagonal. The first axis is always
-# non-dual (enforced by the constructor), so no runtime guard is needed.
+# deltas): the sector's quantum dimension, the length of the diagonal.
 function LinearAlgebra.tr(a::SectorIdentity)
     return diaglength(a)
 end

@@ -1,11 +1,11 @@
-using GradedArrays: SU2, SectorRange, TrivialSector, U1, Z, dual, flip, istrivial, modulus,
-    sectortype, trivial
+using GradedArrays: SU2, TensorKitSector, TrivialSector, U1, Z, dual, flip, istrivial,
+    modulus, sectortype, to_sector, trivial
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
-const SU{N} = SectorRange{SUNRepresentations.SUNIrrep{N}}
+const SU{N} = TensorKitSector{SUNRepresentations.SUNIrrep{N}}
 fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
 
 @testset "Test SymmetrySectors Types" begin
@@ -19,7 +19,7 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test trivial(q) == q
         @test istrivial(q)
 
-        @test dual(q) == q
+        @test flip(dual(q)) == q
         @test !isless(q, q)
     end
 
@@ -80,12 +80,12 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "O(2)" begin
-        s0e = SectorRange(TKS.CU1Irrep(0, 0))
-        s0o = SectorRange(TKS.CU1Irrep(0, 1))
-        s12 = SectorRange(TKS.CU1Irrep(1 // 2, 2))
-        s1 = SectorRange(TKS.CU1Irrep(1, 2))
+        s0e = to_sector(TKS.CU1Irrep(0, 0))
+        s0o = to_sector(TKS.CU1Irrep(0, 1))
+        s12 = to_sector(TKS.CU1Irrep(1 // 2, 2))
+        s1 = to_sector(TKS.CU1Irrep(1, 2))
 
-        @test trivial(SectorRange{TKS.CU1Irrep}) == s0e
+        @test trivial(TensorKitSector{TKS.CU1Irrep}) == s0e
         @test istrivial(s0e)
 
         @test (@constinferred length(s0e)) == 1
@@ -167,10 +167,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "Fibonacci" begin
-        ı = SectorRange(TKS.FibonacciAnyon(:I))
-        τ = SectorRange(TKS.FibonacciAnyon(:τ))
+        ı = to_sector(TKS.FibonacciAnyon(:I))
+        τ = to_sector(TKS.FibonacciAnyon(:τ))
 
-        @test trivial(SectorRange{TKS.FibonacciAnyon}) == ı
+        @test trivial(TensorKitSector{TKS.FibonacciAnyon}) == ı
         @test istrivial(ı)
         @test ı == TrivialSector()
 
@@ -184,11 +184,11 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "Ising" begin
-        ı = SectorRange(TKS.IsingAnyon(:I))
-        σ = SectorRange(TKS.IsingAnyon(:σ))
-        ψ = SectorRange(TKS.IsingAnyon(:ψ))
+        ı = to_sector(TKS.IsingAnyon(:I))
+        σ = to_sector(TKS.IsingAnyon(:σ))
+        ψ = to_sector(TKS.IsingAnyon(:ψ))
 
-        @test trivial(SectorRange{TKS.IsingAnyon}) == ı
+        @test trivial(TensorKitSector{TKS.IsingAnyon}) == ı
         @test istrivial(ı)
         @test ı == TrivialSector()
 

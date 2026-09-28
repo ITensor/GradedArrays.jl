@@ -2,14 +2,15 @@ module GradedArrays
 
 # exports
 # -------
-export TrivialSector, U1, SU2, Z, Z2
+export TrivialSector, U1, SU2, Z, Z2, fZ2
 export GradedArray, gradedrange
 export dual, isdual
 
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public SectorRange, sectors, with_scalar_indexing, with_block_indexing"
+            "public Sector, OrientedSector, TensorKitSector, sectors, \
+            with_scalar_indexing, with_block_indexing"
         )
     )
 end
@@ -20,6 +21,7 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
     BlockIndexRange, BlockVector, BlockedArray, BlockedOneTo, block, blockedrange,
     blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
+using HalfIntegers: HalfInt
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, MatricizeStyle,
@@ -39,7 +41,7 @@ include("kron.jl")
 include("blocksparseinterface.jl")
 include("sparsearrays.jl")
 include("sortedarraydictionary.jl")
-include("sectorrange.jl")
+include("sector.jl")
 include("data.jl")
 include("sectoroneto.jl")
 include("abstractgradedoneto.jl")

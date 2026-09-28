@@ -1,7 +1,6 @@
 using BlockArrays: blocklengths
-using GradedArrays: GradedArrays, SU2, SectorOneTo, SectorProduct, SectorRange,
-    TrivialSector, U1, Z, arguments, dual, flip, gradedrange, label, sector, sectorproduct,
-    sectortype, tensor_product, trivial, ×
+using GradedArrays: SU2, SectorOneTo, SectorProduct, TrivialSector, U1, Z, arguments, dual,
+    flip, gradedrange, sector, sectorproduct, sectortype, tensor_product, trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_broken, @test_throws, @testset
 using TestExtras: @constinferred
@@ -10,15 +9,16 @@ using TestExtras: @constinferred
     @testset "Ordered Constructor" begin
         s = SectorProduct(TKS.U1Irrep(1))
         @test length(arguments(s)) == 1
-        @test (@constinferred length(SectorRange(s))) == 1
-        @test (@constinferred dual(s)) == SectorProduct(TKS.U1Irrep(-1))
+        @test (@constinferred length(s)) == 1
+        @test (@constinferred flip(dual(s))) == SectorProduct(TKS.U1Irrep(-1))
         @test arguments(s)[1] == TKS.U1Irrep(1)
         @test (@constinferred trivial(s)) == SectorProduct(TKS.U1Irrep(0))
 
         s = SectorProduct(TKS.U1Irrep(1), TKS.U1Irrep(2))
         @test length(arguments(s)) == 2
-        @test (@constinferred length(SectorRange(s))) == 1
-        @test (@constinferred dual(s)) == SectorProduct(TKS.U1Irrep(-1), TKS.U1Irrep(-2))
+        @test (@constinferred length(s)) == 1
+        @test (@constinferred flip(dual(s))) ==
+            SectorProduct(TKS.U1Irrep(-1), TKS.U1Irrep(-2))
         @test arguments(s)[1] == TKS.U1Irrep(1)
         @test arguments(s)[2] == TKS.U1Irrep(2)
         @test (@constinferred trivial(s)) == SectorProduct(TKS.U1Irrep(0), TKS.U1Irrep(0))
@@ -50,7 +50,7 @@ using TestExtras: @constinferred
         @test_broken sectorproduct(U1(1)) != U1(1)
         @test sectorproduct(U1(1)) == sectorproduct(U1(1), U1(0))
         @test sectorproduct(U1(1)) != sectorproduct(U1(1), U1(1))
-        @test sectorproduct(U1(0), SU2(0)) == label(TrivialSector())
+        @test sectorproduct(U1(0), SU2(0)) == TrivialSector()
         @test sectorproduct(U1(0), SU2(0)) == sectorproduct(TrivialSector(), SU2(0))
         @test sectorproduct(U1(0), SU2(0)) == sectorproduct(U1(0), TrivialSector())
         @test sectorproduct(U1(0), SU2(0)) ==
@@ -192,7 +192,7 @@ end
         @test_throws ArgumentError s1 × s2
 
         g = gradedrange([(Nf = U1(0),) => 2, (Nf = U1(1),) => 3])
-        @test sectortype(g) <: GradedArrays.SectorRange{<:SectorProduct}
+        @test sectortype(g) <: SectorProduct
         sr = SectorOneTo(×((; S = SU2(1 // 2))), 1)
         @test length(sr) == 2
         g = gradedrange([(; S = SU2(1 // 2)) => 1])
@@ -381,8 +381,8 @@ end
 
         @test (@constinferred s × ×()) == s
         @test (@constinferred s × ×((;))) == s
-        @test label(@constinferred tensor_product(s, ×())) == s
-        @test label(@constinferred tensor_product(s, ×((;)))) == s
+        @test (@constinferred tensor_product(s, ×())) == s
+        @test (@constinferred tensor_product(s, ×((;)))) == s
 
         @test (@constinferred flip(dual(s))) == s
         @test (@constinferred trivial(s)) == s

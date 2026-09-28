@@ -1,5 +1,5 @@
 """
-    AbstractGradedOneTo{S<:SectorRange} <: AbstractUnitRange{Int}
+    AbstractGradedOneTo{S<:Sector} <: AbstractUnitRange{Int}
 
 Supertype for graded axes — a unit range carved into sectors (its blocks), each with a data length
 (multiplicity), plus a range-level `isdual` arrow. Concrete subtypes differ only in storage
@@ -15,7 +15,7 @@ Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isd
 `dual` and `flip` (which return the same concrete type). Everything below is derived from
 those.
 """
-abstract type AbstractGradedOneTo{S <: SectorRange} <: AbstractUnitRange{Int} end
+abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
 
 # ========================  derived accessors  ========================
 
@@ -50,11 +50,11 @@ dataaxistype(::Type{<:AbstractGradedOneTo}) = Base.OneTo{Int}
 # ========================  BlockSparseArrays interface  ========================
 
 function eachblockaxis(g::AbstractGradedOneTo)
-    block_sectors = isdual(g) ? dual.(sectors(g)) : sectors(g)
-    return [SectorOneTo(s, m) for (s, m) in zip(block_sectors, datalengths(g))]
+    # The stored sectors carry no arrow, so each block axis takes the range's own.
+    return [SectorOneTo(s, isdual(g), m) for (s, m) in zip(sectors(g), datalengths(g))]
 end
 eachdataaxis(g::AbstractGradedOneTo) = data.(eachblockaxis(g))
-eachsectoraxis(g::AbstractGradedOneTo) = sector.(eachblockaxis(g))
+eachsectoraxis(g::AbstractGradedOneTo) = sectoraxes1.(eachblockaxis(g))
 
 # ========================  conj, flip_dual  ========================
 # `dual` and `flip` are concrete-type-specific (they return the same concrete type); `conj`

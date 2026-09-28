@@ -6,14 +6,14 @@ using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
 """
-    FusedGradedDiagonal{T,S<:SectorRange,V<:DenseVector{T}} <: AbstractFusedGradedMatrix{T,S}
+    FusedGradedDiagonal{T,S<:Sector,V<:DenseVector{T}} <: AbstractFusedGradedMatrix{T,S}
 
 Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
 factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
 `DiagonalTensorMap`. Wraps a [`FusedGradedVector`](@ref) of the diagonals; the `Diagonal` blocks are
 the lazy `sectordata(d)` view over that vector.
 """
-struct FusedGradedDiagonal{T, S <: SectorRange, V <: DenseVector{T}} <:
+struct FusedGradedDiagonal{T, S <: Sector, V <: DenseVector{T}} <:
     AbstractFusedGradedMatrix{T, S}
     diag::FusedGradedVector{T, S, V}
 end
@@ -61,10 +61,10 @@ function sectordata(d::FusedGradedDiagonal)
     return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
 end
 
-# Set the wrapped diagonal vector's axis to exactly `ls` (see
-# `setsectors(::FusedGradedVector, ls)`); the `Diagonal` blocks at the added sectors are 0×0.
-function setsectors(d::FusedGradedDiagonal, ls::Vector{<:TKS.Sector})
-    diag = setsectors(MAK.diagview(d), ls)
+# Set the wrapped diagonal vector's axis to exactly `ss` (see
+# `setsectors(::FusedGradedVector, ss)`); the `Diagonal` blocks at the added sectors are 0×0.
+function setsectors(d::FusedGradedDiagonal, ss::AbstractVector{<:Sector})
+    diag = setsectors(MAK.diagview(d), ss)
     # An unchanged diagonal means the set is the identity; return `d` itself.
     diag === MAK.diagview(d) && return d
     return FusedGradedDiagonal(diag)

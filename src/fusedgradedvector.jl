@@ -7,35 +7,17 @@
 # ---------------------------------------------------------------------------
 
 """
-    FusedSectorVector{T, S<:SectorRange, D<:AbstractVector{T}} <: AbstractSectorArray{T, S, 1}
+    FusedSectorVector{T, S<:Sector, D<:AbstractVector{T}} <: AbstractSectorArray{T, S, 1}
 
 A single sector with a data vector. Analogous to [`FusedSectorMatrix`](@ref) but for 1-D data
 (eigenvalues, singular values, etc.). Each element is a symmetry scalar — there is no
 Wigner-Eckart structural factor; the sector label simply identifies which block the values
 belong to.
-
-The stored `SectorRange` is always non-dual (codomain convention).
 """
-struct FusedSectorVector{T, S <: SectorRange, D <: AbstractVector{T}} <:
+struct FusedSectorVector{T, S <: Sector, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, S, 1}
     data::D
     sector::S
-    function FusedSectorVector{T, S, D}(
-            data::D, sector::S
-        ) where {T, S <: SectorRange, D <: AbstractVector{T}}
-        !isdual(sector) ||
-            throw(
-            ArgumentError(
-                "`FusedSectorVector` requires a non-dual sector, got `$sector`"
-            )
-        )
-        return new{T, S, D}(data, sector)
-    end
-end
-
-# Default the parameters from the data and sector types.
-function FusedSectorVector(data::D, sector::S) where {S <: SectorRange, D <: AbstractVector}
-    return FusedSectorVector{eltype(D), S, D}(data, sector)
 end
 
 # ---- undef constructors ----
@@ -43,26 +25,26 @@ end
 # Innermost: fully parameterized, takes an AbstractUnitRange data axis.
 function FusedSectorVector{T, S, D}(
         ::UndefInitializer, sector::S, r::AbstractUnitRange
-    ) where {T, S <: SectorRange, D <: AbstractVector{T}}
+    ) where {T, S <: Sector, D <: AbstractVector{T}}
     return FusedSectorVector{T, S, D}(similar(D, (r,)), sector)
 end
 
 # Convenience: default D = Vector{T}.
 function FusedSectorVector{T}(
         ::UndefInitializer, sector::S, r::AbstractUnitRange
-    ) where {T, S <: SectorRange}
+    ) where {T, S <: Sector}
     return FusedSectorVector{T, S, Vector{T}}(undef, sector, r)
 end
 
 # Int convenience: maps to Base.OneTo.
-function FusedSectorVector{T}(::UndefInitializer, sector::SectorRange, n::Int) where {T}
+function FusedSectorVector{T}(::UndefInitializer, sector::Sector, n::Int) where {T}
     return FusedSectorVector{T}(undef, sector, Base.OneTo(n))
 end
 
 # ---- accessors ----
 
 # Return the structural delta factor (`SectorOnesVector`, the diagonal of the block's
-# `SectorIdentity`), mirroring `sector(::FusedSectorMatrix)`. The stored `SectorRange` is `sv.sector`.
+# `SectorIdentity`), mirroring `sector(::FusedSectorMatrix)`. The stored sector is `sv.sector`.
 # sectoraxes, dataaxes, and axes are derived generically on AbstractSectorArray from sector and data;
 # a `FusedSectorVector`'s single axis is thus a `SectorOneTo` carrying the sector (its `size` is the
 # block's full graded length, not the reduced data length), matching the matrix blocks.
@@ -106,14 +88,14 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    FusedGradedVector{T,S<:SectorRange,V<:DenseVector{T}}
+    FusedGradedVector{T,S<:Sector,V<:DenseVector{T}}
 
 Block-structured 1-D graded array produced by a sector-preserving operation on
 a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`). Stores a contiguous
 `buffer` plus the fused axis; the per-sector blocks are the lazy `sectordata(v)` view carved from the
 buffer on demand.
 """
-struct FusedGradedVector{T, S <: SectorRange, V <: DenseVector{T}} <:
+struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}} <:
     AbstractFusedGradedVector{T, S}
     buffer::V
     axis::FusedGradedOneTo{S}
@@ -127,7 +109,7 @@ struct FusedGradedVector{T, S <: SectorRange, V <: DenseVector{T}} <:
     # the axis itself).
     function FusedGradedVector{T, S, V}(
             buffer::V, axis::FusedGradedOneTo{S}, datalayout
-        ) where {T, S <: SectorRange, V <: DenseVector{T}}
+        ) where {T, S <: Sector, V <: DenseVector{T}}
         isdual(axis) && throw(
             ArgumentError("FusedGradedVector stores a non-dual axis")
         )
@@ -146,7 +128,7 @@ end
 # layout computed); every axis-only construction routes through here.
 function FusedGradedVector{T, S, V}(
         buffer::V, axis::AbstractGradedOneTo
-    ) where {T, S <: SectorRange, V <: DenseVector{T}}
+    ) where {T, S <: Sector, V <: DenseVector{T}}
     ax = FusedGradedOneTo(axis)
     return FusedGradedVector{T, S, V}(buffer, ax, sectordatalayout(ax))
 end
@@ -181,14 +163,14 @@ end
 
 Build a `FusedGradedVector` from per-sector block data (`sector => data` pairs, any iterator of pairs,
 or a `Dictionary` keyed by sector). The axis is derived from the blocks: `axis[sectors[i]]` is
-`length(data[i])`. Bare `TKS.Sector`s are accepted alongside `SectorRange`s; the sectors must be
+`length(data[i])`. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be
 sorted and unique. To wrap an existing contiguous buffer instead, use [`FusedGradedVector`](@ref).
 """
 function fusedgradedvector(sectordata)
     ps = collect(sectordata)
-    # Accept bare `TKS.Sector`s alongside `SectorRange`s, as `gradedrange` does; `SectorRange` wraps
-    # the former and is the identity on the latter.
-    sectors = [SectorRange(first(p)) for p in ps]
+    # Accept bare `TKS.Sector`s alongside our own, as `gradedrange` does; `to_sector` converts the
+    # former and is the identity on the latter.
+    sectors = [to_sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
@@ -242,10 +224,10 @@ end
 
 # ========================  setsectors  ========================
 
-# Set the axis to exactly `ls` and wrap the same buffer as `v`, with the added blocks zero-size
-# views (see `setsectors(::FusedGradedMatrix, ls)`).
-function setsectors(v::FusedGradedVector, ls::Vector{<:TKS.Sector})
-    ax = setsectors(axis(v), ls)
+# Set the axis to exactly `ss` and wrap the same buffer as `v`, with the added blocks zero-size
+# views (see `setsectors(::FusedGradedMatrix, ss)`).
+function setsectors(v::FusedGradedVector, ss::AbstractVector{<:Sector})
+    ax = setsectors(axis(v), ss)
     # An unchanged axis means the set is the identity; return `v` itself.
     ax === axis(v) && return v
     return FusedGradedVector(v.buffer, ax, sectordatalayout(ax))

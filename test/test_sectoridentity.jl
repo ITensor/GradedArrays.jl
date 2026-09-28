@@ -1,5 +1,4 @@
-using GradedArrays:
-    SU2, SectorIdentity, SectorRange, U1, dual, isdual, sectoraxes, sectortype
+using GradedArrays: SU2, SectorIdentity, U1, dual, isdual, sectoraxes, sectortype
 using LinearAlgebra: norm, tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset

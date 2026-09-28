@@ -263,16 +263,16 @@ end
 # omitting the sectors with no excess. A walk over `axis`'s sorted stored vectors, so the result
 # stays canonical.
 function nullspace_axis(axis::FusedGradedOneTo, other::FusedGradedOneTo)
-    labels = empty(sectorlabels(axis))
+    ss = sectortype(axis)[]
     lens = Int[]
-    for (l, d) in zip(sectorlabels(axis), datalengths(axis))
-        n = d - getsectordatalengths(other, SectorRange(l))
+    for (s, d) in zip(sectors(axis), datalengths(axis))
+        n = d - getsectordatalengths(other, s)
         if n > 0
-            push!(labels, l)
+            push!(ss, s)
             push!(lens, n)
         end
     end
-    return FusedGradedOneTo(labels, lens)
+    return FusedGradedOneTo(ss, lens)
 end
 
 # QR decomposition

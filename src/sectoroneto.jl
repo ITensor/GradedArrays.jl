@@ -1,33 +1,41 @@
 """
-    SectorOneTo{S<:SectorRange}
+    SectorOneTo{S<:Sector}
 
-Represents one sector's index space — a `SectorRange` (sector label + dual flag) paired
-with a data length (multiplicity). This is the building block for `GradedOneTo`.
+One sector's index space: a sector, an arrow, and a data length (multiplicity). This is the
+building block for `GradedOneTo`.
 
-Stores a `SectorRange` and a data length. The `isdual` accessor is
-derived from the stored `SectorRange`.
+The arrow is stored here rather than on the sector, matching `GradedOneTo`. An
+[`OrientedSector`](@ref) is built on demand, by `sectoraxes`, for the places that want the
+sector and its arrow as one value.
 """
-struct SectorOneTo{S <: SectorRange} <: AbstractUnitRange{Int}
+struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}
     sector::S
+    isdual::Bool
     datalength::Int
 end
 
-# Convenience: SectorRange with default data length
-SectorOneTo(s::SectorRange) = SectorOneTo(s, 1)
-SectorOneTo(s::SectorRange, r::Base.OneTo) = SectorOneTo(s, last(r))
+SectorOneTo(s::Sector) = SectorOneTo(s, false, 1)
+SectorOneTo(s::Sector, datalength::Int) = SectorOneTo(s, false, datalength)
+SectorOneTo(s::Sector, r::Base.OneTo) = SectorOneTo(s, false, last(r))
+SectorOneTo(s::Sector, isdual::Bool, r::Base.OneTo) = SectorOneTo(s, isdual, last(r))
+# An `OrientedSector` already carries the arrow, so it splits into the two stored fields.
+function SectorOneTo(s::OrientedSector, datalength::Int = 1)
+    return SectorOneTo(sector(s), isdual(s), datalength)
+end
+SectorOneTo(s::OrientedSector, r::Base.OneTo) = SectorOneTo(s, last(r))
 
 # Primitive accessors
 sector(r::SectorOneTo) = r.sector
+TensorAlgebra.isdual(r::SectorOneTo) = r.isdual
 datalength(r::SectorOneTo) = r.datalength
 
 # Derived accessors
-TensorAlgebra.isdual(r::SectorOneTo) = isdual(sector(r))
 sectorlength(r::SectorOneTo) = length(sector(r))
 
 # Kronecker factor decomposition:
-# SectorOneTo = tensor_product(SectorRange (sector axis), OneTo (data axis))
+# SectorOneTo = tensor_product(OrientedSector (sector axis), OneTo (data axis))
 data(r::SectorOneTo) = Base.OneTo(datalength(r))
-sectoraxes(r::SectorOneTo) = (sector(r),)
+sectoraxes(r::SectorOneTo) = (OrientedSector(sector(r), isdual(r)),)
 dataaxes(r::SectorOneTo) = (data(r),)
 
 # Generic single-axis accessors (like axes1 = first ∘ axes)
@@ -37,9 +45,9 @@ dataaxes1(a) = first(dataaxes(a))
 # Type-level data axis type (for promote_op in similar)
 dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
 
-# Duck-typed interface matching GradedOneTo: `sectors` reports the non-dual sector,
-# `eachsectoraxis` keeps the dual flag.
-sectors(r::SectorOneTo) = [nondual(sector(r))]
+# Duck-typed interface matching GradedOneTo: `sectors` reports the bare sector, which no
+# longer carries an arrow, while `eachsectoraxis` pairs it with this range's arrow.
+sectors(r::SectorOneTo) = [sector(r)]
 datalengths(r::SectorOneTo) = [datalength(r)]
 BlockArrays.blocklength(::SectorOneTo) = 1
 Base.first(::SectorOneTo) = 1
@@ -52,27 +60,31 @@ TKS.FusionStyle(r::SectorOneTo) = TKS.FusionStyle(typeof(r))
 TKS.FusionStyle(::Type{<:SectorOneTo{S}}) where {S} = TKS.FusionStyle(S)
 
 # dual, flip, flip_dual
-TensorAlgebra.dual(r::SectorOneTo) = SectorOneTo(dual(sector(r)), datalength(r))
-flip(r::SectorOneTo) = SectorOneTo(flip(sector(r)), datalength(r))
+TensorAlgebra.dual(r::SectorOneTo) = SectorOneTo(sector(r), !isdual(r), datalength(r))
+flip(r::SectorOneTo) =
+    SectorOneTo(charge_conjugate(sector(r)), !isdual(r), datalength(r))
 flip_dual(r::SectorOneTo) = isdual(r) ? flip(r) : r
 
 # Equality and hashing
 function Base.isequal(a::SectorOneTo, b::SectorOneTo)
     return isequal(sector(a), sector(b)) &&
+        isequal(isdual(a), isdual(b)) &&
         isequal(datalength(a), datalength(b))
 end
 Base.:(==)(a::SectorOneTo, b::SectorOneTo) = isequal(a, b)
 function Base.hash(r::SectorOneTo, h::UInt)
-    return hash(sector(r), hash(datalength(r), h))
+    return hash(sector(r), hash(isdual(r), hash(datalength(r), h)))
 end
 
-to_gradedrange(r::SectorOneTo) = gradedrange([sector(r) => datalength(r)])
+function to_gradedrange(r::SectorOneTo)
+    return GradedOneTo([sector(r)], [datalength(r)], isdual(r))
+end
 
 # ========================  BlockSparseArrays interface  ========================
 
 eachblockaxis(r::SectorOneTo) = [r]
 eachdataaxis(r::SectorOneTo) = [data(r)]
-eachsectoraxis(r::SectorOneTo) = [sector(r)]
+eachsectoraxis(r::SectorOneTo) = [sectoraxes1(r)]
 
 # ========================  tensor_product  ========================
 
@@ -109,7 +121,7 @@ end
 function Base.show(io::IO, r::SectorOneTo)
     isdual(r) && print(io, "dual(")
     print(io, "SectorOneTo(")
-    show(io, nondual(sector(r)))
+    show(io, sector(r))
     print(io, ", ", datalength(r))
     print(io, ")")
     isdual(r) && print(io, ")")

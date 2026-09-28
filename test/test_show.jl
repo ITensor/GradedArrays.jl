@@ -1,7 +1,7 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo, SU2,
-    SectorOneTo, SectorRange, TrivialSector, U1, UniqueSectorArray, Z, dual,
-    fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
+    SectorOneTo, TrivialSector, U1, UniqueSectorArray, Z, dual, fZ2, fusedgradedmatrix,
+    gradedrange, to_sector, with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionNumber, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 
@@ -20,21 +20,21 @@ end
 
 @testset "compact display of Z, FermionParity, and product sectors" begin
     @test sprint(show, Z{2}(1)) == "Z{2}(1)"
-    @test sprint(show, SectorRange(FermionParity(1))) == "FermionParity(1)"
+    @test sprint(show, fZ2(true)) == "fZ2(1)"
 
-    fn = SectorRange(FermionNumber(2))
+    fn = to_sector(FermionNumber(2))
     @test sprint(show, fn) == "FermionNumber(2)"
     @test sprint(show, dual(fn)) == "dual(FermionNumber(2))"
 
-    @test sprint(show, SectorRange(U1Irrep(1) ⊠ U1Irrep(2))) == "(U1(1) × U1(2))"
+    @test sprint(show, to_sector(U1Irrep(1) ⊠ U1Irrep(2))) == "(U1(1) × U1(2))"
     # Parity 1 disagrees with the even charge 2, so this is not a `FermionNumber`.
-    @test sprint(show, SectorRange(U1Irrep(2) ⊠ FermionParity(1))) ==
-        "(U1(2) × FermionParity(1))"
+    @test sprint(show, to_sector(U1Irrep(2) ⊠ FermionParity(1))) ==
+        "(U1(2) × fZ2(1))"
 
     g = gradedrange(
         [
-            SectorRange(FermionNumber(0)) => 1,
-            SectorRange(FermionNumber(1)) => 2,
+            to_sector(FermionNumber(0)) => 1,
+            to_sector(FermionNumber(1)) => 2,
         ]
     )
     s = sprint(show, g)

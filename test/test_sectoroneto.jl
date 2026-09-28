@@ -1,7 +1,6 @@
 using BlockArrays: blocklength
-using GradedArrays: GradedArrays, GradedOneTo, SU2, SectorOneTo, SectorRange, U1,
-    datalength, datalengths, dual, flip, gradedrange, isdual, sector, sectors, sectortype,
-    tensor_product
+using GradedArrays: GradedOneTo, SU2, SectorOneTo, U1, datalength, datalengths, dual, flip,
+    gradedrange, isdual, sector, sectors, sectortype, tensor_product
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @testset
 
@@ -21,7 +20,7 @@ using Test: @test, @testset
     @testset "U1 dual sector accessor" begin
         si = SectorOneTo(conj(U1(1)), 3)
         @test isdual(si) == true
-        @test sector(si) == conj(U1(1))
+        @test sector(si) == U1(1)
     end
 
     @testset "SU2 construction and accessors" begin
@@ -34,7 +33,8 @@ using Test: @test, @testset
 
     @testset "SU2 dual" begin
         si = SectorOneTo(conj(SU2(1)), 2)
-        @test sector(si) == conj(SU2(1))
+        @test isdual(si) == true
+        @test sector(si) == SU2(1)
     end
 
     @testset "Collection-like interface" begin
@@ -62,7 +62,7 @@ using Test: @test, @testset
     @testset "dual" begin
         si = SectorOneTo(U1(1), 3)
         sid = dual(si)
-        @test sector(sid) == conj(U1(1))
+        @test sector(sid) == U1(1)
         @test datalength(sid) == 3
         @test isdual(sid) == true
         @test dual(sid) == si  # double dual is identity
@@ -71,7 +71,7 @@ using Test: @test, @testset
     @testset "flip" begin
         si = SectorOneTo(U1(1), 3)
         sif = flip(si)
-        @test sector(sif) == flip(U1(1))
+        @test sector(sif) == flip(dual(U1(1)))
         @test datalength(sif) == 3
         @test isdual(sif) == true
     end
@@ -79,7 +79,7 @@ using Test: @test, @testset
     @testset "flip with SU2" begin
         si = SectorOneTo(SU2(1 // 2), 2)
         sif = flip(si)
-        @test sector(sif) == flip(SU2(1 // 2))
+        @test sector(sif) == flip(dual(SU2(1 // 2)))
         @test isdual(sif) == true
         @test datalength(sif) == 2
     end
