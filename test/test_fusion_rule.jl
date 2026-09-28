@@ -1,6 +1,6 @@
 using BlockArrays: blocklengths
-using GradedArrays: SU2, TensorKitSector, TrivialSector, U1, Z, dual, flip, gradedrange,
-    nsymbol, tensor_product, to_sector, trivial, unmerged_tensor_product
+using GradedArrays: SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
+    gradedrange, nsymbol, tensor_product, trivial, unmerged_tensor_product
 using SUNRepresentations: SUNIrrep
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -45,10 +45,10 @@ const SU{N} = TensorKitSector{SUNIrrep{N}}
     end
 
     @testset "O2 fusion rules" begin
-        s0e = to_sector(TKS.CU1Irrep(0, 0))
-        s0o = to_sector(TKS.CU1Irrep(0, 1))
-        s12 = to_sector(TKS.CU1Irrep(1 // 2, 2))
-        s1 = to_sector(TKS.CU1Irrep(1, 2))
+        s0e = Sector(TKS.CU1Irrep(0, 0))
+        s0o = Sector(TKS.CU1Irrep(0, 1))
+        s12 = Sector(TKS.CU1Irrep(1 // 2, 2))
+        s1 = Sector(TKS.CU1Irrep(1, 2))
 
         q = TrivialSector()
         @test (@constinferred tensor_product(s0e, q)) == gradedrange([s0e => 1])
@@ -64,7 +64,7 @@ const SU{N} = TensorKitSector{SUNIrrep{N}}
         @test (@constinferred tensor_product(s12, s0e)) == gradedrange([s12 => 1])
         @test (@constinferred tensor_product(s12, s0o)) == gradedrange([s12 => 1])
         @test (@constinferred tensor_product(s12, s1)) ==
-            gradedrange([s12 => 1, to_sector(TKS.CU1Irrep(3 // 2, 2)) => 1])
+            gradedrange([s12 => 1, Sector(TKS.CU1Irrep(3 // 2, 2)) => 1])
         @test (@constinferred tensor_product(s12, s12)) ==
             gradedrange([s0e => 1, s0o => 1, s1 => 1])
 

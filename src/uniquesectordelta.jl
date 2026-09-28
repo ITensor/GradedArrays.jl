@@ -108,7 +108,3 @@ end
 function LinearAlgebra.norm(a::UniqueSectorDelta{T}, p::Real = 2) where {T}
     return oneunit(real(float(T)))
 end
-
-# ========================  Accessors  ========================
-
-sectoraxes(x, d::Int) = sectoraxes(x)[d]

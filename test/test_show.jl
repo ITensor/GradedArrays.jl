@@ -1,8 +1,8 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo, SU2,
-    SectorOneTo, TrivialSector, U1, UniqueSectorArray, Z, dual, fZ2, fusedgradedmatrix,
-    gradedrange, to_sector, with_scalar_indexing, ×
-using TensorKitSectors: TensorKitSectors as TKS, FermionNumber, FermionParity, U1Irrep, ⊠
+    Sector, SectorOneTo, TrivialSector, U1, UniqueSectorArray, Z, dual, fU1, fZ2,
+    fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
+using TensorKitSectors: TensorKitSectors as TKS, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 
 @testset "show SymmetrySector" begin
@@ -12,33 +12,40 @@ using Test: @test, @testset
     j1 = SU2(0)
     @test sprint(show, j1) == "SU2(0)"
 
+    @test sprint(show, TrivialSector()) == "TrivialSector()"
+
+    # Each form prints the spelling that reconstructs it: the infix product for two or more
+    # positional factors, and the explicit `Sector` call for everything `×` cannot spell.
     s = (A = U1(1),) × (B = SU2(2),)
-    @test sprint(show, s) == "((A=U1(1),) × (B=SU2(2),))"
+    @test sprint(show, s) == "Sector(; A = U1(1), B = SU2(2))"
     s = TrivialSector() × U1(3) × SU2(1 / 2)
-    @test sprint(show, s) == "(TrivialSector() × U1(3) × SU2(1/2))"
+    @test sprint(show, s) == "(U1(3) × SU2(1/2))"
+    @test sprint(show, Sector((U1(3),))) == "Sector((U1(3),))"
+    @test sprint(show, Sector(())) == "Sector(())"
+    @test sprint(show, Sector((;))) == "Sector((;))"
 end
 
 @testset "compact display of Z, FermionParity, and product sectors" begin
     @test sprint(show, Z{2}(1)) == "Z{2}(1)"
     @test sprint(show, fZ2(true)) == "fZ2(1)"
 
-    fn = to_sector(FermionNumber(2))
-    @test sprint(show, fn) == "FermionNumber(2)"
-    @test sprint(show, dual(fn)) == "dual(FermionNumber(2))"
+    fn = fU1(2)
+    @test sprint(show, fn) == "fU1(2)"
+    @test sprint(show, dual(fn)) == "dual(fU1(2))"
 
-    @test sprint(show, to_sector(U1Irrep(1) ⊠ U1Irrep(2))) == "(U1(1) × U1(2))"
+    @test sprint(show, Sector(U1Irrep(1) ⊠ U1Irrep(2))) == "(U1(1) × U1(2))"
     # Parity 1 disagrees with the even charge 2, so this is not a `FermionNumber`.
-    @test sprint(show, to_sector(U1Irrep(2) ⊠ FermionParity(1))) ==
+    @test sprint(show, Sector(U1Irrep(2) ⊠ FermionParity(1))) ==
         "(U1(2) × fZ2(1))"
 
     g = gradedrange(
         [
-            to_sector(FermionNumber(0)) => 1,
-            to_sector(FermionNumber(1)) => 2,
+            fU1(0) => 1,
+            fU1(1) => 2,
         ]
     )
     s = sprint(show, g)
-    @test s == "gradedrange([FermionNumber(0) => 1, FermionNumber(1) => 2])"
+    @test s == "gradedrange([fU1(0) => 1, fU1(1) => 2])"
     @test !occursin("Irrep", s)
     @test !occursin("ProductSector", s)
     @test !occursin("GradedArrays.", s)

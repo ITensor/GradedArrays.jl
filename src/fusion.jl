@@ -81,7 +81,7 @@ function TensorAlgebra.matricizeopview(
         ::SectorMatricize, op, a::UniqueSectorArray, perm_codomain, perm_domain
     )
     ndims_codomain = Val(length(perm_codomain))
-    asectors_reshaped = matricize(sector(a), ndims_codomain)
+    asectors_reshaped = matricize(structure(a), ndims_codomain)
     adata_reshaped = matricize(data(a), ndims_codomain)
     return sector_kron(asectors_reshaped, adata_reshaped)
 end
@@ -115,9 +115,9 @@ function TensorAlgebra.unmatricize(
         domain_axes::Tuple{Vararg{SectorOneTo}}
     )
     msectors = unmatricize(
-        sector(m),
-        sectoraxes1.(codomain_axes),
-        sectoraxes1.(domain_axes)
+        structure(m),
+        structureaxes1.(codomain_axes),
+        structureaxes1.(domain_axes)
     )
     mdata = unmatricize(
         data(m),

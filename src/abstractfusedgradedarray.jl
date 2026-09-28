@@ -395,7 +395,7 @@ function _to_blockarray(a::AbstractFusedGradedArray{T, <:Any, N}) where {T, N}
     for bI in eachblockstoredindex(a)
         blk = view(a, bI)
         blockmat[CartesianIndex(Int.(Tuple(bI)))] =
-            kron_nd(collect(data(blk)), Array(sector(blk)))
+            kron_nd(collect(data(blk)), Array(structure(blk)))
     end
     return mortar(blockmat)
 end

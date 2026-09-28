@@ -71,9 +71,11 @@ function TA.fill_map(
 end
 
 # Public `Base` constructors: normalize pairs-vector axes with `to_range` and route to `*_map`.
-# Pairs-vector axes are keyed by a GradedArrays `Sector`; keying by a bare
-# `TensorKitSectors.Sector` is not accepted, since overloading `Base` constructors on a purely
-# TensorKitSectors signature would be type piracy. Convert such sectors with `to_sector`.
+# Pairs-vector axes are keyed by a GradedArrays `Sector`, and only by that: keying by a bare
+# `TensorKitSectors.Sector` would make these `Base` constructors type piracy, and the tuple and
+# named-tuple keys that `to_range` also accepts are left out on cost. The axis type is a
+# multiplier over both loops here, so admitting those two would double the generated methods to
+# buy a spelling the caller can reach with one `Sector` or `gradedrange` call.
 for axis_type in (
         :AbstractGradedOneTo,
         :(AbstractVector{<:Pair{<:Sector, <:Integer}}),
@@ -614,7 +616,7 @@ function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
     src = reshape(src, length.(stored))
     I = Tuple(findmax(abs, src)[2])
     secs = map(stored, I) do ax, i
-        return eachsectoraxis(ax)[Int(BlockArrays.findblock(ax, i))]
+        return eachstructureaxis(ax)[Int(BlockArrays.findblock(ax, i))]
     end
     return reduce(tensor_product, secs)
 end

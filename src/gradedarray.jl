@@ -86,14 +86,14 @@ function viewblock(
     assert_block_indexing()
     require_unique_fusion(a)
     bk = Int.(Tuple(I))
-    sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
+    sects = ntuple(d -> eachstructureaxis(axes(a, d))[bk[d]], Val(N))
     # The block carries the array's own codomain/domain split. The codomain legs are stored as-is;
     # the domain legs are stored codomain-facing (un-dualed), taken from `axes_domain(a)` rather than
     # the dualized `axes(a)`, matching the block type's storage convention (its `axes` re-dualizes).
     cod = ntuple(i -> sects[i], Val(NC))
-    dom = ntuple(j -> eachsectoraxis(axes_domain(a)[j])[bk[NC + j]], Val(ND))
+    dom = ntuple(j -> eachstructureaxis(axes_domain(a)[j])[bk[NC + j]], Val(ND))
     # Conjugate each dual leg's sector to match TensorKit's external-sector indexing.
-    blockdata = to_tensormap(a)[map(r -> tensorkitsector(flip_dual(r)), sects)]
+    blockdata = to_tensormap(a)[map(r -> TKS.Sector(flip_dual(r)), sects)]
     # Fused-sorted axes have one block per sector, so the merged block is the whole block. Only an
     # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
     # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
@@ -344,7 +344,7 @@ GradedArray(t::TK.TensorMap) = copy(to_gradedarray(t))
 function Base.copy!(m::FusedGradedMatrix, t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1})
     msd = sectordata(m)
     for c in TK.blocksectors(t)
-        copy!(msd[to_sector(c)], TK.block(t, c))
+        copy!(msd[Sector(c)], TK.block(t, c))
     end
     return m
 end
@@ -352,7 +352,7 @@ end
 # Copy a `FusedGradedMatrix` block-wise into a matrix `TensorMap` (one codomain and one domain leg).
 function Base.copy!(t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1}, m::FusedGradedMatrix)
     for (c, b) in pairs(sectordata(m))
-        copy!(TK.block(t, tensorkitsector(c)), b)
+        copy!(TK.block(t, TKS.Sector(c)), b)
     end
     return t
 end
@@ -363,7 +363,7 @@ function Base.copy!(a::GradedArray, t::TK.AbstractTensorMap)
         throw(DimensionMismatch("TensorMap codomain/domain does not match the GradedArray"))
     asd = sectordata(matricize(a))
     for c in TK.blocksectors(t)
-        copy!(asd[to_sector(c)], TK.block(t, c))
+        copy!(asd[Sector(c)], TK.block(t, c))
     end
     return a
 end
@@ -373,7 +373,7 @@ function Base.copy!(t::TK.AbstractTensorMap, a::GradedArray)
     (TK.numout(t) == ndims_codomain(a) && TK.numin(t) == ndims_domain(a)) ||
         throw(DimensionMismatch("TensorMap codomain/domain does not match the GradedArray"))
     for (c, b) in pairs(sectordata(matricize(a)))
-        copy!(TK.block(t, tensorkitsector(c)), b)
+        copy!(TK.block(t, TKS.Sector(c)), b)
     end
     return t
 end

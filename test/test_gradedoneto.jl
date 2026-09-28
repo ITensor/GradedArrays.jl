@@ -241,18 +241,18 @@ using Test: @test, @test_throws, @testset
         @test g == gradedrange([SU2(0) => 1, SU2(1) => 2])
     end
 
-    # `to_range` delegates to `gradedrange`, so it is non-dual only; duality goes through `dual`.
+    # `to_range` takes only the key types `Sector` accepts, and an oriented sector is not one of
+    # them: an axis carries the arrow, so duality goes through `dual` of the axis.
     @testset "to_range rejects dual sectors" begin
-        @test_throws ArgumentError TensorAlgebra.to_range(
+        @test_throws MethodError TensorAlgebra.to_range(
             [
                 dual(SU2(0)) => 1,
                 dual(SU2(1)) => 2,
             ]
         )
-        # Mixing bare and oriented keys widens the vector to
-        # `Vector{Pair{AbstractUnitRange{Int},Int}}`, which no `to_range` method claims, so the
-        # rejection is a `MethodError` rather than the `ArgumentError` the homogeneous case raises.
         @test_throws MethodError TensorAlgebra.to_range([SU2(0) => 1, dual(SU2(1)) => 2])
+        # `gradedrange` does claim the vector, and its `Sector` says what to do instead.
+        @test_throws ArgumentError gradedrange([dual(SU2(0)) => 1, dual(SU2(1)) => 2])
     end
 
     @testset "ungrade drops sectors and arrow" begin

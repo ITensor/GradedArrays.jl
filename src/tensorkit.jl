@@ -42,7 +42,7 @@ end
 
 # The non-dual space over the stored sectors; the arrow is applied by `ElementarySpace`.
 function to_tensorkit_space(g::FusedGradedOneTo{S}) where {S}
-    return to_tensorkit_space(Vect[tensorkitsectortype(S)], g)
+    return to_tensorkit_space(Vect[tensorkit_sectortype(S)], g)
 end
 # Dictionary-backed spaces (unbounded sector sets, e.g. `U1`): hand the labels and lengths to
 # TensorKit's trusted already-sorted `SortedVectorDict` constructor — no sort and no per-pair
@@ -51,7 +51,7 @@ end
 function to_tensorkit_space(
         ::Type{TK.GradedSpace{I, TK.SectorDict{I, Int}}}, g::FusedGradedOneTo
     ) where {I}
-    labels = I[tensorkitsector(c) for c in sectors(g)]
+    labels = I[TKS.Sector(c) for c in sectors(g)]
     all(>(0), datalengths(g)) || return TK.GradedSpace{I, TK.SectorDict{I, Int}}(
         l => m for (l, m) in zip(labels, datalengths(g))
     )
@@ -61,7 +61,7 @@ end
 # Tuple-backed spaces (finite sector sets, e.g. `Z2`) store a dense dimension tuple; their
 # pair constructor is already a flat fill with nothing to skip.
 function to_tensorkit_space(::Type{Sp}, g::FusedGradedOneTo) where {Sp <: ElementarySpace}
-    return Sp(tensorkitsector(c) => m for (c, m) in zip(sectors(g), datalengths(g)))
+    return Sp(TKS.Sector(c) => m for (c, m) in zip(sectors(g), datalengths(g)))
 end
 
 # A dual space's duality belongs on the range's `isdual`, not on its sectors, so read the
@@ -69,7 +69,7 @@ end
 # `Sector` order.
 function GradedOneTo(V::ElementarySpace)
     V0 = TK.isdual(V) ? TK.dual(V) : V
-    ps = sort([c => TK.dim(V0, c) for c in TK.sectors(V0)]; by = p -> to_sector(first(p)))
+    ps = sort([c => TK.dim(V0, c) for c in TK.sectors(V0)]; by = p -> Sector(first(p)))
     g = gradedrange(ps)
     return TK.isdual(V) ? dual(g) : g
 end

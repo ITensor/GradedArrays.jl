@@ -41,7 +41,7 @@ end
 function FusedGradedOneTo(
         labels::Vector{<:TKS.Sector}, datalengths::Vector{Int}, isdual::Bool = false
     )
-    return FusedGradedOneTo(map(to_sector, labels), datalengths, isdual)
+    return FusedGradedOneTo(map(Sector, labels), datalengths, isdual)
 end
 
 # Dictionary convenience (e.g. a `map` over `sectordata`); the keys must already be in
@@ -159,14 +159,14 @@ function fusedgradedrange(xs::AbstractVector{<:Pair{S, <:Integer}}) where {S <: 
     return FusedGradedOneTo(S[first(p) for p in xs], Int[last(p) for p in xs], false)
 end
 
-# Generic fallback mirroring `gradedrange`: converts keys through `to_sector`, which accepts
+# Generic fallback mirroring `gradedrange`: converts keys through `Sector`, which accepts
 # NamedTuple keys (for sector products) and rejects an arrow-carrying key with a message
 # pointing at the axis.
 function fusedgradedrange(xs::AbstractVector{<:Pair})
     isempty(xs) && throw(
         ArgumentError("Cannot create FusedGradedOneTo from empty vector without type info")
     )
-    return fusedgradedrange([to_sector(first(p)) => last(p) for p in xs])
+    return fusedgradedrange([Sector(first(p)) => last(p) for p in xs])
 end
 
 # ========================  conversions between graded-axis types  ========================

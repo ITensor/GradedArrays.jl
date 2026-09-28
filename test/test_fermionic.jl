@@ -1,8 +1,8 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: GradedArray, SectorProduct, U1, UniqueSectorArray, UniqueSectorDelta,
-    dual, eachblockstoredindex, eachsectoraxis, fZ2, flip, gradedrange, isdual, sectoraxes,
-    sectors, to_sector, with_block_indexing, with_scalar_indexing
+using GradedArrays: GradedArray, Sector, U1, UniqueSectorArray, UniqueSectorDelta, dual,
+    eachblockstoredindex, eachstructureaxis, fZ2, flip, gradedrange, isdual, sectors,
+    structureaxes, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: contract, contractalign, matricize, matricizeop, permutedimsop,
@@ -21,25 +21,22 @@ const fP1 = fZ2(true)   # odd parity
     # component, on which `TKS.fermionparity` errors; decomposing over components with a
     # bosonic-irrep fallback handles it.
     for n in -2:2
-        c = to_sector(TKS.FermionNumber(n))
+        c = Sector(TKS.FermionNumber(n))
         @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
 
-    # The same holds for GradedArrays' own `SectorProduct`, in both tuple and named form.
+    # The same holds when the product is named rather than positional.
     for n in -2:2
-        c = SectorProduct(TKS.U1Irrep(n), TKS.FermionParity(isodd(n)))
-        @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
-        @test GradedArrays.fermionparity(c) == isodd(n)
-        c = SectorProduct(; N = TKS.U1Irrep(n), f = TKS.FermionParity(isodd(n)))
+        c = Sector(; N = TKS.U1Irrep(n), f = TKS.FermionParity(isodd(n)))
         @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
 
     # A product of bosonic sectors, and the empty product, twist trivially.
-    boson = SectorProduct(TKS.U1Irrep(1), TKS.SU2Irrep(1))
+    boson = Sector(TKS.U1Irrep(1), TKS.SU2Irrep(1))
     @test GradedArrays.twist(boson) == 1
-    @test GradedArrays.twist(SectorProduct(())) == 1
+    @test GradedArrays.twist(Sector(())) == 1
 
     # Plain bosonic group irreps have even fermion parity.
     @test GradedArrays.fermionparity(U1(2)) == false
@@ -50,7 +47,7 @@ const fP1 = fZ2(true)   # odd parity
     @test GradedArrays.fermionparity(fP1) == true
 
     # A sector with no fermion parity (an anyon) has no method.
-    @test_throws MethodError GradedArrays.fermionparity(to_sector(TKS.FibonacciAnyon(:τ)))
+    @test_throws MethodError GradedArrays.fermionparity(Sector(TKS.FibonacciAnyon(:τ)))
 
     # `twist!` is total over array types: a non-graded array has no sectors, so no braiding and no
     # twist. `contraction_twist!` accepts any array, and reaches dense and `Diagonal` factors.
@@ -67,7 +64,7 @@ function randn_blockdiagonal(elt::Type, axs::Tuple)
     N = ndims(a)
     with_block_indexing() do
         for i in 1:blockdiaglength
-            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_sectors = ntuple(d -> eachstructureaxis(axs[d])[i], N)
             block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
             block_data = randn!(Array{elt}(undef, block_dims...))
             a[Block(ntuple(Returns(i), N)...)] =
@@ -148,7 +145,7 @@ end
         sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
         sp = permutedims(sa, (2, 1))
         @test sp[1, 1] ≈ -3.0
-        @test sectoraxes(sp) == (fP1, fP1)
+        @test structureaxes(sp) == (fP1, fP1)
 
         # Two even sectors: swap gives no phase
         sa_even = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0))
@@ -159,7 +156,7 @@ end
         sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
         sp_mix = permutedims(sa_mix, (2, 1))
         @test sp_mix[1, 1] ≈ 3.0
-        @test sectoraxes(sp_mix) == (fP1, fP0)
+        @test structureaxes(sp_mix) == (fP1, fP0)
 
         # Double permutation recovers original (phase squares to 1)
         @test permutedims(permutedims(sa, (2, 1)), (2, 1))[1, 1] ≈ sa[1, 1]
@@ -188,7 +185,7 @@ end
         sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
         sc = conj(sa)
         @test sc[1, 1] ≈ -3.0
-        @test sectoraxes(sc) == (dual(fP1), dual(fP1))
+        @test structureaxes(sc) == (dual(fP1), dual(fP1))
 
         # Two even sectors: no phase, data just conjugated
         @test conj(UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0)))[1, 1] ≈ 3.0
@@ -196,7 +193,7 @@ end
         # Mixed (even, odd): single odd leg → no odd-odd inversion → no phase
         sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
         @test conj(sa_mix)[1, 1] ≈ 3.0
-        @test sectoraxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
+        @test structureaxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
 
         # Three odd sectors: reverse(1,2,3) has 3 odd-odd inversions → odd → -1 phase
         @test conj(UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1)))[1, 1, 1] ≈ -2.0
@@ -207,7 +204,7 @@ end
 
         # Involution: conj ∘ conj recovers data and sectors (phase squares to 1)
         @test conj(conj(sa))[1, 1] ≈ sa[1, 1]
-        @test sectoraxes(conj(conj(sa))) == (fP1, fP1)
+        @test structureaxes(conj(conj(sa))) == (fP1, fP1)
         @test conj(conj(sa_c))[1, 1] ≈ sa_c[1, 1]
 
         # Mutation safety: conj must not scale the parent block in place
@@ -232,7 +229,7 @@ end
     with_scalar_indexing() do
         @test cs[1, 1] ≈ conj.(sa)[1, 1] - conj.(sb)[1, 1] / 2
     end
-    @test sectoraxes(cs) == sectoraxes(conj.(sa))
+    @test structureaxes(cs) == structureaxes(conj.(sa))
 end
 
 @testset "conj broadcast on fermionic graded arrays (eltype=$elt)" for elt in
@@ -419,7 +416,7 @@ function const_blockdiagonal(elt::Type, axs::Tuple, vals)
     N = ndims(a)
     with_block_indexing() do
         for (i, v) in enumerate(vals)
-            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_sectors = ntuple(d -> eachstructureaxis(axs[d])[i], N)
             block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
             a[Block(ntuple(Returns(i), N)...)] =
                 UniqueSectorArray(fill(elt(v), block_dims...), block_sectors)

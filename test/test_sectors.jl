@@ -1,5 +1,5 @@
-using GradedArrays: SU2, TensorKitSector, TrivialSector, U1, Z, dual, flip, istrivial,
-    modulus, sectortype, to_sector, trivial
+using GradedArrays: SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
+    istrivial, modulus, sectortype, trivial
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -18,6 +18,13 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test q == q
         @test trivial(q) == q
         @test istrivial(q)
+
+        @test q != U1(0)
+        @test U1(0) != q
+        @test q != Sector(U1(0), SU2(0))
+        @test Sector(U1(0), SU2(0)) != q
+        @test q != Sector(; Nf = U1(0))
+        @test Sector(; Nf = U1(0)) != q
 
         @test flip(dual(q)) == q
         @test !isless(q, q)
@@ -44,8 +51,6 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test U1(Int8(1)) == U1(1)
         @test U1(UInt32(1)) == U1(1)
 
-        @test U1(0) == TrivialSector()
-        @test TrivialSector() == U1(0)
         @test TrivialSector() < U1(-1)
         @test TrivialSector() < U1(1)
         @test U1(Int8(1)) < U1(Int32(2))
@@ -71,7 +76,6 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test Z{2}(0) == z0
         @test Z{2}(-3) == z1
 
-        @test Z{2}(0) == TrivialSector()
         @test TrivialSector() < Z{2}(1)
         @test_throws MethodError U1(0) < Z{2}(1)
         @test Z{2}(0) != Z{2}(1)
@@ -80,10 +84,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "O(2)" begin
-        s0e = to_sector(TKS.CU1Irrep(0, 0))
-        s0o = to_sector(TKS.CU1Irrep(0, 1))
-        s12 = to_sector(TKS.CU1Irrep(1 // 2, 2))
-        s1 = to_sector(TKS.CU1Irrep(1, 2))
+        s0e = Sector(TKS.CU1Irrep(0, 0))
+        s0o = Sector(TKS.CU1Irrep(0, 1))
+        s12 = Sector(TKS.CU1Irrep(1 // 2, 2))
+        s1 = Sector(TKS.CU1Irrep(1, 2))
 
         @test trivial(TensorKitSector{TKS.CU1Irrep}) == s0e
         @test istrivial(s0e)
@@ -99,7 +103,6 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test (@constinferred flip(dual(s1))) == s1
 
         @test s0e < s0o < s12 < s1
-        @test s0e == TrivialSector()
         @test s0o > TrivialSector()
         @test TrivialSector() < s12
     end
@@ -129,7 +132,6 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test flip(dual(j4)) == j4
 
         @test j1 < j2 < j3 < j4
-        @test SU2(0) == TrivialSector()
         @test !(j2 < TrivialSector())
         @test TrivialSector() < j2
     end
@@ -144,8 +146,6 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test istrivial(SU{3}((0, 0)))
         @test trivial(SU{4}) == SU{4}((0, 0, 0))
         @test istrivial(SU{4}((0, 0, 0)))
-        @test SU{3}((0, 0)) == TrivialSector()
-        @test SU{4}((0, 0, 0)) == TrivialSector()
 
         @test fundamental(SU{3}) == f3
         @test fundamental(SU{4}) == f4
@@ -167,12 +167,11 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "Fibonacci" begin
-        ı = to_sector(TKS.FibonacciAnyon(:I))
-        τ = to_sector(TKS.FibonacciAnyon(:τ))
+        ı = Sector(TKS.FibonacciAnyon(:I))
+        τ = Sector(TKS.FibonacciAnyon(:τ))
 
         @test trivial(TensorKitSector{TKS.FibonacciAnyon}) == ı
         @test istrivial(ı)
-        @test ı == TrivialSector()
 
         @test flip(dual(ı)) == ı
         @test flip(dual(τ)) == τ
@@ -184,13 +183,12 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "Ising" begin
-        ı = to_sector(TKS.IsingAnyon(:I))
-        σ = to_sector(TKS.IsingAnyon(:σ))
-        ψ = to_sector(TKS.IsingAnyon(:ψ))
+        ı = Sector(TKS.IsingAnyon(:I))
+        σ = Sector(TKS.IsingAnyon(:σ))
+        ψ = Sector(TKS.IsingAnyon(:ψ))
 
         @test trivial(TensorKitSector{TKS.IsingAnyon}) == ı
         @test istrivial(ı)
-        @test ı == TrivialSector()
 
         @test flip(dual(ı)) == ı
         @test flip(dual(σ)) == σ

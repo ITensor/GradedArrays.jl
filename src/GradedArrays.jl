@@ -2,14 +2,15 @@ module GradedArrays
 
 # exports
 # -------
-export TrivialSector, U1, SU2, Z, Z2, fZ2
+export Sector, TrivialSector, U1, SU2, Z, Z2, fZ2, fU1, fSU2
+export sectorproduct, ×
 export GradedArray, gradedrange
 export dual, isdual
 
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public Sector, OrientedSector, TensorKitSector, sectors, \
+            "public OrientedSector, TensorKitSector, sectors, \
             with_scalar_indexing, with_block_indexing"
         )
     )
@@ -21,7 +22,7 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
     BlockIndexRange, BlockVector, BlockedArray, BlockedOneTo, block, blockedrange,
     blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
-using HalfIntegers: HalfInt
+using HalfIntegers: HalfInt, twice
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, MatricizeStyle,
@@ -67,6 +68,7 @@ include("adjointfusedgradedarray.jl")
 include("fusedgradedblocks.jl")
 
 include("sectorproduct.jl")
+include("fermionic.jl")
 
 include("fusion.jl")
 include("fusedgradeddiagonal.jl")

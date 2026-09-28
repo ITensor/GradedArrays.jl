@@ -118,7 +118,7 @@ function fusedgradedmatrix(
         sectordata, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
     )
     ps = collect(sectordata)
-    sectors = [to_sector(first(p)) for p in ps]
+    sectors = [Sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     m = FusedGradedMatrix{eltype(eltype(data))}(undef, codomain, domain)
@@ -151,7 +151,7 @@ the sectors must be sorted and unique.
 """
 function fusedgradedmatrix(sectordata)
     ps = collect(sectordata)
-    sectors = [to_sector(first(p)) for p in ps]
+    sectors = [Sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))

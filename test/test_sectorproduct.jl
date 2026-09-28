@@ -1,65 +1,79 @@
 using BlockArrays: blocklengths
-using GradedArrays: SU2, SectorOneTo, SectorProduct, TrivialSector, U1, Z, arguments, dual,
-    flip, gradedrange, sector, sectorproduct, sectortype, tensor_product, trivial, ×
+using GradedArrays: SU2, Sector, SectorOneTo, SectorProduct, TrivialSector, U1, Z,
+    arguments, dual, flip, gradedrange, istrivial, sectorproduct, sectortype,
+    tensor_product, trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @test_broken, @test_throws, @testset
+using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
 @testset "Test Ordered Products" begin
     @testset "Ordered Constructor" begin
-        s = SectorProduct(TKS.U1Irrep(1))
+        s = Sector((TKS.U1Irrep(1),))
         @test length(arguments(s)) == 1
         @test (@constinferred length(s)) == 1
-        @test (@constinferred flip(dual(s))) == SectorProduct(TKS.U1Irrep(-1))
+        @test (@constinferred flip(dual(s))) == Sector((TKS.U1Irrep(-1),))
         @test arguments(s)[1] == TKS.U1Irrep(1)
-        @test (@constinferred trivial(s)) == SectorProduct(TKS.U1Irrep(0))
+        @test (@constinferred trivial(s)) == Sector((TKS.U1Irrep(0),))
 
-        s = SectorProduct(TKS.U1Irrep(1), TKS.U1Irrep(2))
+        s = Sector(TKS.U1Irrep(1), TKS.U1Irrep(2))
         @test length(arguments(s)) == 2
         @test (@constinferred length(s)) == 1
-        @test (@constinferred flip(dual(s))) ==
-            SectorProduct(TKS.U1Irrep(-1), TKS.U1Irrep(-2))
+        @test (@constinferred flip(dual(s))) == Sector(TKS.U1Irrep(-1), TKS.U1Irrep(-2))
         @test arguments(s)[1] == TKS.U1Irrep(1)
         @test arguments(s)[2] == TKS.U1Irrep(2)
-        @test (@constinferred trivial(s)) == SectorProduct(TKS.U1Irrep(0), TKS.U1Irrep(0))
+        @test (@constinferred trivial(s)) == Sector(TKS.U1Irrep(0), TKS.U1Irrep(0))
 
         s = U1(1) × SU2(1 // 2) × U1(3)
         @test s ≡ sectorproduct(U1(1), SU2(1 // 2), U1(3))
         @test s ≡ ×(U1(1), SU2(1 // 2), U1(3))
+        @test s ≡ Sector(U1(1), SU2(1 // 2), U1(3))
         @test length(arguments(s)) == 3
         @test (@constinferred length(s)) == 2
         @test (@constinferred flip(dual(s))) == U1(-1) × SU2(1 // 2) × U1(-3)
         @test arguments(s)[1] == U1(1)
         @test arguments(s)[2] == SU2(1 // 2)
         @test arguments(s)[3] == U1(3)
-        @test (@constinferred trivial(s)) == SectorProduct(U1(0), SU2(0), U1(0))
+        @test (@constinferred trivial(s)) == Sector(U1(0), SU2(0), U1(0))
 
+        # `×` over one sector is normalization and nothing more, so no one-factor product comes
+        # out of it. Writing the container asks for one.
+        @test ×(U1(1)) ≡ U1(1)
+        @test Sector((U1(1),)) ≢ U1(1)
+
+        # `TrivialSector` is the unit and drops out.
         s = TrivialSector() × U1(3) × SU2(1 / 2)
-        @test length(arguments(s)) == 3
+        @test s ≡ U1(3) × SU2(1 // 2)
+        @test length(arguments(s)) == 2
         @test (@constinferred length(s)) == 2
-        @test flip(dual(s)) == TrivialSector() × U1(-3) × SU2(1 // 2)
-        @test (@constinferred trivial(s)) == SectorProduct(TrivialSector(), U1(0), SU2(0))
+        @test flip(dual(s)) == U1(-3) × SU2(1 // 2)
+        @test (@constinferred trivial(s)) == Sector(U1(0), SU2(0))
         @test s > trivial(s)
     end
 
     @testset "Ordered comparisons" begin
-        # convention: missing arguments are filled with singlets
-        @test sectorproduct(U1(1), SU2(1)) == sectorproduct(U1(1), SU2(1))
-        @test sectorproduct(U1(1), SU2(0)) != sectorproduct(U1(1), SU2(1))
-        @test sectorproduct(U1(0), SU2(1)) != sectorproduct(U1(1), SU2(1))
-        @test_broken sectorproduct(U1(1)) != U1(1)
-        @test sectorproduct(U1(1)) == sectorproduct(U1(1), U1(0))
-        @test sectorproduct(U1(1)) != sectorproduct(U1(1), U1(1))
-        @test sectorproduct(U1(0), SU2(0)) == TrivialSector()
-        @test sectorproduct(U1(0), SU2(0)) == sectorproduct(TrivialSector(), SU2(0))
-        @test sectorproduct(U1(0), SU2(0)) == sectorproduct(U1(0), TrivialSector())
-        @test sectorproduct(U1(0), SU2(0)) ==
-            sectorproduct(TrivialSector(), TrivialSector())
+        # A position identifies a factor only within its own product, so the arity is part of the
+        # sector's identity and no argument is ever filled in.
+        @test Sector(U1(1), SU2(1)) == Sector(U1(1), SU2(1))
+        @test Sector(U1(1), SU2(0)) != Sector(U1(1), SU2(1))
+        @test Sector(U1(0), SU2(1)) != Sector(U1(1), SU2(1))
+        @test Sector((U1(1),)) != U1(1)
+        @test U1(1) != Sector((U1(1),))
+        @test Sector((U1(1),)) != Sector(U1(1), U1(0))
+        @test Sector((U1(1),)) != Sector(U1(1), U1(1))
+        @test Sector(U1(0), SU2(0)) != Sector(U1(0), U1(0))
 
-        @test sectorproduct(U1(0)) < sectorproduct((U1(1)))
-        @test sectorproduct(U1(0), U1(2)) > sectorproduct((U1(1)), U1(0))
-        @test sectorproduct(U1(0)) < sectorproduct(U1(0), U1(1))
-        @test sectorproduct(U1(0)) < sectorproduct(U1(0), U1(-1))
+        # Nothing equals `TrivialSector` but itself, so a product of trivial sectors does not
+        # either. Whether a product denotes no symmetry is `istrivial`'s question.
+        @test istrivial(Sector(U1(0), SU2(0)))
+        @test Sector(U1(0), SU2(0)) != TrivialSector()
+        @test TrivialSector() != Sector(U1(0), SU2(0))
+
+        # Same arity and same symmetries orders as TensorKit orders the matching space.
+        @test Sector((U1(0),)) < Sector((U1(1),))
+        @test Sector(U1(0), U1(2)) > Sector(U1(1), U1(0))
+        # Different arities order by arity, so that mixed vectors of sectors can be sorted.
+        @test Sector((U1(0),)) < Sector(U1(0), U1(1))
+        @test Sector((U1(0),)) < Sector(U1(0), U1(-1))
     end
 
     @testset "Quantum dimension and GradedOneTo" begin
@@ -77,9 +91,6 @@ using TestExtras: @constinferred
         @test (@constinferred length(g)) == 16
         @test (@constinferred blocklengths(g)) == [1, 3, 3, 9]
 
-        @test gradedrange([U1(1) => 2]) × SU2(1) == gradedrange([U1(1) × SU2(1) => 2])
-        @test SU2(1) × gradedrange([U1(1) => 2]) == gradedrange([SU2(1) × U1(1) => 2])
-
         # mixed group
         g = gradedrange([(U1(2) × SU2(0) × Z{2}(0)) => 1, (U1(2) × SU2(1) × Z{2}(0)) => 1])
         @test (@constinferred length(g)) == 4
@@ -95,11 +106,11 @@ using TestExtras: @constinferred
     end
 
     @testset "Fusion of Abelian products" begin
-        p1 = ×(U1(1))
-        p2 = ×(U1(2))
+        p1 = Sector((U1(1),))
+        p2 = Sector((U1(2),))
         @test (@constinferred tensor_product(p1, TrivialSector())) == p1
         @test (@constinferred tensor_product(TrivialSector(), p2)) == p2
-        @test (@constinferred tensor_product(p1, p2)) == ×(U1(3))
+        @test (@constinferred tensor_product(p1, p2)) == Sector((U1(3),))
 
         p11 = U1(1) × U1(1)
         @test tensor_product(p11, p11) == U1(2) × U1(2)
@@ -107,21 +118,16 @@ using TestExtras: @constinferred
         p123 = U1(1) × U1(2) × U1(3)
         @test tensor_product(p123, p123) == U1(2) × U1(4) × U1(6)
 
-        s1 = sectorproduct(U1(1), Z{2}(1))
-        s2 = sectorproduct(U1(0), Z{2}(0))
+        s1 = Sector(U1(1), Z{2}(1))
+        s2 = Sector(U1(0), Z{2}(0))
         @test tensor_product(s1, s2) == U1(1) × Z{2}(1)
     end
 
     @testset "Fusion of NonAbelian products" begin
-        p0 = ×(SU2(0))
-        ph = ×(SU2(1 // 2))
-        @test (@constinferred tensor_product(p0, TrivialSector())) == gradedrange(
-            [
-                sectorproduct(SU2(0)) => 1,
-            ]
-        )
-        @test (@constinferred tensor_product(TrivialSector(), ph)) ==
-            gradedrange([sectorproduct(SU2(1 // 2)) => 1])
+        p0 = Sector((SU2(0),))
+        ph = Sector((SU2(1 // 2),))
+        @test (@constinferred tensor_product(p0, TrivialSector())) == gradedrange([p0 => 1])
+        @test (@constinferred tensor_product(TrivialSector(), ph)) == gradedrange([ph => 1])
 
         phh = SU2(1 // 2) × SU2(1 // 2)
         @test tensor_product(phh, phh) == gradedrange(
@@ -132,30 +138,16 @@ using TestExtras: @constinferred
                 (SU2(1) × SU2(1)) => 1,
             ]
         )
-        @test tensor_product(phh, phh) == gradedrange(
-            [
-                (SU2(0) × SU2(0)) => 1,
-                (SU2(1) × SU2(0)) => 1,
-                (SU2(0) × SU2(1)) => 1,
-                (SU2(1) × SU2(1)) => 1,
-            ]
-        )
     end
 
-    @testset "Fusion of different length Categories" begin
-        @test tensor_product(U1(1) × U1(0), ×(U1(1))) == U1(2) × U1(0)
-        @test (@constinferred tensor_product(SU2(0) × SU2(0), ×(SU2(1)))) ==
-            gradedrange([(SU2(1) × SU2(0)) => 1])
-
-        @test (@constinferred tensor_product(SU2(1) × U1(1), ×(SU2(0)))) ==
-            gradedrange([SU2(1) × U1(1) => 1])
-        @test (@constinferred tensor_product(U1(1) × SU2(1), ×(U1(2)))) ==
-            gradedrange([U1(3) × SU2(1) => 1])
-
-        # check incompatible sectors
-        p12 = Z{2}(1) × U1(2)
-        z12 = Z{2}(1) × Z{2}(1)
-        @test_throws ArgumentError tensor_product(p12, z12)
+    @testset "Fusion rejects mismatched ordered products" begin
+        # Positional arguments identify a symmetry by slot, so the operands have to agree slot
+        # for slot on both the arity and the symmetry.
+        @test_throws ArgumentError tensor_product(U1(1) × U1(0), Sector((U1(1),)))
+        @test_throws ArgumentError tensor_product(Sector((U1(1),)), U1(1) × U1(0))
+        @test_throws ArgumentError tensor_product(SU2(0) × SU2(0), Sector((SU2(1),)))
+        @test_throws ArgumentError tensor_product(SU2(1) × U1(1), Sector((SU2(0),)))
+        @test_throws ArgumentError tensor_product(Z{2}(1) × U1(2), Z{2}(1) × Z{2}(1))
     end
 
     @testset "GradedOneTo fusion rules" begin
@@ -203,20 +195,23 @@ end
             typeof((A = U1(1),) × (B = SU2(2),) × (C = U1(1),))
     end
 
-    @testset "Construct from Pairs" begin
-        s = ×("A" => U1(2))
+    @testset "Construct from keywords" begin
+        s = Sector(; A = U1(2))
         @test length(arguments(s)) == 1
         @test arguments(s)[:A] == U1(2)
         @test s == ×((; A = U1(2)))
         @test (@constinferred length(s)) == 1
-        @test (@constinferred flip(dual(s))) == ×("A" => U1(-2))
+        @test (@constinferred flip(dual(s))) == Sector(; A = U1(-2))
         @test (@constinferred trivial(s)) == ×((; A = U1(0)))
 
-        s = ×("B" => SU2(1 // 2), :C => Z{2}(1))
+        s = Sector(; B = SU2(1 // 2), C = Z{2}(1))
         @test length(arguments(s)) == 2
         @test arguments(s)[:B] == SU2(1 // 2)
         @test arguments(s)[:C] == Z{2}(1)
         @test (@constinferred length(s)) == 2
+
+        # No keywords specifies no symmetry, which is the unit rather than an empty product.
+        @test Sector() ≡ TrivialSector()
     end
 
     @testset "Comparisons with unspecified labels" begin
@@ -227,6 +222,7 @@ end
         @test q20 == q2
         @test !(q20 < q2)
         @test !(q2 < q20)
+        @test hash(q20) == hash(q2)
 
         q21 = (N = U1(2),) × (J = SU2(1),)
         @test q21 != q2
@@ -236,6 +232,7 @@ end
         a = (A = U1(0),) × (B = U1(2),)
         b = (B = U1(2),) × (C = U1(0),)
         @test a == b
+        @test hash(a) == hash(b)
         c = (B = U1(2),) × (C = U1(1),)
         @test a != c
     end
@@ -325,7 +322,7 @@ end
         # Put names in reverse order sometimes:
         q1h = (J = SU2(1 // 2),) × (N = U1(1),)
         q11 = (N = U1(1),) × (J = SU2(1),)
-        q20 = (N = U1(2),) × (J = SU2(0),)  # julia 1.6 does not accept gradedrange without J
+        q20 = (N = U1(2),) × (J = SU2(0),)
         q2h = (N = U1(2),) × (J = SU2(1 // 2),)
         q21 = (N = U1(2),) × (J = SU2(1),)
         q22 = (N = U1(2),) × (J = SU2(2),)
@@ -355,79 +352,108 @@ end
 end
 
 @testset "Mixing implementations" begin
-    st1 = ×(U1(1))
-    sA1 = ×((; A = U1(1)))
+    st1 = Sector((U1(1),))
+    sA1 = Sector(; A = U1(1))
 
-    @test_throws MethodError sA1 != st1
-    @test_throws MethodError sA1 < st1
-    @test_throws MethodError st1 < sA1
-    @test_throws MethodError tensor_product(st1, sA1)
-    @test_throws MethodError tensor_product(sA1, st1)
-    @test_throws MethodError st1 × sA1
-    @test_throws MethodError sA1 × st1
+    # The two indexings describe different objects, so they never compare equal and neither
+    # multiplying nor fusing them has a meaning: the result would have to be indexed both ways.
+    @test sA1 != st1
+    @test st1 != sA1
+    @test !isequal(sA1, st1)
+    @test hash(sA1) != hash(st1)
+    @test_throws ArgumentError st1 × sA1
+    @test_throws ArgumentError sA1 × st1
+    @test_throws ArgumentError tensor_product(st1, sA1)
+    @test_throws ArgumentError tensor_product(sA1, st1)
+    # Ordering across the two is arbitrary, but it is still an order, so mixed vectors sort.
+    @test isless(sA1, st1) != isless(st1, sA1)
 end
 
-@testset "Empty SymmetrySector" begin
-    st1 = ×(U1(1))
-    sA1 = ×((; A = U1(1)))
+@testset "TrivialSector as the unit of the product" begin
+    st1 = Sector((U1(1),))
+    sA1 = Sector(; A = U1(1))
+    u = TrivialSector()
 
-    for s in (×(), ×((;)))
-        @test s == TrivialSector()
-        @test s == SectorProduct(())
-        @test s == SectorProduct((;))
+    @test ×() ≡ u
+    @test (@constinferred flip(dual(u))) == u
+    @test (@constinferred trivial(u)) == u
+    @test (@constinferred length(u)) == 1
 
-        @test !(s < SectorProduct())
-        @test !(s < SectorProduct())
+    @test (@constinferred u × u) ≡ u
+    @test (@constinferred u × U1(1)) ≡ U1(1)
+    @test (@constinferred U1(1) × u) ≡ U1(1)
+    @test (@constinferred u × st1) ≡ st1
+    @test (@constinferred st1 × u) ≡ st1
+    @test (@constinferred u × sA1) ≡ sA1
+    @test (@constinferred sA1 × u) ≡ sA1
 
-        @test (@constinferred s × ×()) == s
-        @test (@constinferred s × ×((;))) == s
-        @test (@constinferred tensor_product(s, ×())) == s
-        @test (@constinferred tensor_product(s, ×((;)))) == s
+    @test (@constinferred tensor_product(u, U1(1))) == U1(1)
+    @test (@constinferred tensor_product(U1(1), u)) == U1(1)
+    @test (@constinferred tensor_product(st1, u)) == st1
+    @test (@constinferred tensor_product(u, st1)) == st1
+    @test (@constinferred tensor_product(sA1, u)) == sA1
+    @test (@constinferred tensor_product(u, sA1)) == sA1
+    @test (@constinferred tensor_product(Sector((SU2(0),)), u)) ==
+        gradedrange([Sector((SU2(0),)) => 1])
+    @test (@constinferred tensor_product(u, Sector((SU2(0),)))) ==
+        gradedrange([Sector((SU2(0),)) => 1])
+    @test (@constinferred tensor_product(Sector(SU2(1), U1(2)), u)) ==
+        gradedrange([Sector(SU2(1), U1(2)) => 1])
+    @test (@constinferred tensor_product(Sector(; A = SU2(0)), u)) ==
+        gradedrange([Sector(; A = SU2(0)) => 1])
+    @test (@constinferred tensor_product(Sector(; B = SU2(1), C = U1(2)), u)) ==
+        gradedrange([Sector(; B = SU2(1), C = U1(2)) => 1])
 
+    g0 = gradedrange([u => 2])
+    @test (@constinferred tensor_product(g0, g0)) == gradedrange([u => 4])
+
+    # Equal only to itself, including against products whose every argument is trivial.
+    @test u != U1(0)
+    @test u != st1
+    @test u != sA1
+    @test u != Sector(())
+    @test u != Sector((;))
+    @test u < st1
+    @test u < sA1
+    @test st1 > u
+end
+
+@testset "Empty products" begin
+    # An explicit empty container specifies a product of that shape. Specifying no symmetry at
+    # all is `TrivialSector`, which is a different thing.
+    for s in (Sector(()), Sector((;)))
+        @test s != TrivialSector()
+        @test TrivialSector() != s
+        @test istrivial(s)
         @test (@constinferred flip(dual(s))) == s
         @test (@constinferred trivial(s)) == s
         @test (@constinferred length(s)) == 1
+        @test (@constinferred s × TrivialSector()) ≡ s
+        @test (@constinferred TrivialSector() × s) ≡ s
+        @test (@constinferred tensor_product(s, s)) == s
 
         g0 = gradedrange([s => 2])
         @test (@constinferred tensor_product(g0, g0)) == gradedrange([s => 4])
-
-        @test (@constinferred s × U1(1)) == st1
-        @test (@constinferred U1(1) × s) == st1
-        @test (@constinferred s × st1) == st1
-        @test (@constinferred st1 × s) == st1
-        @test (@constinferred s × sA1) == sA1
-        @test (@constinferred sA1 × s) == sA1
-
-        @test (@constinferred tensor_product(U1(1), s)) == st1
-        @test (@constinferred tensor_product(s, U1(1))) == st1
-        @test (@constinferred tensor_product(SU2(0), s)) == gradedrange([×(SU2(0)) => 1])
-        @test (@constinferred tensor_product(s, SU2(0))) == gradedrange([×(SU2(0)) => 1])
-
-        @test (@constinferred tensor_product(st1, s)) == st1
-        @test (@constinferred tensor_product(×(SU2(0)), s)) ==
-            gradedrange([×(SU2(0)) => 1])
-        @test (@constinferred tensor_product(×(SU2(1), U1(2)), s)) ==
-            gradedrange([×(SU2(1), U1(2)) => 1])
-
-        @test (@constinferred tensor_product(sA1, s)) == sA1
-        @test (@constinferred tensor_product(×((; A = SU2(0))), s)) ==
-            gradedrange([×((; A = SU2(0))) => 1])
-        @test (@constinferred tensor_product((; B = SU2(1)) × (; C = U1(2)), s)) ==
-            gradedrange([(; B = SU2(1)) × (; C = U1(2)) => 1])
-
-        # Empty behaves as empty NamedTuple
-        @test_broken s != U1(0)
-        @test s == ×(U1(0))
-        @test s == ×((; A = U1(0)))
-        @test ×((; A = U1(0))) == s
-        @test s != sA1
-        @test s != st1
-
-        @test s < st1
-        @test ×(U1(1)) > s
-        @test s < sA1
-        @test s < ×((; A = U1(1)))
-        @test !(s < ×((; A = U1(0))))
-        @test !(s > ×((; A = U1(0))))
     end
+
+    @test Sector(()) != Sector((;))
+    @test Sector((;)) != Sector(())
+
+    # The empty positional product absorbs positional factors and the empty named one absorbs
+    # named factors. Neither absorbs the other kind.
+    @test (@constinferred Sector(()) × U1(1)) == Sector((U1(1),))
+    @test (@constinferred U1(1) × Sector(())) == Sector((U1(1),))
+    @test (@constinferred Sector(()) × Sector((U1(1),))) == Sector((U1(1),))
+    @test (@constinferred Sector((;)) × Sector(; A = U1(1))) == Sector(; A = U1(1))
+    @test_throws ArgumentError Sector((;)) × U1(1)
+    @test_throws ArgumentError Sector(()) × Sector(; A = U1(1))
+
+    # A name a product does not carry is that symmetry's trivial sector, so the empty named
+    # product equals any named product whose arguments are all trivial. The positional one has no
+    # such rule, since its arity is part of its identity.
+    @test Sector((;)) == Sector(; A = U1(0))
+    @test Sector(; A = U1(0)) == Sector((;))
+    @test hash(Sector((;))) == hash(Sector(; A = U1(0)))
+    @test Sector((;)) != Sector(; A = U1(1))
+    @test Sector(()) != Sector((U1(0),))
 end

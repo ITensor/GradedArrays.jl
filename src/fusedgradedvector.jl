@@ -10,9 +10,9 @@
     FusedSectorVector{T, S<:Sector, D<:AbstractVector{T}} <: AbstractSectorArray{T, S, 1}
 
 A single sector with a data vector. Analogous to [`FusedSectorMatrix`](@ref) but for 1-D data
-(eigenvalues, singular values, etc.). Each element is a symmetry scalar — there is no
-Wigner-Eckart structural factor; the sector label simply identifies which block the values
-belong to.
+(eigenvalues, singular values, etc.). Its structural factor is a [`SectorOnesVector`](@ref), the
+diagonal of the matrix case's [`SectorIdentity`](@ref), so each reduced value is repeated once per
+state of the irrep and `length` is the block's full graded length.
 """
 struct FusedSectorVector{T, S <: Sector, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, S, 1}
@@ -43,21 +43,22 @@ end
 
 # ---- accessors ----
 
-# Return the structural delta factor (`SectorOnesVector`, the diagonal of the block's
-# `SectorIdentity`), mirroring `sector(::FusedSectorMatrix)`. The stored sector is `sv.sector`.
-# sectoraxes, dataaxes, and axes are derived generically on AbstractSectorArray from sector and data;
-# a `FusedSectorVector`'s single axis is thus a `SectorOneTo` carrying the sector (its `size` is the
-# block's full graded length, not the reduced data length), matching the matrix blocks.
-sector(sv::FusedSectorVector) = SectorOnesVector{eltype(sv)}(sv.sector)
+# The structural factor is a `SectorOnesVector`, the diagonal of the block's `SectorIdentity`,
+# mirroring `structure(::FusedSectorMatrix)`. structureaxes, dataaxes, and axes are derived generically
+# on AbstractSectorArray from structure and data; a `FusedSectorVector`'s single axis is thus a
+# `SectorOneTo` carrying the sector (its `size` is the block's full graded length, not the reduced
+# data length), matching the matrix blocks.
+structure(sv::FusedSectorVector) = SectorOnesVector{eltype(sv)}(sector(sv))
+sector(sv::FusedSectorVector) = sv.sector
 
 datatype(::Type{FusedSectorVector{T, S, D}}) where {T, S, D} = D
 
-Base.copy(sv::FusedSectorVector) = FusedSectorVector(copy(data(sv)), sv.sector)
+Base.copy(sv::FusedSectorVector) = FusedSectorVector(copy(data(sv)), sector(sv))
 
 function Base.similar(sv::FusedSectorVector{<:Any, S, <:Any}, ::Type{T}) where {T, S}
     new_data = similar(data(sv), T)
     D = typeof(new_data)
-    return FusedSectorVector{T, S, D}(new_data, sv.sector)
+    return FusedSectorVector{T, S, D}(new_data, sector(sv))
 end
 
 Base.conj(a::FusedSectorVector) = throw_flips_first_axis(conj, a)
@@ -65,13 +66,13 @@ Base.conj(a::FusedSectorVector) = throw_flips_first_axis(conj, a)
 # ---- display ----
 
 function Base.print_array(io::IO, sv::FusedSectorVector)
-    print(io, sv.sector, ": ")
+    print(io, sector(sv), ": ")
     show(io, data(sv))
     return nothing
 end
 
 function Base.show(io::IO, sv::FusedSectorVector)
-    print(io, sv.sector, ": ")
+    print(io, sector(sv), ": ")
     show(io, data(sv))
     return nothing
 end
@@ -168,9 +169,9 @@ sorted and unique. To wrap an existing contiguous buffer instead, use [`FusedGra
 """
 function fusedgradedvector(sectordata)
     ps = collect(sectordata)
-    # Accept bare `TKS.Sector`s alongside our own, as `gradedrange` does; `to_sector` converts the
+    # Accept bare `TKS.Sector`s alongside our own, as `gradedrange` does; `Sector` converts the
     # former and is the identity on the latter.
-    sectors = [to_sector(first(p)) for p in ps]
+    sectors = [Sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))

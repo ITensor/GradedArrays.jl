@@ -2,10 +2,10 @@ using BlockArrays: BlockArrays, Block, blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractFusedGradedMatrix, AdjointFusedGradedArray,
     FusedGradedMatrix, FusedGradedOneTo, FusedGradedVector, GradedArray, GradedOneTo, SU2,
-    U1, UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data, datalengths,
-    dual, eachblockstoredindex, fusedgradedmatrix, fusedgradedvector, gradedrange, isdual,
-    isstored, sectoraxes, sectordata, sectors, sectortype, to_gradedrange, to_sector,
-    with_block_indexing, with_scalar_indexing
+    Sector, U1, UniqueSectorArray, axis_codomain, axis_domain, blockstoredlength, data,
+    datalengths, dual, eachblockstoredindex, fusedgradedmatrix, fusedgradedvector,
+    gradedrange, isdual, isstored, sectordata, sectors, sectortype, structureaxes,
+    to_gradedrange, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: LinearAlgebra
 using Random: Random
 using TensorAlgebra: TensorAlgebra, fill_map, matricize, ones_map, rand_map, randn_map,
@@ -53,7 +53,7 @@ using Test: @test, @test_broken, @test_throws, @testset
             blk = a[Block(1, 1)]
             @test blk isa UniqueSectorArray
             @test data(blk) == data11
-            @test sectoraxes(blk) == (U1(0), U1(0))
+            @test structureaxes(blk) == (U1(0), U1(0))
         end
     end
 
@@ -64,7 +64,7 @@ using Test: @test, @test_broken, @test_throws, @testset
             a[Block(1, 1)] = ones(2, 1)
 
             blk = a[Block(1, 1)]
-            @test sectoraxes(blk) == (conj(U1(0)), U1(0))
+            @test structureaxes(blk) == (conj(U1(0)), U1(0))
         end
     end
 
@@ -267,7 +267,7 @@ using Test: @test, @test_broken, @test_throws, @testset
         with_block_indexing() do
             a[Block(1, 1)] = ones(2, 1)
             blk = a[Block(1, 1)]
-            @test sectoraxes(blk) == (conj(U1(0)), conj(U1(0)))
+            @test structureaxes(blk) == (conj(U1(0)), conj(U1(0)))
         end
     end
 
@@ -834,8 +834,8 @@ end
         Random.Xoshiro(4), Float64, (sf, sf, sf, sf),
         (to_gradedrange(fn(2)),)
     )
-    @test ferm == randn(Random.Xoshiro(4), to_sector(fn(2)), (sf, sf, sf, sf))
-    @test zeros(fn(0), (), (sf,)) == zeros(to_sector(fn(0)), (), (sf,))
+    @test ferm == randn(Random.Xoshiro(4), Sector(fn(2)), (sf, sf, sf, sf))
+    @test zeros(fn(0), (), (sf,)) == zeros(Sector(fn(0)), (), (sf,))
     @test ndims(ferm) == 5
     @test isdual(axes(ferm, 5))
 
@@ -880,10 +880,10 @@ end
 @testset "pairs-vector axis constructors" begin
     g = gradedrange([U1(0) => 2, U1(1) => 2])
     # An axis given as `sector => multiplicity` pairs is normalized to a `GradedOneTo`. Keys are
-    # `Sector`s, reached either through a named constructor or through `to_sector` on a raw
+    # `Sector`s, reached either through a named constructor or through `Sector` on a raw
     # TensorKitSectors sector.
     ps = [U1(0) => 2, U1(1) => 2]                                             # named keys
-    pk = [to_sector(TKS.U1Irrep(0)) => 2, to_sector(TKS.U1Irrep(1)) => 2]     # converted raw keys
+    pk = [Sector(TKS.U1Irrep(0)) => 2, Sector(TKS.U1Irrep(1)) => 2]     # converted raw keys
     @testset "$f codomain-only" for (f, ref) in
         ((zeros, zeros(g, g)), (ones, ones(g, g)))
         @test f(ps, ps) == ref

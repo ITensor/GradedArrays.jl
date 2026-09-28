@@ -10,8 +10,10 @@ struct SectorIdentity{T, S <: Sector} <: AbstractSectorDelta{T, S, 2}
     sector::S
 end
 SectorIdentity{T}(s::S) where {T, S <: Sector} = SectorIdentity{T, S}(s)
-# The arrows live on the two axes, not the sector, so an oriented key is rejected by `to_sector`.
-SectorIdentity{T}(s::OrientedSector) where {T} = SectorIdentity{T}(to_sector(s))
+# The arrows live on the two axes, not the sector, so an oriented key is rejected by `Sector`.
+SectorIdentity{T}(s::OrientedSector) where {T} = SectorIdentity{T}(Sector(s))
+
+sector(a::SectorIdentity) = a.sector
 
 # The fused structural factor is always a coupled-sector matrix: one codomain, one domain leg.
 TensorAlgebra.ndims_codomain(::SectorIdentity) = 1
@@ -26,20 +28,20 @@ Base.@propagate_inbounds function Base.getindex(
 end
 
 function biaxes(A::SectorIdentity)
-    return bispace((OrientedSector(A.sector),), (OrientedSector(A.sector),))
+    return bispace((OrientedSector(sector(A)),), (OrientedSector(sector(A)),))
 end
 Base.axes(A::SectorIdentity) = Tuple(biaxes(A))
 
 # Structural inner product: the identity contracts to its dimension, the quantum dimension.
 function LinearAlgebra.dot(a::SectorIdentity, b::SectorIdentity)
     axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
-    return length(a.sector)
+    return length(sector(a))
 end
 
 # `p`-norm: the identity has `length(sector)` unit entries (its diagonal), so `norm^p` counts them.
 # The single formula also covers `p == Inf` (`count^0 == 1`, the max entry).
 function LinearAlgebra.norm(a::SectorIdentity{T}, p::Real = 2) where {T}
-    return convert(real(float(T)), length(a.sector)^(1 / p))
+    return convert(real(float(T)), length(sector(a))^(1 / p))
 end
 
 # The identity structural factor is a matrix, so its trace is defined (unlike the general structural

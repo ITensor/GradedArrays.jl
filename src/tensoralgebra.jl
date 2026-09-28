@@ -199,13 +199,13 @@ function TensorAlgebra.bipermutedimsopadd!(
     )
     check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
-    sx = sector(x)
+    sx = structure(x)
     # Fermion signs go on the reduced data (the delta is `one(T)`). `fermion_permutation_phase`
     # (op-aware) gives the braiding sign, plus the ket->bra leg reversal for `op === conj`. The two
     # `fermion_bend_phase` factors reconcile the splits (unbend the source's domain legs, rebend the
     # destination's) and are `1` for all-codomain blocks.
     ndims_domain_src = ndims_domain(sx)
-    ndims_domain_dest = ndims_domain(sector(y))
+    ndims_domain_dest = ndims_domain(structure(y))
     src_domain_legs = ntuple(i -> ndims_codomain(sx) + i, ndims_domain_src)
     dest_domain_legs =
         ntuple(i -> perm[ndims(x) - ndims_domain_dest + i], ndims_domain_dest)

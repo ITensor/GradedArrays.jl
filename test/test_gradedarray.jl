@@ -3,7 +3,7 @@ using Dictionaries: dictionary
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
     FusedGradedVector, GradedArray, SU2, U1, UniqueSectorArray, Z2, checksquare, data, dual,
     fZ2, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, gradedrange,
-    isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sector, sectordata,
+    isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sectordata, structure,
     tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal, diag, lmul!, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
@@ -272,7 +272,7 @@ end
                 for I in GradedArrays.eachblockstoredindex(fa)
                     Ip = Block(ntuple(d -> Int(Tuple(I)[perm[d]]), ndims(fa))...)
                     gt = fp[Ip]
-                    dest = UniqueSectorArray(similar(data(gt)), sector(gt))
+                    dest = UniqueSectorArray(similar(data(gt)), structure(gt))
                     TensorAlgebra.bipermutedimsopadd!(
                         dest,
                         identity,

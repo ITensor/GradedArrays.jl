@@ -120,10 +120,10 @@ using Test: @test, @test_throws, @testset
         @test_throws Exception FusedGradedOneTo(gradedrange([U1(0) => 2, U1(0) => 1]))      # repeated
     end
 
-    @testset "eachblockaxis / eachsectoraxis apply the arrow" begin
+    @testset "eachblockaxis / eachstructureaxis apply the arrow" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
-        @test GradedArrays.eachsectoraxis(g) == [U1(0), U1(1)]
-        @test GradedArrays.eachsectoraxis(dual(g)) == [conj(U1(0)), conj(U1(1))]
+        @test GradedArrays.eachstructureaxis(g) == [U1(0), U1(1)]
+        @test GradedArrays.eachstructureaxis(dual(g)) == [conj(U1(0)), conj(U1(1))]
     end
 
     # `setsectors` routinely produces zero-length sectors, and TensorKit's dictionary-backed

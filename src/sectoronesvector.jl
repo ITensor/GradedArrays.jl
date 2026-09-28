@@ -12,6 +12,8 @@ struct SectorOnesVector{T, S <: Sector} <: AbstractSectorDelta{T, S, 1}
 end
 SectorOnesVector{T}(s::S) where {T, S <: Sector} = SectorOnesVector{T, S}(s)
 
+sector(a::SectorOnesVector) = a.sector
+
 # A single non-dual leg: all codomain, no domain.
 TensorAlgebra.ndims_codomain(::SectorOnesVector) = 1
 TensorAlgebra.ndims_domain(::SectorOnesVector) = 0
@@ -23,19 +25,19 @@ Base.@propagate_inbounds function Base.getindex(A::SectorOnesVector{T}, i::Int) 
 end
 
 # All codomain, no domain, so the `biaxes` domain half is empty.
-biaxes(A::SectorOnesVector) = bispace((OrientedSector(A.sector),), ())
+biaxes(A::SectorOnesVector) = bispace((OrientedSector(sector(A)),), ())
 Base.axes(A::SectorOnesVector) = Tuple(biaxes(A))
 
 # Structural inner product: the all-ones vector contracts to its length, the quantum dimension.
 function LinearAlgebra.dot(a::SectorOnesVector, b::SectorOnesVector)
     axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
-    return length(a.sector)
+    return length(sector(a))
 end
 
 # `p`-norm: the all-ones vector has `length(sector)` unit entries, so `norm^p` counts them.
 # The single formula also covers `p == Inf` (`count^0 == 1`, the max entry).
 function LinearAlgebra.norm(a::SectorOnesVector{T}, p::Real = 2) where {T}
-    return convert(real(float(T)), length(a.sector)^(1 / p))
+    return convert(real(float(T)), length(sector(a))^(1 / p))
 end
 
 # A single index has only the identity permutation.

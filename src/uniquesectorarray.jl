@@ -4,7 +4,7 @@
 Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus one sector and one
 arrow per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
 Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker product of the
-structural [`UniqueSectorDelta`](@ref) (`sector`) with the data array (reduced matrix elements).
+structural [`UniqueSectorDelta`](@ref) (`structure`) with the data array (reduced matrix elements).
 The all-codomain case (`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`).
 """
 struct UniqueSectorArray{T, S <: Sector, N, NC, ND, A <: AbstractArray{T, N}} <:
@@ -72,7 +72,7 @@ function UniqueSectorArray(data::AbstractArray, sectors::Tuple{Vararg{AnySector}
     return UniqueSectorArray(data, sectors, ())
 end
 
-# Inverse of the `sector`/`data` split, preserving the split; used by `sector_kron` and the per-op
+# Inverse of the `structure`/`data` split, preserving the split; used by `sector_kron` and the per-op
 # forwards. The sector tuples are eltype-independent, so this also covers a delta whose eltype
 # differs from the data (e.g. `real`/`imag`).
 function UniqueSectorArray(
@@ -103,9 +103,9 @@ const UniqueSectorMatrix{T, S <: Sector, NC, ND, A <: AbstractMatrix{T}} =
 
 # Accessors
 
-# Kronecker factor decomposition: UniqueSectorArray = sector ⊗ data. `sector` wraps the stored
-# codomain/domain sector and arrow tuples in a delta, so `sector_kron(sector(a), data(a)) === a`.
-function sector(sa::UniqueSectorArray{T, S, N, NC, ND, A}) where {T, S, N, NC, ND, A}
+# Kronecker factor decomposition: UniqueSectorArray = structure ⊗ data. `structure` wraps the stored
+# codomain/domain sector and arrow tuples in a delta, so `sector_kron(structure(a), data(a)) === a`.
+function structure(sa::UniqueSectorArray{T, S, N, NC, ND, A}) where {T, S, N, NC, ND, A}
     return UniqueSectorDelta{T, S, N, NC, ND}(
         sa.sectors_codomain, sa.isduals_codomain, sa.sectors_domain, sa.isduals_domain
     )
@@ -114,7 +114,7 @@ end
 datatype(::Type{<:UniqueSectorArray{T, S, N, NC, ND, A}}) where {T, S, N, NC, ND, A} = A
 
 function Base.copy(a::UniqueSectorArray)
-    return UniqueSectorArray(copy(data(a)), sector(a))
+    return UniqueSectorArray(copy(data(a)), structure(a))
 end
 
 # A range sub-view keeps the sector labels and shrinks the reduced data: the degeneracy dimensions
@@ -123,7 +123,7 @@ end
 function Base.view(
         a::UniqueSectorArray{<:Any, <:Any, N}, I::Vararg{AbstractUnitRange, N}
     ) where {N}
-    return sector_kron(sector(a), view(data(a), I...))
+    return sector_kron(structure(a), view(data(a), I...))
 end
 
 # similar for UniqueSectorArray with SectorOneTo axes.
@@ -141,7 +141,7 @@ function Base.convert(
         x::UniqueSectorArray{T₂, S, N, NC, ND, B}
     )::UniqueSectorArray{T₁, S, N, NC, ND, A} where {T₁, T₂, S, N, NC, ND, A, B}
     A === B && return x
-    return UniqueSectorArray(convert(A, data(x)), sector(x))
+    return UniqueSectorArray(convert(A, data(x)), structure(x))
 end
 
 # ========================  permutedims  ========================
@@ -187,10 +187,10 @@ function check_mul_axes(
         a::UniqueSectorMatrix,
         b::UniqueSectorMatrix
     )
-    sectoraxes(a, 2) == dual(sectoraxes(b, 1)) ||
+    structureaxes(a, 2) == dual(structureaxes(b, 1)) ||
         throw(DimensionMismatch("sector mismatch in contracted dimension"))
-    sectoraxes(c, 1) == sectoraxes(a, 1) || throw(DimensionMismatch())
-    sectoraxes(c, 2) == sectoraxes(b, 2) || throw(DimensionMismatch())
+    structureaxes(c, 1) == structureaxes(a, 1) || throw(DimensionMismatch())
+    structureaxes(c, 2) == structureaxes(b, 2) || throw(DimensionMismatch())
     return nothing
 end
 
@@ -207,7 +207,7 @@ end
 
 function twist!(a::UniqueSectorArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    phase = mapreduce(i -> twist(sector(sectoraxes(a, i))), *, dims; init = 1)
+    phase = mapreduce(i -> twist(sector(structureaxes(a, i))), *, dims; init = 1)
     isone(phase) || (data(a) .*= phase)
     return a
 end

@@ -3,12 +3,17 @@ using Test: @test, @testset
 @testset "Test exports" begin
     exports = [
         :GradedArrays,
+        :Sector,
         :TrivialSector,
         :U1,
         :SU2,
         :Z,
         :Z2,
         :fZ2,
+        :fU1,
+        :fSU2,
+        :sectorproduct,
+        :×,
         :GradedArray,
         :gradedrange,
         :dual,
@@ -19,7 +24,6 @@ using Test: @test, @testset
         append!(
             exports,
             [
-                :Sector,
                 :OrientedSector,
                 :TensorKitSector,
                 :sectors,

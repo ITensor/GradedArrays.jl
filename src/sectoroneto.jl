@@ -5,7 +5,7 @@ One sector's index space: a sector, an arrow, and a data length (multiplicity). 
 building block for `GradedOneTo`.
 
 The arrow is stored here rather than on the sector, matching `GradedOneTo`. An
-[`OrientedSector`](@ref) is built on demand, by `sectoraxes`, for the places that want the
+[`OrientedSector`](@ref) is built on demand, by `structure`, for the places that want the
 sector and its arrow as one value.
 """
 struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}
@@ -35,18 +35,18 @@ sectorlength(r::SectorOneTo) = length(sector(r))
 # Kronecker factor decomposition:
 # SectorOneTo = tensor_product(OrientedSector (sector axis), OneTo (data axis))
 data(r::SectorOneTo) = Base.OneTo(datalength(r))
-sectoraxes(r::SectorOneTo) = (OrientedSector(sector(r), isdual(r)),)
+structure(r::SectorOneTo) = OrientedSector(sector(r), isdual(r))
 dataaxes(r::SectorOneTo) = (data(r),)
 
 # Generic single-axis accessors (like axes1 = first ∘ axes)
-sectoraxes1(a) = first(sectoraxes(a))
+structureaxes1(a) = first(structureaxes(a))
 dataaxes1(a) = first(dataaxes(a))
 
 # Type-level data axis type (for promote_op in similar)
 dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
 
 # Duck-typed interface matching GradedOneTo: `sectors` reports the bare sector, which no
-# longer carries an arrow, while `eachsectoraxis` pairs it with this range's arrow.
+# longer carries an arrow, while `eachstructureaxis` pairs it with this range's arrow.
 sectors(r::SectorOneTo) = [sector(r)]
 datalengths(r::SectorOneTo) = [datalength(r)]
 BlockArrays.blocklength(::SectorOneTo) = 1
@@ -84,7 +84,7 @@ end
 
 eachblockaxis(r::SectorOneTo) = [r]
 eachdataaxis(r::SectorOneTo) = [data(r)]
-eachsectoraxis(r::SectorOneTo) = [sectoraxes1(r)]
+eachstructureaxis(r::SectorOneTo) = [structureaxes1(r)]
 
 # ========================  tensor_product  ========================
 
