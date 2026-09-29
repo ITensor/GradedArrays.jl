@@ -20,9 +20,8 @@ struct GradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
         length(sectors) == length(datalengths) ||
             throw(ArgumentError("sectors and datalengths must have the same length"))
         # One axis is graded by one symmetry, so the sectors need a single concrete type. Checked
-        # here because it is the only chokepoint every path goes through: `Sector` is abstract, so
-        # a mixed vector still satisfies `Vector{S} where {S <: Sector}` with `S` bound to
-        # `Sector` itself, which an outer method cannot tell apart from a good one.
+        # here rather than in a signature because this is the only chokepoint every path goes
+        # through, and a mixed vector still satisfies `Vector{S} where {S <: Sector}`.
         isconcretetype(S) || throw(
             ArgumentError(
                 "a graded axis is graded by one symmetry, so its sectors need one concrete \

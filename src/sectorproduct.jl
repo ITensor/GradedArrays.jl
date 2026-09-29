@@ -199,11 +199,8 @@ end
 # product does not name is that symmetry's trivial sector. That asymmetry is exactly why named
 # products compare across different sets of symmetries and positional ones cannot.
 #
-# `promote_sector` is deliberately not used here, for two reasons. It throws on operands it cannot
-# bring to a common argument set, which is right for fusion but wrong for equality: comparing two
-# sectors has to answer `false` rather than raise. And it takes two operands, while `hash` takes
-# one and so has nothing to promote against, which would leave `hash` unable to follow the
-# procedure it has to agree with.
+# `promote_sector` is not used here: it throws on operands it cannot bring to a common argument
+# set, and `hash` takes one operand and so has nothing to promote against.
 
 function Base.:(==)(a::TupleSectorProduct, b::TupleSectorProduct)
     length(arguments(a)) == length(arguments(b)) || return false

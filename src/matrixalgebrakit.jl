@@ -45,8 +45,6 @@ end
 # entry points in `gradedarray.jl` (defined there because `GradedArray` is not yet defined here).
 # Dispatch must not catch `FusedGradedMatrix`: the matricizing forms produce one, which must
 # terminate at its own in-place block algorithm rather than route back here (that would recurse).
-# Omitted: `project_antihermitian`/`project_isometric` (no `TensorAlgebra` perm-form) and the
-# null-space factorizations, whose `GradedArray` entry points are a follow-up.
 const BARE_MATRIX_FACTORIZATIONS = (
     :svd_compact, :svd_full, :svd_vals, :qr_compact, :qr_full, :lq_compact,
     :lq_full, :eig_full, :eig_vals, :eigh_full, :eigh_vals, :left_polar,
@@ -60,10 +58,6 @@ const BARE_MATRIX_FACTORIZATIONS = (
 # the identity, and `project(I ⊗ M) = I ⊗ project(M)`, so the projection passes straight to
 # the reduced data. This is why it is well defined in the non-abelian case, where the generic
 # `AbstractMatrix` path scalar-indexes the block and hits the unique-fusion guard.
-#
-# `FusedSectorMatrixAlgorithm` wraps the reduced-data algorithm so the block projection dispatches on
-# a distinct type (mirroring `FusedGradedMatrixAlgorithm` one level up), forwarding the wrapped inner
-# algorithm to the data and staying clear of the generic `AbstractMatrix` projection methods.
 struct FusedSectorMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A
 end

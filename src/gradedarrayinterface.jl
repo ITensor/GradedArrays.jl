@@ -2,11 +2,10 @@
 #  Shared block-indexing infrastructure.
 #
 #  `GradedArray` and the fused arrays (`AbstractFusedGradedArray`) both implement the block-indexing
-#  primitive `view(a, ::Block)`, and the rest of the block/scalar indexing surface is derived from
-#  it identically for both. That shared derivation is the reason to define it once here, by an
-#  `@eval` loop over the two types, rather than the definitions merely coinciding. The `GradedArray`
-#  side is only well-defined for unique (abelian) fusion, guarded by `require_unique_fusion`. This
-#  file is included after `gradedarray.jl` so both types exist.
+#  primitive `view(a, ::Block)`, and the rest of the block/scalar indexing surface derives from it
+#  identically for both, by an `@eval` loop over the two types. The `GradedArray` side is only well
+#  defined for unique (abelian) fusion, guarded by `require_unique_fusion`. Included after
+#  `gradedarray.jl` so both types exist.
 # =============================================================================
 
 using BlockArrays: Block, BlockIndexRange, block, blockindex, blocks, findblockindex

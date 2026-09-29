@@ -25,13 +25,9 @@ function structure end
 # (the inverse of the `structure` / `data` split). Each concrete subtype defines a method.
 function sector_kron end
 
-# The axes decompose into the structural sector factor and the reduced data, derived once here from
-# the `structure`/`data` primitives every concrete subtype provides, so no type re-derives them and
-# they cannot drift apart. `structureaxes` is generic over anything with a `structure`, `SectorOneTo`
-# included, so the rank-1 range case is the same derivation rather than its own method. `biaxes`
-# carries the codomain/domain split as a `BiTuple`: the sector factor supplies the split (via its own
-# `biaxes`), so bipartition the flat reduced-data axes at the same boundary and pair each with its
-# sector label. `axes` is the flat form; `size` the flat shape.
+# The axes decompose into the structural sector factor and the reduced data, derived here from the
+# `structure`/`data` primitives every subtype provides. `biaxes` carries the codomain/domain split,
+# taking it from the sector factor and bipartitioning the reduced-data axes at the same boundary.
 structureaxes(x) = axes(structure(x))
 structureaxes(x, d::Int) = structureaxes(x)[d]
 dataaxes(sa::AbstractSectorArray) = axes(data(sa))

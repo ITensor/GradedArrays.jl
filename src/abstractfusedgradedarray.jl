@@ -330,8 +330,6 @@ end
 # ---------------------------------------------------------------------------
 #  fill! / zero! / scale! — block-wise over the stored blocks
 #
-#  Defined once via the `eachblockstoredindex`/`view` interface every
-#  `AbstractFusedGradedArray` implements, so both fused subtypes are covered.
 #  These only touch stored (symmetry-allowed) blocks, so a nonzero `fill!`
 #  value leaves the forbidden positions at zero.
 # ---------------------------------------------------------------------------

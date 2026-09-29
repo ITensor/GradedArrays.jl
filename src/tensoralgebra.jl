@@ -1,8 +1,8 @@
 using StridedViews: StridedViews, StridedView, isstrided
 
 # ========================  bipartite-axes interface  ========================
-# The shared codomain/domain axis interface for `GradedArray` and the fused graded arrays (a candidate
-# to move to TensorAlgebra alongside `BiTuple`/`bispace`). A type implements the two primitives
+# The shared codomain/domain axis interface for `GradedArray` and the fused graded arrays. A type
+# implements the two primitives
 # `axes_codomain`/`axes_domain` — its codomain and domain axis groups in un-dualized (codomain-facing)
 # form — and these derived helpers follow. `biaxes` wraps the halves into the `bispace`/`BiTuple` form
 # (dualizing the domain), so an implementer never constructs a `BiTuple`; `axis_codomain`/`axis_domain`

@@ -892,10 +892,9 @@ end
 
 # ============================  concatenation  ============================
 # Place whole symmetry-allowed blocks (no scalar indexing) via `concatenate_sparse!` on the block
-# containers. When the containers subtyped `AbstractSparseArray` this went through the generic
-# `TensorAlgebra.concatenate!` (which slices the destination); `concatenate_sparse!` is the
-# whole-block stand-in that needs only the stored-entry interface. The block views are guarded, so
-# opt into block indexing for the placement.
+# containers, which needs only the stored-entry interface where the generic
+# `TensorAlgebra.concatenate!` slices the destination. The block views are guarded, so opt into
+# block indexing for the placement.
 #
 # Abelian-only stand-in: `cat` / `directsum` will be reimplemented for non-abelian fusion, superseding
 # this path.
