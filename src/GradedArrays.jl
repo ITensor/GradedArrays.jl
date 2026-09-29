@@ -2,7 +2,7 @@ module GradedArrays
 
 # exports
 # -------
-export Sector, TrivialSector, U1, SU2, CU1, SUN, Z, Z2, fZ2, fU1, fSU2
+export Sector, TrivialSector, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
 export sectorproduct, ×
 export GradedArray, gradedrange
 export dual, isdual

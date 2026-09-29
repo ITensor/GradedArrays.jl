@@ -1,16 +1,14 @@
 module GradedArraysSUNRepresentationsExt
 
-using GradedArrays: GradedArrays, SUN, label
-using SUNRepresentations: SUNIrrep, weight
-using TensorKitSectors: TensorKitSectors as TKS
+using GradedArrays: GradedArrays, SU
+using SUNRepresentations: SUNIrrep, dynkin_label
 
-# `SUN` itself lives in GradedArrays, so it can be named, constructed and compared without this
+# `SU` itself lives in GradedArrays, so it can be named, constructed and compared without this
 # extension. Everything that needs SU(N) representation theory needs `SUNRepresentations` and so
-# lives here: these two conversions are what the generic sector machinery reaches through for a
+# lives here: naming the counterpart is what the generic sector machinery reaches through for a
 # sector's dimension, its ordering, its fusion style and its fusion rule.
-TKS.Sector(s::SUN{N}) where {N} = SUNIrrep{N}(label(s))
-GradedArrays.tensorkit_sectortype(::Type{SUN{N}}) where {N} = SUNIrrep{N}
-# `SUN` shifts the weight to end in zero, so this also canonicalizes.
-GradedArrays.Sector(c::SUNIrrep{N}) where {N} = SUN{N}(weight(c))
+GradedArrays.tensorkit_sectortype(::Type{SU{N}}) where {N} = SUNIrrep{N}
+# Both label by Dynkin labels, so this is the same representation spelled the same way.
+GradedArrays.Sector(c::SUNIrrep{N}) where {N} = SU{N}(dynkin_label(c)...)
 
 end

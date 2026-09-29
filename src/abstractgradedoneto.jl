@@ -17,6 +17,15 @@ those.
 """
 abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
 
+"""
+    sectors(g)
+
+The sectors of an axis, in block order. A [`SectorOneTo`](@ref) gives the one sector it
+carries. A [`GradedOneTo`](@ref) may repeat a sector or leave them unsorted, where a
+[`FusedGradedOneTo`](@ref) holds each once and in order.
+"""
+function sectors end
+
 # ========================  derived accessors  ========================
 
 sectorlengths(g::AbstractGradedOneTo) = length.(sectors(g))

@@ -81,8 +81,6 @@ arguments(s::SectorProduct) = getfield(s, :arguments)
 arguments_type(::Type{<:TupleSectorProduct{T}}) where {T} = T
 arguments_type(::Type{<:NamedSectorProduct{T}}) where {T} = T
 
-label(s::SectorProduct) = map(label, arguments(s))
-
 # The TensorKitSectors counterparts, used for ordering and by anything that reaches for a
 # sector's TensorKitSectors form. Upstream draws the same positional/named distinction, so each
 # kind maps onto its own counterpart and both directions keep the arguments and their names.

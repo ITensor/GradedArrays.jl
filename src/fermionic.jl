@@ -31,12 +31,12 @@ sectortype_repr(::Type{fSU2}) = "fSU2"
 # An alias shows under its own name only for a value it actually produces. Any other product of
 # the same two symmetries is not a fermionic sector, and shows as its components.
 function Base.show(io::IO, s::fU1)
-    n = label(first(arguments(s)))
+    n = only(sector_labels(first(arguments(s))))
     isinteger(n) && fU1(Int(n)) == s || return @invoke show(io::IO, s::TupleSectorProduct)
     return print(io, "fU1(", Int(n), ")")
 end
 function Base.show(io::IO, s::fSU2)
-    j = label(first(arguments(s)))
+    j = only(sector_labels(first(arguments(s))))
     fSU2(j) == s || return @invoke show(io::IO, s::TupleSectorProduct)
     return print(io, "fSU2(", j, ")")
 end

@@ -1,6 +1,6 @@
 using BlockArrays: blocklengths
-using GradedArrays: CU1, SU2, SUN, Sector, TensorKitSector, TrivialSector, U1, Z, dual,
-    flip, gradedrange, tensor_product, trivial, unmerged_tensor_product
+using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
+    gradedrange, tensor_product, trivial, unmerged_tensor_product
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS, Nsymbol
 using Test: @test, @test_throws, @testset
@@ -227,19 +227,19 @@ end
         @test (@constinferred blocklengths(g3)) == [1, 4, 3]
 
         # test dual on non self-conjugate non-abelian representations
-        s1 = SUN{3}((0, 0))
-        f3 = SUN{3}((1, 0))
-        c3 = SUN{3}((1, 1))
-        ad8 = SUN{3}((2, 1))
+        s1 = SU{3}(0, 0)
+        f3 = SU{3}(1, 0)
+        c3 = SU{3}(0, 1)
+        ad8 = SU{3}(1, 1)
 
         g5 = gradedrange([s1 => 1, f3 => 1])
         g6 = gradedrange([s1 => 1, c3 => 1])
         @test dual(flip(g5)) == g6
         @test tensor_product(g5, g6) == gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
         @test tensor_product(dual(g5), g6) ==
-            gradedrange([s1 => 1, c3 => 2, f3 => 1, SUN{3}((2, 2)) => 1])
+            gradedrange([s1 => 1, c3 => 2, f3 => 1, SU{3}(0, 2) => 1])
         @test tensor_product(g5, dual(g6)) ==
-            gradedrange([s1 => 1, c3 => 1, f3 => 2, SUN{3}((2, 0)) => 1])
+            gradedrange([s1 => 1, c3 => 1, f3 => 2, SU{3}(2, 0) => 1])
         @test tensor_product(dual(g5), dual(g6)) ==
             gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
 

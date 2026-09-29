@@ -1,11 +1,11 @@
-using GradedArrays: CU1, SU2, SUN, Sector, TensorKitSector, TrivialSector, U1, Z, dual,
-    flip, istrivial, label, modulus, sectortype, trivial
+using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
+    istrivial, modulus, sector_labels, sectortype, trivial
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
-fundamental(::Type{SUN{N}}) where {N} = SUN{N}((1, zeros(Int, N - 2)...))
+fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
 
 @testset "Test SymmetrySectors Types" begin
     @testset "TrivialSector" begin
@@ -69,6 +69,7 @@ fundamental(::Type{SUN{N}}) where {N} = SUN{N}((1, zeros(Int, N - 2)...))
         @test flip(dual(z0)) == z0
         @test flip(dual(z1)) == z1
         @test modulus(z1) == 2
+        @test modulus(Z{2}) == 2
 
         @test isless(Z{2}(0), Z{2}(1))
         @test !isless(Z{2}(1), Z{2}(0))
@@ -146,37 +147,42 @@ fundamental(::Type{SUN{N}}) where {N} = SUN{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "SU(N)" begin
-        f3 = SUN{3}((1, 0))
-        f4 = SUN{4}((1, 0, 0))
-        ad3 = SUN{3}((2, 1))
-        ad4 = SUN{4}((2, 1, 1))
+        # Dynkin labels: `N - 1` of them, and the canonical form.
+        f3 = SU{3}(1, 0)
+        f4 = SU{4}(1, 0, 0)
+        ad3 = SU{3}(1, 1)
+        ad4 = SU{4}(1, 0, 1)
 
-        # Both spellings, and the trailing zero the shorter one implies.
-        @test SUN{3}((1, 0)) === SUN{3}((1, 0, 0))
-        @test label(f3) == (1, 0, 0)
+        # `N` labels are the highest weight instead, and name the same representations.
+        @test f3 === SU{3}(1, 0, 0)
+        @test ad3 === SU{3}(2, 1, 0)
+        @test sector_labels(f3) == (1, 0)
+        @test sector_labels(ad3) == (1, 1)
 
-        # Adding a constant to every entry is the same representation, so the weight is stored
-        # shifted to end in zero and equality is equality of representations.
-        @test SUN{3}((2, 1, 1)) == SUN{3}((1, 0, 0))
-        @test label(SUN{3}((2, 1, 1))) == (1, 0, 0)
-        @test hash(SUN{3}((2, 1, 1))) == hash(SUN{3}((1, 0, 0)))
-        @test istrivial(SUN{3}((1, 1, 1)))
+        # A weight is shift-invariant, so any representative denotes the same representation.
+        @test SU{3}(2, 1, 1) == SU{3}(1, 0, 0)
+        @test SU{3}(0, -1, -2) == SU{3}(2, 1, 0)
+        @test hash(SU{3}(2, 1, 1)) == hash(SU{3}(1, 0, 0))
+        @test istrivial(SU{3}(1, 1, 1))
 
-        # A weight must be non-increasing, and must have N or N-1 entries.
-        @test_throws ArgumentError SUN{3}((0, 1, 0))
-        @test_throws ArgumentError SUN{3}((1, 2))
-        @test_throws ArgumentError SUN{3}((1, 0, 0, 0))
+        # A weight must be non-increasing, a Dynkin label non-negative, and the number of
+        # labels either `N - 1` or `N`. The rank never follows from the count.
+        @test_throws ArgumentError SU{3}(0, 1, 0)
+        @test_throws ArgumentError SU{3}(-1, 0)
+        @test_throws ArgumentError SU{3}(1, 0, 0, 0)
+        @test_throws ArgumentError SU{1}(0)
+        @test_throws ArgumentError SU(1, 0)
 
-        @test trivial(SUN{3}) == SUN{3}((0, 0))
-        @test istrivial(SUN{3}((0, 0)))
-        @test trivial(SUN{4}) == SUN{4}((0, 0, 0))
-        @test istrivial(SUN{4}((0, 0, 0)))
+        @test trivial(SU{3}) == SU{3}(0, 0)
+        @test istrivial(SU{3}(0, 0))
+        @test trivial(SU{4}) == SU{4}(0, 0, 0)
+        @test istrivial(SU{4}(0, 0, 0))
 
-        @test fundamental(SUN{3}) == f3
-        @test fundamental(SUN{4}) == f4
+        @test fundamental(SU{3}) == f3
+        @test fundamental(SU{4}) == f4
 
-        @test flip(dual(f3)) == SUN{3}((1, 1))
-        @test flip(dual(f4)) == SUN{4}((1, 1, 1))
+        @test flip(dual(f3)) == SU{3}(0, 1)
+        @test flip(dual(f4)) == SU{4}(0, 0, 1)
         @test flip(dual(ad3)) == ad3
         @test flip(dual(ad4)) == ad4
 
@@ -184,10 +190,10 @@ fundamental(::Type{SUN{N}}) where {N} = SUN{N}((1, zeros(Int, N - 2)...))
         @test length(f4) == 4
         @test length(ad3) == 8
         @test length(ad4) == 15
-        @test length(SUN{3}((4, 2))) == 27
-        @test length(SUN{3}((3, 3))) == 10
-        @test length(SUN{3}((3, 0))) == 10
-        @test length(SUN{3}((0, 0))) == 1
+        @test length(SU{3}(2, 2)) == 27
+        @test length(SU{3}(0, 3)) == 10
+        @test length(SU{3}(3, 0)) == 10
+        @test length(SU{3}(0, 0)) == 1
         @test (@constinferred length(f3)) == 3
     end
 
