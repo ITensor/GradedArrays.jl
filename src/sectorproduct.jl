@@ -159,7 +159,7 @@ function fusion_rule(s1::SectorProduct, s2::SectorProduct)
     fstyle = TKS.FusionStyle(typeof(s1′)) & TKS.FusionStyle(typeof(s2′))
     fstyle === TKS.UniqueFusion() &&
         return Sector(map(fusion_rule, arguments(s1′), arguments(s2′)))
-    return gradedrange([s => nsymbol(s1′, s2′, s) for s in fusion_products(s1′, s2′)])
+    return gradedrange([s => TKS.Nsymbol(s1′, s2′, s) for s in fusion_products(s1′, s2′)])
 end
 fusion_rule(s1::SectorProduct, s2::Sector) = fusion_rule(s1, TupleSectorProduct((s2,)))
 fusion_rule(s1::Sector, s2::SectorProduct) = fusion_rule(TupleSectorProduct((s1,)), s2)
@@ -192,19 +192,21 @@ for T1 in (:SectorProduct, :Sector),
         T3 in (:SectorProduct, :Sector)
 
     T1 === T2 === T3 && continue
-    @eval function nsymbol(s1::$T1, s2::$T2, s3::$T3)
-        return nsymbol(to_sectorproduct(s1), to_sectorproduct(s2), to_sectorproduct(s3))
+    @eval function TKS.Nsymbol(s1::$T1, s2::$T2, s3::$T3)
+        return TKS.Nsymbol(
+            to_sectorproduct(s1), to_sectorproduct(s2), to_sectorproduct(s3)
+        )
     end
 end
-function nsymbol(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
+function TKS.Nsymbol(s1::SectorProduct, s2::SectorProduct, s3::SectorProduct)
     isempty(arguments(s1)) && isempty(arguments(s2)) && return istrivial(s3) ? 1 : 0
-    isempty(arguments(s1)) && return nsymbol(trivial(s2), s2, s3)
-    isempty(arguments(s2)) && return nsymbol(s1, trivial(s1), s3)
-    isempty(arguments(s3)) && return nsymbol(s1, s2, trivial(s1))
+    isempty(arguments(s1)) && return TKS.Nsymbol(trivial(s2), s2, s3)
+    isempty(arguments(s2)) && return TKS.Nsymbol(s1, trivial(s1), s3)
+    isempty(arguments(s3)) && return TKS.Nsymbol(s1, s2, trivial(s1))
 
     s1′, s2′, s3′ = promote_sector(s1, s2, s3)
     return prod(
-        splat(nsymbol), zip(arguments(s1′), arguments(s2′), arguments(s3′));
+        splat(TKS.Nsymbol), zip(arguments(s1′), arguments(s2′), arguments(s3′));
         init = 1
     )
 end

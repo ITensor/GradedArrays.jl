@@ -110,7 +110,10 @@ istrivial(x) = (x == trivial(x))
 to_gradedrange(s::Sector) = gradedrange([s => 1])
 to_gradedrange(c::TKS.Sector) = to_gradedrange(Sector(c))
 
-function nsymbol(s1::Sector, s2::Sector, s3::Sector)
+# A method of upstream's function rather than a parallel name, matching how `TKS.Sector`,
+# `TKS.FusionStyle` and `TKS.BraidingStyle` are extended for these types. A GradedArrays sector is
+# not a `TKS.Sector`, so the inner call lands on upstream's own methods and cannot recurse.
+function TKS.Nsymbol(s1::Sector, s2::Sector, s3::Sector)
     return TKS.Nsymbol(
         TKS.Sector(s1),
         TKS.Sector(s2),

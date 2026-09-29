@@ -1,8 +1,8 @@
 using BlockArrays: blocklengths
 using GradedArrays: SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
-    gradedrange, nsymbol, tensor_product, trivial, unmerged_tensor_product
+    gradedrange, tensor_product, trivial, unmerged_tensor_product
 using SUNRepresentations: SUNIrrep
-using TensorKitSectors: TensorKitSectors as TKS
+using TensorKitSectors: TensorKitSectors as TKS, Nsymbol
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
@@ -22,7 +22,7 @@ const SU{N} = TensorKitSector{SUNIrrep{N}}
         @test (@constinferred tensor_product(q, q)) == q
         @test (@constinferred tensor_product(q, z0)) == z0
         @test (@constinferred tensor_product(z1, q)) == z1
-        @test nsymbol(q, q, q) == 1
+        @test Nsymbol(q, q, q) == 1
 
         # test different input number
         @test tensor_product(z0) == z0
@@ -40,8 +40,8 @@ const SU{N} = TensorKitSector{SUNIrrep{N}}
         @test tensor_product(q1, q2) == U1(3)
         @test tensor_product(q2, q1) == U1(3)
         @test (@constinferred tensor_product(q1, q2)) == q3
-        @test nsymbol(q1, q2, q3) == 1
-        @test nsymbol(q1, q1, q3) == 0
+        @test Nsymbol(q1, q2, q3) == 1
+        @test Nsymbol(q1, q1, q3) == 0
     end
 
     @testset "O2 fusion rules" begin
@@ -245,7 +245,7 @@ end
         @test tensor_product(dual(g5), dual(g6)) ==
             gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
 
-        @test nsymbol(ad8, ad8, ad8) == 2
+        @test Nsymbol(ad8, ad8, ad8) == 2
     end
 
     @testset "Mixed GradedOneTo - Sector fusion rules" begin
