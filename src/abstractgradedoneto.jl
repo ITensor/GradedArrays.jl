@@ -54,7 +54,7 @@ function eachblockaxis(g::AbstractGradedOneTo)
     return [SectorOneTo(s, isdual(g), m) for (s, m) in zip(sectors(g), datalengths(g))]
 end
 eachdataaxis(g::AbstractGradedOneTo) = data.(eachblockaxis(g))
-eachstructureaxis(g::AbstractGradedOneTo) = structureaxes1.(eachblockaxis(g))
+eachstructureaxis(g::AbstractGradedOneTo) = structure.(eachblockaxis(g))
 
 # ========================  conj, flip_dual  ========================
 # `dual` and `flip` are concrete-type-specific (they return the same concrete type); `conj`

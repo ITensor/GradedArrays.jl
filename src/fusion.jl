@@ -116,8 +116,8 @@ function TensorAlgebra.unmatricize(
     )
     msectors = unmatricize(
         structure(m),
-        structureaxes1.(codomain_axes),
-        structureaxes1.(domain_axes)
+        structure.(codomain_axes),
+        structure.(domain_axes)
     )
     mdata = unmatricize(
         data(m),

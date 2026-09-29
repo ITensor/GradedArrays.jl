@@ -38,10 +38,6 @@ data(r::SectorOneTo) = Base.OneTo(datalength(r))
 structure(r::SectorOneTo) = OrientedSector(sector(r), isdual(r))
 dataaxes(r::SectorOneTo) = (data(r),)
 
-# Generic single-axis accessors (like axes1 = first ∘ axes)
-structureaxes1(a) = first(structureaxes(a))
-dataaxes1(a) = first(dataaxes(a))
-
 # Type-level data axis type (for promote_op in similar)
 dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
 
@@ -84,7 +80,7 @@ end
 
 eachblockaxis(r::SectorOneTo) = [r]
 eachdataaxis(r::SectorOneTo) = [data(r)]
-eachstructureaxis(r::SectorOneTo) = [structureaxes1(r)]
+eachstructureaxis(r::SectorOneTo) = [structure(r)]
 
 # ========================  tensor_product  ========================
 
