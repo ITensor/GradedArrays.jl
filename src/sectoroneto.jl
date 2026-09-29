@@ -1,7 +1,7 @@
 """
     SectorOneTo{S<:Sector}
 
-One sector's index space: a sector, an arrow, and a data length (multiplicity). This is the
+One sector's index space: a sector, a data length (multiplicity), and an arrow. This is the
 building block for `GradedOneTo`.
 
 The arrow is stored here rather than on the sector, matching `GradedOneTo`. An
@@ -10,17 +10,17 @@ sector and its arrow as one value.
 """
 struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}
     sector::S
-    isdual::Bool
     datalength::Int
+    isdual::Bool
 end
 
-SectorOneTo(s::Sector) = SectorOneTo(s, false, 1)
-SectorOneTo(s::Sector, datalength::Int) = SectorOneTo(s, false, datalength)
-SectorOneTo(s::Sector, r::Base.OneTo) = SectorOneTo(s, false, last(r))
-SectorOneTo(s::Sector, isdual::Bool, r::Base.OneTo) = SectorOneTo(s, isdual, last(r))
+SectorOneTo(s::Sector, datalength::Int = 1) = SectorOneTo(s, datalength, false)
+function SectorOneTo(s::Sector, r::Base.OneTo, isdual::Bool = false)
+    return SectorOneTo(s, last(r), isdual)
+end
 # An `OrientedSector` already carries the arrow, so it splits into the two stored fields.
 function SectorOneTo(s::OrientedSector, datalength::Int = 1)
-    return SectorOneTo(sector(s), isdual(s), datalength)
+    return SectorOneTo(sector(s), datalength, isdual(s))
 end
 SectorOneTo(s::OrientedSector, r::Base.OneTo) = SectorOneTo(s, last(r))
 
@@ -56,9 +56,9 @@ TKS.FusionStyle(r::SectorOneTo) = TKS.FusionStyle(typeof(r))
 TKS.FusionStyle(::Type{<:SectorOneTo{S}}) where {S} = TKS.FusionStyle(S)
 
 # dual, flip, flip_dual
-TensorAlgebra.dual(r::SectorOneTo) = SectorOneTo(sector(r), !isdual(r), datalength(r))
+TensorAlgebra.dual(r::SectorOneTo) = SectorOneTo(sector(r), datalength(r), !isdual(r))
 flip(r::SectorOneTo) =
-    SectorOneTo(charge_conjugate(sector(r)), !isdual(r), datalength(r))
+    SectorOneTo(charge_conjugate(sector(r)), datalength(r), !isdual(r))
 flip_dual(r::SectorOneTo) = isdual(r) ? flip(r) : r
 
 # Equality and hashing

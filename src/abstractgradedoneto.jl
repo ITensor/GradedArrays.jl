@@ -51,7 +51,7 @@ dataaxistype(::Type{<:AbstractGradedOneTo}) = Base.OneTo{Int}
 
 function eachblockaxis(g::AbstractGradedOneTo)
     # The stored sectors carry no arrow, so each block axis takes the range's own.
-    return [SectorOneTo(s, isdual(g), m) for (s, m) in zip(sectors(g), datalengths(g))]
+    return [SectorOneTo(s, m, isdual(g)) for (s, m) in zip(sectors(g), datalengths(g))]
 end
 eachdataaxis(g::AbstractGradedOneTo) = data.(eachblockaxis(g))
 eachstructureaxis(g::AbstractGradedOneTo) = structure.(eachblockaxis(g))

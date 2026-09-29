@@ -155,7 +155,7 @@ function Base.getindex(
     dest = map(blocks(I)) do group
         src = [ea[Int(b)] for b in group]
         total_mult = sum(datalength, src)
-        return SectorOneTo(sector(first(src)), isdual(g), total_mult)
+        return SectorOneTo(sector(first(src)), total_mult, isdual(g))
     end
     return mortar_axis(collect(dest))
 end
@@ -172,7 +172,7 @@ function Base.getindex(
         src = ea[b]
         # multiplicity of the sub-range: sub-range length / sector length
         sub_mult = div(length(r_range), length(sector(src)))
-        return SectorOneTo(sector(src), isdual(g), sub_mult)
+        return SectorOneTo(sector(src), sub_mult, isdual(g))
     end
     return mortar_axis(collect(dest))
 end
