@@ -13,10 +13,12 @@ const GA = GradedArrays
     GradedArray{T,S,N,NC,ND,M,I} <: AbstractArray{T,N}
 
 Always-fused symmetric array: an `N`-dimensional graded array split into `NC` codomain and `ND`
-domain legs (`NC + ND == N`), backed by a matricized [`FusedGradedMatrix`](@ref). The external axes
+domain legs (`NC + ND == N`), backed by a matricized `FusedGradedMatrix`. The external axes
 are `GradedOneTo` and may be unfused or unsorted (a sector repeated, or out of sector order);
 the `matricized` backing is always over the fused-sorted coupled space, and the per-leg sort
 permutation relates the two.
+
+`I` is the TensorKitSectors sector type the axes store. It is fixed by `S` and is a parameter only because a field type cannot be computed from one, so treat it as an implementation detail of the TensorKit conversion, liable to change with it.
 """
 struct GradedArray{
         T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S}, I <: TKS.Sector,

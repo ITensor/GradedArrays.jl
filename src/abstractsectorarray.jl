@@ -1,36 +1,24 @@
-"""
-    AbstractSectorArray{T,S,N} <: AbstractArray{T,N}
-
-Abstract supertype for a symmetric block that factorizes into a data-free structural factor
-(`structure`, fixed by the symmetry) and the reduced matrix elements (`data`). Its `size` is the
-full Kronecker extent of the two, so a subtype is the whole block rather than just the data it
-stores.
-Concrete subtypes:
-
-  - [`UniqueSectorArray`](@ref): unfused N-D abelian block (one sector per axis)
-  - [`FusedSectorMatrix`](@ref): fused 2D block (one coupled sector label)
-  - [`FusedSectorVector`](@ref): fused 1-D block (the diagonal of a [`FusedSectorMatrix`](@ref))
-"""
+# Abstract supertype for a symmetric block that factorizes into a data-free structural factor
+# (`structure`, fixed by the symmetry) and the reduced matrix elements (`data`). Its `size` is the
+# full Kronecker extent of the two, so a subtype is the whole block rather than just the data it
+# stores.
+# Concrete subtypes:
+#
+#   - `UniqueSectorArray`: unfused N-D abelian block (one sector per axis)
+#   - `FusedSectorMatrix`: fused 2D block (one coupled sector label)
+#   - `FusedSectorVector`: fused 1-D block (the diagonal of a `FusedSectorMatrix`)
 abstract type AbstractSectorArray{T, S, N} <: AbstractArray{T, N} end
 
 sectortype(::Type{<:AbstractSectorArray{T, S}}) where {T, S} = S
 
-"""
-    data(sa::AbstractSectorArray)
-
-Return the raw data array underlying the sector array.
-"""
+# Return the raw data array underlying the sector array.
 data(sa::AbstractSectorArray) = sa.data
 
-"""
-    structure(x)
-
-Return the structural (Schur) factor of a single-sector graded object: the data-free part that the
-symmetry fixes, carrying no free parameters. It is the Kronecker cofactor of the raw data, so
-`x == structure(x) ⊗ data(x)`; for an [`AbstractSectorArray`](@ref) it is the
-[`AbstractSectorDelta`](@ref) with `sector_kron(structure(a), data(a)) === a`, and for a
-[`SectorOneTo`](@ref) it is the `OrientedSector` of the rank-1 factorization.
-"""
+# Return the structural (Schur) factor of a single-sector graded object: the data-free part that the
+# symmetry fixes, carrying no free parameters. It is the Kronecker cofactor of the raw data, so
+# `x == structure(x) ⊗ data(x)`; for an `AbstractSectorArray` it is the
+# `AbstractSectorDelta` with `sector_kron(structure(a), data(a)) === a`, and for a
+# `SectorOneTo` it is the `OrientedSector` of the rank-1 factorization.
 function structure end
 
 # Reconstruct a sector array from its structural sector factor and raw data

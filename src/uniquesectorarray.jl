@@ -1,12 +1,8 @@
-"""
-    UniqueSectorArray{T,S,N,NC,ND,A} <: AbstractSectorArray{T,S,N}
-
-Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus one sector and one
-arrow per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
-Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker product of the
-structural [`UniqueSectorDelta`](@ref) (`structure`) with the data array (reduced matrix elements).
-The all-codomain case (`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`).
-"""
+# Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus one sector and one
+# arrow per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
+# Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker product of the
+# structural `UniqueSectorDelta` (`structure`) with the data array (reduced matrix elements).
+# The all-codomain case (`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`).
 struct UniqueSectorArray{T, S <: Sector, N, NC, ND, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, S, N}
     data::A

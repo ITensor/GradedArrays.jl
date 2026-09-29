@@ -4,13 +4,12 @@
 
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
-"""
-    FusedGradedMatrix{T,S<:Sector,V<:DenseVector{T},I<:TensorKitSectors.Sector}
-
-Block-diagonal matrix produced by matricizing a `GradedArray`. Stores a contiguous `buffer` in
-TensorKit `.data` layout plus the fused codomain/domain axes; the per-coupled-sector blocks are the
-lazy `sectordata(m)` view carved from the buffer on demand.
-"""
+# Block-diagonal matrix produced by matricizing a `GradedArray`. Stores a contiguous `buffer` in
+# TensorKit `.data` layout plus the fused codomain/domain axes; the per-coupled-sector blocks are the
+# lazy `sectordata(m)` view carved from the buffer on demand. `I` is the TensorKitSectors sector
+# type the axes store. It is fixed by `S` and is a parameter only because a field type cannot be
+# computed from one, so treat it as an implementation detail of the TensorKit conversion, liable
+# to change with it.
 struct FusedGradedMatrix{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedMatrix{T, S}
     buffer::V
@@ -55,14 +54,10 @@ function FusedGradedMatrix{T, S, V}(
     return FusedGradedMatrix{T, S, V}(buffer, cod, dom, sectordatalayout(cod, dom))
 end
 
-"""
-    FusedGradedMatrix(buffer, codomain, domain)
-
-Wrap a contiguous `buffer` (shared, not copied), already in TensorKit `.data` layout, as a
-`FusedGradedMatrix` with the given codomain and domain axes; the per-coupled-sector blocks are the
-lazy `sectordata` view over the buffer. The axes are fused into canonical form. To build from
-per-sector block data instead, use [`fusedgradedmatrix`](@ref).
-"""
+# Wrap a contiguous `buffer` (shared, not copied), already in TensorKit `.data` layout, as a
+# `FusedGradedMatrix` with the given codomain and domain axes; the per-coupled-sector blocks are the
+# lazy `sectordata` view over the buffer. The axes are fused into canonical form. To build from
+# per-sector block data instead, use `fusedgradedmatrix`.
 function FusedGradedMatrix(
         buffer::DenseVector, codomain::AbstractGradedOneTo{S}, domain::AbstractGradedOneTo{S}
     ) where {S}
@@ -104,16 +99,11 @@ function FusedGradedMatrix{T, S, V}(
     return FusedGradedMatrix{T, S, V}(buffer, cod, dom, datalayout)
 end
 
-"""
-    fusedgradedmatrix(sectors .=> data, codomain, domain)
-    fusedgradedmatrix(sectordata::Dictionary, codomain, domain)
-
-Build a block-diagonal `FusedGradedMatrix` from per-coupled-sector block data (`sector => block`
-pairs, any iterator of pairs, or a `Dictionary` keyed by sector) with the given codomain and domain
-axes. The codomain and domain sectors need not coincide; the stored blocks are keyed by the sectors
-common to both. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be unique.
-To wrap an existing contiguous buffer instead, use [`FusedGradedMatrix`](@ref).
-"""
+# Build a block-diagonal `FusedGradedMatrix` from per-coupled-sector block data (`sector => block`
+# pairs, any iterator of pairs, or a `Dictionary` keyed by sector) with the given codomain and domain
+# axes. The codomain and domain sectors need not coincide; the stored blocks are keyed by the sectors
+# common to both. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be unique.
+# To wrap an existing contiguous buffer instead, use `FusedGradedMatrix`.
 function fusedgradedmatrix(
         sectordata, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo
     )
@@ -139,16 +129,11 @@ function fusedgradedmatrix(
     return fusedgradedmatrix(pairs(sectordata), codomain, domain)
 end
 
-"""
-    fusedgradedmatrix(sectors .=> data)
-    fusedgradedmatrix(sectordata::Dictionary)
-
-Build a block-diagonal `FusedGradedMatrix` from per-coupled-sector block data, deriving the codomain
-and domain from the blocks' row and column lengths (`codomain[sectors[i]]` is `size(data[i], 1)`,
-`domain[sectors[i]]` is `size(data[i], 2)`). Valid only when the codomain, domain, and block sectors
-all coincide; pass explicit axes otherwise. Bare `TKS.Sector`s are accepted alongside `Sector`s;
-the sectors must be sorted and unique.
-"""
+# Build a block-diagonal `FusedGradedMatrix` from per-coupled-sector block data, deriving the codomain
+# and domain from the blocks' row and column lengths (`codomain[sectors[i]]` is `size(data[i], 1)`,
+# `domain[sectors[i]]` is `size(data[i], 2)`). Valid only when the codomain, domain, and block sectors
+# all coincide; pass explicit axes otherwise. Bare `TKS.Sector`s are accepted alongside `Sector`s;
+# the sectors must be sorted and unique.
 function fusedgradedmatrix(sectordata)
     ps = collect(sectordata)
     sectors = [Sector(first(p)) for p in ps]

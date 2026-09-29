@@ -73,16 +73,12 @@ end
 # buffer against it. The blocks are contiguous, so it is the sum of the block sizes.
 bufferlength(datalayout) = sum(layout -> prod(layout.size), datalayout; init = 0)
 
-"""
-    SectorData{S,T,P,I} <: Dictionaries.AbstractDictionary{S,T}
-
-Lazy dictionary of the per-coupled-sector block data of a fused graded array, wrapping the array
-itself. Keys are the coupled sectors; each value materializes on access as a `view` into the array's
-contiguous buffer (a 1-D view for a [`FusedGradedVector`](@ref), a reshaped 2-D view for a
-[`FusedGradedMatrix`](@ref)), so no block-shaped storage is held and writes through a value land in
-the buffer. The value type is `datatype(parent)`. The `datalayout` field is the array's carried
-sector → offset/size layout (see `sectordatalayout`), passed straight from the array's field.
-"""
+# Lazy dictionary of the per-coupled-sector block data of a fused graded array, wrapping the array
+# itself. Keys are the coupled sectors; each value materializes on access as a `view` into the array's
+# contiguous buffer (a 1-D view for a `FusedGradedVector`, a reshaped 2-D view for a
+# `FusedGradedMatrix`), so no block-shaped storage is held and writes through a value land in
+# the buffer. The value type is `datatype(parent)`. The `datalayout` field is the array's carried
+# sector → offset/size layout (see `sectordatalayout`), passed straight from the array's field.
 struct SectorData{S, T, P <: AbstractFusedGradedArray, I <: AbstractDictionary{S}} <:
     AbstractDictionary{S, T}
     parent::P

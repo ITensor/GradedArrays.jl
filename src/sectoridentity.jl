@@ -1,11 +1,7 @@
-"""
-    SectorIdentity{T,S<:Sector} <: AbstractSectorDelta{T,S,2}
-
-Fused 2D structural factor for a single coupled sector. By Schur's lemma, the
-structural part of each block in the fused (matricized) basis is the identity
-matrix for the irrep. Carries no free data — completely determined by the sector.
-The codomain axis is non-dual, the domain axis is dual.
-"""
+# Fused 2D structural factor for a single coupled sector. By Schur's lemma, the
+# structural part of each block in the fused (matricized) basis is the identity
+# matrix for the irrep. Carries no free data — completely determined by the sector.
+# The codomain axis is non-dual, the domain axis is dual.
 struct SectorIdentity{T, S <: Sector} <: AbstractSectorDelta{T, S, 2}
     sector::S
 end

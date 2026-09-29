@@ -1,9 +1,5 @@
-"""
-    AbstractFusedGradedArray{T,S,N} <: AbstractArray{T,N}
-
-Supertype of the fused (coupled-sector-block) graded arrays, [`FusedGradedMatrix`](@ref) and
-[`FusedGradedVector`](@ref). Holds the code shared between the two.
-"""
+# Supertype of the fused (coupled-sector-block) graded arrays, `FusedGradedMatrix` and
+# `FusedGradedVector`. Holds the code shared between the two.
 abstract type AbstractFusedGradedArray{T, S, N} <: AbstractArray{T, N} end
 const AbstractFusedGradedMatrix{T, S} = AbstractFusedGradedArray{T, S, 2}
 const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}

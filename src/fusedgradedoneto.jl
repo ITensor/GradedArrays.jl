@@ -1,22 +1,19 @@
 using Dictionaries: Dictionaries, AbstractDictionary, Dictionary
 using MappedArrays: mappedarray
 
-"""
-    FusedGradedOneTo{S<:Sector}
-
-A graded axis whose sectors are fused and sorted: each sector appears once and the
-sectors are in sorted order. This is the canonical form of the coupled-sector axes of a
-[`FusedGradedMatrix`](@ref), and it also matches the sorted-and-merged convention TensorKit
-uses for a `GradedSpace`.
-
-Stores the sectors and their data lengths (multiplicities) as sorted parallel vectors, the same
-layout as a TensorKit `GradedSpace`, plus a single `isdual` flag. The sectors carry no arrow of
-their own, so the flag is the axis's entire duality.
-
-The sectors are stored in their TensorKitSectors form, which is what a `GradedSpace` holds, so
-crossing into TensorKit hands over the stored vector instead of rebuilding it. `I` is fixed by
-`S` and is a second parameter only because a field type cannot be computed from one.
-"""
+# A graded axis whose sectors are fused and sorted: each sector appears once and the
+# sectors are in sorted order. This is the canonical form of the coupled-sector axes of a
+# `FusedGradedMatrix`, and it also matches the sorted-and-merged convention TensorKit
+# uses for a `GradedSpace`.
+#
+# Stores the sectors and their data lengths (multiplicities) as sorted parallel vectors, the same
+# layout as a TensorKit `GradedSpace`, plus a single `isdual` flag. The sectors carry no arrow of
+# their own, so the flag is the axis's entire duality.
+#
+# The sectors are stored in their TensorKitSectors form, which is what a `GradedSpace` holds, so
+# crossing into TensorKit hands over the stored vector instead of rebuilding it. `I` is that
+# stored type, fixed by `S` and a parameter only because a field type cannot be computed from
+# one. Treat it as an implementation detail of the TensorKit conversion, liable to change.
 struct FusedGradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
     tensorkit_sectors::Vector{I}
     datalengths::Vector{Int}
@@ -166,22 +163,12 @@ end
 
 # ========================  fusedgradedrange constructors  ========================
 
-"""
-    fusedgradedrange(xs::AbstractVector{<:Pair{<:Sector, <:Integer}})
-
-Construct a non-dual [`FusedGradedOneTo`](@ref) from `sector => multiplicity` pairs. The sectors
-must already be in canonical fused form (each once, in sorted order); non-canonical input is
-rejected by the constructor. Wrap the result in `dual` for a dual axis.
-"""
-function fusedgradedrange(xs::AbstractVector{<:Pair{S, <:Integer}}) where {S <: Sector}
-    return FusedGradedOneTo(S[first(p) for p in xs], Int[last(p) for p in xs], false)
-end
-
-# Generic fallback mirroring `gradedrange`: converts keys through `Sector`, which accepts
-# NamedTuple keys (for sector products) and rejects an arrow-carrying key with a message
-# pointing at the axis.
+# Construct a non-dual `FusedGradedOneTo` from `sector => multiplicity` pairs, keyed by anything
+# `Sector` accepts. The sectors must already be in canonical fused form (each once, in sorted
+# order); non-canonical input is rejected by the constructor. Wrap the result in `dual` for a
+# dual axis.
 function fusedgradedrange(xs::AbstractVector{<:Pair})
-    return fusedgradedrange([Sector(first(p)) => last(p) for p in xs])
+    return FusedGradedOneTo(map(p -> Sector(first(p)), xs), Int[last(p) for p in xs], false)
 end
 
 # ========================  conversions between graded-axis types  ========================
@@ -199,30 +186,28 @@ end
 # gives the no-op on an already-fused axis.
 Base.convert(::Type{FusedGradedOneTo}, g::AbstractGradedOneTo) = FusedGradedOneTo(g)
 
-# ========================  mergesectors  ========================
-
-# Merge repeated sectors (summing their data lengths) and sort. The sectors carry no arrow, so
-# merging them is exact and the axis-level arrow plays no part. Returns the sorted sectors, each
-# appearing once, and the summed data lengths.
-function mergesectors(
-        sectors::AbstractVector{S}, datalengths::AbstractVector{Int}
-    ) where {S <: Sector}
-    perm = sortperm(sectors)
-    merged_sectors = Vector{S}(undef, 0)
-    merged_datalengths = Vector{Int}(undef, 0)
-    for p in perm
-        s = sectors[p]
-        if !isempty(merged_sectors) && isequal(last(merged_sectors), s)
-            merged_datalengths[end] += datalengths[p]
-        else
-            push!(merged_sectors, s)
-            push!(merged_datalengths, datalengths[p])
-        end
-    end
-    return (merged_sectors, merged_datalengths)
-end
-
 # ========================  fusesectors  ========================
 
 # An already-fused axis is its own fused form.
 fusesectors(g::FusedGradedOneTo) = g
+
+# The repairing counterpart to the constructor, which rejects unsorted or repeated sectors rather
+# than fixing them: sort the sectors, sum the data lengths of the repeats, and build the axis from
+# the result. The sectors carry no arrow, so the merge is exact and the axis-level arrow plays no
+# part beyond being carried through. Called by the generic `fusesectors` and by the `GradedOneTo`
+# constructor, which fuses eagerly and so has no axis to hand `fusesectors` yet.
+function sortmergesectors(
+        sectors::AbstractVector{S}, datalengths::AbstractVector{Int}, isdual::Bool
+    ) where {S <: Sector}
+    merged_sectors = S[]
+    merged_datalengths = Int[]
+    for p in sortperm(sectors)
+        if !isempty(merged_sectors) && isequal(last(merged_sectors), sectors[p])
+            merged_datalengths[end] += datalengths[p]
+        else
+            push!(merged_sectors, sectors[p])
+            push!(merged_datalengths, datalengths[p])
+        end
+    end
+    return FusedGradedOneTo(merged_sectors, merged_datalengths, isdual)
+end

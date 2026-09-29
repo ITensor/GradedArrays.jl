@@ -1,11 +1,7 @@
-"""
-    UniqueSectorDelta{T,S<:Sector,N,NC,ND} <: AbstractSectorDelta{T,S,N}
-
-Unfused N-D structural tensor for abelian symmetries. Stores one sector and one arrow per axis,
-split into `NC` codomain legs and `ND` domain legs (`NC + ND == N`); the all-codomain case
-(`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`). For abelian symmetries, every
-element equals `one(T)` (the Kronecker delta selection rule).
-"""
+# Unfused N-D structural tensor for abelian symmetries. Stores one sector and one arrow per axis,
+# split into `NC` codomain legs and `ND` domain legs (`NC + ND == N`); the all-codomain case
+# (`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`). For abelian symmetries, every
+# element equals `one(T)` (the Kronecker delta selection rule).
 struct UniqueSectorDelta{T, S <: Sector, N, NC, ND} <: AbstractSectorDelta{T, S, N}
     sectors_codomain::NTuple{NC, S}
     isduals_codomain::NTuple{NC, Bool}

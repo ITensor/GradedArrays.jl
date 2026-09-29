@@ -6,14 +6,10 @@
 #  FusedSectorVector — single-sector tagged vector (one block of a FusedGradedVector)
 # ---------------------------------------------------------------------------
 
-"""
-    FusedSectorVector{T, S<:Sector, D<:AbstractVector{T}} <: AbstractSectorArray{T, S, 1}
-
-A single sector with a data vector. Analogous to [`FusedSectorMatrix`](@ref) but for 1-D data
-(eigenvalues, singular values, etc.). Its structural factor is a [`SectorOnesVector`](@ref), the
-diagonal of the matrix case's [`SectorIdentity`](@ref), so each reduced value is repeated once per
-state of the irrep and `length` is the block's full graded length.
-"""
+# A single sector with a data vector. Analogous to `FusedSectorMatrix` but for 1-D data
+# (eigenvalues, singular values, etc.). Its structural factor is a `SectorOnesVector`, the
+# diagonal of the matrix case's `SectorIdentity`, so each reduced value is repeated once per
+# state of the irrep and `length` is the block's full graded length.
 struct FusedSectorVector{T, S <: Sector, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, S, 1}
     data::D
@@ -88,14 +84,12 @@ end
 #  FusedGradedVector — block-structured 1-D graded array for per-sector scalars
 # ---------------------------------------------------------------------------
 
-"""
-    FusedGradedVector{T,S<:Sector,V<:DenseVector{T},I<:TensorKitSectors.Sector}
-
-Block-structured 1-D graded array produced by a sector-preserving operation on
-a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`). Stores a contiguous
-`buffer` plus the fused axis; the per-sector blocks are the lazy `sectordata(v)` view carved from the
-buffer on demand.
-"""
+# Block-structured 1-D graded array produced by a sector-preserving operation on
+# a `FusedGradedMatrix` (e.g. `svd_vals`, `eig_vals`, `eigh_vals`). Stores a contiguous
+# `buffer` plus the fused axis; the per-sector blocks are the lazy `sectordata(v)` view carved from the
+# buffer on demand. `I` is the TensorKitSectors sector type the axes store. It is fixed by `S`
+# and is a parameter only because a field type cannot be computed from one, so treat it as an
+# implementation detail of the TensorKit conversion, liable to change with it.
 struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedVector{T, S}
     buffer::V
@@ -134,13 +128,9 @@ function FusedGradedVector{T, S, V}(
     return FusedGradedVector{T, S, V}(buffer, ax, sectordatalayout(ax))
 end
 
-"""
-    FusedGradedVector(buffer, axis)
-
-Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedVector` with the given `axis`; the
-per-sector blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
-form. To build from per-sector block data instead, use [`fusedgradedvector`](@ref).
-"""
+# Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedVector` with the given `axis`; the
+# per-sector blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
+# form. To build from per-sector block data instead, use `fusedgradedvector`.
 function FusedGradedVector(buffer::DenseVector, axis::AbstractGradedOneTo{S}) where {S}
     return FusedGradedVector{eltype(buffer), S, typeof(buffer)}(buffer, axis)
 end
@@ -158,15 +148,10 @@ function FusedGradedVector{T}(::UndefInitializer, axis::AbstractGradedOneTo) whe
     return FusedGradedVector(Vector{T}(undef, sum(datalengths(axis); init = 0)), axis)
 end
 
-"""
-    fusedgradedvector(sectors .=> data)
-    fusedgradedvector(sectordata::Dictionary)
-
-Build a `FusedGradedVector` from per-sector block data (`sector => data` pairs, any iterator of pairs,
-or a `Dictionary` keyed by sector). The axis is derived from the blocks: `axis[sectors[i]]` is
-`length(data[i])`. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be
-sorted and unique. To wrap an existing contiguous buffer instead, use [`FusedGradedVector`](@ref).
-"""
+# Build a `FusedGradedVector` from per-sector block data (`sector => data` pairs, any iterator of pairs,
+# or a `Dictionary` keyed by sector). The axis is derived from the blocks: `axis[sectors[i]]` is
+# `length(data[i])`. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be
+# sorted and unique. To wrap an existing contiguous buffer instead, use `FusedGradedVector`.
 function fusedgradedvector(sectordata)
     ps = collect(sectordata)
     # Accept bare `TKS.Sector`s alongside our own, as `gradedrange` does; `Sector` converts the

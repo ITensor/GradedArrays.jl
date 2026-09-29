@@ -1,17 +1,14 @@
-"""
-    GradedOneTo{S<:Sector}
-
-Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
-This is the axis type for `GradedArray`.
-
-Stores `Sector` values in `sectors`, sector lengths, and a single `isdual` flag. The sectors
-carry no arrow of their own, so the flag is the axis's entire duality; it is applied per block
-by `eachblockaxis` (and hence `eachstructureaxis`). The fused (merged-sorted) form of the axis is
-computed once at construction and cached in `fused`, so `fusesectors` is a field read, and the
-`FusedGradedOneTo` conversion compares the stored sectors against that cache and throws for
-a non-canonical axis. `I` is the TensorKitSectors sector type of the cache, fixed by `S` and a
-parameter only because a field type cannot be computed from one.
-"""
+# Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
+# This is the axis type for `GradedArray`.
+#
+# Stores `Sector` values in `sectors`, sector lengths, and a single `isdual` flag. The sectors
+# carry no arrow of their own, so the flag is the axis's entire duality; it is applied per block
+# by `eachblockaxis` (and hence `eachstructureaxis`). The fused (merged-sorted) form of the axis is
+# computed once at construction and cached in `fused`, so `fusesectors` is a field read, and the
+# `FusedGradedOneTo` conversion compares the stored sectors against that cache and throws for
+# a non-canonical axis. `I` is that cache's stored sector type, fixed by `S` and a parameter
+# only because a field type cannot be computed from one. Treat it as an implementation detail
+# of the TensorKit conversion, liable to change.
 struct GradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
     sectors::Vector{S}
     datalengths::Vector{Int}
@@ -32,8 +29,7 @@ struct GradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
                 type, got $(S) from $(sectors)"
             )
         )
-        merged_sectors, merged_datalengths = mergesectors(sectors, datalengths)
-        fused = FusedGradedOneTo(merged_sectors, merged_datalengths, isdual)
+        fused = sortmergesectors(sectors, datalengths, isdual)
         return new{S, tensorkit_sectortype(S)}(sectors, datalengths, isdual, fused)
     end
     # `fused` must equal the fused form of the other fields; unchecked.
@@ -98,19 +94,6 @@ end
 # The ungraded extent of a graded range is the plain range over its total dimension, dropping
 # sectors and the arrow so a range and its `dual` share an ungraded value.
 TensorAlgebra.ungrade(g::GradedOneTo) = Base.OneTo(length(g))
-
-"""
-    gradedrange(xs::AbstractVector{<:Pair})
-
-Generic fallback that converts sector keys via `Sector` before constructing `GradedOneTo`.
-This supports NamedTuple keys (for sector products) and other non-standard key types.
-"""
-function gradedrange(xs::AbstractVector{<:Pair})
-    # Built directly rather than by recursing into the typed method above, whose `S` a converted
-    # but still mixed key vector would bind to the abstract `Sector`. `GradedOneTo` rejects that.
-    sectors = map(p -> Sector(first(p)), xs)
-    return GradedOneTo(sectors, Int[last(p) for p in xs], false)
-end
 
 # ========================  BlockSparseArrays interface  ========================
 
@@ -235,9 +218,10 @@ end
 # ========================  gradedrange constructors  ========================
 
 """
-    gradedrange(xs::AbstractVector{<:Pair{<:Sector, <:Integer}})
+    gradedrange(xs::AbstractVector{<:Pair})
 
-Construct a non-dual `GradedOneTo` from `sector => multiplicity` pairs. Wrap the result in
+Construct a non-dual `GradedOneTo` from `sector => multiplicity` pairs, keyed by anything
+[`Sector`](@ref) accepts, `NamedTuple` keys for sector products included. Wrap the result in
 `dual` for a dual axis.
 
 # Examples
@@ -247,10 +231,8 @@ gradedrange([U1(0) => 2, U1(1) => 3])          # non-dual
 dual(gradedrange([U1(0) => 2, U1(1) => 3]))    # dual
 ```
 """
-function gradedrange(
-        xs::AbstractVector{<:Pair{S, <:Integer}}
-    ) where {S <: Sector}
-    return GradedOneTo(S[first(p) for p in xs], Int[last(p) for p in xs], false)
+function gradedrange(xs::AbstractVector{<:Pair})
+    return GradedOneTo(map(p -> Sector(first(p)), xs), Int[last(p) for p in xs], false)
 end
 
 # Defined only so that this throws `Sector`'s "pass the arrow through the axis" error instead of
@@ -262,9 +244,9 @@ function GradedOneTo(
     return GradedOneTo(map(Sector, sectors), datalengths, isdual)
 end
 
-# Build a graded range from a vector of `sector => multiplicity` pairs, keyed by anything
-# `Sector` accepts. One method per key type rather than one over a `Union` of them, which inside
-# `Pair{<:...}` is slow to subtype and a ready source of ambiguities. A container key must be
+# Route every key type `Sector` accepts to `gradedrange`. One method per key type rather than one
+# over a `Union` of them, which inside `Pair{<:...}` is slow to subtype and a ready source of
+# ambiguities. A container key must be
 # non-empty, since an empty `Tuple` satisfies `Tuple{Vararg{E}}` for every `E` and would make the
 # two element types' methods overlap. The bare `TKS.Sector` key is type piracy, allowlisted in
 # the Aqua piracy test and tracked as a follow-up.

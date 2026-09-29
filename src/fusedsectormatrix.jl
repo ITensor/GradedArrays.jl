@@ -1,13 +1,9 @@
-"""
-    FusedSectorMatrix{T,S<:Sector,D<:AbstractMatrix{T}} <: AbstractSectorArray{T, S, 2}
-
-Fused 2D block for a single coupled sector. One block of a [`FusedGradedMatrix`](@ref).
-In the representation-theoretic sense it is an element of Hom_G(V_c, W_c) for coupled sector c:
-`data` holds the reduced matrix elements, the part left free once Schur's lemma has factored out
-the structural part ([`SectorIdentity`](@ref)).
-
-The codomain (row) axis is non-dual; the domain (column) axis is dual.
-"""
+# Fused 2D block for a single coupled sector. One block of a `FusedGradedMatrix`.
+# In the representation-theoretic sense it is an element of Hom_G(V_c, W_c) for coupled sector c:
+# `data` holds the reduced matrix elements, the part left free once Schur's lemma has factored out
+# the structural part (`SectorIdentity`).
+#
+# The codomain (row) axis is non-dual; the domain (column) axis is dual.
 struct FusedSectorMatrix{T, S <: Sector, D <: AbstractMatrix{T}} <:
     AbstractSectorArray{T, S, 2}
     data::D

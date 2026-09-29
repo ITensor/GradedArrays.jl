@@ -1,12 +1,8 @@
-"""
-    AbstractSectorDelta{T,S,N} <: AbstractArray{T,N}
-
-Abstract supertype for structural (Kronecker/identity) tensors associated to sector labels.
-Concrete subtypes:
-
-  - [`UniqueSectorDelta`](@ref): unfused N-D abelian structural tensor (product of Kronecker deltas)
-  - [`SectorIdentity`](@ref): fused 2D structural factor (identity matrix per coupled sector)
-"""
+# Abstract supertype for structural (Kronecker/identity) tensors associated to sector labels.
+# Concrete subtypes:
+#
+#   - `UniqueSectorDelta`: unfused N-D abelian structural tensor (product of Kronecker deltas)
+#   - `SectorIdentity`: fused 2D structural factor (identity matrix per coupled sector)
 abstract type AbstractSectorDelta{T, S, N} <: AbstractArray{T, N} end
 
 sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
@@ -58,9 +54,7 @@ end
 
 # ========================  Fermionic specializations  ========================
 
-"""
-Compute the parity of the number of inversions of a masked permutation
-"""
+# The parity of the number of inversions of a masked permutation.
 function masked_inversion_parity(mask::NTuple{N, Bool}, perm::NTuple{N, Int}) where {N}
     parity = false
     @inbounds for i in 1:N

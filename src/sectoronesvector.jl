@@ -1,12 +1,8 @@
-"""
-    SectorOnesVector{T,S<:Sector} <: AbstractSectorDelta{T,S,1}
-
-Fused 1-D structural factor for a single coupled sector: the all-ones vector whose length is the
-sector's quantum dimension. It is the diagonal of the [`SectorIdentity`](@ref) that a
-`FusedGradedVector` picks out as the diagonal of a `FusedGradedMatrix`, so each reduced value is
-repeated once per state of the irrep. Carries no free data — completely determined by the sector.
-The axis is non-dual.
-"""
+# Fused 1-D structural factor for a single coupled sector: the all-ones vector whose length is the
+# sector's quantum dimension. It is the diagonal of the `SectorIdentity` that a
+# `FusedGradedVector` picks out as the diagonal of a `FusedGradedMatrix`, so each reduced value is
+# repeated once per state of the irrep. Carries no free data — completely determined by the sector.
+# The axis is non-dual.
 struct SectorOnesVector{T, S <: Sector} <: AbstractSectorDelta{T, S, 1}
     sector::S
 end

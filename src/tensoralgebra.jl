@@ -99,12 +99,10 @@ function invblockmergeperm(
 end
 
 # The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`. The `mergesectors` worker over the
-# axis parts lives in `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have
-# constant-time fast paths (the cached fused form and the identity).
+# encodes that invariant rather than a plain `GradedOneTo`. `GradedOneTo` and `FusedGradedOneTo`
+# have constant-time fast paths (the cached fused form and the identity).
 function fusesectors(g::AbstractGradedOneTo)
-    merged_sectors, merged_datalengths = mergesectors(sectors(g), datalengths(g))
-    return FusedGradedOneTo(merged_sectors, merged_datalengths, isdual(g))
+    return sortmergesectors(sectors(g), datalengths(g), isdual(g))
 end
 
 # Always returns a non-dual fused-sorted axis. Conjugation is a sector bijection, so flipping
@@ -336,19 +334,11 @@ end
 # dense and `Diagonal` factors that a factorization of an unsymmetric array produces.
 twist!(a::AbstractArray, dims) = a
 
-"""
-    contraction_twist!(a::UniqueSectorArray, ndims_codomain::Int) -> a
-
-Apply the twist convention for the supertrace formalism of fermionic contractions.
-This means that ``⟨i| ⋅ |j⟩ = δᵢⱼ``, and ``|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ``.
-Here, ``θᵢⱼ = ±1`` is defined as the phase from applying a self-crossing,
-which is always ``1`` for bosonic symmetries, but can be ``-1`` for odd fermion charges.
-
-Equivalent to `twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`.
-A no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
-
-See also `twist!`.
-"""
+# The twist convention for the supertrace formalism of fermionic contractions: `⟨i| ⋅ |j⟩ = δᵢⱼ`
+# and `|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ`, where `θᵢⱼ = ±1` is the phase from a self-crossing, always `1` for a
+# bosonic symmetry and possibly `-1` for an odd fermion charge. Equivalent to
+# `twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`, and a no-op unless
+# `BraidingStyle(sectortype(a))` is `Fermionic`.
 function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
     return twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
 end

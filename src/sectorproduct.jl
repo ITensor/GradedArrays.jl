@@ -3,42 +3,30 @@
 
 # =====================================  Definition  =======================================
 
-"""
-    SectorProduct
-
-The Cartesian product of two or more sectors, itself a [`Sector`](@ref). Its arguments are
-bare sectors, so like any other sector it carries no arrow of its own.
-
-Abstract, with `TupleSectorProduct` and `NamedSectorProduct` as its two concrete forms. Build
-one by calling `Sector`, which picks the form matching what it is given, or `sectorproduct` to
-multiply sectors you already hold.
-"""
+# The Cartesian product of two or more sectors, itself a `Sector`. Its arguments are
+# bare sectors, so like any other sector it carries no arrow of its own.
+#
+# Abstract, with `TupleSectorProduct` and `NamedSectorProduct` as its two concrete forms. Build
+# one by calling `Sector`, which picks the form matching what it is given, or `sectorproduct` to
+# multiply sectors you already hold.
 abstract type SectorProduct <: Sector end
 
-"""
-    TupleSectorProduct(arguments::Tuple)
-
-A `SectorProduct` whose arguments are positional. A position identifies a factor only relative
-to this product, so the arity is part of the sector's identity and there is no sense in which a
-factor can be left out.
-
-Takes its arguments as given. Call `Sector` to build one from a specification that still needs
-normalizing.
-"""
+# A `SectorProduct` whose arguments are positional. A position identifies a factor only relative
+# to this product, so the arity is part of the sector's identity and there is no sense in which a
+# factor can be left out.
+#
+# Takes its arguments as given. Call `Sector` to build one from a specification that still needs
+# normalizing.
 struct TupleSectorProduct{Arguments <: Tuple} <: SectorProduct
     arguments::Arguments
 end
 
-"""
-    NamedSectorProduct(arguments::NamedTuple)
-
-A `SectorProduct` whose arguments are named. A name identifies a symmetry across products, so a
-symmetry this one does not name is that symmetry's trivial sector, which is what lets products
-over different sets of symmetries be compared and fused.
-
-Sorts its arguments by name, an invariant the type relies on, but otherwise takes them as
-given. Call `Sector` to build one from a specification that still needs normalizing.
-"""
+# A `SectorProduct` whose arguments are named. A name identifies a symmetry across products, so a
+# symmetry this one does not name is that symmetry's trivial sector, which is what lets products
+# over different sets of symmetries be compared and fused.
+#
+# Sorts its arguments by name, an invariant the type relies on, but otherwise takes them as
+# given. Call `Sector` to build one from a specification that still needs normalizing.
 struct NamedSectorProduct{Arguments <: NamedTuple} <: SectorProduct
     arguments::Arguments
     function NamedSectorProduct(nt::NamedTuple)

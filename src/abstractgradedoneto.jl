@@ -1,29 +1,21 @@
-"""
-    AbstractGradedOneTo{S<:Sector} <: AbstractUnitRange{Int}
-
-Supertype for graded axes — a unit range carved into sectors (its blocks), each with a data length
-(multiplicity), plus a range-level `isdual` arrow. Concrete subtypes differ only in storage
-and invariants:
-
-  - [`GradedOneTo`](@ref) stores parallel `sectors`/`datalengths` vectors and may hold
-    repeated or unsorted sectors (the intermediate state of a not-yet-merged fusion), plus a
-    cached fused form of itself.
-  - [`FusedGradedOneTo`](@ref) stores sorted parallel label/length vectors and is always
-    fused and sorted (each sector once, in sorted order).
-
-Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isdual`, plus
-`dual` and `flip` (which return the same concrete type). Everything below is derived from
-those.
-"""
+# Supertype for graded axes — a unit range carved into sectors (its blocks), each with a data length
+# (multiplicity), plus a range-level `isdual` arrow. Concrete subtypes differ only in storage
+# and invariants:
+#
+#   - `GradedOneTo` stores parallel `sectors`/`datalengths` vectors and may hold
+#     repeated or unsorted sectors (the intermediate state of a not-yet-merged fusion), plus a
+#     cached fused form of itself.
+#   - `FusedGradedOneTo` stores sorted parallel label/length vectors and is always
+#     fused and sorted (each sector once, in sorted order).
+#
+# Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isdual`, plus
+# `dual` and `flip` (which return the same concrete type). Everything below is derived from
+# those.
 abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
 
-"""
-    sectors(g)
-
-The sectors of an axis, in block order. A [`SectorOneTo`](@ref) gives the one sector it
-carries. A [`GradedOneTo`](@ref) may repeat a sector or leave them unsorted, where a
-[`FusedGradedOneTo`](@ref) holds each once and in order.
-"""
+# The sectors of an axis, in block order. A `SectorOneTo` gives the one sector it
+# carries. A `GradedOneTo` may repeat a sector or leave them unsorted, where a
+# `FusedGradedOneTo` holds each once and in order.
 function sectors end
 
 # ========================  derived accessors  ========================

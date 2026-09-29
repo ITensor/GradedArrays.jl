@@ -5,26 +5,21 @@
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
-"""
-    FusedGradedDiagonal{T,S<:Sector,V<:DenseVector{T},I<:TensorKitSectors.Sector} <: AbstractFusedGradedMatrix{T,S}
-
-Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
-factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
-`DiagonalTensorMap`. Wraps a [`FusedGradedVector`](@ref) of the diagonals; the `Diagonal` blocks are
-the lazy `sectordata(d)` view over that vector.
-"""
+# Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
+# factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
+# `DiagonalTensorMap`. Wraps a `FusedGradedVector` of the diagonals; the `Diagonal` blocks are
+# the lazy `sectordata(d)` view over that vector. `I` is the TensorKitSectors sector type the
+# axes store. It is fixed by `S` and is a parameter only because a field type cannot be computed
+# from one, so treat it as an implementation detail of the TensorKit conversion, liable to
+# change with it.
 struct FusedGradedDiagonal{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedMatrix{T, S}
     diag::FusedGradedVector{T, S, V, I}
 end
 
-"""
-    FusedGradedDiagonal(buffer, axis)
-
-Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedDiagonal` with the given `axis`; the
-`Diagonal` blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
-form. To build from per-sector diagonal data instead, use [`fusedgradeddiagonal`](@ref).
-"""
+# Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedDiagonal` with the given `axis`; the
+# `Diagonal` blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
+# form. To build from per-sector diagonal data instead, use `fusedgradeddiagonal`.
 function FusedGradedDiagonal(buffer::DenseVector, axis::AbstractGradedOneTo)
     return FusedGradedDiagonal(FusedGradedVector(buffer, axis))
 end
@@ -33,16 +28,11 @@ function FusedGradedDiagonal{T}(::UndefInitializer, axis::AbstractGradedOneTo) w
     return FusedGradedDiagonal(FusedGradedVector{T}(undef, axis))
 end
 
-"""
-    fusedgradeddiagonal(sectors .=> data)
-    fusedgradeddiagonal(sectordata::Dictionary)
-
-Build a `FusedGradedDiagonal` from the per-sector diagonal data (`sector => data` pairs, any iterator
-of pairs, or a `Dictionary` keyed by sector): the pair `sectors[i] => data[i]` gives the diagonal
-entries of the block at `sectors[i]`. The axis is derived from the blocks, as for
-[`fusedgradedvector`](@ref). To wrap an existing contiguous buffer instead, use
-[`FusedGradedDiagonal`](@ref).
-"""
+# Build a `FusedGradedDiagonal` from the per-sector diagonal data (`sector => data` pairs, any iterator
+# of pairs, or a `Dictionary` keyed by sector): the pair `sectors[i] => data[i]` gives the diagonal
+# entries of the block at `sectors[i]`. The axis is derived from the blocks, as for
+# `fusedgradedvector`. To wrap an existing contiguous buffer instead, use
+# `FusedGradedDiagonal`.
 fusedgradeddiagonal(sectordata) = FusedGradedDiagonal(fusedgradedvector(sectordata))
 
 # Densify to a full `FusedGradedMatrix`, forwarding the diagonal's block backend `V` through the

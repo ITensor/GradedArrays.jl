@@ -1,13 +1,9 @@
-"""
-    SectorOneTo{S<:Sector}
-
-One sector's index space: a sector, a data length (multiplicity), and an arrow. This is the
-building block for `GradedOneTo`.
-
-The arrow is stored here rather than on the sector, matching `GradedOneTo`. An
-`OrientedSector` is built on demand, by `structure`, for the places that want the
-sector and its arrow as one value.
-"""
+# One sector's index space: a sector, a data length (multiplicity), and an arrow. This is the
+# building block for `GradedOneTo`.
+#
+# The arrow is stored here rather than on the sector, matching `GradedOneTo`. An
+# `OrientedSector` is built on demand, by `structure`, for the places that want the
+# sector and its arrow as one value.
 struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}
     sector::S
     datalength::Int
