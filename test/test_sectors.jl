@@ -5,7 +5,7 @@ using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
-fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
+fundamental(::Type{<:SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
 
 @testset "Test SymmetrySectors Types" begin
     @testset "Trivial" begin
@@ -173,13 +173,22 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
         @test hash(SU{3}(2, 1, 1)) == hash(SU{3}(1, 0, 0))
         @test istrivial(SU{3}(1, 1, 1))
 
-        # A weight must be non-increasing, a Dynkin label non-negative, and the number of
-        # labels either `N - 1` or `N`. The rank never follows from the count.
+        # A weight must be non-increasing, a Dynkin label within the byte range, and the number
+        # of labels either `N - 1` or `N`. The rank never follows from the count.
         @test_throws ArgumentError SU{3}(0, 1, 0)
         @test_throws ArgumentError SU{3}(-1, 0)
+        @test_throws ArgumentError SU{3}(256, 0)
         @test_throws ArgumentError SU{3}(1, 0, 0, 0)
         @test_throws ArgumentError SU{1}(0)
         @test_throws ArgumentError SU(1, 0)
+        @test_throws ArgumentError SU{3, 5}((1, 1, 1, 1, 1))
+
+        # The labels are stored the way `SUNIrrep` stores them, so the two are the same size and
+        # `sector_labels` hands the stored bytes to the conversion without widening them. The
+        # display widens instead, so a label still reads as a number rather than as a byte.
+        @test sizeof(ad3) == sizeof(SUNRepresentations.SUNIrrep{3, 2}((1, 1)))
+        @test sector_labels(ad3) isa Tuple{UInt8, UInt8}
+        @test sprint(show, ad3) == "SU{3}(1, 1)"
 
         @test trivial(SU{3}) == SU{3}(0, 0)
         @test istrivial(SU{3}(0, 0))

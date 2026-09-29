@@ -84,12 +84,12 @@ Base.hash(s::Sector, h::UInt) = hash(TKS.Sector(s), h)
 
 # The labels of the sector, as a tuple in the order the constructor takes them: the charge of a
 # `U1`, the spin of an `SU2`, the Dynkin labels of an `SU`. Splatting them back into the
-# constructor gives the sector again, which is the spelling a sector's display prints. These are
-# not the struct's fields: a stored label is normalized where the type has a canonical form for
-# it, and a `TensorKitSector` reaches through to the labels of the sector it wraps. A
-# `Trivial` gives an empty tuple; a `SectorProduct` has no labels of its own, since what
-# it holds are sectors rather than the values labelling one.
-function sector_labels end
+# constructor gives the sector again, and this is the path into TensorKitSectors, so the labels
+# are the stored values and not widened ones. A sector's fields are its labels in that order, so
+# this reads them, which leaves the invariant with the struct. The types whose one field is
+# already the label tuple or is a wrapped sector override it, `SU` and `TensorKitSector` among
+# them; `Trivial` has no fields and so needs nothing.
+sector_labels(s::Sector) = map(f -> getfield(s, f), fieldnames(typeof(s)))
 
 trivial(x) = trivial(typeof(x))
 function trivial(axis_type::Type{<:AbstractUnitRange})
@@ -261,7 +261,6 @@ whether a sector is its own symmetry's trivial one.
 """
 struct Trivial <: Sector end
 tensorkit_sectortype(::Type{Trivial}) = TKS.Trivial
-sector_labels(::Trivial) = ()
 Sector(::TKS.Trivial) = Trivial()
 
 # TensorKitSectors has no ordering or equality between its own `Trivial` and a real irrep, so the
@@ -309,7 +308,6 @@ See also [`Z`](@ref) and [`fZ2`](@ref), which is the fermionic counterpart.
 const Z2 = Z{2}
 tensorkit_sectortype(::Type{Z{N}}) where {N} = TKS.ZNIrrep{N}
 Sector(c::TKS.ZNIrrep{N}) where {N} = Z{N}(c.n)
-sector_labels(s::Z) = (Int(s.n),)
 # The order of the cyclic group. It is a property of the type rather than a label, so it is not
 # something `sector_labels` can answer, and the type form is the one worth having.
 modulus(s::Z) = modulus(typeof(s))
@@ -326,7 +324,6 @@ struct U1 <: Sector
 end
 tensorkit_sectortype(::Type{U1}) = TKS.U1Irrep
 Sector(c::TKS.U1Irrep) = U1(c.charge)
-sector_labels(s::U1) = (s.charge,)
 
 """
     SU2(j::Real)
@@ -340,7 +337,6 @@ struct SU2 <: Sector
 end
 tensorkit_sectortype(::Type{SU2}) = TKS.SU2Irrep
 Sector(c::TKS.SU2Irrep) = SU2(c.j)
-sector_labels(s::SU2) = (s.j,)
 
 """
     CU1(j::Real, s::Integer = ifelse(j > zero(j), 2, 0))
@@ -361,65 +357,78 @@ struct CU1 <: Sector
 end
 tensorkit_sectortype(::Type{CU1}) = TKS.CU1Irrep
 Sector(c::TKS.CU1Irrep) = CU1(c.j, c.s)
-sector_labels(s::CU1) = (s.j, s.s)
 
 """
-    SU{N}(a::Vararg{Int, M})
+    SU{N}(a::Vararg{Int})
 
 An irreducible representation of `SU(N)`, labelled either by its `N - 1` Dynkin labels or by
 its `N`-component highest weight: `SU{3}(1, 1)` and `SU{3}(2, 1, 0)` are both the adjoint. The
 rank is always spelled out, since the number of labels alone does not fix it.
 
 The Dynkin labels are the canonical form, being the same for every weight denoting the same
-representation, and are what `sector_labels` gives back and what is stored, as
-`SUNIrrep` also stores. Two `SU`s are therefore equal exactly when they are the same
-representation, which `SUNIrrep` did not guarantee while it stored a weight and compared it
-verbatim.
+representation, so two `SU`s are equal exactly when they are the same representation. They are
+what `sector_labels` gives back, and what is stored, in the same byte layout `SUNIrrep{N, M}`
+uses, which bounds a label to 255. The second parameter is that layout's length, `N - 1`, and is
+filled in for you by `SU{N}`.
 
 [`SU2`](@ref) is a separate type labelling the same symmetry by its spin, and unlike `SU{2}` it
 needs no extension. An `SU` is constructed and compared without `SUNRepresentations`, but its
 dimension, ordering and fusion all need that package, and are defined in the extension.
 """
-struct SU{N} <: Sector
-    # The Dynkin labels, with a trailing zero. There are `N - 1` of them, a length no single type
-    # parameter can state, and the zero costs the slot a weight's own trailing zero would have
-    # taken anyway. Storing what `SUNIrrep` stores means converting either way copies rather
-    # than computes, and makes two `SU`s equal exactly when they are the same representation,
-    # since Dynkin labels do not depend on which weight was given.
-    a::NTuple{N, Int}
-    # Unconstrained in the number of labels so that giving the wrong number of them is an
-    # argument error rather than a missing method.
-    function SU{N}(a::Vararg{Int}) where {N}
+struct SU{N, M} <: Sector
+    # The `N - 1` Dynkin labels, in the byte storage `SUNIrrep{N, M}` uses, so the two types are
+    # the same size and a label reaches upstream's constructor unconverted. The byte range is the
+    # bound this reports. `M` is `N - 1`, a parameter only because a field type cannot be computed
+    # from `N`.
+    a::NTuple{M, UInt8}
+    function SU{N, M}(a::NTuple{M, Integer}) where {N, M}
         N >= 2 || throw(ArgumentError("`SU{N}` needs an N of at least 2, got $(N)"))
-        if length(a) == N - 1
-            all(>=(0), a) ||
-                throw(ArgumentError("a Dynkin label must be non-negative, got $(a)"))
-            return new{N}((a..., 0))
-        end
-        length(a) == N || throw(
+        M == N - 1 || throw(
+            ArgumentError("`SU{$(N)}` has $(N - 1) Dynkin labels, got $(M)")
+        )
+        all(x -> 0 <= x <= typemax(UInt8), a) || throw(
             ArgumentError(
-                "`SU{$(N)}` takes $(N - 1) Dynkin labels or $(N) weight components, \
-                got $(length(a))"
+                "a Dynkin label must be between 0 and $(Int(typemax(UInt8))), got $(a)"
             )
         )
-        issorted(a; rev = true) ||
-            throw(ArgumentError("a highest weight must be non-increasing, got $(a)"))
-        return new{N}((ntuple(i -> a[i] - a[i + 1], Val(N - 1))..., 0))
+        return new{N, M}(map(UInt8, a))
     end
 end
+# Either the `N - 1` Dynkin labels or the `N` components of a highest weight. Unconstrained in the
+# number of labels so that giving the wrong number of them is an argument error rather than a
+# missing method.
+function SU{N}(a::Vararg{Int}) where {N}
+    N >= 2 || throw(ArgumentError("`SU{N}` needs an N of at least 2, got $(N)"))
+    length(a) == N - 1 && return SU{N, N - 1}(a)
+    length(a) == N || throw(
+        ArgumentError(
+            "`SU{$(N)}` takes $(N - 1) Dynkin labels or $(N) weight components, \
+            got $(length(a))"
+        )
+    )
+    issorted(a; rev = true) ||
+        throw(ArgumentError("a highest weight must be non-increasing, got $(a)"))
+    return SU{N, N - 1}(ntuple(i -> a[i] - a[i + 1], Val(N - 1)))
+end
+SU{N, M}(a::Vararg{Int}) where {N, M} = SU{N, M}(a)
 # The rank does not follow from the number of labels, so there is nothing to infer it from.
 function SU(::Vararg{Int})
     throw(ArgumentError("`SU` needs its rank spelled out, as in `SU{3}(1, 1)`"))
 end
-sector_labels(s::SU) = Base.front(s.a)
-trivial(::Type{SU{N}}) where {N} = SU{N}(ntuple(_ -> 0, Val(N - 1))...)
+# The one field is already the label tuple, so the generic read would wrap it in a second tuple.
+sector_labels(s::SU) = s.a
+# `SUNIrrep` takes its labels as a tuple rather than as varargs, so the generic conversion's splat
+# does not resolve. Handing the stored tuple over whole is also the cheaper crossing, since both
+# sides store an `NTuple{M, UInt8}`.
+TKS.Sector(s::SU) = tensorkit_sectortype(s)(sector_labels(s))
+trivial(::Type{<:SU{N}}) where {N} = SU{N, N - 1}(ntuple(_ -> 0, Val(N - 1)))
 istrivial(s::SU) = all(iszero, sector_labels(s))
 # Defined here rather than left to the generic methods, which convert to `SUNIrrep` and so would
 # need the extension. Dynkin labels are canonical, so comparing them is comparing the
 # representation, and a differing `N` gives tuples of differing length and so compares false.
 Base.:(==)(s1::SU, s2::SU) = s1.a == s2.a
 Base.hash(s::SU, h::UInt) = hash(s.a, hash(:SU, h))
-sectortype_repr(::Type{SU{N}}) where {N} = "SU{$(N)}"
+sectortype_repr(::Type{<:SU{N}}) where {N} = "SU{$(N)}"
 
 """
     fZ2(isodd::Bool)
@@ -431,10 +440,6 @@ struct fZ2 <: Sector
 end
 tensorkit_sectortype(::Type{fZ2}) = TKS.FermionParity
 Sector(c::TKS.FermionParity) = fZ2(c.isodd)
-sector_labels(s::fZ2) = (s.isodd,)
-# A parity reads as a charge rather than as a flag, the way `Z{2}` and the other sectors display,
-# so the `Bool` prints as `0` or `1`.
-Base.show(io::IO, s::fZ2) = print(io, "fZ2(", Int(s.isodd), ')')
 
 sector_labels(s::TensorKitSector) = sector_labels(TKS.Sector(s))
 # Upstream has no accessor of its own, and spells a sector out by looping its fields.
@@ -450,13 +455,22 @@ sectortype_repr(::Type{S}) where {S <: Sector} = string(nameof(S))
 sectortype_repr(::Type{Z{N}}) where {N} = "Z{$N}"
 sectortype_repr(::Type{TensorKitSector{I}}) where {I} = TKS.type_repr(I)
 
+# A label as a reader should see it. `sector_labels` is the conversion form and hands back the
+# stored values, narrow integers included, since that is what upstream's constructor takes and
+# widening there would cost the conversion a round trip. Display wants a plain number instead: a
+# stored `UInt8` would otherwise `show` as `0x01`, and a `Bool` parity as `true`. Keyed on the
+# label rather than on the sector so a new sector storing a narrow integer needs nothing. A
+# `HalfInt` charge or spin is not an `Integer`, so it keeps its own `1/2` form.
+pretty_sector_label(x) = x
+pretty_sector_label(x::Integer) = Int(x)
+
 # Constructor-form display of a sector value: `name(sector_labels...)`. Upstream spells an
 # `AbstractIrrep` out the same way, as the constructor call that rebuilds it.
 function Base.show(io::IO, s::Sector)
     print(io, sectortype_repr(typeof(s)), '(')
     for (k, v) in enumerate(sector_labels(s))
         k > 1 && print(io, ", ")
-        show(io, v)
+        show(io, pretty_sector_label(v))
     end
     return print(io, ')')
 end
