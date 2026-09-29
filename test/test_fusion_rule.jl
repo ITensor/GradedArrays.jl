@@ -1,5 +1,5 @@
 using BlockArrays: blocklengths
-using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
+using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, Trivial, U1, Z, dual, flip,
     gradedrange, tensor_product, trivial, unmerged_tensor_product
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS, Nsymbol
@@ -16,7 +16,7 @@ using TestExtras: @constinferred
         @test tensor_product(z1, z1) == z0
         @test (@constinferred tensor_product(z0, z0)) == z0
 
-        q = TrivialSector()
+        q = Trivial()
         @test (@constinferred tensor_product(q, q)) == q
         @test (@constinferred tensor_product(q, z0)) == z0
         @test (@constinferred tensor_product(z1, q)) == z1
@@ -48,7 +48,7 @@ using TestExtras: @constinferred
         s12 = CU1(1 // 2, 2)
         s1 = CU1(1, 2)
 
-        q = TrivialSector()
+        q = Trivial()
         @test (@constinferred tensor_product(s0e, q)) == gradedrange([s0e => 1])
         @test (@constinferred tensor_product(q, s0o)) == gradedrange([s0o => 1])
 

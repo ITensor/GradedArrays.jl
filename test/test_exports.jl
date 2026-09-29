@@ -4,7 +4,7 @@ using Test: @test, @testset
     exports = [
         :GradedArrays,
         :Sector,
-        :TrivialSector,
+        :Trivial,
         :U1,
         :SU2,
         :SU,
@@ -27,7 +27,6 @@ using Test: @test, @testset
             exports,
             [
                 :GradedContract,
-                :OrientedSector,
                 :TensorKitSector,
                 :sectors,
                 :with_scalar_indexing,

@@ -1,6 +1,6 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, CU1, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
-    SU, SU2, Sector, SectorOneTo, TrivialSector, U1, UniqueSectorArray, Z, dual, fU1, fZ2,
+    SU, SU2, Sector, SectorOneTo, Trivial, U1, UniqueSectorArray, Z, dual, fU1, fZ2,
     fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
@@ -12,7 +12,7 @@ using Test: @test, @testset
     j1 = SU2(0)
     @test sprint(show, j1) == "SU2(0)"
 
-    @test sprint(show, TrivialSector()) == "TrivialSector()"
+    @test sprint(show, Trivial()) == "Trivial()"
 
     # A sector displays as the constructor call that rebuilds it, so several labels print as
     # several arguments.
@@ -26,7 +26,7 @@ using Test: @test, @testset
     # positional factors, and the explicit `Sector` call for everything `×` cannot spell.
     s = (A = U1(1),) × (B = SU2(2),)
     @test sprint(show, s) == "Sector(; A = U1(1), B = SU2(2))"
-    s = TrivialSector() × U1(3) × SU2(1 / 2)
+    s = Trivial() × U1(3) × SU2(1 / 2)
     @test sprint(show, s) == "(U1(3) × SU2(1/2))"
     @test sprint(show, Sector((U1(3),))) == "Sector((U1(3),))"
     @test sprint(show, Sector(())) == "Sector(())"

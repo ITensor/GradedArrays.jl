@@ -7,15 +7,16 @@ This is the axis type for `GradedArray`.
 Stores `Sector` values in `sectors`, sector lengths, and a single `isdual` flag. The sectors
 carry no arrow of their own, so the flag is the axis's entire duality; it is applied per block
 by `eachblockaxis` (and hence `eachstructureaxis`). The fused (merged-sorted) form of the axis is
-computed once at construction and cached in `fused`, so `fusesectors` is a field read; the
+computed once at construction and cached in `fused`, so `fusesectors` is a field read, and the
 `FusedGradedOneTo` conversion compares the stored sectors against that cache and throws for
-a non-canonical axis.
+a non-canonical axis. `I` is the TensorKitSectors sector type of the cache, fixed by `S` and a
+parameter only because a field type cannot be computed from one.
 """
-struct GradedOneTo{S <: Sector} <: AbstractGradedOneTo{S}
+struct GradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
     sectors::Vector{S}
     datalengths::Vector{Int}
     isdual::Bool
-    fused::FusedGradedOneTo{S}
+    fused::FusedGradedOneTo{S, I}
     function GradedOneTo(
             sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
         ) where {S <: Sector}
@@ -33,22 +34,22 @@ struct GradedOneTo{S <: Sector} <: AbstractGradedOneTo{S}
         )
         merged_sectors, merged_datalengths = mergesectors(sectors, datalengths)
         fused = FusedGradedOneTo(merged_sectors, merged_datalengths, isdual)
-        return new{S}(sectors, datalengths, isdual, fused)
+        return new{S, tensorkit_sectortype(S)}(sectors, datalengths, isdual, fused)
     end
     # `fused` must equal the fused form of the other fields; unchecked.
     global function unchecked_gradedoneto(
             sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool,
-            fused::FusedGradedOneTo{S}
-        ) where {S <: Sector}
-        return new{S}(sectors, datalengths, isdual, fused)
+            fused::FusedGradedOneTo{S, I}
+        ) where {S <: Sector, I <: TKS.Sector}
+        return new{S, I}(sectors, datalengths, isdual, fused)
     end
 end
-# Arrow defaults to non-dual.
+# Any sector vector, materialized for storage; the arrow defaults to non-dual.
 function GradedOneTo(
-        sectors::Vector{S},
-        datalengths::Vector{Int}
+        sectors::AbstractVector{S}, datalengths::AbstractVector{<:Integer},
+        isdual::Bool = false
     ) where {S <: Sector}
-    return GradedOneTo(sectors, datalengths, false)
+    return GradedOneTo(collect(S, sectors), collect(Int, datalengths), isdual)
 end
 
 # Primitive accessors. The derived range-interface methods (`sectorlengths`, `first`, `axes`,
@@ -64,7 +65,7 @@ fusesectors(g::GradedOneTo) = g.fused
 
 GradedOneTo(g::GradedOneTo) = g
 function GradedOneTo(g::AbstractGradedOneTo)
-    return GradedOneTo(collect(sectors(g)), datalengths(g), isdual(g))
+    return GradedOneTo(sectors(g), datalengths(g), isdual(g))
 end
 # An already-fused axis is its own fused form, so pass it through as the cache.
 function GradedOneTo(g::FusedGradedOneTo)
@@ -84,13 +85,13 @@ function FusedGradedOneTo(g::GradedOneTo)
     return fused
 end
 
-function trivial(::Type{GradedOneTo{S}}) where {S}
+function trivial(::Type{<:GradedOneTo{S}}) where {S}
     return gradedrange([trivial(S) => 1])
 end
 trivial(g::GradedOneTo) = trivial(typeof(g))
 
 TensorAlgebra.trivialrange(R::Type{<:GradedOneTo}) = trivial(R)
-function TensorAlgebra.trivialrange(::Type{GradedOneTo{S}}, n::Integer) where {S}
+function TensorAlgebra.trivialrange(::Type{<:GradedOneTo{S}}, n::Integer) where {S}
     return gradedrange([trivial(S) => n])
 end
 
@@ -123,7 +124,7 @@ function mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
 end
 
 # Non-abelian fusion: flatten GradedOneTo elements into a single GradedOneTo
-function mortar_axis(axs::AbstractVector{GradedOneTo{S}}) where {S}
+function mortar_axis(axs::AbstractVector{GradedOneTo{S, I}}) where {S, I}
     isempty(axs) && return GradedOneTo(S[], Int[])
     return mortar_axis(mapreduce(eachblockaxis, vcat, axs))
 end

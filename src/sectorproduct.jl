@@ -60,12 +60,12 @@ Sector(nt::NamedTuple) = NamedSectorProduct(map(Sector, nt))
 # `Sector((;))` keep their forms. Keeping the container methods uniform matters because the
 # argument is often built by the caller, and an `args` that happens to come out empty should not
 # change which form comes back. Passing no factors at all specifies no symmetry instead, which
-# is `TrivialSector`. That cannot be its own method, since `Sector(; kws...)` already claims the
+# is `Trivial`. That cannot be its own method, since `Sector(; kws...)` already claims the
 # no-argument signature, so it is a branch on the keywords instead, resolved at compile time
 # because their `NamedTuple` type is concrete.
 function Sector(; kws...)
     nt = values(kws)
-    isempty(nt) && return TrivialSector()
+    isempty(nt) && return Trivial()
     return Sector(nt)
 end
 
@@ -161,11 +161,11 @@ function fusion_rule(s1::SectorProduct, s2::SectorProduct)
 end
 fusion_rule(s1::SectorProduct, s2::Sector) = fusion_rule(s1, TupleSectorProduct((s2,)))
 fusion_rule(s1::Sector, s2::SectorProduct) = fusion_rule(TupleSectorProduct((s1,)), s2)
-# `TrivialSector` has its own methods against any `Sector`, which the two above would otherwise be
+# `Trivial` has its own methods against any `Sector`, which the two above would otherwise be
 # ambiguous with. They fuse it the same way the branches above do, rather than reading it as a
 # product: it denotes no symmetry, so it has no arguments to promote.
-fusion_rule(s::SectorProduct, ::TrivialSector) = fusion_rule(s, trivial(s))
-fusion_rule(::TrivialSector, s::SectorProduct) = fusion_rule(trivial(s), s)
+fusion_rule(s::SectorProduct, ::Trivial) = fusion_rule(s, trivial(s))
+fusion_rule(::Trivial, s::SectorProduct) = fusion_rule(trivial(s), s)
 
 # Every sector the fusion of `s1` and `s2` can produce, as the Cartesian product of its
 # arguments' fusion outcomes. Both arguments must already be canonicalized.
@@ -245,17 +245,17 @@ end
 
 # Everything a product is not equal to. It is not its own argument, since `Sector` builds no
 # one-factor product and there is nothing to round-trip. It is not a product of the other
-# indexing, since the two describe different objects. And it is not `TrivialSector`, which is
+# indexing, since the two describe different objects. And it is not `Trivial`, which is
 # equal only to itself, the same way `U1(0)` is not it: asking whether a sector denotes no
 # symmetry is `istrivial`'s job, not equality's.
 Base.:(==)(::SectorProduct, ::Sector) = false
 Base.:(==)(::Sector, ::SectorProduct) = false
 Base.:(==)(::SectorProduct, ::SectorProduct) = false
 
-# `(SectorProduct, TrivialSector)` is ambiguous between `==(::SectorProduct, ::Sector)` above and
-# `==(::Sector, ::TrivialSector)`, which agree; these state that answer.
-Base.:(==)(::SectorProduct, ::TrivialSector) = false
-Base.:(==)(::TrivialSector, ::SectorProduct) = false
+# `(SectorProduct, Trivial)` is ambiguous between `==(::SectorProduct, ::Sector)` above and
+# `==(::Sector, ::Trivial)`, which agree; these state that answer.
+Base.:(==)(::SectorProduct, ::Trivial) = false
+Base.:(==)(::Trivial, ::SectorProduct) = false
 
 # `hash` has no second operand to promote against, so it hashes directly whatever content `==`
 # compares: every argument of a positional product, and only the non-trivially-valued name and
@@ -290,8 +290,8 @@ function Base.isless(s1::SectorProduct, s2::SectorProduct)
 end
 Base.isless(::SectorProduct, ::Sector) = false
 Base.isless(::Sector, ::SectorProduct) = true
-Base.isless(::TrivialSector, ::SectorProduct) = true
-Base.isless(::SectorProduct, ::TrivialSector) = false
+Base.isless(::Trivial, ::SectorProduct) = true
+Base.isless(::SectorProduct, ::Trivial) = false
 
 # Print the spelling that reconstructs the sector. Two or more positional factors get the infix
 # form, which round-trips through `×`; everything else gets the explicit `Sector` form, since
@@ -300,7 +300,7 @@ function Base.show(io::IO, s::TupleSectorProduct)
     args = arguments(s)
     if length(args) < 2
         # The tuple is spelled out rather than passed as arguments, because `Sector` reads a lone
-        # sector as itself and no arguments as `TrivialSector`, so neither of those round-trips.
+        # sector as itself and no arguments as `Trivial`, so neither of those round-trips.
         print(io, "Sector((")
         isempty(args) || (show(io, only(args)); print(io, ","))
         return print(io, "))")
@@ -312,7 +312,7 @@ end
 
 function Base.show(io::IO, s::NamedSectorProduct)
     args = arguments(s)
-    # Same reason as above: `Sector(;)` is a call with no keywords, which is `TrivialSector`.
+    # Same reason as above: `Sector(;)` is a call with no keywords, which is `Trivial`.
     isempty(args) && return print(io, "Sector((;))")
     print(io, "Sector(;")
     for (i, (k, v)) in enumerate(pairs(args))
@@ -333,7 +333,7 @@ normalized with [`Sector`](@ref) first, so anything that specifies a sector can 
 
 A positional product absorbs factors positionally and a named one absorbs them by name.
 Multiplying the two together is an error, because a product cannot be indexed both ways.
-`TrivialSector` is the unit and drops out of any product, as it does in TensorKitSectors.
+`Trivial` is the unit and drops out of any product, as it does in TensorKitSectors.
 """
 function sectorproduct end
 const × = sectorproduct
@@ -346,7 +346,7 @@ function sectorproduct(S1::Type{<:Sector}, Srest::Type{<:Sector}...)
     return typeof(sectorproduct(trivial(S1), map(trivial, Srest)...))
 end
 
-sectorproduct() = TrivialSector()
+sectorproduct() = Trivial()
 
 # Arity 1 is normalization and nothing more: a lone sector is already the product over itself,
 # so no one-factor product is ever built.
@@ -358,12 +358,12 @@ sectorproduct(s) = Sector(s)
 sectorproduct(s1, s2) = sectorproduct(Sector(s1), Sector(s2))
 sectorproduct(s1, s2, s3, srest...) = foldl(sectorproduct, (s1, s2, s3, srest...))
 
-# Stripping the unit here rather than by dispatch keeps `TrivialSector` out of the methods
+# Stripping the unit here rather than by dispatch keeps `Trivial` out of the methods
 # below, which would otherwise need a method per pairing to stay unambiguous with them. Both
 # branches are resolved at compile time, since the argument types are concrete.
 function sectorproduct(s1::Sector, s2::Sector)
-    s1 isa TrivialSector && return s2
-    s2 isa TrivialSector && return s1
+    s1 isa Trivial && return s2
+    s2 isa Trivial && return s1
     return _sectorproduct(s1, s2)
 end
 
@@ -453,10 +453,10 @@ function promote_sector(
     ) where {K1, K2}
     allkeys = _sorted_union(Val(K1), Val(K2))
     for k in allkeys
-        si1 = get(arguments(s1), k, TrivialSector())
-        si2 = get(arguments(s2), k, TrivialSector())
-        si1 isa TrivialSector ||
-            si2 isa TrivialSector ||
+        si1 = get(arguments(s1), k, Trivial())
+        si2 = get(arguments(s2), k, Trivial())
+        si1 isa Trivial ||
+            si2 isa Trivial ||
             (typeof(si1) == typeof(si2)) ||
             throw(
             ArgumentError(
@@ -468,8 +468,8 @@ function promote_sector(
         NamedTuple{allkeys}(
             ntuple(length(allkeys)) do i
                 k = allkeys[i]
-                arg = get(arguments(s1), k, TrivialSector())
-                if arg isa TrivialSector
+                arg = get(arguments(s1), k, Trivial())
+                if arg isa Trivial
                     return trivial(getproperty(arguments(s2), k))
                 else
                     return arg
@@ -481,8 +481,8 @@ function promote_sector(
         NamedTuple{allkeys}(
             ntuple(length(allkeys)) do i
                 k = allkeys[i]
-                arg = get(arguments(s2), k, TrivialSector())
-                if arg isa TrivialSector
+                arg = get(arguments(s2), k, Trivial())
+                if arg isa Trivial
                     return trivial(getproperty(arguments(s1), k))
                 else
                     return arg

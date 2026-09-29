@@ -1,4 +1,4 @@
-using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
+using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, Trivial, U1, Z, dual, flip,
     istrivial, modulus, sector_labels, sectortype, trivial
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS
@@ -8,11 +8,11 @@ using TestExtras: @constinferred
 fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
 
 @testset "Test SymmetrySectors Types" begin
-    @testset "TrivialSector" begin
-        q = TrivialSector()
+    @testset "Trivial" begin
+        q = Trivial()
 
-        @test sectortype(q) === TrivialSector
-        @test sectortype(typeof(q)) === TrivialSector
+        @test sectortype(q) === Trivial
+        @test sectortype(typeof(q)) === Trivial
         @test (@constinferred length(q)) == 1
         @test q == q
         @test trivial(q) == q
@@ -50,8 +50,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
         @test U1(Int8(1)) == U1(1)
         @test U1(UInt32(1)) == U1(1)
 
-        @test TrivialSector() < U1(-1)
-        @test TrivialSector() < U1(1)
+        @test Trivial() < U1(-1)
+        @test Trivial() < U1(1)
         @test U1(Int8(1)) < U1(Int32(2))
     end
 
@@ -71,12 +71,20 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
         @test modulus(z1) == 2
         @test modulus(Z{2}) == 2
 
+        # The label is held in an `Int8`, so `N` is capped; the message is ours rather than
+        # upstream's, which names a type this package does not have.
+        @test modulus(Z{128}(127)) == 128
+        @test_throws ArgumentError Z{129}(0)
+        @test_throws ArgumentError Z{300}(5)
+        @test_throws ArgumentError Z{0}(0)
+        @test_throws ArgumentError Z{-1}(0)
+
         @test isless(Z{2}(0), Z{2}(1))
         @test !isless(Z{2}(1), Z{2}(0))
         @test Z{2}(0) == z0
         @test Z{2}(-3) == z1
 
-        @test TrivialSector() < Z{2}(1)
+        @test Trivial() < Z{2}(1)
         @test_throws MethodError U1(0) < Z{2}(1)
         @test Z{2}(0) != Z{2}(1)
         @test Z{2}(0) != Z{3}(0)
@@ -113,8 +121,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
         @test (@constinferred flip(dual(s1))) == s1
 
         @test s0e < s0o < s12 < s1
-        @test s0o > TrivialSector()
-        @test TrivialSector() < s12
+        @test s0o > Trivial()
+        @test Trivial() < s12
     end
 
     @testset "SU(2)" begin
@@ -142,8 +150,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
         @test flip(dual(j4)) == j4
 
         @test j1 < j2 < j3 < j4
-        @test !(j2 < TrivialSector())
-        @test TrivialSector() < j2
+        @test !(j2 < Trivial())
+        @test Trivial() < j2
     end
 
     @testset "SU(N)" begin

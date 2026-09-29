@@ -43,16 +43,32 @@ function sectordata end
 # The sorted union of the arguments' axis supports (analogous to `eachindex(A...)`): ordered
 # random access for a positional walk over each argument's support-set form (see `setsectors`),
 # and a valid `setsectors` target for every argument by construction (it covers each axis). The
-# sectors carry no arrow, so one union covers axes of either arrow, and `setsectors` stores the
-# returned vector directly, so every axis set from one union shares it.
-function sectorsupport(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
+# sectors carry no arrow, so one union covers axes of either arrow.
+function tensorkit_sectorsupport(
+        a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...
+    )
     return mapreduce(mergesortedunique, (a, as...)) do x
         return mapreduce(
-            sectors,
+            tensorkit_sectors,
             mergesortedunique,
             (axes_codomain(x)..., axes_domain(x)...)
         )
     end
+end
+function sectorsupport(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
+    return map(Sector, tensorkit_sectorsupport(a, as...))
+end
+
+# Bring the arguments onto the union of their axis supports, so that one position indexes the
+# same sector in every one of them. Each result shares its argument's buffer, and an argument
+# that already spans the union comes back itself. The union is built and stored in the sectors'
+# TensorKitSectors form, the form the axes hold, so one vector is shared by every axis of every
+# result.
+function promote_sectorsupport(
+        a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...
+    )
+    cs = tensorkit_sectorsupport(a, as...)
+    return map(x -> setsectors(x, cs), (a, as...))
 end
 
 # Union of two sorted, unique vectors, returned in sorted order. Sorted inputs make the union a
@@ -363,10 +379,10 @@ Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
 #  block grid; unstored blocks become `Zeros`, which print as `⋅`.
 # ---------------------------------------------------------------------------
 
-# Compact type name for the summary line. The buffer-backed fused arrays carry `{T,S,V}` — element,
-# sector, and storage-buffer types. Only the element `T` and the storage buffer `V` are informative in
-# the header (the sector is spelled out in the `Dim` lines below), so keep the first and last type
-# parameters and elide the middle to `…`.
+# Compact type name for the summary line. The buffer-backed fused arrays carry `{T,S,V,I}` — element,
+# sector, storage-buffer, and TensorKitSectors sector types. Only the element `T` and the storage
+# buffer `V` are informative in the header (the sector is spelled out in the `Dim` lines below), so
+# drop the trailing `I` and then keep the first and last type parameters, eliding the middle to `…`.
 function summary_typename(type::Type{<:AbstractFusedGradedArray})
     alias = Base.make_typealias(type)
     base, params = if isnothing(alias)
@@ -374,6 +390,9 @@ function summary_typename(type::Type{<:AbstractFusedGradedArray})
     else
         globalref, alias_params = alias
         string(globalref.name), collect(alias_params)
+    end
+    if !isempty(params) && params[end] isa Type && params[end] <: TKS.Sector
+        pop!(params)
     end
     isempty(params) && return base
     strs = if length(params) <= 2

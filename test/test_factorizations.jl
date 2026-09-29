@@ -822,11 +822,11 @@ end
     wA = GradedArrays.setsectors(A, cs)
     wN = GradedArrays.setsectors(N, cs)
 
-    # An axis whose support already equals `cs` is returned as-is; the rebuilt axes store `cs`
-    # itself, one object shared across the participants.
+    # An axis whose support already equals `cs` is returned as-is, and the rebuilt axes carry the
+    # sectors of `cs`.
     @test GradedArrays.axis_codomain(wA) === GradedArrays.axis_codomain(A)
     ls = GradedArrays.sectors(GradedArrays.axis_domain(wA))
-    @test GradedArrays.sectors(GradedArrays.axis_domain(wN)) === ls
+    @test GradedArrays.sectors(GradedArrays.axis_domain(wN)) == ls == cs
 
     for (i, c) in enumerate(cs), (x, wx) in ((A, wA), (N, wN))
         ref = if haskey(sectordata(x), c)

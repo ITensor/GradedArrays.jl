@@ -2,7 +2,7 @@ module GradedArrays
 
 # exports
 # -------
-export Sector, TrivialSector, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
+export Sector, Trivial, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
 export sectorproduct, ×
 export GradedArray, gradedrange
 export dual, isdual
@@ -10,7 +10,7 @@ export dual, isdual
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public GradedContract, OrientedSector, TensorKitSector, sectors, \
+            "public GradedContract, TensorKitSector, sectors, \
             with_scalar_indexing, with_block_indexing"
         )
     )

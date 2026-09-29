@@ -1,7 +1,7 @@
 using BlockArrays: blocklengths
-using GradedArrays: SU2, Sector, SectorOneTo, SectorProduct, TrivialSector, U1, Z,
-    arguments, dual, fU1, flip, gradedrange, istrivial, sectorproduct, sectortype,
-    tensor_product, trivial, ×
+using GradedArrays: SU2, Sector, SectorOneTo, SectorProduct, Trivial, U1, Z, arguments,
+    dual, fU1, flip, gradedrange, istrivial, sectorproduct, sectortype, tensor_product,
+    trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
@@ -40,8 +40,8 @@ using TestExtras: @constinferred
         @test ×(U1(1)) ≡ U1(1)
         @test Sector((U1(1),)) ≢ U1(1)
 
-        # `TrivialSector` is the unit and drops out.
-        s = TrivialSector() × U1(3) × SU2(1 / 2)
+        # `Trivial` is the unit and drops out.
+        s = Trivial() × U1(3) × SU2(1 / 2)
         @test s ≡ U1(3) × SU2(1 // 2)
         @test length(arguments(s)) == 2
         @test (@constinferred length(s)) == 2
@@ -62,11 +62,11 @@ using TestExtras: @constinferred
         @test Sector((U1(1),)) != Sector(U1(1), U1(1))
         @test Sector(U1(0), SU2(0)) != Sector(U1(0), U1(0))
 
-        # Nothing equals `TrivialSector` but itself, so a product of trivial sectors does not
+        # Nothing equals `Trivial` but itself, so a product of trivial sectors does not
         # either. Whether a product denotes no symmetry is `istrivial`'s question.
         @test istrivial(Sector(U1(0), SU2(0)))
-        @test Sector(U1(0), SU2(0)) != TrivialSector()
-        @test TrivialSector() != Sector(U1(0), SU2(0))
+        @test Sector(U1(0), SU2(0)) != Trivial()
+        @test Trivial() != Sector(U1(0), SU2(0))
 
         # Same arity and same symmetries orders as TensorKit orders the matching space.
         @test Sector((U1(0),)) < Sector((U1(1),))
@@ -108,8 +108,8 @@ using TestExtras: @constinferred
     @testset "Fusion of Abelian products" begin
         p1 = Sector((U1(1),))
         p2 = Sector((U1(2),))
-        @test (@constinferred tensor_product(p1, TrivialSector())) == p1
-        @test (@constinferred tensor_product(TrivialSector(), p2)) == p2
+        @test (@constinferred tensor_product(p1, Trivial())) == p1
+        @test (@constinferred tensor_product(Trivial(), p2)) == p2
         @test (@constinferred tensor_product(p1, p2)) == Sector((U1(3),))
 
         p11 = U1(1) × U1(1)
@@ -126,8 +126,8 @@ using TestExtras: @constinferred
     @testset "Fusion of NonAbelian products" begin
         p0 = Sector((SU2(0),))
         ph = Sector((SU2(1 // 2),))
-        @test (@constinferred tensor_product(p0, TrivialSector())) == gradedrange([p0 => 1])
-        @test (@constinferred tensor_product(TrivialSector(), ph)) == gradedrange([ph => 1])
+        @test (@constinferred tensor_product(p0, Trivial())) == gradedrange([p0 => 1])
+        @test (@constinferred tensor_product(Trivial(), ph)) == gradedrange([ph => 1])
 
         phh = SU2(1 // 2) × SU2(1 // 2)
         @test tensor_product(phh, phh) == gradedrange(
@@ -211,7 +211,7 @@ end
         @test (@constinferred length(s)) == 2
 
         # No keywords specifies no symmetry, which is the unit rather than an empty product.
-        @test Sector() ≡ TrivialSector()
+        @test Sector() ≡ Trivial()
     end
 
     @testset "Comparisons with unspecified labels" begin
@@ -382,10 +382,10 @@ end
     @test Sector(TKS.FermionNumber(2)) == fU1(2)
 end
 
-@testset "TrivialSector as the unit of the product" begin
+@testset "Trivial as the unit of the product" begin
     st1 = Sector((U1(1),))
     sA1 = Sector(; A = U1(1))
-    u = TrivialSector()
+    u = Trivial()
 
     @test ×() ≡ u
     @test (@constinferred flip(dual(u))) == u
@@ -433,16 +433,16 @@ end
 
 @testset "Empty products" begin
     # An explicit empty container specifies a product of that shape. Specifying no symmetry at
-    # all is `TrivialSector`, which is a different thing.
+    # all is `Trivial`, which is a different thing.
     for s in (Sector(()), Sector((;)))
-        @test s != TrivialSector()
-        @test TrivialSector() != s
+        @test s != Trivial()
+        @test Trivial() != s
         @test istrivial(s)
         @test (@constinferred flip(dual(s))) == s
         @test (@constinferred trivial(s)) == s
         @test (@constinferred length(s)) == 1
-        @test (@constinferred s × TrivialSector()) ≡ s
-        @test (@constinferred TrivialSector() × s) ≡ s
+        @test (@constinferred s × Trivial()) ≡ s
+        @test (@constinferred Trivial() × s) ≡ s
         @test (@constinferred tensor_product(s, s)) == s
 
         g0 = gradedrange([s => 2])

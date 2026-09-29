@@ -1,4 +1,5 @@
 using Dictionaries: Dictionaries, AbstractDictionary, Dictionary
+using MappedArrays: mappedarray
 
 """
     FusedGradedOneTo{S<:Sector}
@@ -8,48 +9,50 @@ sectors are in sorted order. This is the canonical form of the coupled-sector ax
 [`FusedGradedMatrix`](@ref), and it also matches the sorted-and-merged convention TensorKit
 uses for a `GradedSpace`.
 
-Stores the sectors and their data lengths (multiplicities) as sorted parallel vectors — the
-same layout as a TensorKit `GradedSpace` — plus a single `isdual` flag. The sectors carry no
-arrow of their own, so the flag is the axis's entire duality.
+Stores the sectors and their data lengths (multiplicities) as sorted parallel vectors, the same
+layout as a TensorKit `GradedSpace`, plus a single `isdual` flag. The sectors carry no arrow of
+their own, so the flag is the axis's entire duality.
+
+The sectors are stored in their TensorKitSectors form, which is what a `GradedSpace` holds, so
+crossing into TensorKit hands over the stored vector instead of rebuilding it. `I` is fixed by
+`S` and is a second parameter only because a field type cannot be computed from one.
 """
-struct FusedGradedOneTo{S <: Sector} <: AbstractGradedOneTo{S}
-    sectors::Vector{S}
+struct FusedGradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
+    tensorkit_sectors::Vector{I}
     datalengths::Vector{Int}
     isdual::Bool
     function FusedGradedOneTo(
-            sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
-        ) where {S <: Sector}
-        length(sectors) == length(datalengths) ||
+            tensorkit_sectors::Vector{I}, datalengths::Vector{Int}, isdual::Bool
+        ) where {I <: TKS.Sector}
+        length(tensorkit_sectors) == length(datalengths) ||
             throw(ArgumentError("sectors and datalengths must have the same length"))
-        issortedunique(sectors) || throw(
+        issortedunique(tensorkit_sectors) || throw(
             ArgumentError(
-                "FusedGradedOneTo sectors must be sorted and unique: $(sectors)"
+                "FusedGradedOneTo sectors must be sorted and unique: $(tensorkit_sectors)"
             )
         )
-        return new{S}(sectors, datalengths, isdual)
+        return new{gradedarrays_sectortype(I), I}(tensorkit_sectors, datalengths, isdual)
     end
 end
 
 issortedunique(v) = all(((a, b),) -> isless(a, b), zip(v, Iterators.drop(v, 1)))
 
+# The conversion happens once here rather than on every crossing into TensorKit.
+function FusedGradedOneTo(
+        sectors::AbstractVector{S}, datalengths::AbstractVector{<:Integer},
+        isdual::Bool = false
+    ) where {S <: Sector}
+    return FusedGradedOneTo(
+        tensorkit_sectortype(S)[TKS.Sector(s) for s in sectors],
+        collect(Int, datalengths), isdual
+    )
+end
+
 # Arrow defaults to non-dual.
-function FusedGradedOneTo(sectors::Vector{<:Sector}, datalengths::Vector{Int})
-    return FusedGradedOneTo(sectors, datalengths, false)
-end
-
-# Vector-like input that is not already the stored form, such as the sectors of another axis.
 function FusedGradedOneTo(
-        sectors::AbstractVector{<:Sector}, datalengths::AbstractVector{<:Integer},
-        isdual::Bool
+        tensorkit_sectors::Vector{<:TKS.Sector}, datalengths::AbstractVector{<:Integer}
     )
-    return FusedGradedOneTo(collect(sectors), collect(Int, datalengths), isdual)
-end
-
-# Bare TensorKitSectors labels, as they come back from a TensorKit space.
-function FusedGradedOneTo(
-        labels::Vector{<:TKS.Sector}, datalengths::Vector{Int}, isdual::Bool = false
-    )
-    return FusedGradedOneTo(map(Sector, labels), datalengths, isdual)
+    return FusedGradedOneTo(tensorkit_sectors, collect(Int, datalengths), false)
 end
 
 # Dictionary convenience (e.g. a `map` over `sectordata`); the keys must already be in
@@ -64,12 +67,15 @@ end
 
 # ========================  primitive accessors  ========================
 
-# `sectors` and `datalengths` hand back the stored vectors themselves, and `sectordatalengths`
-# is a zero-copy dictionary view keyed by them (lookups binary-search the sorted keys).
-# Callers must not mutate them. The remaining range-interface methods are shared via
-# `AbstractGradedOneTo`.
+# `tensorkit_sectors` and `datalengths` hand back the stored vectors themselves, `sectors` maps
+# the stored sectors lazily, and `sectordatalengths` is a zero-copy dictionary view keyed by them
+# (lookups binary-search the sorted keys). Callers must not mutate the stored vectors. The
+# remaining range-interface methods are shared via `AbstractGradedOneTo`.
 TensorAlgebra.isdual(g::FusedGradedOneTo) = g.isdual
-sectors(g::FusedGradedOneTo) = g.sectors
+tensorkit_sectors(g::FusedGradedOneTo) = g.tensorkit_sectors
+# Wrapped in a closure because `mappedarray` reads a bare type argument as the element type of
+# the result rather than as the function producing it, and `Sector` is abstract.
+sectors(g::FusedGradedOneTo) = mappedarray(c -> Sector(c), tensorkit_sectors(g))
 datalengths(g::FusedGradedOneTo) = g.datalengths
 sectordatalengths(g::FusedGradedOneTo) = SortedArrayDictionary(sectors(g), datalengths(g))
 
@@ -89,15 +95,19 @@ end
 
 # Sectors of `ss` that `g` already has keep their lengths, the ones it lacks get length zero.
 # The walk that fills `lens` doubles as the coverage check: every stored sector has to be
-# matched, which the test after the loop confirms. `ss` is stored as is, so axes set from the
-# same vector share it.
+# matched, which the test after the loop confirms.
 function setsectors(g::FusedGradedOneTo{S}, ss::Vector{S}) where {S}
-    gl, gd = sectors(g), datalengths(g)
-    (ss === gl || ss == gl) && return g
-    lens = Vector{Int}(undef, length(ss))
+    return setsectors(g, tensorkit_sectortype(S)[TKS.Sector(s) for s in ss])
+end
+
+# `cs` is stored as is, so axes set from the same vector share it.
+function setsectors(g::FusedGradedOneTo{S, I}, cs::Vector{I}) where {S, I}
+    gl, gd = tensorkit_sectors(g), datalengths(g)
+    (cs === gl || cs == gl) && return g
+    lens = Vector{Int}(undef, length(cs))
     i = 1
-    for k in eachindex(ss)
-        if i <= length(gl) && isequal(gl[i], ss[k])
+    for k in eachindex(cs)
+        if i <= length(gl) && isequal(gl[i], cs[k])
             lens[k] = gd[i]
             i += 1
         else
@@ -105,9 +115,9 @@ function setsectors(g::FusedGradedOneTo{S}, ss::Vector{S}) where {S}
         end
     end
     i > length(gl) || throw(
-        ArgumentError("sectors $(ss) do not cover the axis support $(gl)")
+        ArgumentError("sectors $(cs) do not cover the axis support $(gl)")
     )
-    return FusedGradedOneTo(ss, lens, isdual(g))
+    return FusedGradedOneTo(cs, lens, isdual(g))
 end
 
 # ========================  dual, flip  ========================
@@ -115,14 +125,14 @@ end
 # `dual` flips the arrow only; the stored sectors and their order are unchanged, so the
 # fused+sorted invariant is preserved.
 function TensorAlgebra.dual(g::FusedGradedOneTo)
-    return FusedGradedOneTo(sectors(g), datalengths(g), !isdual(g))
+    return FusedGradedOneTo(tensorkit_sectors(g), datalengths(g), !isdual(g))
 end
 
 # `flip` conjugates the sectors and flips the arrow (matching `GradedOneTo`), leaving the block
 # sectors unchanged. Conjugation generally reorders the sectors, so re-sort to restore the
 # canonical fused form.
 function flip(g::FusedGradedOneTo)
-    flipped = map(dual_sector, sectors(g))
+    flipped = map(TKS.dual, tensorkit_sectors(g))
     perm = sortperm(flipped)
     return FusedGradedOneTo(flipped[perm], datalengths(g)[perm], !isdual(g))
 end

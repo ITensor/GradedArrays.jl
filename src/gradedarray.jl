@@ -10,7 +10,7 @@ using TensorKit: TensorKit as TK, ←
 const GA = GradedArrays
 
 """
-    GradedArray{T,S,N,NC,ND,M} <: AbstractArray{T,N}
+    GradedArray{T,S,N,NC,ND,M,I} <: AbstractArray{T,N}
 
 Always-fused symmetric array: an `N`-dimensional graded array split into `NC` codomain and `ND`
 domain legs (`NC + ND == N`), backed by a matricized [`FusedGradedMatrix`](@ref). The external axes
@@ -19,18 +19,18 @@ the `matricized` backing is always over the fused-sorted coupled space, and the 
 permutation relates the two.
 """
 struct GradedArray{
-        T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S},
+        T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S}, I <: TKS.Sector,
     } <: AbstractArray{T, N}
     matricized::M
-    axes_codomain::NTuple{NC, GradedOneTo{S}}
-    axes_domain::NTuple{ND, GradedOneTo{S}}
+    axes_codomain::NTuple{NC, GradedOneTo{S, I}}
+    axes_domain::NTuple{ND, GradedOneTo{S, I}}
 
     function GradedArray(
             matricized::AbstractFusedGradedMatrix{T, S},
             axes_codomain::NTuple{NC, AbstractGradedOneTo{S}},
             axes_domain::NTuple{ND, AbstractGradedOneTo{S}}
         ) where {T, S, NC, ND}
-        return new{T, S, NC + ND, NC, ND, typeof(matricized)}(
+        return new{T, S, NC + ND, NC, ND, typeof(matricized), tensorkit_sectortype(S)}(
             matricized, map(GradedOneTo, axes_codomain), map(GradedOneTo, axes_domain)
         )
     end

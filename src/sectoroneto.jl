@@ -5,7 +5,7 @@ One sector's index space: a sector, a data length (multiplicity), and an arrow. 
 building block for `GradedOneTo`.
 
 The arrow is stored here rather than on the sector, matching `GradedOneTo`. An
-[`OrientedSector`](@ref) is built on demand, by `structure`, for the places that want the
+`OrientedSector` is built on demand, by `structure`, for the places that want the
 sector and its arrow as one value.
 """
 struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}

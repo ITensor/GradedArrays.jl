@@ -89,17 +89,17 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    FusedGradedVector{T,S<:Sector,V<:DenseVector{T}}
+    FusedGradedVector{T,S<:Sector,V<:DenseVector{T},I<:TensorKitSectors.Sector}
 
 Block-structured 1-D graded array produced by a sector-preserving operation on
 a [`FusedGradedMatrix`](@ref) (e.g. `svd_vals`, `eig_vals`, `eigh_vals`). Stores a contiguous
 `buffer` plus the fused axis; the per-sector blocks are the lazy `sectordata(v)` view carved from the
 buffer on demand.
 """
-struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}} <:
+struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedVector{T, S}
     buffer::V
-    axis::FusedGradedOneTo{S}
+    axis::FusedGradedOneTo{S, I}
     # The per-sector offset/size layout into the buffer (see `sectordatalayout`).
     datalayout::SectorDataLayout{S, 1}
 
@@ -109,8 +109,8 @@ struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}} <:
     # deriving from an existing vector with the same axis pass its layout through, sharing it (like
     # the axis itself).
     function FusedGradedVector{T, S, V}(
-            buffer::V, axis::FusedGradedOneTo{S}, datalayout
-        ) where {T, S <: Sector, V <: DenseVector{T}}
+            buffer::V, axis::FusedGradedOneTo{S, I}, datalayout
+        ) where {T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector}
         isdual(axis) && throw(
             ArgumentError("FusedGradedVector stores a non-dual axis")
         )
@@ -121,7 +121,7 @@ struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}} <:
                 "buffer length $(length(buffer)) does not match block total $total"
             )
         )
-        return new{T, S, V}(buffer, axis, datalayout)
+        return new{T, S, V, I}(buffer, axis, datalayout)
     end
 end
 
@@ -227,7 +227,7 @@ end
 
 # Set the axis to exactly `ss` and wrap the same buffer as `v`, with the added blocks zero-size
 # views (see `setsectors(::FusedGradedMatrix, ss)`).
-function setsectors(v::FusedGradedVector, ss::AbstractVector{<:Sector})
+function setsectors(v::FusedGradedVector, ss::AbstractVector)
     ax = setsectors(axis(v), ss)
     # An unchanged axis means the set is the identity; return `v` itself.
     ax === axis(v) && return v

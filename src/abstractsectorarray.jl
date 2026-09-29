@@ -29,7 +29,7 @@ Return the structural (Schur) factor of a single-sector graded object: the data-
 symmetry fixes, carrying no free parameters. It is the Kronecker cofactor of the raw data, so
 `x == structure(x) ⊗ data(x)`; for an [`AbstractSectorArray`](@ref) it is the
 [`AbstractSectorDelta`](@ref) with `sector_kron(structure(a), data(a)) === a`, and for a
-[`SectorOneTo`](@ref) it is the [`OrientedSector`](@ref) of the rank-1 factorization.
+[`SectorOneTo`](@ref) it is the `OrientedSector` of the rank-1 factorization.
 """
 function structure end
 

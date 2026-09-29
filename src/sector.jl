@@ -1,18 +1,8 @@
 """
     Sector
 
-A sector: an irreducible label of a symmetry, and the range of the degrees of freedom that
-label spans, so `length` is the sector's dimension.
-
-A sector carries no arrow. Duality lives on [`OrientedSector`](@ref) and on the axis types,
-which is the convention `GradedOneTo` already follows.
-
-Concrete sectors are GradedArrays' own types storing their own label, so `typeof(U1(0))` is
-`U1`. `TensorKitSectors` supplies the fusion rules, ordering and symbols, and each direction
-between the two packages is spelled as the constructor of the type being asked for: every
-concrete sector defines `TensorKitSectors.Sector(s)` for the upstream sector it stands for, and
-`Sector` takes an upstream sector going the other way. Construction routes through upstream to
-reuse its validation, and `tensorkit_sectortype` is the type-level counterpart.
+An irreducible label of a symmetry, and the range of the degrees of freedom that label spans,
+so `length` is the sector's dimension.
 
     Sector(s::Sector) -> Sector
     Sector(c::TensorKitSectors.Sector) -> Sector
@@ -20,24 +10,30 @@ reuse its validation, and `tensorkit_sectortype` is the type-level counterpart.
     Sector(t::Tuple) -> TupleSectorProduct
     Sector(nt::NamedTuple) -> NamedSectorProduct
     Sector(; kws...) -> NamedSectorProduct
-    Sector() -> TrivialSector
+    Sector() -> Trivial
 
-Calling `Sector` normalizes a sector specification, and is the one place that defines what
-counts as one. A sector comes back as itself, a `TensorKitSectors` sector as the GradedArrays
-name for that symmetry or else a [`TensorKitSector`](@ref), two or more sectors as the product
-over them, and no sectors at all as [`TrivialSector`](@ref). Everything that takes a sector from
-a caller, `gradedrange` and the array constructors included, routes through here, so the
-accepted spellings are the same everywhere.
+Two or more sectors give the product over them, and none at all gives
+[`Trivial`](@ref). Everything that takes a sector from a caller, `gradedrange` and the
+array constructors included, routes through here.
 """
 abstract type Sector <: AbstractUnitRange{Int} end
 
-"""
-    tensorkit_sectortype(::Type{<:Sector}) -> Type{<:TensorKitSectors.Sector}
-
-The type-level counterpart of `TensorKitSectors.Sector(s)`, which the fusion and braiding
-traits dispatch through. Every concrete [`Sector`](@ref) defines it.
-"""
+# The type-level counterpart of `TensorKitSectors.Sector(s)`, which the fusion and braiding
+# traits dispatch through. Every concrete `Sector` defines it.
 tensorkit_sectortype(s::Sector) = tensorkit_sectortype(typeof(s))
+
+# The `Sector` a TensorKitSectors sector converts to, the inverse of `tensorkit_sectortype`.
+# Read off the `Sector` constructor rather than restated, so a sector type that defines the
+# conversion needs no second declaration here, and one that wants to state it anyway can
+# define this method.
+gradedarrays_sectortype(c::TKS.Sector) = gradedarrays_sectortype(typeof(c))
+function gradedarrays_sectortype(::Type{I}) where {I <: TKS.Sector}
+    S = Base.promote_op(Sector, I)
+    isconcretetype(S) || throw(
+        ArgumentError("no single `Sector` type for $(I), `Sector` of one infers as $(S)")
+    )
+    return S
+end
 
 # A sector converts by handing its labels to its counterpart's own constructor, which takes them
 # in the same order and is the spelling the sector's display prints. A type therefore declares
@@ -94,21 +90,13 @@ Base.hash(s::Sector, h::UInt) = hash(TKS.Sector(s), h)
 
 # =================================  Sectors interface  ====================================
 
-"""
-    sector_labels(s::Sector)
-
-The labels of the sector, as a tuple in the order the constructor takes them: the charge of a
-`U1`, the spin of an `SU2`, the Dynkin labels of an `SU`. A `TrivialSector` has nothing
-labelling it and gives an empty tuple.
-
-Splatting them back into the constructor gives the sector again, which is the spelling the
-display of a sector prints. These are not the struct's fields: a stored label is normalized
-where the type has a canonical form for it, and a [`TensorKitSector`](@ref) reaches through to
-the labels of the sector it wraps, whose type is also the constructor its display names.
-
-A `SectorProduct` has none of its own, since what it holds are sectors rather than the values
-labelling one, and it displays as those components.
-"""
+# The labels of the sector, as a tuple in the order the constructor takes them: the charge of a
+# `U1`, the spin of an `SU2`, the Dynkin labels of an `SU`. Splatting them back into the
+# constructor gives the sector again, which is the spelling a sector's display prints. These are
+# not the struct's fields: a stored label is normalized where the type has a canonical form for
+# it, and a `TensorKitSector` reaches through to the labels of the sector it wraps. A
+# `Trivial` gives an empty tuple; a `SectorProduct` has no labels of its own, since what
+# it holds are sectors rather than the values labelling one.
 function sector_labels end
 
 trivial(x) = trivial(typeof(x))
@@ -138,13 +126,9 @@ end
 
 twist(s::Sector) = TKS.twist(TKS.Sector(s))
 
-"""
-    dual_sector(s::Sector) -> Sector
-
-The conjugate sector, which is what TensorKitSectors calls `dual`. Here `dual` is the arrow
-operation instead, since a [`Sector`](@ref) is itself the range of its degrees of freedom and
-so `dual` of one is the dual space, returning an [`OrientedSector`](@ref).
-"""
+# The conjugate sector, which is what TensorKitSectors calls `dual`. Here `dual` is the arrow
+# operation instead, since a `Sector` is itself the range of its degrees of freedom and
+# so `dual` of one is the dual space, returning an `OrientedSector`.
 dual_sector(s::Sector) = Sector(TKS.dual(TKS.Sector(s)))
 
 # A total version of `TensorKitSectors.fermionparity`. TKS defines it only for
@@ -192,12 +176,8 @@ tensor_product(c1::TKS.Sector, s2::Sector) = tensor_product(Sector(c1), s2)
 
 # ==================================  OrientedSector  ======================================
 
-"""
-    OrientedSector(s::Sector, isdual::Bool)
-
-A sector together with an arrow. This is where a bare sector acquires a duality, and what
-`dual` of a sector returns.
-"""
+# A sector together with an arrow. This is where a bare sector acquires a duality, and what
+# `dual` of a sector returns.
 struct OrientedSector{S <: Sector} <: AbstractUnitRange{Int}
     sector::S
     isdual::Bool
@@ -240,12 +220,8 @@ function Sector(s::OrientedSector)
     )
 end
 
-"""
-    AnySector
-
-A sector with or without an arrow, for the places that accept either. `splitarrows` takes a
-tuple of them apart into the sectors and the arrows, which is how a type stores them.
-"""
+# A sector with or without an arrow, for the places that accept either. `splitarrows` takes a
+# tuple of them apart into the sectors and the arrows, which is how a type stores them.
 const AnySector = Union{Sector, OrientedSector}
 splitarrows(ss::Tuple{Vararg{AnySector}}) = (map(sector, ss), map(isdual, ss))
 
@@ -289,7 +265,7 @@ tensor_product(s1::Sector, s2::OrientedSector) = fusion_rule(s1, sector(flip_dua
 # =====================================  Sectors  ==========================================
 
 """
-    TrivialSector()
+    Trivial()
 
 The sector of the trivial group, and so the sectortype of a space carrying no symmetry. It is
 the unit object of the category of ordinary vector spaces, and the unit of `sectorproduct`.
@@ -298,31 +274,31 @@ It is not another symmetry's trivial sector: `U1(0)` is the zero-charge irrep *o
 `U1`-graded space with a single zero-charge block is not an ungraded space. Ask `istrivial`
 whether a sector is its own symmetry's trivial one.
 """
-struct TrivialSector <: Sector end
-tensorkit_sectortype(::Type{TrivialSector}) = TKS.Trivial
-sector_labels(::TrivialSector) = ()
-Sector(::TKS.Trivial) = TrivialSector()
+struct Trivial <: Sector end
+tensorkit_sectortype(::Type{Trivial}) = TKS.Trivial
+sector_labels(::Trivial) = ()
+Sector(::TKS.Trivial) = Trivial()
 
-# TensorKitSectors has no ordering or equality between `Trivial` and a real irrep, so the
-# generic methods above cannot answer these. A `TrivialSector` equals only itself, and a product
+# TensorKitSectors has no ordering or equality between its own `Trivial` and a real irrep, so the
+# generic methods above cannot answer these. A `Trivial` equals only itself, and a product
 # with no content: it denotes the absence of a symmetry rather than any particular symmetry's
 # trivial sector. Equating it with all of those made `==` intransitive, since `U1(0)` and
 # `SU2(0)` would each equal it while differing from each other. `istrivial` asks that question.
 # Ordering it below every other sector keeps `isless` a total order in which no two distinct
 # sectors come out order-equivalent. `convert` and `promote_rule` are deliberately absent too:
-# `convert` must preserve value, which `TrivialSector` into `trivial(S)` no longer does, and
+# `convert` must preserve value, which `Trivial` into `trivial(S)` no longer does, and
 # `trivial(S)` already spells that conversion where it is wanted.
-Base.:(==)(::TrivialSector, ::TrivialSector) = true
-Base.:(==)(::TrivialSector, ::Sector) = false
-Base.:(==)(::Sector, ::TrivialSector) = false
-Base.isless(::TrivialSector, ::TrivialSector) = false
-Base.isless(::TrivialSector, ::Sector) = true
-Base.isless(::Sector, ::TrivialSector) = false
-fusion_rule(s::TrivialSector, ::TrivialSector) = s
+Base.:(==)(::Trivial, ::Trivial) = true
+Base.:(==)(::Trivial, ::Sector) = false
+Base.:(==)(::Sector, ::Trivial) = false
+Base.isless(::Trivial, ::Trivial) = false
+Base.isless(::Trivial, ::Sector) = true
+Base.isless(::Sector, ::Trivial) = false
+fusion_rule(s::Trivial, ::Trivial) = s
 # The unit fuses as the other operand's own trivial sector, so the ordinary fusion answers this
 # and gives the outcome in whichever form it gives outcomes for that sector.
-fusion_rule(::TrivialSector, s::Sector) = fusion_rule(trivial(s), s)
-fusion_rule(s::Sector, ::TrivialSector) = fusion_rule(s, trivial(s))
+fusion_rule(::Trivial, s::Sector) = fusion_rule(trivial(s), s)
+fusion_rule(s::Sector, ::Trivial) = fusion_rule(s, trivial(s))
 
 """
     Z{N}(n::Integer)
@@ -331,9 +307,15 @@ An irreducible representation of the cyclic group of order `N`.
 """
 struct Z{N} <: Sector
     n::Int8
-    # Constructed through TensorKitSectors so the modular reduction and the `N < 64` bound are
-    # checked in one place rather than restated here.
-    Z{N}(n::Integer) where {N} = new{N}(TKS.ZNIrrep{N}(n).n)
+    # The label is reduced modulo `N` by TensorKitSectors rather than restated here, but the
+    # bound on `N` is ours to report: upstream's message names a type of its own that has no
+    # counterpart here, so it would send a reader looking for something that does not exist.
+    function Z{N}(n::Integer) where {N}
+        1 <= N <= 128 || throw(
+            ArgumentError("`Z{N}` needs an `N` between 1 and 128, got $(N)")
+        )
+        return new{N}(TKS.ZNIrrep{N}(n).n)
+    end
 end
 """
     const Z2 = Z{2}
@@ -407,7 +389,7 @@ its `N`-component highest weight: `SU{3}(1, 1)` and `SU{3}(2, 1, 0)` are both th
 rank is always spelled out, since the number of labels alone does not fix it.
 
 The Dynkin labels are the canonical form, being the same for every weight denoting the same
-representation, and are what [`sector_labels`](@ref) gives back and what is stored, as
+representation, and are what `sector_labels` gives back and what is stored, as
 `SUNIrrep` also stores. Two `SU`s are therefore equal exactly when they are the same
 representation, which `SUNIrrep` did not guarantee while it stored a weight and compared it
 verbatim.
