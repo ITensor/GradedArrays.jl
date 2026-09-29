@@ -1,6 +1,6 @@
 using BlockArrays: Block
-using GradedArrays: GradedArrays, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo, SU2,
-    Sector, SectorOneTo, TrivialSector, U1, UniqueSectorArray, Z, dual, fU1, fZ2,
+using GradedArrays: GradedArrays, CU1, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
+    SU2, Sector, SectorOneTo, TrivialSector, U1, UniqueSectorArray, Z, dual, fU1, fZ2,
     fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
@@ -13,6 +13,16 @@ using Test: @test, @testset
     @test sprint(show, j1) == "SU2(0)"
 
     @test sprint(show, TrivialSector()) == "TrivialSector()"
+
+    # Two labels, so the pair prints as two arguments rather than as a tuple, which is the
+    # spelling the constructor takes.
+    @test sprint(show, CU1(0, 0)) == "CU1(0, 0)"
+    @test sprint(show, CU1(0, 1)) == "CU1(0, 1)"
+    @test sprint(show, CU1(1 // 2)) == "CU1(1/2, 2)"
+
+    # The full weight, which is the spelling the default constructor takes back.
+    @test sprint(show, SUN{3}((1, 0))) == "SUN{3}((1, 0, 0))"
+    @test sprint(show, SUN{4}((2, 1, 1))) == "SUN{4}((2, 1, 1, 0))"
 
     # Each form prints the spelling that reconstructs it: the infix product for two or more
     # positional factors, and the explicit `Sector` call for everything `×` cannot spell.

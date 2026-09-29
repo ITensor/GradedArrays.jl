@@ -1,12 +1,11 @@
-using GradedArrays: SU2, Sector, TensorKitSector, TrivialSector, U1, Z, dual, flip,
-    istrivial, modulus, sectortype, trivial
+using GradedArrays: CU1, SU2, SUN, Sector, TensorKitSector, TrivialSector, U1, Z, dual,
+    flip, istrivial, label, modulus, sectortype, trivial
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
-const SU{N} = TensorKitSector{SUNRepresentations.SUNIrrep{N}}
-fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
+fundamental(::Type{SUN{N}}) where {N} = SUN{N}((1, zeros(Int, N - 2)...))
 
 @testset "Test SymmetrySectors Types" begin
     @testset "TrivialSector" begin
@@ -84,13 +83,23 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "O(2)" begin
-        s0e = Sector(TKS.CU1Irrep(0, 0))
-        s0o = Sector(TKS.CU1Irrep(0, 1))
-        s12 = Sector(TKS.CU1Irrep(1 // 2, 2))
-        s1 = Sector(TKS.CU1Irrep(1, 2))
+        s0e = CU1(0, 0)
+        s0o = CU1(0, 1)
+        s12 = CU1(1 // 2, 2)
+        s1 = CU1(1, 2)
 
-        @test trivial(TensorKitSector{TKS.CU1Irrep}) == s0e
+        # `s` follows from `j` except at `j == 0`, so it defaults.
+        @test CU1(1 // 2) == s12
+        @test CU1(0) == s0e
+        # An upstream sector converts to this type rather than to the escape hatch.
+        @test Sector(TKS.CU1Irrep(0, 1)) === s0o
+        # Upstream rejects the pairs that are not irreps.
+        @test_throws ErrorException CU1(0, 2)
+        @test_throws ErrorException CU1(1, 0)
+
+        @test trivial(CU1) == s0e
         @test istrivial(s0e)
+        @test !istrivial(s0o)
 
         @test (@constinferred length(s0e)) == 1
         @test (@constinferred length(s0o)) == 1
@@ -137,21 +146,37 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "SU(N)" begin
-        f3 = SU{3}((1, 0))
-        f4 = SU{4}((1, 0, 0))
-        ad3 = SU{3}((2, 1))
-        ad4 = SU{4}((2, 1, 1))
+        f3 = SUN{3}((1, 0))
+        f4 = SUN{4}((1, 0, 0))
+        ad3 = SUN{3}((2, 1))
+        ad4 = SUN{4}((2, 1, 1))
 
-        @test trivial(SU{3}) == SU{3}((0, 0))
-        @test istrivial(SU{3}((0, 0)))
-        @test trivial(SU{4}) == SU{4}((0, 0, 0))
-        @test istrivial(SU{4}((0, 0, 0)))
+        # Both spellings, and the trailing zero the shorter one implies.
+        @test SUN{3}((1, 0)) === SUN{3}((1, 0, 0))
+        @test label(f3) == (1, 0, 0)
 
-        @test fundamental(SU{3}) == f3
-        @test fundamental(SU{4}) == f4
+        # Adding a constant to every entry is the same representation, so the weight is stored
+        # shifted to end in zero and equality is equality of representations.
+        @test SUN{3}((2, 1, 1)) == SUN{3}((1, 0, 0))
+        @test label(SUN{3}((2, 1, 1))) == (1, 0, 0)
+        @test hash(SUN{3}((2, 1, 1))) == hash(SUN{3}((1, 0, 0)))
+        @test istrivial(SUN{3}((1, 1, 1)))
 
-        @test flip(dual(f3)) == SU{3}((1, 1))
-        @test flip(dual(f4)) == SU{4}((1, 1, 1))
+        # A weight must be non-increasing, and must have N or N-1 entries.
+        @test_throws ArgumentError SUN{3}((0, 1, 0))
+        @test_throws ArgumentError SUN{3}((1, 2))
+        @test_throws ArgumentError SUN{3}((1, 0, 0, 0))
+
+        @test trivial(SUN{3}) == SUN{3}((0, 0))
+        @test istrivial(SUN{3}((0, 0)))
+        @test trivial(SUN{4}) == SUN{4}((0, 0, 0))
+        @test istrivial(SUN{4}((0, 0, 0)))
+
+        @test fundamental(SUN{3}) == f3
+        @test fundamental(SUN{4}) == f4
+
+        @test flip(dual(f3)) == SUN{3}((1, 1))
+        @test flip(dual(f4)) == SUN{4}((1, 1, 1))
         @test flip(dual(ad3)) == ad3
         @test flip(dual(ad4)) == ad4
 
@@ -159,10 +184,10 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test length(f4) == 4
         @test length(ad3) == 8
         @test length(ad4) == 15
-        @test length(SU{3}((4, 2))) == 27
-        @test length(SU{3}((3, 3))) == 10
-        @test length(SU{3}((3, 0))) == 10
-        @test length(SU{3}((0, 0))) == 1
+        @test length(SUN{3}((4, 2))) == 27
+        @test length(SUN{3}((3, 3))) == 10
+        @test length(SUN{3}((3, 0))) == 10
+        @test length(SUN{3}((0, 0))) == 1
         @test (@constinferred length(f3)) == 3
     end
 

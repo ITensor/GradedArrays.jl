@@ -357,6 +357,77 @@ Sector(c::TKS.SU2Irrep) = SU2(c.j)
 label(s::SU2) = s.j
 
 """
+    CU1(j::Real, s::Integer = ifelse(j > zero(j), 2, 0))
+
+An irreducible representation of `U(1) ⋊ C`, also written `O(2)`: the `U(1)` charge `j` together
+with the representation `s` of charge conjugation. For `j > 0` the only value is `s = 2`, the
+two-dimensional representation. For `j == 0` there are two, `s = 0` and `s = 1`, the trivial and
+non-trivial representations of the conjugation.
+"""
+struct CU1 <: Sector
+    j::HalfInt
+    s::Int
+    # Constructed through TensorKitSectors so its check on the allowed `(j, s)` pairs applies.
+    function CU1(j::Real, s::Integer = ifelse(j > zero(j), 2, 0))
+        c = TKS.CU1Irrep(j, s)
+        return new(c.j, c.s)
+    end
+end
+TKS.Sector(s::CU1) = TKS.CU1Irrep(s.j, s.s)
+tensorkit_sectortype(::Type{CU1}) = TKS.CU1Irrep
+Sector(c::TKS.CU1Irrep) = CU1(c.j, c.s)
+label(s::CU1) = (s.j, s.s)
+# Two labels rather than one, so the generic `show` below would print the pair as a tuple and
+# give back a spelling the two-argument constructor does not accept.
+function Base.show(io::IO, s::CU1)
+    print(io, "CU1(")
+    show(io, s.j)
+    print(io, ", ")
+    show(io, s.s)
+    return print(io, ')')
+end
+
+"""
+    SUN{N}(I::NTuple{N, Int})
+    SUN{N}(λ::NTuple{N - 1, Int})
+
+An irreducible representation of `SU(N)`, labelled by its highest weight. The second form takes
+the leading `N - 1` entries and implies a trailing zero.
+
+A highest weight is non-increasing, and adding a constant to every entry denotes the same
+representation, so the weight is stored shifted to end in zero. Two `SUN`s are therefore equal
+exactly when they are the same representation, which `SUNIrrep` itself does not guarantee since
+it compares its weight verbatim.
+
+`SUN` is constructed and compared without `SUNRepresentations`, but its dimension, ordering and
+fusion all need that package, and are defined in the extension.
+"""
+struct SUN{N} <: Sector
+    I::NTuple{N, Int}
+    function SUN{N}(I::NTuple{N, Int}) where {N}
+        N >= 2 || throw(ArgumentError("SU(N) needs an N of at least 2, got $(N)"))
+        issorted(I; rev = true) || throw(
+            ArgumentError("a highest weight must be non-increasing, got $(I)")
+        )
+        return new{N}(I .- last(I))
+    end
+end
+function SUN{N}(λ::NTuple{M, Int}) where {N, M}
+    M + 1 == N ||
+        throw(ArgumentError("SU($(N)) takes $(N) or $(N - 1) labels, got $(M)"))
+    return SUN{N}((λ..., 0))
+end
+label(s::SUN) = s.I
+trivial(::Type{SUN{N}}) where {N} = SUN{N}(ntuple(_ -> 0, Val(N)))
+istrivial(s::SUN) = all(iszero, label(s))
+# Defined here rather than left to the generic methods, which convert to `SUNIrrep` and so would
+# need the extension. The stored weight is canonical, so comparing it is comparing the
+# representation, and a differing `N` gives tuples of differing length and so compares false.
+Base.:(==)(s1::SUN, s2::SUN) = label(s1) == label(s2)
+Base.hash(s::SUN, h::UInt) = hash(label(s), hash(:SUN, h))
+sectortype_repr(::Type{SUN{N}}) where {N} = "SUN{$(N)}"
+
+"""
     fZ2(isodd::Bool)
 
 Fermion parity, the fermionic analog of `Z2`.

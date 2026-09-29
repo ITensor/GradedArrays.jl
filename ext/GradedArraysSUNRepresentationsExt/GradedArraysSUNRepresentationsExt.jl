@@ -1,15 +1,16 @@
 module GradedArraysSUNRepresentationsExt
 
-using GradedArrays: GradedArrays, TensorKitSector
-using SUNRepresentations: SUNIrrep
+using GradedArrays: GradedArrays, SUN, label
+using SUNRepresentations: SUNIrrep, weight
 using TensorKitSectors: TensorKitSectors as TKS
 
-# GradedArrays has no `SU(N)` sector of its own, so one arrives as a `TensorKitSector`. This
-# constructor is the shorthand letting a caller give the `N-1` Dynkin labels.
-function GradedArrays.TensorKitSector{SUNIrrep{N}}(λ::NTuple{M, Int}) where {N, M}
-    M + 1 == N || throw(ArgumentError("Length of λ must be N-1 for SU(N) irreps"))
-    return TensorKitSector(SUNIrrep{N}((λ..., 0)))
-end
-GradedArrays.label(s::TensorKitSector{<:SUNIrrep}) = Base.front(TKS.Sector(s).I)
+# `SUN` itself lives in GradedArrays, so it can be named, constructed and compared without this
+# extension. Everything that needs SU(N) representation theory needs `SUNRepresentations` and so
+# lives here: these two conversions are what the generic sector machinery reaches through for a
+# sector's dimension, its ordering, its fusion style and its fusion rule.
+TKS.Sector(s::SUN{N}) where {N} = SUNIrrep{N}(label(s))
+GradedArrays.tensorkit_sectortype(::Type{SUN{N}}) where {N} = SUNIrrep{N}
+# `SUN` shifts the weight to end in zero, so this also canonicalizes.
+GradedArrays.Sector(c::SUNIrrep{N}) where {N} = SUN{N}(weight(c))
 
 end

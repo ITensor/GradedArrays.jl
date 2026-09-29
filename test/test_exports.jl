@@ -7,6 +7,8 @@ using Test: @test, @testset
         :TrivialSector,
         :U1,
         :SU2,
+        :CU1,
+        :SUN,
         :Z,
         :Z2,
         :fZ2,
