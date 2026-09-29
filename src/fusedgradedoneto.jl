@@ -6,14 +6,15 @@ using MappedArrays: mappedarray
 # `FusedGradedMatrix`, and it also matches the sorted-and-merged convention TensorKit
 # uses for a `GradedSpace`.
 #
-# Stores the sectors and their data lengths (multiplicities) as sorted parallel vectors, the same
-# layout as a TensorKit `GradedSpace`, plus a single `isdual` flag. The sectors carry no arrow of
-# their own, so the flag is the axis's entire duality.
+# Stores the sectors and their data lengths (multiplicities) as sorted parallel vectors plus a
+# single `isdual` flag. The sectors carry no arrow of their own, so the flag is the axis's entire
+# duality.
 #
-# The sectors are stored in their TensorKitSectors form, which is what a `GradedSpace` holds, so
-# crossing into TensorKit hands over the stored vector instead of rebuilding it. `I` is that
-# stored type, fixed by `S` and a parameter only because a field type cannot be computed from
-# one. Treat it as an implementation detail of the TensorKit conversion, liable to change.
+# The sectors are held in their TensorKitSectors form, so the storage is exactly a
+# `GradedSpace`'s and crossing into TensorKit hands over these vectors rather than rebuilding
+# them, which means a space built from an axis aliases it. `I` is that stored type, a parameter
+# only because a field type cannot be computed from `S`. Treat it as an implementation detail of
+# the TensorKit conversion, liable to change.
 struct FusedGradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
     tensorkit_sectors::Vector{I}
     datalengths::Vector{Int}
@@ -59,8 +60,9 @@ end
 
 # `tensorkit_sectors` and `datalengths` hand back the stored vectors themselves, `sectors` maps
 # the stored sectors lazily, and `sectordatalengths` is a zero-copy dictionary view keyed by them
-# (lookups binary-search the sorted keys). Callers must not mutate the stored vectors. The
-# remaining range-interface methods are shared via `AbstractGradedOneTo`.
+# (lookups binary-search the sorted keys). Callers must not mutate the stored vectors: a
+# `GradedSpace` built from this axis aliases them. The remaining range-interface methods are
+# shared via `AbstractGradedOneTo`.
 TensorAlgebra.isdual(g::FusedGradedOneTo) = g.isdual
 tensorkit_sectors(g::FusedGradedOneTo) = g.tensorkit_sectors
 # Wrapped in a closure because `mappedarray` reads a bare type argument as the element type of

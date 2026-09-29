@@ -136,6 +136,25 @@ using Test: @test, @test_throws, @testset
         @test TensorKit.ElementarySpace(dual(g0)) == TensorKit.ElementarySpace(dual(g))
     end
 
+    # The storage design exists for this: a `FusedGradedOneTo` holds exactly what a `GradedSpace`
+    # holds, so the conversion hands over the axis's own vectors and the space aliases the axis.
+    # Asserted by identity, which means reaching into TensorKit's `SectorDict` storage. If that
+    # layout changes this test fails, which is the point: the claim needs re-checking, not
+    # patching. Only the dictionary-backed spaces can share, so `Z{2}` is excluded: its space
+    # stores a bare `Tuple` of dimensions with no `keys`/`values` to compare.
+    @testset "ElementarySpace shares the axis's vectors" begin
+        for g in (
+                fusedgradedrange([U1(0) => 2, U1(1) => 3]),
+                fusedgradedrange([SU2(0) => 1, SU2(1 // 2) => 2]),
+            )
+            for h in (g, dual(g))
+                dims = getfield(TensorKit.ElementarySpace(h), :dims)
+                @test dims.keys === GradedArrays.tensorkit_sectors(h)
+                @test dims.values === datalengths(h)
+            end
+        end
+    end
+
     # The reverse conversion. A space's duality comes back on the range's `isdual` rather than on
     # its sectors, so a dual space round-trips to a dual range over the same stored sectors. Both
     # of TensorKit's storage variants are covered, since `Vect[I]` is dictionary-backed for `U1`

@@ -24,12 +24,13 @@ function TK.ElementarySpace(g::AbstractGradedOneTo)
     return isdual(g) ? dual(sp) : sp
 end
 
-# A `FusedGradedOneTo` stores a `GradedSpace`'s exact data, so transcribe the storage instead of
-# re-validating pair by pair. TensorKit holds a space's dimensions either as the same sorted
-# vectors the axis has (`DictGradedSpace`, for `U1` and the like) or as a dense dimension per
-# sector (`TupleGradedSpace`, for `Z2`), and `Vect[I]` fixes which from the sector type, so the
-# branch folds at compile time. Only the first can take our vectors as they are, and its pair
-# constructor drops zero dims.
+# A `FusedGradedOneTo` stores exactly what a `GradedSpace` stores: the same sorted sectors and
+# dimensions, in the same order. So this hands TensorKit the axis's own vectors rather than
+# rebuilding them, and the space it returns aliases the axis. That is the point of storing the
+# sectors in their TensorKitSectors form at all, and `test/test_fusedgradedoneto.jl` asserts it by
+# identity. Only TensorKit's dictionary-backed spaces can take the vectors as they are, which
+# `Vect[I]` picks for `U1` and the like but not for `Z2`, and its pair constructor drops zero dims
+# where direct construction keeps them, hence the guard.
 function TK.ElementarySpace(g::FusedGradedOneTo{S}) where {S}
     I = tensorkit_sectortype(S)
     Sp = Vect[I]
