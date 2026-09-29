@@ -11,9 +11,6 @@ struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}
 end
 
 SectorOneTo(s::Sector, datalength::Int = 1) = SectorOneTo(s, datalength, false)
-function SectorOneTo(s::Sector, r::Base.OneTo, isdual::Bool = false)
-    return SectorOneTo(s, last(r), isdual)
-end
 # An `OrientedSector` already carries the arrow, so it splits into the two stored fields.
 function SectorOneTo(s::OrientedSector, datalength::Int = 1)
     return SectorOneTo(sector(s), datalength, isdual(s))
@@ -99,11 +96,7 @@ function tensor_product(::TKS.MultipleFusion, r1::SectorOneTo, r2::SectorOneTo)
     g = tensor_product(sector(flip_dual(r1)), sector(flip_dual(r2)))
     d₁ = datalength(r1)
     d₂ = datalength(r2)
-    return gradedrange(
-        [
-            c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), datalengths(g))
-        ]
-    )
+    return gradedrange([c => (d₁ * d₂ * d) for (c, d) in zip(sectors(g), datalengths(g))])
 end
 
 # ========================  Show  ========================

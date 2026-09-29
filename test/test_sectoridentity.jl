@@ -11,7 +11,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Construction rejects a dual sector (non-dual first axis)" begin
-        @test_throws ArgumentError SectorIdentity{Float64}(conj(U1(1)))
+        @test_throws MethodError SectorIdentity{Float64}(conj(U1(1)))
     end
 
     @testset "size and axes — U1 (dim=1)" begin

@@ -21,7 +21,7 @@ using Test: @test, @test_throws, @testset
         @test sectors(g) == [U1(0), U1(1)]   # stored non-dual
         @test datalengths(g) == [2, 3]
         @test isdual(g) == true
-        @test_throws ArgumentError gradedrange([conj(U1(0)) => 2])   # dual sector rejected
+        @test_throws MethodError gradedrange([conj(U1(0)) => 2])   # dual sector rejected
     end
 
     @testset "dual via conj (U1)" begin
@@ -71,12 +71,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "length — SU2 (non-abelian)" begin
-        g = gradedrange(
-            [
-                SU2(0) => 1, SU2(1 // 2) => 2,
-                SU2(1) => 3,
-            ]
-        )
+        g = gradedrange([SU2(0) => 1, SU2(1 // 2) => 2, SU2(1) => 3])
         @test length(g) == 1 * 1 + 2 * 2 + 3 * 3  # 1 + 4 + 9 = 14
     end
 
@@ -154,11 +149,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "SU2 gradedrange" begin
-        g = gradedrange(
-            [
-                SU2(0) => 1, SU2(1 // 2) => 2,
-            ]
-        )
+        g = gradedrange([SU2(0) => 1, SU2(1 // 2) => 2])
         @test g isa GradedOneTo{SU2}
         @test blocklength(g) == 2
         @test length(g) == 1 * 1 + 2 * 2  # 5
@@ -179,10 +170,6 @@ using Test: @test, @test_throws, @testset
         @test_throws ArgumentError GradedOneTo(
             [U1(0)], Int[1, 2], false
         )
-    end
-
-    @testset "dual sectors rejected (arrow goes in the isdual flag)" begin
-        @test_throws ArgumentError GradedOneTo([dual(U1(0))], [2], false)
     end
 
     @testset "tensor_product (abelian)" begin
@@ -251,8 +238,9 @@ using Test: @test, @test_throws, @testset
             ]
         )
         @test_throws MethodError TensorAlgebra.to_range([SU2(0) => 1, dual(SU2(1)) => 2])
-        # `gradedrange` does claim the vector, and its `Sector` says what to do instead.
-        @test_throws ArgumentError gradedrange([dual(SU2(0)) => 1, dual(SU2(1)) => 2])
+        # `gradedrange` does claim the vector, but an oriented sector is not a specification
+        # `Sector` accepts, so it is a missing method there too.
+        @test_throws MethodError gradedrange([dual(SU2(0)) => 1, dual(SU2(1)) => 2])
     end
 
     @testset "ungrade drops sectors and arrow" begin

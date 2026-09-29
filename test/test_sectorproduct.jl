@@ -210,8 +210,8 @@ end
         @test arguments(s)[:C] == Z{2}(1)
         @test (@constinferred length(s)) == 2
 
-        # No keywords specifies no symmetry, which is the unit rather than an empty product.
-        @test Sector() ≡ Trivial()
+        # No keywords is the same specification as an explicit `(;)`.
+        @test Sector() ≡ Sector((;))
     end
 
     @testset "Comparisons with unspecified labels" begin

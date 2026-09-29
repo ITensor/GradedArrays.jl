@@ -47,8 +47,8 @@ end
 
 # Leg-tuple forms: each leg given as a sector, bare or oriented, with the arrows split out here.
 function UniqueSectorDelta{T}(
-        sectors_codomain::Tuple{Vararg{AnySector}},
-        sectors_domain::Tuple{Vararg{AnySector}}
+        sectors_codomain::Tuple{Vararg{SectorOrOrientedSector}},
+        sectors_domain::Tuple{Vararg{SectorOrOrientedSector}}
     ) where {T}
     return UniqueSectorDelta{T}(
         splitarrows(sectors_codomain)..., splitarrows(sectors_domain)...
@@ -58,7 +58,9 @@ end
 # Convenience: all-codomain delta, inferring N and S from a flat sector tuple. Requires at
 # least one sector: the sector type of a rank-0 delta cannot be inferred from an empty tuple,
 # so a rank-0 delta is built through the fully-parameterized constructor with an explicit `S`.
-function UniqueSectorDelta{T}(sectors::Tuple{AnySector, Vararg{AnySector}}) where {T}
+function UniqueSectorDelta{T}(
+        sectors::Tuple{SectorOrOrientedSector, Vararg{SectorOrOrientedSector}}
+    ) where {T}
     return UniqueSectorDelta{T}(sectors, ())
 end
 # All-codomain delta from a flat tuple with `S`/`N` given (covers the rank-0 case, whose empty

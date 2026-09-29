@@ -515,10 +515,9 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
 end
 
 # ============================  similar_map  ============================
-# `similar_map` with explicit axes off a fused prototype previously allocated a `GradedArray`; that
-# implicitly crossed the `FusedGradedMatrix` (internal) / `GradedArray` (external) boundary, so it is
-# now undefined. A fused matrix permutes through `permutedims` / `permutedimsop` (staying fused via
-# `allocate_output(permutedimsop, ::AbstractFusedGradedMatrix, …)` below).
+# Undefined on purpose: allocating a `GradedArray` off a fused prototype would implicitly cross the
+# `FusedGradedMatrix` (internal) / `GradedArray` (external) boundary. A fused matrix permutes
+# through `permutedims` / `permutedimsop`, staying fused via the `allocate_output` below.
 function TensorAlgebra.similar_map(
         ::AbstractFusedGradedArray, ::Type, ::Tuple, ::Tuple
     )

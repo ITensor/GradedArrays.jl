@@ -45,13 +45,6 @@ function FusedGradedOneTo(
     )
 end
 
-# Arrow defaults to non-dual.
-function FusedGradedOneTo(
-        tensorkit_sectors::Vector{<:TKS.Sector}, datalengths::AbstractVector{<:Integer}
-    )
-    return FusedGradedOneTo(tensorkit_sectors, collect(Int, datalengths), false)
-end
-
 # Dictionary convenience (e.g. a `map` over `sectordata`); the keys must already be in
 # canonical fused form.
 function FusedGradedOneTo(

@@ -46,12 +46,7 @@ end
     @test sprint(show, Sector(U1Irrep(2) ⊠ FermionParity(1))) ==
         "(U1(2) × fZ2(1))"
 
-    g = gradedrange(
-        [
-            fU1(0) => 1,
-            fU1(1) => 2,
-        ]
-    )
+    g = gradedrange([fU1(0) => 1, fU1(1) => 2])
     s = sprint(show, g)
     @test s == "gradedrange([fU1(0) => 1, fU1(1) => 2])"
     @test !occursin("Irrep", s)

@@ -6,8 +6,6 @@ struct SectorIdentity{T, S <: Sector} <: AbstractSectorDelta{T, S, 2}
     sector::S
 end
 SectorIdentity{T}(s::S) where {T, S <: Sector} = SectorIdentity{T, S}(s)
-# The arrows live on the two axes, not the sector, so an oriented key is rejected by `Sector`.
-SectorIdentity{T}(s::OrientedSector) where {T} = SectorIdentity{T}(Sector(s))
 
 sector(a::SectorIdentity) = a.sector
 

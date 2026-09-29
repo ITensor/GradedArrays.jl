@@ -10,11 +10,9 @@ so `length` is the sector's dimension.
     Sector(t::Tuple) -> TupleSectorProduct
     Sector(nt::NamedTuple) -> NamedSectorProduct
     Sector(; kws...) -> NamedSectorProduct
-    Sector() -> Trivial
 
-Two or more sectors give the product over them, and none at all gives
-[`Trivial`](@ref). Everything that takes a sector from a caller, `gradedrange` and the
-array constructors included, routes through here.
+Two or more sectors give the product over them. Everything that takes a sector from a caller,
+`gradedrange` and the array constructors included, routes through here.
 """
 abstract type Sector <: AbstractUnitRange{Int} end
 
@@ -74,17 +72,11 @@ function Base.isless(s1::Sector, s2::Sector)
     return isless(TKS.Sector(s1), TKS.Sector(s2))
 end
 Base.:(==)(s1::Sector, s2::Sector) = TKS.Sector(s1) == TKS.Sector(s2)
-# Comparison does not cross the library boundary: a sector here and the TensorKitSectors sector
-# it converts to are values of two libraries' types, and `Sector` is how you move between them.
-# Defining `==` across would also oblige `hash` to agree, which it cannot, since it takes one
-# operand and so has to read one library's notion of identity. Products make that concrete: a
-# named product equals one that leaves a trivially-valued name out, while the `NamedSector`s they
-# convert to differ, so equating either with its own converted form would not even be transitive.
-# `isequal` delegates to `==` and must never reimplement it. Reimplementing is what let the two
-# drift, so that hash-based containers disagreed with `==` about padded products. Leaving it
-# undefined is not an option: a `Sector` is an `AbstractUnitRange{Int}`, so it would inherit
-# Base's `AbstractArray` method rather than the scalar `isequal(x, y) = x == y` fallback, and
-# agree only by way of a sector being its own axis.
+# Comparison stays between two of our own sectors and never crosses to the TensorKitSectors
+# sector one converts to, because `hash` takes a single operand and so has to commit to one
+# library's notion of identity. `isequal` forwards rather than reimplementing, and has to be
+# written out at all because a `Sector` is an `AbstractUnitRange{Int}` and would otherwise
+# inherit Base's elementwise `AbstractArray` method instead of the scalar fallback.
 Base.isequal(s1::Sector, s2::Sector) = s1 == s2
 Base.hash(s::Sector, h::UInt) = hash(TKS.Sector(s), h)
 
@@ -212,18 +204,11 @@ istrivial(s::OrientedSector) = istrivial(sector(s))
 fermionparity(s::OrientedSector) = fermionparity(sector(s))
 twist(s::OrientedSector) = twist(sector(s))
 to_gradedrange(s::OrientedSector) = GradedOneTo([sector(s)], [1], isdual(s))
-function Sector(s::OrientedSector)
-    return throw(
-        ArgumentError(
-            "a graded axis stores non-dual sectors, pass the arrow through the axis instead of `$(s)`"
-        )
-    )
-end
 
-# A sector with or without an arrow, for the places that accept either. `splitarrows` takes a
-# tuple of them apart into the sectors and the arrows, which is how a type stores them.
-const AnySector = Union{Sector, OrientedSector}
-splitarrows(ss::Tuple{Vararg{AnySector}}) = (map(sector, ss), map(isdual, ss))
+# A sector whose arrow is optional, a bare one meaning a non-dual leg. `splitarrows` takes a tuple
+# of them apart into the sectors and the arrows, which is how a type stores them.
+const SectorOrOrientedSector = Union{Sector, OrientedSector}
+splitarrows(ss::Tuple{Vararg{SectorOrOrientedSector}}) = (map(sector, ss), map(isdual, ss))
 
 Base.length(s::OrientedSector) = length(sector(s))
 Base.OneTo(s::OrientedSector) = Base.OneTo(length(s))
@@ -280,14 +265,11 @@ sector_labels(::Trivial) = ()
 Sector(::TKS.Trivial) = Trivial()
 
 # TensorKitSectors has no ordering or equality between its own `Trivial` and a real irrep, so the
-# generic methods above cannot answer these. A `Trivial` equals only itself, and a product
-# with no content: it denotes the absence of a symmetry rather than any particular symmetry's
-# trivial sector. Equating it with all of those made `==` intransitive, since `U1(0)` and
-# `SU2(0)` would each equal it while differing from each other. `istrivial` asks that question.
-# Ordering it below every other sector keeps `isless` a total order in which no two distinct
-# sectors come out order-equivalent. `convert` and `promote_rule` are deliberately absent too:
-# `convert` must preserve value, which `Trivial` into `trivial(S)` no longer does, and
-# `trivial(S)` already spells that conversion where it is wanted.
+# generic methods above cannot answer these. `Trivial` denotes the absence of a symmetry rather
+# than any symmetry's trivial sector, so it equals only itself and orders below everything: if it
+# equalled every `trivial(S)`, then `U1(0)` and `SU2(0)` would both equal it while differing from
+# each other. `istrivial` asks that question, and `trivial(S)` spells the conversion that
+# `convert` and `promote_rule` deliberately do not, since `convert` has to preserve value.
 Base.:(==)(::Trivial, ::Trivial) = true
 Base.:(==)(::Trivial, ::Sector) = false
 Base.:(==)(::Sector, ::Trivial) = false

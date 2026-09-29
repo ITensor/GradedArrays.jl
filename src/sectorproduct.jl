@@ -45,17 +45,10 @@ Sector(s1, s2, srest...) = Sector((s1, s2, srest...))
 Sector(t::Tuple) = TupleSectorProduct(map(Sector, t))
 Sector(nt::NamedTuple) = NamedSectorProduct(map(Sector, nt))
 # An explicit empty container is still a specification of that shape, so `Sector(())` and
-# `Sector((;))` keep their forms. Keeping the container methods uniform matters because the
-# argument is often built by the caller, and an `args` that happens to come out empty should not
-# change which form comes back. Passing no factors at all specifies no symmetry instead, which
-# is `Trivial`. That cannot be its own method, since `Sector(; kws...)` already claims the
-# no-argument signature, so it is a branch on the keywords instead, resolved at compile time
-# because their `NamedTuple` type is concrete.
-function Sector(; kws...)
-    nt = values(kws)
-    isempty(nt) && return Trivial()
-    return Sector(nt)
-end
+# `Sector((;))` keep their forms, and no keywords at all is the same specification as `(;)`.
+# Keeping the container methods uniform matters because the argument is often built by the
+# caller, and an `args` that happens to come out empty should not change which form comes back.
+Sector(; kws...) = Sector(values(kws))
 
 # Fusion and the n-symbol work argument by argument, so a mixed call has to read its bare operand
 # as the one-factor positional product for the duration. `Sector` deliberately does not build
@@ -326,7 +319,6 @@ Multiplying the two together is an error, because a product cannot be indexed bo
 function sectorproduct end
 const × = sectorproduct
 
-# The product over no sectors is the unit, matching `Sector()`.
 # The type-level product, so a fused symmetry can be named as `const fU1 = U1 × fZ2`. Going
 # through the value-level product on each symmetry's trivial sector means the unit rule and the
 # flattening cannot drift from the value level, since they are the value level.
@@ -334,6 +326,8 @@ function sectorproduct(S1::Type{<:Sector}, Srest::Type{<:Sector}...)
     return typeof(sectorproduct(trivial(S1), map(trivial, Srest)...))
 end
 
+# The product over no sectors is the unit of the algebra. `Sector()` is a specification rather
+# than a product, so it gives the empty named product instead.
 sectorproduct() = Trivial()
 
 # Arity 1 is normalization and nothing more: a lone sector is already the product over itself,

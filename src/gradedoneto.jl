@@ -235,15 +235,6 @@ function gradedrange(xs::AbstractVector{<:Pair})
     return GradedOneTo(map(p -> Sector(first(p)), xs), Int[last(p) for p in xs], false)
 end
 
-# Defined only so that this throws `Sector`'s "pass the arrow through the axis" error instead of
-# a `MethodError`. An `OrientedSector` is not a `Sector`, and a graded axis stores bare sectors
-# and carries the arrow itself.
-function GradedOneTo(
-        sectors::Vector{<:OrientedSector}, datalengths::Vector{Int}, isdual::Bool
-    )
-    return GradedOneTo(map(Sector, sectors), datalengths, isdual)
-end
-
 # Route every key type `Sector` accepts to `gradedrange`. One method per key type rather than one
 # over a `Union` of them, which inside `Pair{<:...}` is slow to subtype and a ready source of
 # ambiguities. A container key must be

@@ -1,7 +1,7 @@
 using BlockArrays: blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractGradedOneTo, FusedGradedOneTo, GradedOneTo, SU2,
-    U1, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, sectorlengths,
+    U1, Z, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, sectorlengths,
     sectors, sectortype
 using TensorAlgebra: TensorAlgebra
 using TensorKit: TensorKit
@@ -36,7 +36,7 @@ using Test: @test, @test_throws, @testset
         @test isdual(g) == true
         @test sectors(g) == [U1(0), U1(1)]   # stored non-dual
         @test datalengths(g) == [2, 3]
-        @test_throws ArgumentError fusedgradedrange([conj(U1(0)) => 2])   # dual sector rejected
+        @test_throws MethodError fusedgradedrange([conj(U1(0)) => 2])   # dual sector rejected
     end
 
     @testset "constructors reject unsorted / accept a Dictionary" begin
@@ -134,6 +134,30 @@ using Test: @test, @test_throws, @testset
         @test datalengths(g0) == [2, 3, 0]
         @test TensorKit.ElementarySpace(g0) == TensorKit.ElementarySpace(g)
         @test TensorKit.ElementarySpace(dual(g0)) == TensorKit.ElementarySpace(dual(g))
+    end
+
+    # The reverse conversion. A space's duality comes back on the range's `isdual` rather than on
+    # its sectors, so a dual space round-trips to a dual range over the same stored sectors. Both
+    # of TensorKit's storage variants are covered, since `Vect[I]` is dictionary-backed for `U1`
+    # and `SU2` and dense tuple-backed for `Z{2}`.
+    @testset "GradedOneTo from an ElementarySpace" begin
+        for g in (
+                gradedrange([U1(0) => 2, U1(1) => 3]),
+                gradedrange([SU2(0) => 1, SU2(1 // 2) => 2]),
+                gradedrange([Z{2}(0) => 2, Z{2}(1) => 3]),
+            )
+            back = GradedOneTo(TensorKit.ElementarySpace(g))
+            @test back == g
+            @test !isdual(back)
+            @test sectors(back) == sectors(g)
+            @test datalengths(back) == datalengths(g)
+
+            backdual = GradedOneTo(TensorKit.ElementarySpace(dual(g)))
+            @test backdual == dual(g)
+            @test isdual(backdual)
+            @test sectors(backdual) == sectors(g)
+            @test datalengths(backdual) == datalengths(g)
+        end
     end
 
     @testset "GradedOneTo is also an AbstractGradedOneTo" begin

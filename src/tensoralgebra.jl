@@ -117,7 +117,7 @@ end
 # one-argument `tensor_product` performs.
 function Base.reduce_first(
         ::typeof(tensor_product),
-        x::Union{AnySector, SectorOneTo, AbstractGradedOneTo}
+        x::Union{SectorOrOrientedSector, SectorOneTo, AbstractGradedOneTo}
     )
     return tensor_product(x)
 end
@@ -258,15 +258,10 @@ function TensorAlgebra.bipermutedimsopadd!(
         end
         throw(ArgumentError("output array must not be aliased with the input array"))
     end
-    # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
-    # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
-    # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent
-    # `bipermutedimsopadd!(..., α, one(β))` calls on a block of `y` that
-    # doesn't get visited by the loop below would leak that garbage into the
-    # result. Allocating broadcasts like `3 * a` go through this path (they
-    # call with β == 0 on a fresh `similar`-allocated array); before this
-    # fix they occasionally produced `NaN`s in unstored-block slots. Call
-    # `zero!` explicitly for β == 0 to avoid the NaN-propagation trap.
+    # `scale!(y, 0)` does not reliably zero `y`: a block holding `NaN`/`Inf` from an `undef`
+    # allocation stays poisoned, since `NaN * 0 == NaN`, and the loop below leaves any block it
+    # does not visit as it is. Allocating broadcasts like `3 * a` reach this with β == 0 on a
+    # fresh `similar`, so zero explicitly instead.
     iszero(β) ? zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
