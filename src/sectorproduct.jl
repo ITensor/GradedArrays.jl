@@ -131,8 +131,8 @@ fermionparity(s::SectorProduct) = mapreduce(fermionparity, ⊻, arguments(s); in
 twist(s::SectorProduct) = prod(twist, arguments(s); init = 1)
 
 # use map instead of broadcast to support both Tuple and NamedTuple
-function charge_conjugate(s::SectorProduct)
-    return Sector(map(charge_conjugate, arguments(s)))
+function dual_sector(s::SectorProduct)
+    return Sector(map(dual_sector, arguments(s)))
 end
 
 function trivial(::Type{P}) where {P <: TupleSectorProduct}

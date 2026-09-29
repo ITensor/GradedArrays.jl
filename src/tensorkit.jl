@@ -10,6 +10,13 @@ function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: TK.Sec
     return Vect[S](space)
 end
 
+# A `Sector` carries no arrow, so a `Sector`-keyed pairs vector always describes a non-dual
+# space. A dual space is `dual` of this one, which is distinct from a space of conjugated
+# sectors and is the form a dual index must take for contraction.
+function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: Sector}
+    return to_tensorkit_space([TKS.Sector(first(p)) => last(p) for p in space])
+end
+
 # A TensorKit `GradedSpace` holds each sector once, in sorted order: fused (no sector repeats) and
 # sorted in `Sector` order (which matches TensorKit's), so a fused-sorted range maps to a
 # `GradedSpace` with no reordering. `GradedArray` axes may be unfused/unsorted, and the `project` / `Array`

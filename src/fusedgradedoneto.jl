@@ -37,6 +37,14 @@ function FusedGradedOneTo(sectors::Vector{<:Sector}, datalengths::Vector{Int})
     return FusedGradedOneTo(sectors, datalengths, false)
 end
 
+# Vector-like input that is not already the stored form, such as the sectors of another axis.
+function FusedGradedOneTo(
+        sectors::AbstractVector{<:Sector}, datalengths::AbstractVector{<:Integer},
+        isdual::Bool
+    )
+    return FusedGradedOneTo(collect(sectors), collect(Int, datalengths), isdual)
+end
+
 # Bare TensorKitSectors labels, as they come back from a TensorKit space.
 function FusedGradedOneTo(
         labels::Vector{<:TKS.Sector}, datalengths::Vector{Int}, isdual::Bool = false
@@ -114,7 +122,7 @@ end
 # sectors unchanged. Conjugation generally reorders the sectors, so re-sort to restore the
 # canonical fused form.
 function flip(g::FusedGradedOneTo)
-    flipped = map(charge_conjugate, sectors(g))
+    flipped = map(dual_sector, sectors(g))
     perm = sortperm(flipped)
     return FusedGradedOneTo(flipped[perm], datalengths(g)[perm], !isdual(g))
 end
@@ -163,9 +171,6 @@ end
 # NamedTuple keys (for sector products) and rejects an arrow-carrying key with a message
 # pointing at the axis.
 function fusedgradedrange(xs::AbstractVector{<:Pair})
-    isempty(xs) && throw(
-        ArgumentError("Cannot create FusedGradedOneTo from empty vector without type info")
-    )
     return fusedgradedrange([Sector(first(p)) => last(p) for p in xs])
 end
 
@@ -177,7 +182,7 @@ FusedGradedOneTo(g::FusedGradedOneTo) = g
 # unsorted input rather than silently re-sorting. (`GradedOneTo` has a cached fast path in
 # `gradedoneto.jl`.)
 function FusedGradedOneTo(g::AbstractGradedOneTo)
-    return FusedGradedOneTo(collect(sectors(g)), datalengths(g), isdual(g))
+    return FusedGradedOneTo(sectors(g), datalengths(g), isdual(g))
 end
 
 # `convert` is a thin delegator to the constructor (the worker); `convert(::Type{T}, ::T)` from Base

@@ -139,12 +139,13 @@ end
 twist(s::Sector) = TKS.twist(TKS.Sector(s))
 
 """
-    charge_conjugate(s::Sector) -> Sector
+    dual_sector(s::Sector) -> Sector
 
-The conjugate sector, TensorKitSectors' `dual`. This is a different operation from
-`dual`, which flips a sector's arrow and so returns an [`OrientedSector`](@ref).
+The conjugate sector, which is what TensorKitSectors calls `dual`. Here `dual` is the arrow
+operation instead, since a [`Sector`](@ref) is itself the range of its degrees of freedom and
+so `dual` of one is the dual space, returning an [`OrientedSector`](@ref).
 """
-charge_conjugate(s::Sector) = Sector(TKS.dual(TKS.Sector(s)))
+dual_sector(s::Sector) = Sector(TKS.dual(TKS.Sector(s)))
 
 # A total version of `TensorKitSectors.fermionparity`. TKS defines it only for
 # `FermionParity`, `NamedSector`, and `ProductSector`, and its `ProductSector` method maps
@@ -217,8 +218,8 @@ TensorAlgebra.isdual(::Sector) = false
 # carry the result. `flip` is the composite of the arrow flip with charge conjugation.
 TensorAlgebra.dual(s::Sector) = OrientedSector(s, true)
 TensorAlgebra.dual(s::OrientedSector) = OrientedSector(sector(s), !isdual(s))
-flip(s::OrientedSector) = OrientedSector(charge_conjugate(sector(s)), !isdual(s))
-flip(s::Sector) = OrientedSector(charge_conjugate(s), true)
+flip(s::OrientedSector) = OrientedSector(dual_sector(sector(s)), !isdual(s))
+flip(s::Sector) = OrientedSector(dual_sector(s), true)
 flip_dual(s::OrientedSector) = isdual(s) ? flip(s) : s
 flip_dual(s::Sector) = s
 nondual(s::OrientedSector) = OrientedSector(sector(s), false)

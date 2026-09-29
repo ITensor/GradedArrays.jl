@@ -58,7 +58,7 @@ TKS.FusionStyle(::Type{<:SectorOneTo{S}}) where {S} = TKS.FusionStyle(S)
 # dual, flip, flip_dual
 TensorAlgebra.dual(r::SectorOneTo) = SectorOneTo(sector(r), datalength(r), !isdual(r))
 flip(r::SectorOneTo) =
-    SectorOneTo(charge_conjugate(sector(r)), datalength(r), !isdual(r))
+    SectorOneTo(dual_sector(sector(r)), datalength(r), !isdual(r))
 flip_dual(r::SectorOneTo) = isdual(r) ? flip(r) : r
 
 # Equality and hashing

@@ -105,9 +105,6 @@ Generic fallback that converts sector keys via `Sector` before constructing `Gra
 This supports NamedTuple keys (for sector products) and other non-standard key types.
 """
 function gradedrange(xs::AbstractVector{<:Pair})
-    isempty(xs) && throw(
-        ArgumentError("Cannot create GradedOneTo from empty vector without type info")
-    )
     # Built directly rather than by recursing into the typed method above, whose `S` a converted
     # but still mixed key vector would bind to the abstract `Sector`. `GradedOneTo` rejects that.
     sectors = map(p -> Sector(first(p)), xs)
@@ -140,7 +137,7 @@ function TensorAlgebra.dual(g::GradedOneTo)
     )
 end
 function flip(g::GradedOneTo)
-    return GradedOneTo(map(charge_conjugate, sectors(g)), datalengths(g), !isdual(g))
+    return GradedOneTo(map(dual_sector, sectors(g)), datalengths(g), !isdual(g))
 end
 to_gradedrange(g::GradedOneTo) = g
 
@@ -155,7 +152,7 @@ function Base.getindex(
     dest = map(blocks(I)) do group
         src = [ea[Int(b)] for b in group]
         total_mult = sum(datalength, src)
-        return SectorOneTo(sector(first(src)), total_mult, isdual(g))
+        return SectorOneTo(structure(first(src)), total_mult)
     end
     return mortar_axis(collect(dest))
 end
@@ -172,7 +169,7 @@ function Base.getindex(
         src = ea[b]
         # multiplicity of the sub-range: sub-range length / sector length
         sub_mult = div(length(r_range), length(sector(src)))
-        return SectorOneTo(sector(src), sub_mult, isdual(g))
+        return SectorOneTo(structure(src), sub_mult)
     end
     return mortar_axis(collect(dest))
 end
@@ -255,27 +252,21 @@ function gradedrange(
     return GradedOneTo(S[first(p) for p in xs], Int[last(p) for p in xs], false)
 end
 
-# A `GradedOneTo` stores bare sectors and carries the arrow itself, so an oriented sector vector
-# is rejected by `Sector` rather than silently dropping or absorbing the arrows.
+# Defined only so that this throws `Sector`'s "pass the arrow through the axis" error instead of
+# a `MethodError`. An `OrientedSector` is not a `Sector`, and a graded axis stores bare sectors
+# and carries the arrow itself.
 function GradedOneTo(
         sectors::Vector{<:OrientedSector}, datalengths::Vector{Int}, isdual::Bool
     )
     return GradedOneTo(map(Sector, sectors), datalengths, isdual)
 end
 
-# Build a graded range from a vector of sector-to-multiplicity pairs, e.g.
-# `to_range([U1(0) => 2, U1(1) => 3])`. Both abelian and non-abelian sectors build a `GradedOneTo`
-# (`GradedArray` represents non-abelian sectors via its coupled `FusedGradedMatrix`). The key
-# types are the ones `Sector` accepts, so an axis descriptor takes the spellings a sector does:
-# a bare sector from either package, or a tuple or named tuple of them. One method per key type
-# rather than one over a `Union` of them, since a union inside `Pair{<:...}` is slow to subtype
-# and a ready source of ambiguities. A container key is admitted only when its elements are
-# sectors, since a bare `Tuple` says nothing about symmetry and would capture pairs vectors that
-# have nothing to do with it, and non-empty, since an empty `Tuple` satisfies `Tuple{Vararg{E}}`
-# for every `E` and would make the two element types' methods overlap. The bare `TensorKitSectors.Sector` key is deliberate type piracy
-# (GradedArrays owns neither `to_range` nor `TKS.Sector`), kept for now so raw sectors work as
-# axis descriptors (e.g. behind `Index([FermionNumber(0) => 2])`); it is allowlisted in the Aqua
-# piracy test and tracked as a follow-up to rehome onto a GradedArrays-owned entry point.
+# Build a graded range from a vector of `sector => multiplicity` pairs, keyed by anything
+# `Sector` accepts. One method per key type rather than one over a `Union` of them, which inside
+# `Pair{<:...}` is slow to subtype and a ready source of ambiguities. A container key must be
+# non-empty, since an empty `Tuple` satisfies `Tuple{Vararg{E}}` for every `E` and would make the
+# two element types' methods overlap. The bare `TKS.Sector` key is type piracy, allowlisted in
+# the Aqua piracy test and tracked as a follow-up.
 for element in (:Sector, :(TKS.Sector))
     for key in (
             element,
@@ -288,28 +279,4 @@ for element in (:Sector, :(TKS.Sector))
             return gradedrange(space)
         end
     end
-end
-
-"""
-    to_tensorkit_space(sectors)
-
-Convert a vector of `sector => multiplicity` pairs into a native TensorKit `GradedSpace`, used by
-the TensorKit interop layer to move a `GradedOneTo` into TensorKit's space representation. The
-method that builds the space is defined in `src/tensorkit.jl`.
-"""
-function to_tensorkit_space(space)
-    return throw(
-        ArgumentError(
-            "cannot build a TensorKit graded space from $(space): expected a vector of \
-            `sector => multiplicity` pairs"
-        )
-    )
-end
-
-# A `Sector` carries no arrow, so a `Sector`-keyed pairs vector always describes a non-dual
-# space: hand the TensorKitSectors counterparts to the label-keyed builder in `src/tensorkit.jl`.
-# A dual space is `dual` of this one, which is distinct from a space of conjugated sectors and is
-# the form a dual index must take for contraction.
-function to_tensorkit_space(space::AbstractVector{<:Pair{S}}) where {S <: Sector}
-    return to_tensorkit_space([TKS.Sector(first(p)) => last(p) for p in space])
 end
