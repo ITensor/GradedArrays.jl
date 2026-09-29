@@ -10,8 +10,8 @@ using GradedArrays: FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
 using LinearAlgebra: I, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, MatricizeStyle, contract, contractalign,
-    has_bipartition, linearbroadcasted, matricize, unmatricize
+using TensorAlgebra: TensorAlgebra, contract, contractalign, has_bipartition,
+    linearbroadcasted, matricize, unmatricize
 using Test: @test, @test_broken, @test_throws, @testset
 
 @testset "UniqueSectorArray linear broadcasting" begin
@@ -330,19 +330,19 @@ end
     # and unmatricizing back recovers the scalar as a rank-0 graded array.
     a = GradedArray{Float64, U1}(undef, (), ())
     a[] = 4.0
-    m = matricize(GradedArrays.GradedMatricize(), a, Val(0))
+    m = matricize(a, Val(0))
     @test m isa FusedGradedMatrix{Float64}
     @test size(m) == (1, 1)
     @test data(m[Block(1, 1)]) == fill(4.0, 1, 1)
 
     # `unmatricize` recovers a rank-0 graded array, like the higher-rank path.
-    back = unmatricize(GradedArrays.GradedMatricize(), m, (), ())
+    back = unmatricize(m, (), ())
     @test back isa GradedArray{Float64, <:Any, 0}
     @test back[] == 4.0
 
     # Axes that fuse to a different coupled space than `m` are rejected.
     g = gradedrange([U1(0) => 2, U1(1) => 3])
-    @test_throws ArgumentError unmatricize(GradedArrays.GradedMatricize(), m, (g,), ())
+    @test_throws ArgumentError unmatricize(m, (g,), ())
 end
 
 @testset "unmatricize UniqueSectorMatrix with SectorOneTo axes" begin
@@ -574,66 +574,64 @@ end
 
 # The identity bipermutation for a split after `k` dimensions, plus the hook spellings it feeds.
 splitperms(a, k) = (ntuple(identity, k), ntuple(i -> k + i, ndims(a) - k))
-function is_split_view(style, a, k)
+function is_split_view(a, k)
     return TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, style, identity, a, splitperms(a, k)...
+        TensorAlgebra.matricizeop, identity, a, splitperms(a, k)...
     )
 end
-function split_view(style, a, k)
-    return TensorAlgebra.matricizeopview(style, identity, a, splitperms(a, k)...)
+function split_view(a, k)
+    return TensorAlgebra.matricizeopview(identity, a, splitperms(a, k)...)
 end
-function split_copy(style, a, k)
-    return TensorAlgebra.matricizeopcopy(style, identity, a, splitperms(a, k)...)
+function split_copy(a, k)
+    return TensorAlgebra.matricizeopcopy(identity, a, splitperms(a, k)...)
 end
 
 @testset "matricize hook coherence" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = randn(Float64, (g, g), (g, g))
-    style = MatricizeStyle(a)
 
     # The stored split is declared shared and its view is the stored matrix itself; the copy
     # leaf is detached even there.
-    @test is_split_view(style, a, 2)
-    @test split_view(style, a, 2) === matricize(a)
-    @test split_copy(style, a, 2).buffer !== matricize(a).buffer
+    @test is_split_view(a, 2)
+    @test split_view(a, 2) === matricize(a)
+    @test split_copy(a, 2).buffer !== matricize(a).buffer
 
     # A bend is not declared shared; `matricize` routes it to the copy leaf.
-    @test !is_split_view(style, a, 1)
-    @test matricize(style, a, Val(1)).buffer !== matricize(a).buffer
+    @test !is_split_view(a, 1)
+    @test matricize(a, Val(1)).buffer !== matricize(a).buffer
 
     # A matrix-level fused array is already matricized at the `{1,1}` split: the view is the
     # array itself, the copy leaf is detached, and any other split is rejected. The lazy adjoint
     # goes through the same leaves and materializes its copy.
     ma = matricize(a)
     for m in (ma, ma')
-        @test is_split_view(style, m, 1)
-        @test split_view(style, m, 1) === m
-        mcopy = split_copy(style, m, 1)
+        @test is_split_view(m, 1)
+        @test split_view(m, 1) === m
+        mcopy = split_copy(m, 1)
         @test mcopy == m
         @test mcopy.buffer !== ma.buffer
-        @test !is_split_view(style, m, 2)
-        @test_throws ArgumentError matricize(style, m, Val(2))
+        @test !is_split_view(m, 2)
+        @test_throws ArgumentError matricize(m, Val(2))
     end
 
     # A diagonal is already a matrix: the `{1,1}` split is the shared view, and its copy leaf
     # stays diagonal but detached.
     d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
-    @test is_split_view(style, d, 1)
-    @test split_view(style, d, 1) === d
-    dcopy = split_copy(style, d, 1)
+    @test is_split_view(d, 1)
+    @test split_view(d, 1) === d
+    dcopy = split_copy(d, 1)
     @test dcopy isa typeof(d)
     @test Array(dcopy) == Array(d)
     @test MAK.diagview(dcopy).buffer !== MAK.diagview(d).buffer
-    @test !is_split_view(style, d, 2)
-    @test_throws ArgumentError matricize(style, d, Val(2))
+    @test !is_split_view(d, 2)
+    @test_throws ArgumentError matricize(d, Val(2))
 
     # A `UniqueSectorArray` shares its reduced data at every in-order split, so the trait holds
     # there and only the copy leaf detaches.
     sa = UniqueSectorArray(randn(2, 3, 4), (U1(0), U1(1), dual(U1(1))))
-    sector_style = MatricizeStyle(sa)
-    @test is_split_view(sector_style, sa, 2)
-    sa_view = split_view(sector_style, sa, 2)
-    sa_copy = split_copy(sector_style, sa, 2)
+    @test is_split_view(sa, 2)
+    sa_view = split_view(sa, 2)
+    sa_copy = split_copy(sa, 2)
     @test Base.mightalias(data(sa_view), data(sa))
     @test !Base.mightalias(data(sa_copy), data(sa))
     @test Array(sa_copy) == Array(sa_view)

@@ -69,7 +69,7 @@ TensorAlgebra.ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 TensorAlgebra.has_bipartition(::GradedArray) = true
 
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
-# matrix directly (see `matricize(::GradedMatricize, …)` for re-splitting to another).
+# matrix directly (see `matricizeopcopy` for re-splitting to another).
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
 Base.dataids(fa::GradedArray) = Base.dataids(matricize(fa))
@@ -613,20 +613,17 @@ end
 # `FusedGradedMatrix` already has `mul!` and block-wise factorizations, contraction and
 # factorizations ride the generic `TensorAlgebra` machinery with no high-level overloads.
 
-TensorAlgebra.MatricizeStyle(::Type{<:GradedArray}) = GradedMatricize()
-
 # The memory-sharing matricization is the stored matrix (a field read), available exactly when the
 # legs stay in order, the split falls on the stored boundary and there is no operation to fold in.
 # Anything else permutes or bends a leg, which for a `GradedArray` is not a free reshape.
 function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
-        a::GradedArray, perm_codomain, perm_domain
+        ::typeof(TensorAlgebra.matricizeop), op, a::GradedArray, perm_codomain, perm_domain
     )
     return op === identity && length(perm_codomain) == ndims_codomain(a) &&
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
 function TensorAlgebra.matricizeopview(
-        ::GradedMatricize, op, fa::GradedArray, perm_codomain, perm_domain
+        op, fa::GradedArray, perm_codomain, perm_domain
     )
     return matricize(fa)
 end
@@ -635,7 +632,7 @@ end
 # whose stored split differs. Overloads the copy rather than `allocate_output`/`matricizeop!`
 # because `permutedimsop` already returns owned storage whose stored matrix is the answer.
 function TensorAlgebra.matricizeopcopy(
-        ::GradedMatricize, op, fa::GradedArray, perm_codomain, perm_domain
+        op, fa::GradedArray, perm_codomain, perm_domain
     )
     fa_perm = TensorAlgebra.permutedimsop(op, fa, perm_codomain, perm_domain)
     return matricize(fa_perm)
@@ -653,8 +650,7 @@ function TensorAlgebra.check_input(
 end
 
 function TensorAlgebra.unmatricize(
-        ::GradedMatricize, m::FusedGradedMatrix, axes_codomain::Tuple,
-        axes_domain::Tuple
+        m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple
     )
     check_input(unmatricize, m, axes_codomain, axes_domain)
     return GradedArray(m, axes_codomain, axes_domain)
@@ -676,7 +672,7 @@ function TensorAlgebra.check_input(
 end
 
 function TensorAlgebra.unmatricize(
-        ::GradedMatricize, d::FusedGradedDiagonal,
+        d::FusedGradedDiagonal,
         axes_codomain::Tuple{<:AbstractGradedOneTo}, axes_domain::Tuple{<:AbstractGradedOneTo}
     )
     check_input(unmatricize, d, axes_codomain, axes_domain)
@@ -687,19 +683,18 @@ end
 # representable as a `FusedGradedDiagonal`, so densify to a `FusedGradedMatrix` and reconstruct
 # through its own `unmatricize`.
 function TensorAlgebra.unmatricize(
-        style::GradedMatricize, d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
+        d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
     )
-    return unmatricize(style, FusedGradedMatrix(d), axes_codomain, axes_domain)
+    return unmatricize(FusedGradedMatrix(d), axes_codomain, axes_domain)
 end
 
 # ============================  contraction  ============================
 
 # A matrix-level fused operand carries no external axes, so it cannot serve as the allocation
-# prototype (`similar_map` with explicit axes is undefined for it), and the `default_algorithm`
-# method below would not see a `GradedArray` right factor, skipping the fermionic contraction
-# twist. Lift it to its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the
-# bipermutation entry point, before output allocation and algorithm selection, then recurse into
-# the generic path.
+# prototype (`similar_map` with explicit axes is undefined for it), and algorithm selection below
+# would not see a `GradedArray` right factor, skipping the fermionic contraction twist. Lift it to
+# its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the bipermutation entry point,
+# before output allocation and algorithm selection, then recurse into the generic path.
 function TensorAlgebra.contractpermalign(
         perm_dest_codomain, perm_dest_domain,
         a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
@@ -740,19 +735,17 @@ function TensorAlgebra.contractpermalign(
     )
 end
 
-# A general graded right factor is twisted; the per-position `TwistedGradedMatricize` can only come
-# from an explicit override. A matrix-level right factor needs no twist and falls out of the
-# generic default: both operands share `GradedMatricize`, which the default combinator maps to
-# itself. The destination is left unconstrained because the twist follows from the operands'
-# braiding, not from where the result is written.
+# A contraction whose right factor is a `GradedArray` runs the graded kernel (`GradedContract`,
+# see `tensoralgebra.jl`), which twists that factor's contracted legs before matricizing it. The
+# left factor may be a tensor-level or matrix-level fused operand. A matrix-level right factor
+# needs no twist and stays on the generic `MatricizeContract`. Keyed on the right factor only,
+# since the twist comes from the contraction braiding, not from where the result is written.
 for A in (:GradedArray, :AbstractFusedGradedArray)
     @eval function TensorAlgebra.default_algorithm(
             ::typeof(TensorAlgebra.contract!),
             ::Type{<:Tuple{AbstractArray, $A, GradedArray}}
         )
-        return TensorAlgebra.MatricizeContract(
-            GradedMatricize(), TwistedGradedMatricize(), GradedMatricize()
-        )
+        return GradedContract()
     end
 end
 
@@ -827,19 +820,19 @@ end
 # matricization is the array itself. Any other codomain rank bends a leg, which matrix-level fused
 # storage cannot represent.
 function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.matricizeop), ::GradedMatricize, op,
-        a::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+        ::typeof(TensorAlgebra.matricizeop), op, a::AbstractFusedGradedMatrix, perm_codomain,
+        perm_domain
     )
     return op === identity && length(perm_codomain) == ndims_codomain(a) &&
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
 function TensorAlgebra.matricizeopview(
-        ::GradedMatricize, op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+        op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
     return m
 end
 function TensorAlgebra.matricizeopcopy(
-        ::GradedMatricize, op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+        op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
     length(perm_codomain) == 1 || throw(
         ArgumentError(
@@ -853,20 +846,21 @@ function TensorAlgebra.matricizeopcopy(
     return TensorAlgebra.permutedimsop(op, m, perm_codomain, perm_domain)
 end
 
-function TensorAlgebra.unmatricize!(
-        ::GradedMatricize, a_dest::GradedArray{<:Any, <:Any, N},
-        m::AbstractFusedGradedMatrix,
-        invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}}
+function TensorAlgebra.unmatricizeadd!(
+        a_dest::GradedArray{<:Any, <:Any, N}, m::AbstractFusedGradedMatrix,
+        invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}},
+        α::Number, β::Number
     ) where {N}
     # Identity bipermutation with matching split and coupled axes: the buffers share one layout
-    # (it is determined by the coupled axes), so copy the buffer straight across instead of the
-    # block-wise `bipermutedims!` (which routes through `TensorMap` wrapping even for a plain copy).
+    # (it is determined by the coupled axes), so accumulate the buffer straight across instead of
+    # the block-wise `bipermutedimsopadd!` (which routes through `TensorMap` wrapping even for a
+    # plain copy).
     md = matricize(a_dest)
     if m isa FusedGradedMatrix && md isa FusedGradedMatrix &&
             ndims_codomain(a_dest) == length(invperm_codomain) &&
             (invperm_codomain..., invperm_domain...) == ntuple(identity, Val(N)) &&
             axis_codomain(m) == axis_codomain(md) && axis_domain(m) == axis_domain(md)
-        copyto!(md.buffer, m.buffer)
+        TensorAlgebra.add!(md.buffer, m.buffer, α, β)
         return a_dest
     end
     # Wrap `m` in `a_dest`'s axes reordered into the matricized leg order: `bipartition_axes` takes
@@ -882,8 +876,15 @@ function TensorAlgebra.unmatricize!(
     ndims_cod_dest = ndims_codomain(a_dest)
     perm_codomain = ntuple(i -> perm_dest[i], Val(ndims_cod_dest))
     perm_domain = ntuple(i -> perm_dest[ndims_cod_dest + i], Val(N - ndims_cod_dest))
-    # TODO: Switch to `Base.permutedims!` once it is defined to route through `bipermutedimsopadd!`.
-    bipermutedims!(a_dest, tmp, perm_codomain, perm_domain)
+    TensorAlgebra.bipermutedimsopadd!(
+        a_dest,
+        identity,
+        tmp,
+        perm_codomain,
+        perm_domain,
+        α,
+        β
+    )
     return a_dest
 end
 

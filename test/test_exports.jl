@@ -24,6 +24,7 @@ using Test: @test, @testset
         append!(
             exports,
             [
+                :GradedContract,
                 :OrientedSector,
                 :TensorKitSector,
                 :sectors,
