@@ -31,7 +31,6 @@ using Test: @test, @testset
                 :GradedContract,
                 :GradedOneTo,
                 :TensorKitSector,
-                :sectors,
                 :with_scalar_indexing,
                 :with_block_indexing,
             ]

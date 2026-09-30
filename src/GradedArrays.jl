@@ -11,7 +11,7 @@ if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
             "public FusedGradedMatrix, FusedGradedVector, GradedContract, GradedOneTo, \
-            TensorKitSector, sectors, with_scalar_indexing, with_block_indexing"
+            TensorKitSector, with_scalar_indexing, with_block_indexing"
         )
     )
 end
