@@ -4,15 +4,15 @@
 An irreducible label of a symmetry, and the range of the degrees of freedom that label spans,
 so `length` is the sector's dimension.
 
-    Sector(s::Sector) -> Sector
-    Sector(c::TensorKitSectors.Sector) -> Sector
-    Sector(s1, s2, srest...) -> TupleSectorProduct
-    Sector(t::Tuple) -> TupleSectorProduct
-    Sector(nt::NamedTuple) -> NamedSectorProduct
-    Sector(; kws...) -> NamedSectorProduct
+    Sector(s::Sector)
+    Sector(c::TensorKitSectors.Sector)
+    Sector(s1, s2, srest...)
+    Sector(t::Tuple)
+    Sector(nt::NamedTuple)
+    Sector(; kws...)
 
-Two or more sectors give the product over them. Everything that takes a sector from a caller,
-`gradedrange` and the array constructors included, routes through here.
+Two or more sectors give the product over them, positional or named. Everything that takes a
+sector from a caller, `gradedrange` and the array constructors included, routes through here.
 """
 abstract type Sector <: AbstractUnitRange{Int} end
 
@@ -253,11 +253,10 @@ tensor_product(s1::Sector, s2::OrientedSector) = fusion_rule(s1, sector(flip_dua
     Trivial()
 
 The sector of the trivial group, and so the sectortype of a space carrying no symmetry. It is
-the unit object of the category of ordinary vector spaces, and the unit of `sectorproduct`.
+the unit of `sectorproduct`.
 
 It is not another symmetry's trivial sector: `U1(0)` is the zero-charge irrep *of* U(1), and a
-`U1`-graded space with a single zero-charge block is not an ungraded space. Ask `istrivial`
-whether a sector is its own symmetry's trivial one.
+`U1`-graded space with a single zero-charge block is not an ungraded space.
 """
 struct Trivial <: Sector end
 tensorkit_sectortype(::Type{Trivial}) = TKS.Trivial
@@ -361,19 +360,12 @@ Sector(c::TKS.CU1Irrep) = CU1(c.j, c.s)
 """
     SU{N}(a::Vararg{Int})
 
-An irreducible representation of `SU(N)`, labelled either by its `N - 1` Dynkin labels or by
-its `N`-component highest weight: `SU{3}(1, 1)` and `SU{3}(2, 1, 0)` are both the adjoint. The
-rank is always spelled out, since the number of labels alone does not fix it.
+An irreducible representation of `SU(N)`, labelled either by its `N - 1` Dynkin labels or by its
+`N`-component highest weight: `SU{3}(1, 1)` and `SU{3}(2, 1, 0)` are both the adjoint.
 
-The Dynkin labels are the canonical form, being the same for every weight denoting the same
-representation, so two `SU`s are equal exactly when they are the same representation. They are
-what `sector_labels` gives back, and what is stored, in the same byte layout `SUNIrrep{N, M}`
-uses, which bounds a label to 255. The second parameter is that layout's length, `N - 1`, and is
-filled in for you by `SU{N}`.
+Dimensions and fusion need `SUNRepresentations`.
 
-[`SU2`](@ref) is a separate type labelling the same symmetry by its spin, and unlike `SU{2}` it
-needs no extension. An `SU` is constructed and compared without `SUNRepresentations`, but its
-dimension, ordering and fusion all need that package, and are defined in the extension.
+See also [`SU2`](@ref).
 """
 struct SU{N, M} <: Sector
     # The `N - 1` Dynkin labels, in the byte storage `SUNIrrep{N, M}` uses, so the two types are

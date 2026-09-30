@@ -10,15 +10,12 @@ using TensorKit: TensorKit as TK, ←
 const GA = GradedArrays
 
 """
-    GradedArray{T,S,N,NC,ND,M,I} <: AbstractArray{T,N}
+    GradedArray
 
-Always-fused symmetric array: an `N`-dimensional graded array split into `NC` codomain and `ND`
-domain legs (`NC + ND == N`), backed by a matricized `FusedGradedMatrix`. The external axes
-are `GradedOneTo` and may be unfused or unsorted (a sector repeated, or out of sector order);
-the `matricized` backing is always over the fused-sorted coupled space, and the per-leg sort
-permutation relates the two.
-
-`I` is the TensorKitSectors sector type the axes store. It is fixed by `S` and is a parameter only because a field type cannot be computed from one, so treat it as an implementation detail of the TensorKit conversion, liable to change with it.
+An array over graded axes, storing only the symmetry-allowed blocks. Its legs are split into a
+codomain and a domain group, so it can also be read as a tensor map, and it is stored as a
+block-diagonal matrix over the coupled sectors, with the codomain legs fused to its rows and the
+domain legs to its columns.
 """
 struct GradedArray{
         T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S}, I <: TKS.Sector,
@@ -38,12 +35,8 @@ struct GradedArray{
     end
 end
 
-"""
-    GradedArray(m::AbstractFusedGradedMatrix)
-
-Wrap a matrix-level fused graded matrix as its tensor-level `{1,1}` `GradedArray`, with the
-matrix's own coupled axes as the codomain and domain axes. The wrap shares storage.
-"""
+# Wrap a matrix-level fused graded matrix as its tensor-level `{1,1}` `GradedArray`, with the
+# matrix's own coupled axes as the codomain and domain axes. The wrap shares storage.
 GradedArray(m::AbstractFusedGradedMatrix) = GradedArray(m, axes_codomain(m), axes_domain(m))
 
 # ============================  Accessors  ============================
@@ -332,7 +325,7 @@ end
     GradedArray(t::TK.AbstractTensorMap)
 
 Build a `GradedArray` from a `TensorMap`, taking the per-leg external axes from its codomain
-and domain spaces. This copies the data; `to_gradedarray` is the zero-copy view counterpart.
+and domain spaces. This copies the data.
 """
 function GradedArray(t::TK.AbstractTensorMap)
     axes_codomain = map(GradedOneTo, Tuple(TK.codomain(t)))

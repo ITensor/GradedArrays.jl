@@ -470,20 +470,20 @@ end
 end
 
 """
-    zeros([T=Float64,] axs::GradedOneTo...)
+    zeros([T=Float64,] axs...)
     zeros([T=Float64,] (codomain...)[, (domain...)])
     zeros([T=Float64,] flux, (codomain...)[, (domain...)])
 
-Construct a graded array (`GradedArray{T}`) over the given graded axes with every symmetry-allowed
-(zero-flux) block allocated and filled with zeros. Each axis may be a `GradedOneTo` or a vector
-of `sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map,
+Construct a `GradedArray` over the given graded axes with every symmetry-allowed (zero-flux)
+block allocated and filled with zeros. Each axis may be a graded range or a vector of
+`sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map,
 storing the domain axes dual; a leading `flux` sector appends a multiplicity-1 leg carrying it,
 so the physical axes fuse to that total charge.
 """
 Base.zeros(::Type{T}, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}) where {T}
 
 """
-    ones([T=Float64,] axs::GradedOneTo...)
+    ones([T=Float64,] axs...)
     ones([T=Float64,] (codomain...)[, (domain...)])
     ones([T=Float64,] flux, (codomain...)[, (domain...)])
 
@@ -492,7 +492,7 @@ Like [`zeros`](@ref), but filling every symmetry-allowed block with ones.
 Base.ones(::Type{T}, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}) where {T}
 
 """
-    fill(v, axs::GradedOneTo...)
+    fill(v, axs...)
     fill(v, (codomain...)[, (domain...)])
     fill(v, flux, (codomain...)[, (domain...)])
 
@@ -622,12 +622,11 @@ function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
 end
 
 """
-    getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
+    getindex(a::AbstractArray, ax1, axs...)
 
-Construct a graded array (`GradedArray`) by projecting the dense data of `a` onto the
-symmetry-allowed blocks of the graded axes `(ax1, axs...)`, via
-`TA.project` (which errors if `a` has weight outside
-the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a
+Construct a `GradedArray` by projecting the dense data of `a` onto the symmetry-allowed blocks
+of the graded axes `(ax1, axs...)`, which errors if `a` has weight outside the allowed blocks.
+`a` is reshaped to `length.((ax1, axs...))` first, so a
 trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
 so index with `dual`/`conj` axes to set duality.
 """

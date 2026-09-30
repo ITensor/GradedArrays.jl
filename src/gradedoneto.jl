@@ -219,7 +219,7 @@ end
 """
     gradedrange(xs::AbstractVector{<:Pair})
 
-Construct a non-dual `GradedOneTo` from `sector => multiplicity` pairs, keyed by anything
+Construct a non-dual graded range from `sector => multiplicity` pairs, keyed by anything
 [`Sector`](@ref) accepts, `NamedTuple` keys for sector products included. Wrap the result in
 `dual` for a dual axis.
 

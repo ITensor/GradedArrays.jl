@@ -35,19 +35,14 @@ struct NamedSectorProduct{Arguments <: NamedTuple} <: SectorProduct
     end
 end
 
-# `Sector` is the single entry point for turning a specification into a sector, so these are
-# what define which spellings a product can be written as. Each normalizes its arguments
-# through `Sector` in turn, which is what lets TensorKitSectors sectors appear inside them.
-# Two or more factors, left untyped: the arity floor keeps this from competing with the
-# arity-1 methods, so the element types do not have to be restated here, and a bad element
-# fails as `Sector(element)` the same way it does inside the container methods.
+# `Sector` is the single entry point for turning a specification into a sector, so these methods
+# are what define the spellings a product can be written as. Each maps `Sector` over its
+# arguments, which is what lets TensorKitSectors sectors appear inside a product. The positional
+# form takes two factors before its `Vararg` so it cannot compete with the arity-1 methods, which
+# leaves the container forms as the only way to write a product of one factor or none.
 Sector(s1, s2, srest...) = Sector((s1, s2, srest...))
 Sector(t::Tuple) = TupleSectorProduct(map(Sector, t))
 Sector(nt::NamedTuple) = NamedSectorProduct(map(Sector, nt))
-# An explicit empty container is still a specification of that shape, so `Sector(())` and
-# `Sector((;))` keep their forms, and no keywords at all is the same specification as `(;)`.
-# Keeping the container methods uniform matters because the argument is often built by the
-# caller, and an `args` that happens to come out empty should not change which form comes back.
 Sector(; kws...) = Sector(values(kws))
 
 # Fusion and the n-symbol work argument by argument, so a mixed call has to read its bare operand
@@ -277,8 +272,8 @@ Base.isless(::SectorProduct, ::Trivial) = false
 function Base.show(io::IO, s::TupleSectorProduct)
     args = arguments(s)
     if length(args) < 2
-        # The tuple is spelled out rather than passed as arguments, because `Sector` reads a lone
-        # sector as itself and no arguments as `Trivial`, so neither of those round-trips.
+        # The tuple is spelled out rather than passed as arguments: `Sector` reads a lone sector
+        # as itself, so a one-factor product has no other spelling.
         print(io, "Sector((")
         isempty(args) || (show(io, only(args)); print(io, ","))
         return print(io, "))")
@@ -290,7 +285,7 @@ end
 
 function Base.show(io::IO, s::NamedSectorProduct)
     args = arguments(s)
-    # Same reason as above: `Sector(;)` is a call with no keywords, which is `Trivial`.
+    # Spelled as an empty container to match `Sector(())`, though `Sector()` also gives this one.
     isempty(args) && return print(io, "Sector((;))")
     print(io, "Sector(;")
     for (i, (k, v)) in enumerate(pairs(args))
@@ -306,12 +301,11 @@ end
     sectorproduct(ss...)
     ×(ss...)
 
-The Cartesian product of the symmetries of `ss`, as a `SectorProduct`. Each argument is
-normalized with [`Sector`](@ref) first, so anything that specifies a sector can be multiplied.
+The Cartesian product of the symmetries of `ss`. Each argument is normalized with
+[`Sector`](@ref) first, so anything that specifies a sector can be multiplied.
 
 A positional product absorbs factors positionally and a named one absorbs them by name.
-Multiplying the two together is an error, because a product cannot be indexed both ways.
-`Trivial` is the unit and drops out of any product, as it does in TensorKitSectors.
+Multiplying the two together is an error. `Trivial` is the unit and drops out of any product.
 """
 function sectorproduct end
 const × = sectorproduct
