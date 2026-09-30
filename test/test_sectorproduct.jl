@@ -1,7 +1,7 @@
 using BlockArrays: blocklengths
 using GradedArrays: SU2, Sector, SectorOneTo, SectorProduct, Trivial, U1, Z, arguments,
-    dual, fU1, flip, gradedrange, istrivial, sectorproduct, sectortype, tensor_product,
-    trivial, ×
+    dual, fSU2, fU1, fZ2, flip, gradedrange, istrivial, sectorproduct, sectortype,
+    tensor_product, trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
@@ -380,6 +380,28 @@ end
     end
     @test fU1(2) != TKS.FermionNumber(2)
     @test Sector(TKS.FermionNumber(2)) == fU1(2)
+    @test fSU2(1 // 2) != TKS.FermionSpin(1 // 2)
+    @test Sector(TKS.FermionSpin(1 // 2)) == fSU2(1 // 2)
+end
+
+@testset "fSU2" begin
+    # The parity follows from the spin, odd exactly when `2j` is, so the constructor takes only
+    # the spin and the second factor is not free to disagree with the first.
+    @test fSU2(1 // 2) == Sector(SU2(1 // 2), fZ2(true))
+    @test fSU2(1) == Sector(SU2(1), fZ2(false))
+    @test fSU2(3 // 2) == Sector(SU2(3 // 2), fZ2(true))
+    @test fSU2(1 // 2) != fSU2(1)
+    @test sectortype(fSU2(1 // 2)) == fSU2
+    @test istrivial(fSU2(0))
+    @test (@constinferred trivial(fSU2(1 // 2))) == fSU2(0)
+    @test (@constinferred length(fSU2(1 // 2))) == 2
+
+    # A spin-parity pair the constructor would never produce is not a fermion spin, so it keeps
+    # the component spelling rather than borrowing the alias.
+    @test sprint(show, Sector(SU2(1 // 2), fZ2(false))) == "(SU2(1/2) × fZ2(0))"
+
+    g = gradedrange([fSU2(0) => 1, fSU2(1 // 2) => 2])
+    @test sprint(show, g) == "gradedrange([fSU2(0) => 1, fSU2(1/2) => 2])"
 end
 
 @testset "Trivial as the unit of the product" begin

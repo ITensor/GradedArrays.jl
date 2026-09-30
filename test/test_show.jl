@@ -1,6 +1,6 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, CU1, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
-    SU, SU2, Sector, SectorOneTo, Trivial, U1, UniqueSectorArray, Z, dual, fU1, fZ2,
+    SU, SU2, Sector, SectorOneTo, Trivial, U1, UniqueSectorArray, Z, dual, fSU2, fU1, fZ2,
     fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
@@ -40,6 +40,9 @@ end
     fn = fU1(2)
     @test sprint(show, fn) == "fU1(2)"
     @test sprint(show, dual(fn)) == "dual(fU1(2))"
+    fs = fSU2(1 // 2)
+    @test sprint(show, fs) == "fSU2(1/2)"
+    @test sprint(show, dual(fs)) == "dual(fSU2(1/2))"
 
     @test sprint(show, Sector(U1Irrep(1) ⊠ U1Irrep(2))) == "(U1(1) × U1(2))"
     # Parity 1 disagrees with the even charge 2, so this is not a `FermionNumber`.
