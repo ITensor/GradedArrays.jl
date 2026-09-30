@@ -13,9 +13,13 @@
 # those.
 abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
 
-# The sectors of an axis, in block order. A `SectorOneTo` gives the one sector it
-# carries. A `GradedOneTo` may repeat a sector or leave them unsorted, where a
-# `FusedGradedOneTo` holds each once and in order.
+# A `SectorOneTo` gives the one sector it carries. A `GradedOneTo` may repeat a sector or leave
+# them unsorted, where a `FusedGradedOneTo` holds each once and in order.
+"""
+    sectors(g)
+
+The sector of each block of a graded axis, in block order.
+"""
 function sectors end
 
 # ========================  derived accessors  ========================

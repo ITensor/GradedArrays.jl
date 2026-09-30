@@ -84,12 +84,16 @@ end
 #  FusedGradedVector — block-structured 1-D graded array for per-sector scalars
 # ---------------------------------------------------------------------------
 
-# Block-structured 1-D graded array produced by a sector-preserving operation on
-# a `FusedGradedMatrix` (e.g. `svd_vals`, `eig_vals`, `eigh_vals`). Stores a contiguous
-# `buffer` plus the fused axis; the per-sector blocks are the lazy `sectordata(v)` view carved from the
-# buffer on demand. `I` is the TensorKitSectors sector type the axes store. It is fixed by `S`
-# and is a parameter only because a field type cannot be computed from one, so treat it as an
-# implementation detail of the TensorKit conversion, liable to change with it.
+# Stores a contiguous `buffer` plus the fused axis; the per-sector blocks are the lazy
+# `sectordata(v)` view carved from the buffer on demand. `I` is the TensorKitSectors sector type
+# the axes store, a parameter only because a field type cannot be computed from `S`. Treat it as
+# an implementation detail of the TensorKit conversion, liable to change with it.
+"""
+    FusedGradedVector
+
+A graded vector of per-sector values, as returned by the value-only factorizations `svd_vals`,
+`eig_vals` and `eigh_vals`.
+"""
 struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedVector{T, S}
     buffer::V

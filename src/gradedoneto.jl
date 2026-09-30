@@ -1,6 +1,3 @@
-# Represents a graded axis — a collection of sectors with sector lengths and a dual flag.
-# This is the axis type for `GradedArray`.
-#
 # Stores `Sector` values in `sectors`, sector lengths, and a single `isdual` flag. The sectors
 # carry no arrow of their own, so the flag is the axis's entire duality; it is applied per block
 # by `eachblockaxis` (and hence `eachstructureaxis`). The fused (merged-sorted) form of the axis is
@@ -9,6 +6,12 @@
 # a non-canonical axis. `I` is that cache's stored sector type, fixed by `S` and a parameter
 # only because a field type cannot be computed from one. Treat it as an implementation detail
 # of the TensorKit conversion, liable to change.
+"""
+    GradedOneTo
+
+A graded axis: a range carrying a sector for each of its blocks, as returned by
+[`gradedrange`](@ref). Wrap it in `dual` for a dual axis.
+"""
 struct GradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
     sectors::Vector{S}
     datalengths::Vector{Int}

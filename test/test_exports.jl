@@ -26,8 +26,12 @@ using Test: @test, @testset
         append!(
             exports,
             [
+                :FusedGradedMatrix,
+                :FusedGradedVector,
                 :GradedContract,
+                :GradedOneTo,
                 :TensorKitSector,
+                :sectors,
                 :with_scalar_indexing,
                 :with_block_indexing,
             ]

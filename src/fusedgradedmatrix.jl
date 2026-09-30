@@ -4,12 +4,17 @@
 
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
-# Block-diagonal matrix produced by matricizing a `GradedArray`. Stores a contiguous `buffer` in
-# TensorKit `.data` layout plus the fused codomain/domain axes; the per-coupled-sector blocks are the
-# lazy `sectordata(m)` view carved from the buffer on demand. `I` is the TensorKitSectors sector
-# type the axes store. It is fixed by `S` and is a parameter only because a field type cannot be
-# computed from one, so treat it as an implementation detail of the TensorKit conversion, liable
-# to change with it.
+# Stores a contiguous `buffer` in TensorKit `.data` layout plus the fused codomain/domain axes;
+# the per-coupled-sector blocks are the lazy `sectordata(m)` view carved from the buffer on
+# demand. `I` is the TensorKitSectors sector type the axes store, a parameter only because a
+# field type cannot be computed from `S`. Treat it as an implementation detail of the TensorKit
+# conversion, liable to change with it.
+"""
+    FusedGradedMatrix
+
+The block-diagonal matrix a graded array matricizes to, as returned by `matricize`. Its two axes
+are the fused codomain and domain.
+"""
 struct FusedGradedMatrix{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedMatrix{T, S}
     buffer::V

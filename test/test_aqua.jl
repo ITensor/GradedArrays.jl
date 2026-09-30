@@ -10,4 +10,10 @@ using Test: @testset
     # as an axis descriptor. `treat_as_own` allowlists the whole function, so it covers each of
     # those methods; the piracy is tracked for rehoming onto a GradedArrays-owned entry point.
     Aqua.test_piracies(GradedArrays; treat_as_own = [TensorAlgebra.to_range])
+    # Every exported or `public` name needs a docstring, since those are the names that reach
+    # the docs. `dual`, `isdual` and `×` pass on a resolved binding rather than a docstring of
+    # their own: the first two resolve into TensorAlgebra, and `×` is a const alias for
+    # `sectorproduct`. Making `×` its own function would fail this check here rather than where
+    # the change was made.
+    Aqua.test_undocumented_names(GradedArrays)
 end

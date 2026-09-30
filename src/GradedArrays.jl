@@ -10,8 +10,8 @@ export dual, isdual
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public GradedContract, TensorKitSector, \
-            with_scalar_indexing, with_block_indexing"
+            "public FusedGradedMatrix, FusedGradedVector, GradedContract, GradedOneTo, \
+            TensorKitSector, sectors, with_scalar_indexing, with_block_indexing"
         )
     )
 end
