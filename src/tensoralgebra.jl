@@ -117,7 +117,7 @@ end
 # one-argument `tensor_product` performs.
 function Base.reduce_first(
         ::typeof(tensor_product),
-        x::Union{SectorOrOrientedSector, SectorOneTo, AbstractGradedOneTo}
+        x::Union{AbstractOrientedSector, SectorOneTo, AbstractGradedOneTo}
     )
     return tensor_product(x)
 end

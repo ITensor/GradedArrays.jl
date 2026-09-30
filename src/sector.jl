@@ -1,3 +1,9 @@
+# A sector with an arrow, where a bare `Sector`'s arrow is unset. Both it and `OrientedSector`
+# answer `sector` and `isdual`, and that pair is the identity: comparison, hashing and ordering
+# are defined once here rather than per type, and anything taking a sector whose arrow is
+# optional dispatches on this.
+abstract type AbstractOrientedSector <: AbstractUnitRange{Int} end
+
 """
     Sector
 
@@ -14,7 +20,7 @@ so `length` is the sector's dimension.
 Two or more sectors give the product over them, positional or named. Everything that takes a
 sector from a caller, `gradedrange` and the array constructors included, routes through here.
 """
-abstract type Sector <: AbstractUnitRange{Int} end
+abstract type Sector <: AbstractOrientedSector end
 
 # The type-level counterpart of `TensorKitSectors.Sector(s)`, which the fusion and braiding
 # traits dispatch through. Every concrete `Sector` defines it.
@@ -55,15 +61,19 @@ Sector(c::TKS.Sector) = TensorKitSector(c)
 
 sectortype(x) = sectortype(typeof(x))
 sectortype(S::Type{<:Sector}) = S
-sectortype(T::Type) = throw(MethodError(sectortype, T))
+# Terminates the recursion through `sectortype(x)`, which would otherwise be a fixed point once
+# it reached `DataType`. The argument is wrapped in a tuple because that is what `MethodError`
+# reports as the call's arguments, and `showerror` throws on anything else.
+sectortype(T::Type) = throw(MethodError(sectortype, (T,)))
 
 # ===================================  Base interface  =====================================
 
 Base.length(s::Sector) = TKS.dim(TKS.Sector(s))
-Base.OneTo(s::Sector) = Base.OneTo(length(s))
-Base.first(s::Sector) = first(Base.OneTo(s))
-Base.last(s::Sector) = last(Base.OneTo(s))
-Base.axes(s::Sector) = (s,)
+Base.length(x::AbstractOrientedSector) = length(sector(x))
+Base.OneTo(x::AbstractOrientedSector) = Base.OneTo(length(x))
+Base.first(x::AbstractOrientedSector) = first(Base.OneTo(x))
+Base.last(x::AbstractOrientedSector) = last(Base.OneTo(x))
+Base.axes(x::AbstractOrientedSector) = (x,)
 
 # Ordering and equality run through TensorKitSectors so that two sectors GradedArrays spells
 # differently, such as a named type and the same symmetry reached as a `TensorKitSector`,
@@ -72,23 +82,38 @@ function Base.isless(s1::Sector, s2::Sector)
     return isless(TKS.Sector(s1), TKS.Sector(s2))
 end
 Base.:(==)(s1::Sector, s2::Sector) = TKS.Sector(s1) == TKS.Sector(s2)
-# Comparison stays between two of our own sectors and never crosses to the TensorKitSectors
-# sector one converts to, because `hash` takes a single operand and so has to commit to one
-# library's notion of identity. `isequal` forwards rather than reimplementing, and has to be
-# written out at all because a `Sector` is an `AbstractUnitRange{Int}` and would otherwise
-# inherit Base's elementwise `AbstractArray` method instead of the scalar fallback.
-Base.isequal(s1::Sector, s2::Sector) = s1 == s2
 Base.hash(s::Sector, h::UInt) = hash(TKS.Sector(s), h)
+
+# Identity is `(sector, isdual)`, so equality and hashing compare that pair, and the two bare
+# methods above are their base case. An unset arrow contributes nothing, which is what makes a
+# non-dual `OrientedSector` interchangeable with the bare sector it wraps, as `flip(dual(s)) == s`
+# requires. Comparison stays between two of our own and never crosses to the TensorKitSectors
+# sector one converts to, because `hash` takes a single operand and so has to commit to one
+# library's notion of identity. `isequal` is written out at all because these are
+# `AbstractUnitRange`s and would otherwise inherit Base's elementwise `AbstractArray` method
+# instead of the scalar fallback.
+function Base.:(==)(a::AbstractOrientedSector, b::AbstractOrientedSector)
+    return sector(a) == sector(b) && isdual(a) == isdual(b)
+end
+Base.isequal(a::AbstractOrientedSector, b::AbstractOrientedSector) = a == b
+# Ordering only orders the sectors, and needs a shared arrow to do it: sectors get sorted to put a
+# graded axis in canonical form, and an axis has one arrow for all of its blocks, so there is no
+# meaningful order between a sector and a dual one.
+function Base.isless(a::AbstractOrientedSector, b::AbstractOrientedSector)
+    isdual(a) == isdual(b) || throw(
+        ArgumentError("cannot order sectors with different arrows: $(a) and $(b)")
+    )
+    return isless(sector(a), sector(b))
+end
+function Base.hash(x::AbstractOrientedSector, h::UInt)
+    return isdual(x) ? hash(:dual, hash(sector(x), h)) : hash(sector(x), h)
+end
 
 # =================================  Sectors interface  ====================================
 
-# The labels of the sector, as a tuple in the order the constructor takes them: the charge of a
-# `U1`, the spin of an `SU2`, the Dynkin labels of an `SU`. Splatting them back into the
-# constructor gives the sector again, and this is the path into TensorKitSectors, so the labels
-# are the stored values and not widened ones. A sector's fields are its labels in that order, so
-# this reads them, which leaves the invariant with the struct. The types whose one field is
-# already the label tuple or is a wrapped sector override it, `SU` and `TensorKitSector` among
-# them; `Trivial` has no fields and so needs nothing.
+# The sector's labels, in the order its constructor takes them, which is the order its fields
+# are in. These go straight to the TensorKitSectors constructor, so they are the stored values
+# rather than widened ones.
 sector_labels(s::Sector) = map(f -> getfield(s, f), fieldnames(typeof(s)))
 
 trivial(x) = trivial(typeof(x))
@@ -102,7 +127,6 @@ trivial(::Type{I}) where {I <: TKS.Sector} = one(I)
 istrivial(s::Sector) = isone(TKS.Sector(s))
 istrivial(x) = (x == trivial(x))
 
-to_gradedrange(s::Sector) = gradedrange([s => 1])
 to_gradedrange(c::TKS.Sector) = to_gradedrange(Sector(c))
 
 # A method of upstream's function rather than a parallel name, matching how `TKS.Sector`,
@@ -170,59 +194,50 @@ tensor_product(c1::TKS.Sector, s2::Sector) = tensor_product(Sector(c1), s2)
 
 # A sector together with an arrow. This is where a bare sector acquires a duality, and what
 # `dual` of a sector returns.
-struct OrientedSector{S <: Sector} <: AbstractUnitRange{Int}
+struct OrientedSector{S <: Sector} <: AbstractOrientedSector
     sector::S
     isdual::Bool
 end
-OrientedSector(s::Sector) = OrientedSector(s, false)
-OrientedSector(s::OrientedSector) = s
+OrientedSector(x::AbstractOrientedSector) = OrientedSector(sector(x), isdual(x))
 
+# The two accessors every `AbstractOrientedSector` answers.
 sector(s::OrientedSector) = s.sector
 sector(s::Sector) = s
-sectortype(::Type{OrientedSector{S}}) where {S} = S
-TKS.Sector(s::OrientedSector) = TKS.Sector(sector(s))
-tensorkit_sectortype(::Type{OrientedSector{S}}) where {S} = tensorkit_sectortype(S)
-
 TensorAlgebra.isdual(s::OrientedSector) = s.isdual
 TensorAlgebra.isdual(::Sector) = false
 
-# `dual` flips the arrow and leaves the label alone, so a bare sector has to gain an arrow to
-# carry the result. `flip` is the composite of the arrow flip with charge conjugation.
-TensorAlgebra.dual(s::Sector) = OrientedSector(s, true)
-TensorAlgebra.dual(s::OrientedSector) = OrientedSector(sector(s), !isdual(s))
-flip(s::OrientedSector) = OrientedSector(dual_sector(sector(s)), !isdual(s))
-flip(s::Sector) = OrientedSector(dual_sector(s), true)
-flip_dual(s::OrientedSector) = isdual(s) ? flip(s) : s
-flip_dual(s::Sector) = s
+sectortype(::Type{OrientedSector{S}}) where {S} = S
+tensorkit_sectortype(::Type{OrientedSector{S}}) where {S} = tensorkit_sectortype(S)
+
+# An unset arrow is what makes a non-dual `OrientedSector` equal to the sector it wraps, so it also
+# makes it convert to that sector, which lets it stand in for the sector wherever a bare one is
+# required. A dual sector is equal to no bare sector, so it does not convert.
+function Base.convert(::Type{S}, x::OrientedSector) where {S <: Sector}
+    isdual(x) && throw(
+        ArgumentError("a dual sector does not convert to a bare sector: $(x)")
+    )
+    return convert(S, sector(x))
+end
+
+# Everything below reads the pair and so serves both types. `dual` flips the arrow and leaves the
+# label alone, so a bare sector gains an arrow to carry the result. `flip` composes that with
+# charge conjugation. An arrow does not change whether a sector is trivial, its fermion parity,
+# or its twist, so those forward to the sector, whose own methods are the base case.
+TensorAlgebra.dual(x::AbstractOrientedSector) = OrientedSector(sector(x), !isdual(x))
+flip(x::AbstractOrientedSector) = OrientedSector(dual_sector(sector(x)), !isdual(x))
+flip_dual(x::AbstractOrientedSector) = isdual(x) ? flip(x) : x
 nondual(s::OrientedSector) = OrientedSector(sector(s), false)
 nondual(s::Sector) = s
-Base.conj(s::Sector) = dual(s)
-Base.conj(s::OrientedSector) = dual(s)
+Base.conj(x::AbstractOrientedSector) = dual(x)
+TKS.Sector(x::AbstractOrientedSector) = TKS.Sector(sector(x))
+istrivial(x::AbstractOrientedSector) = istrivial(sector(x))
+fermionparity(x::AbstractOrientedSector) = fermionparity(sector(x))
+twist(x::AbstractOrientedSector) = twist(sector(x))
+to_gradedrange(x::AbstractOrientedSector) = GradedOneTo([sector(x)], [1], isdual(x))
 
-# An arrow does not change whether a sector is trivial, its fermion parity, or its twist.
-istrivial(s::OrientedSector) = istrivial(sector(s))
-fermionparity(s::OrientedSector) = fermionparity(sector(s))
-twist(s::OrientedSector) = twist(sector(s))
-to_gradedrange(s::OrientedSector) = GradedOneTo([sector(s)], [1], isdual(s))
-
-# A sector whose arrow is optional, a bare one meaning a non-dual leg. `splitarrows` takes a tuple
-# of them apart into the sectors and the arrows, which is how a type stores them.
-const SectorOrOrientedSector = Union{Sector, OrientedSector}
-splitarrows(ss::Tuple{Vararg{SectorOrOrientedSector}}) = (map(sector, ss), map(isdual, ss))
-
-Base.length(s::OrientedSector) = length(sector(s))
-Base.OneTo(s::OrientedSector) = Base.OneTo(length(s))
-Base.first(s::OrientedSector) = first(Base.OneTo(s))
-Base.last(s::OrientedSector) = last(Base.OneTo(s))
-Base.axes(s::OrientedSector) = (s,)
-
-function Base.:(==)(s1::OrientedSector, s2::OrientedSector)
-    return sector(s1) == sector(s2) && isdual(s1) == isdual(s2)
-end
-Base.:(==)(s1::OrientedSector, s2::Sector) = !isdual(s1) && sector(s1) == s2
-Base.:(==)(s1::Sector, s2::OrientedSector) = s2 == s1
-Base.isless(s1::OrientedSector, s2::OrientedSector) = isless(sector(s1), sector(s2))
-Base.hash(s::OrientedSector, h::UInt) = hash(sector(s), hash(isdual(s), h))
+# `splitarrows` takes a tuple of them apart into the sectors and the arrows, which is how a type
+# stores them.
+splitarrows(ss::Tuple{Vararg{AbstractOrientedSector}}) = (map(sector, ss), map(isdual, ss))
 
 function Base.show(io::IO, s::OrientedSector)
     # Print duals as `dual(...)` rather than using a trailing `'`: Julia already uses `'` for
@@ -236,16 +251,16 @@ function Base.show(io::IO, s::OrientedSector)
 end
 
 trivial(::Type{OrientedSector{S}}) where {S} = OrientedSector(trivial(S))
-function fusion_rule(s1::OrientedSector, s2::OrientedSector)
-    return fusion_rule(sector(flip_dual(s1)), sector(flip_dual(s2)))
+# Fusing folds each arrow into its sector, so the result is bare whatever the arguments were,
+# which is also what keeps a `reduce` closed: after the first step one side is already bare while
+# the rest are still oriented.
+function fusion_rule(a::AbstractOrientedSector, b::AbstractOrientedSector)
+    return fusion_rule(sector(flip_dual(a)), sector(flip_dual(b)))
 end
-tensor_product(s::OrientedSector) = sector(flip_dual(s))
-# Fusing folds each arrow into its sector, so the result is bare whatever the arguments were.
-# The mixed arities are what keeps a `reduce` closed: after the first step one side is already
-# bare while the rest are still oriented.
-tensor_product(s1::OrientedSector, s2::OrientedSector) = fusion_rule(s1, s2)
-tensor_product(s1::OrientedSector, s2::Sector) = fusion_rule(sector(flip_dual(s1)), s2)
-tensor_product(s1::Sector, s2::OrientedSector) = fusion_rule(s1, sector(flip_dual(s2)))
+tensor_product(x::AbstractOrientedSector) = sector(flip_dual(x))
+function tensor_product(a::AbstractOrientedSector, b::AbstractOrientedSector)
+    return fusion_rule(a, b)
+end
 
 # =====================================  Sectors  ==========================================
 
@@ -447,12 +462,8 @@ sectortype_repr(::Type{S}) where {S <: Sector} = string(nameof(S))
 sectortype_repr(::Type{Z{N}}) where {N} = "Z{$N}"
 sectortype_repr(::Type{TensorKitSector{I}}) where {I} = TKS.type_repr(I)
 
-# A label as a reader should see it. `sector_labels` is the conversion form and hands back the
-# stored values, narrow integers included, since that is what upstream's constructor takes and
-# widening there would cost the conversion a round trip. Display wants a plain number instead: a
-# stored `UInt8` would otherwise `show` as `0x01`, and a `Bool` parity as `true`. Keyed on the
-# label rather than on the sector so a new sector storing a narrow integer needs nothing. A
-# `HalfInt` charge or spin is not an `Integer`, so it keeps its own `1/2` form.
+# A label as a reader should see it, since a stored `UInt8` would otherwise `show` as `0x01` and
+# a `Bool` parity as `true`. A `HalfInt` spin is not an `Integer`, so it keeps its `1/2` form.
 pretty_sector_label(x) = x
 pretty_sector_label(x::Integer) = Int(x)
 

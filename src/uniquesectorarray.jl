@@ -54,8 +54,8 @@ end
 # Leg-tuple forms: each leg given as a sector, bare or oriented, with the arrows split out here.
 function UniqueSectorArray(
         data::AbstractArray,
-        sectors_codomain::Tuple{Vararg{SectorOrOrientedSector}},
-        sectors_domain::Tuple{Vararg{SectorOrOrientedSector}}
+        sectors_codomain::Tuple{Vararg{AbstractOrientedSector}},
+        sectors_domain::Tuple{Vararg{AbstractOrientedSector}}
     )
     return UniqueSectorArray(
         data, splitarrows(sectors_codomain)..., splitarrows(sectors_domain)...
@@ -66,7 +66,7 @@ end
 # domain leg. Flat always means all-codomain.
 function UniqueSectorArray(
         data::AbstractArray,
-        sectors::Tuple{Vararg{SectorOrOrientedSector}}
+        sectors::Tuple{Vararg{AbstractOrientedSector}}
     )
     return UniqueSectorArray(data, sectors, ())
 end
