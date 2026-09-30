@@ -12,7 +12,7 @@ using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, contractalign, has_bipartition,
     linearbroadcasted, matricize, unmatricize
-using Test: @test, @test_broken, @test_throws, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "UniqueSectorArray linear broadcasting" begin
     s = UniqueSectorArray(randn!(Matrix{ComplexF64}(undef, 2, 2)), (U1(0), dual(U1(0))))

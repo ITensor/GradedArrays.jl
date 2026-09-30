@@ -11,7 +11,7 @@ using Random: Random
 using TensorAlgebra: TensorAlgebra, fill_map, matricize, ones_map, rand_map, randn_map,
     unmatricize, zeros_map
 using TensorKitSectors: TensorKitSectors as TKS
-using Test: @test, @test_broken, @test_throws, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "GradedArray (graded array)" begin
     # Helper: build U1 axes
