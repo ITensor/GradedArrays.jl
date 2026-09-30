@@ -8,10 +8,8 @@ using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 # Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
 # factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
 # `DiagonalTensorMap`. Wraps a `FusedGradedVector` of the diagonals; the `Diagonal` blocks are
-# the lazy `sectordata(d)` view over that vector. `I` is the TensorKitSectors sector type the
-# axes store. It is fixed by `S` and is a parameter only because a field type cannot be computed
-# from one, so treat it as an implementation detail of the TensorKit conversion, liable to
-# change with it.
+# the lazy `sectordata(d)` view over that vector. `I` is the TensorKitSectors sector type corresponding to
+# the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
 struct FusedGradedDiagonal{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedMatrix{T, S}
     diag::FusedGradedVector{T, S, V, I}

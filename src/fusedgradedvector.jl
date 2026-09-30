@@ -85,9 +85,8 @@ end
 # ---------------------------------------------------------------------------
 
 # Stores a contiguous `buffer` plus the fused axis; the per-sector blocks are the lazy
-# `sectordata(v)` view carved from the buffer on demand. `I` is the TensorKitSectors sector type
-# the axes store, a parameter only because a field type cannot be computed from `S`. Treat it as
-# an implementation detail of the TensorKit conversion, liable to change with it.
+# `sectordata(v)` view carved from the buffer on demand. `I` is the TensorKitSectors sector type corresponding to
+# the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
 """
     FusedGradedVector
 

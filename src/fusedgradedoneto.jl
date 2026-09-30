@@ -12,9 +12,8 @@ using MappedArrays: mappedarray
 #
 # The sectors are held in their TensorKitSectors form, so the storage is exactly a
 # `GradedSpace`'s and crossing into TensorKit hands over these vectors rather than rebuilding
-# them, which means a space built from an axis aliases it. `I` is that stored type, a parameter
-# only because a field type cannot be computed from `S`. Treat it as an implementation detail of
-# the TensorKit conversion, liable to change.
+# them, which means a space built from an axis aliases it. `I` is the TensorKitSectors sector type corresponding to
+# the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
 struct FusedGradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
     tensorkit_sectors::Vector{I}
     datalengths::Vector{Int}

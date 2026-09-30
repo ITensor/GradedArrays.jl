@@ -6,9 +6,8 @@ using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
 # Stores a contiguous `buffer` in TensorKit `.data` layout plus the fused codomain/domain axes;
 # the per-coupled-sector blocks are the lazy `sectordata(m)` view carved from the buffer on
-# demand. `I` is the TensorKitSectors sector type the axes store, a parameter only because a
-# field type cannot be computed from `S`. Treat it as an implementation detail of the TensorKit
-# conversion, liable to change with it.
+# demand. `I` is the TensorKitSectors sector type corresponding to
+# the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
 """
     FusedGradedMatrix
 

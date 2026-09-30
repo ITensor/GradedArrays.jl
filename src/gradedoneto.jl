@@ -3,9 +3,8 @@
 # by `eachblockaxis` (and hence `eachstructureaxis`). The fused (merged-sorted) form of the axis is
 # computed once at construction and cached in `fused`, so `fusesectors` is a field read, and the
 # `FusedGradedOneTo` conversion compares the stored sectors against that cache and throws for
-# a non-canonical axis. `I` is that cache's stored sector type, fixed by `S` and a parameter
-# only because a field type cannot be computed from one. Treat it as an implementation detail
-# of the TensorKit conversion, liable to change.
+# a non-canonical axis. `I` is the TensorKitSectors sector type corresponding to
+# the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
 """
     GradedOneTo
 
