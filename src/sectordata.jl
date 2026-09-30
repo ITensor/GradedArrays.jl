@@ -97,7 +97,12 @@ end
 # --- AbstractDictionary interface (read-only; values are views, so they mutate through) ---
 
 Base.keys(sd::SectorData) = keys(sd.datalayout)
+# Two methods for one body: Dictionaries defines its `isassigned` fallback at the key type, so the
+# first is what makes a key of that type unambiguous, and the second accepts every other spelling
+# `haskey` already takes. `getindex` needs only the narrow one, since the fallback that reaches it
+# converts the key first.
 Base.isassigned(sd::SectorData{S}, s::S) where {S} = haskey(sd.datalayout, s)
+Base.isassigned(sd::SectorData, s) = haskey(sd.datalayout, s)
 Base.@propagate_inbounds function Base.getindex(sd::SectorData{S}, s::S) where {S}
     layout = sd.datalayout[s]
     return _dataview(sd.parent.buffer, layout.offset, layout.size)

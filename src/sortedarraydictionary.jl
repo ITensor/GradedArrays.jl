@@ -28,8 +28,11 @@ function Dictionaries.iteratetoken_reverse(inds::SortedArrayIndices, t)
     t < firstindex(inds.keys) && return nothing
     return (t, t)
 end
-function Dictionaries.gettoken(inds::SortedArrayIndices{K}, i) where {K}
-    i isa K || return (false, 0)
+# The lookup needs no more of the key than `isless` to place it and `isequal` to confirm it, so
+# it asks for exactly that and lets a key that answers neither raise a `MethodError`. Testing the
+# key's type instead would report a key that is `isequal` to a stored one, but spelled as another
+# type, as absent.
+function Dictionaries.gettoken(inds::SortedArrayIndices, i)
     t = searchsortedfirst(inds.keys, i)
     t <= length(inds.keys) && isequal(inds.keys[t], i) || return (false, 0)
     return (true, t)
