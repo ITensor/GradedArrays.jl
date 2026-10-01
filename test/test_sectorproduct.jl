@@ -193,6 +193,21 @@ end
 
         @test (A = U1(1),) × ((B = SU2(2),) × (C = U1(1),)) isa
             typeof((A = U1(1),) × (B = SU2(2),) × (C = U1(1),))
+
+        # The same product one level up, the named counterpart of `U1 × fZ2`.
+        @test (; A = U1) × (; B = SU2) === typeof((A = U1(0),) × (B = SU2(0),))
+        @test ×((; A = U1)) === typeof(Sector(; A = U1(0)))
+        @test (; A = U1) × (; B = SU2) × (; C = Z{2}) ===
+            typeof((A = U1(0),) × (B = SU2(0),) × (C = Z{2}(0),))
+
+        # A container is also how to spell a product of one factor, which `×` does not build
+        # from a bare argument at either level.
+        @test ×((U1,)) === typeof(Sector((U1(0),)))
+        @test ×((; A = U1)) === typeof(Sector(; A = U1(0)))
+
+        # An empty container holds no type to name a symmetry with, so it stays a value.
+        @test ×(()) === Sector(())
+        @test ×((;)) === Sector((;))
     end
 
     @testset "Construct from keywords" begin

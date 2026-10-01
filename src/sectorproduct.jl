@@ -283,16 +283,56 @@ function Base.show(io::IO, s::TupleSectorProduct)
     return print(io, ")")
 end
 
+# The bare `NamedTuple` rather than a `Sector` call around it: it is what `Sector` and the graded
+# constructors take for a named product, so it still reads back in, and an axis display repeats
+# every sector it carries, where the call would be the longest thing on the line.
 function Base.show(io::IO, s::NamedSectorProduct)
     args = arguments(s)
-    # Spelled as an empty container to match `Sector(())`, though `Sector()` also gives this one.
-    isempty(args) && return print(io, "Sector((;))")
-    print(io, "Sector(;")
+    isempty(args) && return print(io, "(;)")
+    print(io, "(")
     for (i, (k, v)) in enumerate(pairs(args))
-        print(io, i == 1 ? " " : ", ", k, " = ")
+        i > 1 && print(io, ", ")
+        print(io, k, " = ")
         show(io, v)
     end
+    # A one-field `NamedTuple` needs the trailing comma to read as one.
+    length(args) == 1 && print(io, ",")
     return print(io, ")")
+end
+
+# A product's type spelled as the product of its factors, which is a call that gives the type
+# back, rather than as the struct and its parameter tuple, which is the longest thing a graded
+# display's header would carry. An alias is the symmetry's own name and shorter still, so it wins.
+function show_sectorproduct_type(io::IO, P::Type{<:TupleSectorProduct})
+    isnothing(Base.make_typealias(P)) || return show(io, P)
+    args = map(A -> sprint(show, A; context = io), fieldtypes(arguments_type(P)))
+    if length(args) == 1
+        # Infix needs two factors to read as a product, and `×` builds no one-factor product
+        # anyway, so one factor takes the container form the product multiplies. The empty
+        # product has no type-level spelling at all, so it keeps the default.
+        print(io, "×((", only(args), ",))")
+    elseif isempty(args)
+        show(io, P)
+    else
+        join(io, args, " × ")
+    end
+    return nothing
+end
+function show_sectorproduct_type(io::IO, P::Type{<:NamedSectorProduct})
+    isnothing(Base.make_typealias(P)) || return show(io, P)
+    nt = arguments_type(P)
+    fields = [
+        "$(k) = $(sprint(show, V; context = io))"
+            for (k, V) in zip(fieldnames(nt), fieldtypes(nt))
+    ]
+    if length(fields) == 1
+        print(io, "×((; ", only(fields), "))")
+    elseif isempty(fields)
+        show(io, P)
+    else
+        join(io, ("(; $(field))" for field in fields), " × ")
+    end
+    return nothing
 end
 
 # =================================  Cartesian Product  ====================================
@@ -306,14 +346,34 @@ The Cartesian product of the symmetries of `ss`. Each argument is normalized wit
 
 A positional product absorbs factors positionally and a named one absorbs them by name.
 Multiplying the two together is an error. `Trivial` is the unit and drops out of any product.
+
+Sector types multiply too, which is how a fused symmetry gets a name of its own, as in
+`const fU1 = U1 × fZ2`. A `NamedTuple` of sector types names the factors, and a `Tuple` or
+`NamedTuple` is also how to spell a product of one of them: `(; charge = U1) × (; parity = fZ2)`,
+`×((U1,))`. An empty container carries no type to name a symmetry with, so `×(())` and `×((;))`
+stay the empty products' values.
 """
 function sectorproduct end
 const × = sectorproduct
 
-# The type-level product, so a fused symmetry can be named as `const fU1 = U1 × fZ2`. Going
+# A symmetry named at the type level: a sector type, or a container of them when the factors of
+# a product are named or when there is only one. `Sector` normalizes the values that specify a
+# sector and these containers are the same spellings one level up, so the trivial sector of the
+# symmetry each one names is what the product below multiplies. A container has to hold a type to
+# name anything, which is what keeps the empty one at the value level: `()` and `(;)` carry
+# nothing to tell the two levels apart, and they already spelled the empty products' values.
+const SectorTypeSpec = Union{
+    Type{<:Sector}, Tuple{Type, Vararg{Type}},
+    NamedTuple{<:Any, <:Tuple{Type, Vararg{Type}}},
+}
+trivial(t::Tuple{Type, Vararg{Type}}) = Sector(map(trivial, t))
+trivial(nt::NamedTuple{<:Any, <:Tuple{Type, Vararg{Type}}}) = Sector(map(trivial, nt))
+
+# The type-level product, so a fused symmetry can be named as `const fU1 = U1 × fZ2`, or as
+# `const fU1 = (; charge = U1) × (; parity = fZ2)` when the factors carry names. Going
 # through the value-level product on each symmetry's trivial sector means the unit rule and the
 # flattening cannot drift from the value level, since they are the value level.
-function sectorproduct(S1::Type{<:Sector}, Srest::Type{<:Sector}...)
+function sectorproduct(S1::SectorTypeSpec, Srest::SectorTypeSpec...)
     return typeof(sectorproduct(trivial(S1), map(trivial, Srest)...))
 end
 
