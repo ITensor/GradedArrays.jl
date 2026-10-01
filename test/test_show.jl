@@ -1,7 +1,7 @@
 using BlockArrays: Block
 using GradedArrays: GradedArrays, CU1, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
-    SU, SU2, Sector, SectorOneTo, Trivial, U1, UniqueSectorArray, Z, dual, fSU2, fU1, fZ2,
-    fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
+    SU, SU2, Sector, SectorOneTo, Trivial, U1, UniqueSectorArray, Z, Z2, dual, fSU2, fU1,
+    fZ2, fusedgradedmatrix, gradedrange, with_scalar_indexing, ×
 using TensorKitSectors: TensorKitSectors as TKS, FermionParity, U1Irrep, ⊠
 using Test: @test, @testset
 
@@ -34,7 +34,8 @@ using Test: @test, @testset
 end
 
 @testset "compact display of Z, FermionParity, and product sectors" begin
-    @test sprint(show, Z{2}(1)) == "Z{2}(1)"
+    @test sprint(show, Z{3}(1)) == "Z{3}(1)"
+    @test sprint(show, Z2(1)) == "Z2(1)"
     @test sprint(show, fZ2(true)) == "fZ2(1)"
 
     fn = fU1(2)
@@ -121,10 +122,22 @@ end
 
 @testset "compact type summary in display header" begin
     m = fusedgradedmatrix([U1(0), U1(1)] .=> [ones(2, 2), ones(3, 3)])
+    # Every parameter but the TensorKitSectors sector type, which shows as `…` so the
+    # spelling does not read as the whole concrete type. Names GradedArrays owns are
+    # unqualified whether or not the caller has imported them.
     @test occursin(
-        "FusedGradedMatrix{Float64, …, Vector{Float64}}",
+        "FusedGradedMatrix{Float64, U1, Vector{Float64}, …}",
         sprint(show, MIME("text/plain"), m)
     )
+    g = gradedrange([U1(0) => 1, U1(1) => 2])
+    @test occursin("GradedOneTo{U1, …}", sprint(show, MIME("text/plain"), g))
+    @test occursin("GradedOneTo{U1, …}", sprint(show, MIME("text/plain"), dual(g)))
+    for s in (
+            sprint(show, MIME("text/plain"), m), sprint(show, MIME("text/plain"), g),
+        )
+        @test !occursin("GradedArrays.", s)
+        @test !occursin("TensorKitSectors.", s)
+    end
 end
 
 @testset "compact axis lines in array display" begin

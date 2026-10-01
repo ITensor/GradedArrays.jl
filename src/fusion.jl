@@ -21,7 +21,7 @@ fuseaxes(::Type{<:Sector}, axs::Tuple) = reduce(tensor_product, axs)
 # Fuse a bipartitioned tuple of graded axes into the unmerged 2D row/column axes: one
 # block per source-block combination, before `fusesectors` merges same-sector blocks
 # into the final matricized axes. The codomain group fuses as-is; the domain group is
-# `flip`ed (same sectors and sizes, opposite arrow) so the matrix reads as a
+# `flip`ed (conjugate sectors, same sizes, opposite arrow) so the matrix reads as a
 # `codomain ← domain` map and the matmul pairs contracted legs correctly.
 function unmerged_matricize_axes(
         S::Type{<:Sector},

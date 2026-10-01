@@ -460,6 +460,8 @@ sector_labels(c::TKS.ProductSector) = map(Sector, c.sectors)
 # `TensorKitSector` defers to it rather than to a name we re-derive.
 sectortype_repr(::Type{S}) where {S <: Sector} = string(nameof(S))
 sectortype_repr(::Type{Z{N}}) where {N} = "Z{$N}"
+# `Z2` is the one order with an exported alias of its own, so it shows under that name.
+sectortype_repr(::Type{Z2}) = "Z2"
 sectortype_repr(::Type{TensorKitSector{I}}) where {I} = TKS.type_repr(I)
 
 # A label as a reader should see it, since a stored `UInt8` would otherwise `show` as `0x01` and

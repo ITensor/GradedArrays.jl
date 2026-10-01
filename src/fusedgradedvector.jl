@@ -285,11 +285,13 @@ function Base.summary(io::IO, v::FusedGradedVector)
     return nothing
 end
 
+# No trailing newline, matching `Base.print_array` for a dense array: the caller owns what comes
+# after the last row.
 function Base.print_array(io::IO, v::FusedGradedVector)
-    for (s, b) in pairs(sectordata(v))
+    for (i, (s, b)) in enumerate(pairs(sectordata(v)))
+        i > 1 && println(io)
         print(io, "  ", s, ": ")
         show(io, b)
-        println(io)
     end
     return nothing
 end
@@ -299,8 +301,8 @@ function Base.show(io::IO, ::MIME"text/plain", v::FusedGradedVector)
     println(io, ":")
     print(io, "  Dim 1: ")
     show_axis(io, axes(v, 1))
-    println(io)
     isempty(sectordata(v)) && return nothing
+    println(io)
     Base.print_array(io, v)
     return nothing
 end

@@ -373,11 +373,14 @@ Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
 #  block grid; unstored blocks become `Zeros`, which print as `⋅`.
 # ---------------------------------------------------------------------------
 
-# Compact type name for the summary line. The buffer-backed fused arrays carry `{T,S,V,I}` — element,
-# sector, storage-buffer, and TensorKitSectors sector types. Only the element `T` and the storage
-# buffer `V` are informative in the header (the sector is spelled out in the `Dim` lines below), so
-# drop the trailing `I` and then keep the first and last type parameters, eliding the middle to `…`.
-function summary_typename(type::Type{<:AbstractFusedGradedArray})
+# Compact type name for the summary line: the type's own parameters, with the trailing
+# TensorKitSectors sector type shown as `…`. That parameter only aids conversion to and from
+# TensorKit, so eliding it keeps the header short, and eliding rather than dropping it keeps the
+# spelling from reading as the whole concrete type. Parameters are rendered against this module,
+# so a name GradedArrays owns prints unqualified however the caller's own namespace is populated.
+function summary_typename(
+        type::Type{<:Union{AbstractFusedGradedArray, AbstractGradedOneTo}}
+    )
     alias = Base.make_typealias(type)
     base, params = if isnothing(alias)
         string(nameof(type)), collect(type.parameters)
@@ -385,14 +388,10 @@ function summary_typename(type::Type{<:AbstractFusedGradedArray})
         globalref, alias_params = alias
         string(globalref.name), collect(alias_params)
     end
-    if !isempty(params) && params[end] isa Type && params[end] <: TKS.Sector
-        pop!(params)
-    end
     isempty(params) && return base
-    strs = if length(params) <= 2
-        map(string, params)
-    else
-        [string(first(params)), "…", string(last(params))]
+    strs = [sprint(show, p; context = :module => @__MODULE__) for p in params]
+    if params[end] isa Type && params[end] <: TKS.Sector
+        strs[end] = "…"
     end
     return string(base, "{", join(strs, ", "), "}")
 end

@@ -86,3 +86,12 @@ function Base.hash(g::AbstractGradedOneTo, h::UInt)
         hash(sectors(g), hash(datalengths(g), hash(isdual(g), h)))
     )
 end
+
+# ========================  show  ========================
+# `showarg` rather than `summary`, so Base still supplies the element count and the `with indices`
+# tail and only the type name is ours.
+function Base.showarg(io::IO, g::AbstractGradedOneTo, toplevel::Bool)
+    toplevel || print(io, "::")
+    print(io, summary_typename(typeof(g)))
+    return nothing
+end
