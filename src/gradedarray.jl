@@ -736,14 +736,16 @@ end
 # left factor as usual and sends the right factor through `twisted_matricizeop`, which inserts the
 # twist between the permute and the matricize. The twist is a no-op for bosonic sectors.
 #
-# Keyed on the right factor alone, since the twist comes from the contraction braiding and not
-# from where the result is written or what the left factor is. A matrix-level right factor is
-# already fused and needs no twist, so it stays on TensorAlgebra's kernel.
+# Every operand reaching here is tensor-level, since `contractpermalign` above lifts a
+# matrix-level one to its `GradedArray` wrap, and the destination is allocated graded in turn.
+# Naming the type in all three slots rather than only in the one the twist is keyed on keeps this
+# method a subtype of TensorAlgebra's own kernel in every slot, so it cannot tie with a method
+# that narrows a different slot.
 
 function TensorAlgebra.contractpermopadd!(
         ::TensorAlgebra.MatricizeContract,
-        a_dest::AbstractArray, biperm_dest_codomain, biperm_dest_domain,
-        op1, a1::AbstractArray, biperm1_codomain, biperm1_domain,
+        a_dest::GradedArray, biperm_dest_codomain, biperm_dest_domain,
+        op1, a1::GradedArray, biperm1_codomain, biperm1_domain,
         op2, a2::GradedArray, biperm2_codomain, biperm2_domain,
         α::Number, β::Number
     )
