@@ -92,6 +92,6 @@ end
 # tail and only the type name is ours.
 function Base.showarg(io::IO, g::AbstractGradedOneTo, toplevel::Bool)
     toplevel || print(io, "::")
-    print(io, summary_typename(typeof(g)))
+    print(io, summary_typename(io, typeof(g)))
     return nothing
 end

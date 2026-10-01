@@ -270,7 +270,7 @@ function Base.summary(io::IO, m::AbstractFusedGradedMatrix)
     sd = sectordata(m)
     print(
         io, blocklength(axis_codomain(m)), "×", blocklength(axis_domain(m)), " ",
-        summary_typename(typeof(m)),
+        summary_typename(io, typeof(m)),
         " with ", length(sd), " stored block", length(sd) == 1 ? "" : "s", " at sectors ["
     )
     join(io, keys(sd), ", ")
@@ -291,7 +291,7 @@ end
 function Base.show(io::IO, m::AbstractFusedGradedMatrix)
     print(
         io, blocklength(axis_codomain(m)), "×", blocklength(axis_domain(m)), " ",
-        summary_typename(typeof(m)), " (", length(sectordata(m)), " stored)"
+        summary_typename(io, typeof(m)), " (", length(sectordata(m)), " stored)"
     )
     return nothing
 end
@@ -373,20 +373,21 @@ Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
 # Compact type name for the summary line: the type's own parameters, with the trailing
 # TensorKitSectors sector type shown as `…`. That parameter only aids conversion to and from
 # TensorKit, so eliding it keeps the header short, and eliding rather than dropping it keeps the
-# spelling from reading as the whole concrete type. Parameters are rendered against this module,
-# so a name GradedArrays owns prints unqualified however the caller's own namespace is populated.
+# spelling from reading as the whole concrete type. The name and the parameters all go through
+# `show` against the caller's context, so whether each prints qualified follows what the reader
+# has in scope. The name comes from the parameterless `wrapper` rather than `nameof`, which
+# would strip the module unconditionally.
 function summary_typename(
-        type::Type{<:Union{AbstractFusedGradedArray, AbstractGradedOneTo}}
+        io::IO, type::Type{<:Union{AbstractFusedGradedArray, AbstractGradedOneTo}}
     )
-    alias = Base.make_typealias(type)
-    base, params = if isnothing(alias)
-        string(nameof(type)), collect(type.parameters)
-    else
-        globalref, alias_params = alias
-        string(globalref.name), collect(alias_params)
-    end
+    base = sprint(show, type.name.wrapper; context = io)
+    params = collect(type.parameters)
     isempty(params) && return base
-    strs = [sprint(show, p; context = :module => @__MODULE__) for p in params]
+    strs = map(params) do p
+        p isa Type && p <: SectorProduct &&
+            return sprint(show_sectorproduct_type, p; context = io)
+        return sprint(show, p; context = io)
+    end
     if params[end] isa Type && params[end] <: TKS.Sector
         strs[end] = "…"
     end

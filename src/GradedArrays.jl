@@ -6,12 +6,14 @@ export Sector, Trivial, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
 export sectorproduct, ×
 export GradedArray, gradedrange, sectors
 export dual, isdual
+# The array and axis types are exported rather than `public` because they name themselves in
+# every graded display, where `show` spells a name out in full unless the reader has it in scope.
+export FusedGradedMatrix, FusedGradedVector, GradedOneTo
 
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public FusedGradedMatrix, FusedGradedVector, GradedOneTo, \
-            TensorKitSector, with_scalar_indexing, with_block_indexing"
+            "public TensorKitSector, with_scalar_indexing, with_block_indexing"
         )
     )
 end
