@@ -4,7 +4,7 @@ module GradedArrays
 # -------
 export Sector, Trivial, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
 export sectorproduct, ×
-export GradedArray, gradedrange
+export GradedArray, gradedrange, sectors
 export dual, isdual
 
 if VERSION >= v"1.11.0-DEV.469"

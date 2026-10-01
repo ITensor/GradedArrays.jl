@@ -18,6 +18,7 @@ using Test: @test, @testset
         :×,
         :GradedArray,
         :gradedrange,
+        :sectors,
         :dual,
         :isdual,
     ]
