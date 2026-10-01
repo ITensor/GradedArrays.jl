@@ -273,57 +273,7 @@ function TensorAlgebra.bipermutedimsopadd!(
     return y
 end
 
-# ========================  graded contraction  ========================
-# Fermionic contractions need the second (right) factor's contracted legs twisted before
-# matricization, so the result does not depend on contraction order. The graded family therefore
-# owns its contraction algorithm: `GradedContract` matricizes the left factor as usual and sends
-# the right factor through `twisted_matricizeop`, which inserts the twist between the permute
-# and the matricize. The twist is a no-op for bosonic sectors. `default_algorithm` selects it
-# whenever the right factor is a `GradedArray` (see `gradedarray.jl`).
-
-"""
-    GradedContract <: TensorAlgebra.ContractAlgorithm
-
-Matricized contraction for graded arrays: fuse both operands, twisting the right factor's
-contracted legs for fermionic sectors, multiply the fused matrices, and scatter the product back
-into the destination.
-"""
-struct GradedContract <: TensorAlgebra.ContractAlgorithm end
-
-function TensorAlgebra.contractpermopadd!(
-        ::GradedContract,
-        a_dest::AbstractArray, biperm_dest_codomain, biperm_dest_domain,
-        op1, a1::AbstractArray, biperm1_codomain, biperm1_domain,
-        op2, a2::AbstractArray, biperm2_codomain, biperm2_domain,
-        α::Number, β::Number
-    )
-    biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
-    invperm_codomain, invperm_domain =
-        TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
-    check_input(
-        TensorAlgebra.contract!,
-        a_dest, invperm_codomain, invperm_domain,
-        a1, biperm1_codomain, biperm1_domain,
-        a2, biperm2_codomain, biperm2_domain
-    )
-    a1_mat = TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
-    a2_mat = twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
-    if TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, identity, a_dest, invperm_codomain, invperm_domain
-        )
-        a_dest_mat = TensorAlgebra.matricizeopview(
-            identity, a_dest, invperm_codomain, invperm_domain
-        )
-        LinearAlgebra.mul!(a_dest_mat, a1_mat, a2_mat, α, β)
-    else
-        a_dest_mat = a1_mat * a2_mat
-        TensorAlgebra.unmatricizeadd!(
-            a_dest, a_dest_mat, invperm_codomain, invperm_domain, α, β
-        )
-    end
-    return a_dest
-end
-
+# ========================  contraction twist  ========================
 # A non-graded array carries no sector data, so there is no braiding and the twist is the identity.
 # `contraction_twist!` below accepts any array, so without this it throws a `MethodError` on the
 # dense and `Diagonal` factors that a factorization of an unsymmetric array produces.

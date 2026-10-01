@@ -730,18 +730,48 @@ function TensorAlgebra.contractpermalign(
     )
 end
 
-# A contraction whose right factor is a `GradedArray` runs the graded kernel (`GradedContract`,
-# see `tensoralgebra.jl`), which twists that factor's contracted legs before matricizing it. The
-# left factor may be a tensor-level or matrix-level fused operand. A matrix-level right factor
-# needs no twist and stays on the generic `MatricizeContract`. Keyed on the right factor only,
-# since the twist comes from the contraction braiding, not from where the result is written.
-for A in (:GradedArray, :AbstractFusedGradedArray)
-    @eval function TensorAlgebra.default_algorithm(
-            ::typeof(TensorAlgebra.contract!),
-            ::Type{<:Tuple{AbstractArray, $A, GradedArray}}
+# ========================  graded contraction  ========================
+# Fermionic contractions need the second (right) factor's contracted legs twisted before
+# matricization, so the result does not depend on contraction order. This kernel matricizes the
+# left factor as usual and sends the right factor through `twisted_matricizeop`, which inserts the
+# twist between the permute and the matricize. The twist is a no-op for bosonic sectors.
+#
+# Keyed on the right factor alone, since the twist comes from the contraction braiding and not
+# from where the result is written or what the left factor is. A matrix-level right factor is
+# already fused and needs no twist, so it stays on TensorAlgebra's kernel.
+
+function TensorAlgebra.contractpermopadd!(
+        ::TensorAlgebra.MatricizeContract,
+        a_dest::AbstractArray, biperm_dest_codomain, biperm_dest_domain,
+        op1, a1::AbstractArray, biperm1_codomain, biperm1_domain,
+        op2, a2::GradedArray, biperm2_codomain, biperm2_domain,
+        α::Number, β::Number
+    )
+    biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
+    invperm_codomain, invperm_domain =
+        TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
+    check_input(
+        TensorAlgebra.contract!,
+        a_dest, invperm_codomain, invperm_domain,
+        a1, biperm1_codomain, biperm1_domain,
+        a2, biperm2_codomain, biperm2_domain
+    )
+    a1_mat = TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
+    a2_mat = twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
+    if TensorAlgebra.is_output_view(
+            TensorAlgebra.matricizeop, identity, a_dest, invperm_codomain, invperm_domain
         )
-        return GradedContract()
+        a_dest_mat = TensorAlgebra.matricizeopview(
+            identity, a_dest, invperm_codomain, invperm_domain
+        )
+        LinearAlgebra.mul!(a_dest_mat, a1_mat, a2_mat, α, β)
+    else
+        a_dest_mat = a1_mat * a2_mat
+        TensorAlgebra.unmatricizeadd!(
+            a_dest, a_dest_mat, invperm_codomain, invperm_domain, α, β
+        )
     end
+    return a_dest
 end
 
 # Whether the two axis groups hold the same axes with the same repeats, in any order. Reordering

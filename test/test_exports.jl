@@ -29,7 +29,6 @@ using Test: @test, @testset
             [
                 :FusedGradedMatrix,
                 :FusedGradedVector,
-                :GradedContract,
                 :GradedOneTo,
                 :TensorKitSector,
                 :with_scalar_indexing,
