@@ -1,0 +1,90 @@
+# Graded arrays
+
+```@meta
+CurrentModule = GradedArrays
+```
+
+## Graded axes
+
+[`gradedrange`](@ref) builds an axis from `sector => multiplicity` pairs. Each pair contributes
+one block, whose length is the multiplicity times the sector's dimension.
+
+```@example gradedarrays
+using GradedArrays: U1, gradedrange
+g = gradedrange([U1(0) => 1, U1(1) => 2])
+```
+
+Read the sectors back with [`sectors`](@ref), which gives one per block in block order.
+
+```@example gradedarrays
+using GradedArrays: sectors
+sectors(g)
+```
+
+```@docs; canonical=false
+gradedrange
+GradedOneTo
+sectors
+```
+
+## Duality
+
+An axis carries an arrow saying whether it transforms in a representation or in its dual.
+`dual` flips the arrow and leaves the sectors alone, `conj` is an alternative spelling of it,
+and `isdual` asks which way an axis points. GradedArrays re-exports all three from
+TensorAlgebra, so their docstrings live there and they are shown here by example rather than in
+the [Reference](@ref).
+
+```@example gradedarrays
+using GradedArrays: dual, isdual
+dg = dual(g)
+isdual(g), isdual(dg)
+```
+
+```@example gradedarrays
+conj(g) == dual(g)
+```
+
+Duality belongs to the axis, not to the sectors it carries, so the sectors come back unchanged.
+
+```@example gradedarrays
+sectors(dg) == sectors(g)
+```
+
+## Arrays over graded axes
+
+Calling a `Base` array constructor on graded axes gives a [`GradedArray`](@ref), which stores
+only the symmetry-allowed blocks.
+
+```@example gradedarrays
+a = randn(g, dual(g))
+```
+
+Its legs are split into a codomain and a domain group, so it can also be read as a tensor map.
+Both legs landed in the codomain here, which is why the stored form is a single column.
+`matricize` regroups them, fusing the codomain legs to the rows and the domain legs to the
+columns, which gives the block-diagonal matrix.
+
+```@example gradedarrays
+using TensorAlgebra: matricize
+matricize(a, (1,), (2,))
+```
+
+The split can also be given up front, as a codomain tuple and a domain tuple. Domain axes are
+passed facing the same way as codomain ones and are dualized for you, so `randn((g,), (g,))` has
+the same axes as `randn(g, dual(g))` and differs only in how they are grouped. It is stored as
+the matrix directly.
+
+```@example gradedarrays
+b = randn((g,), (g,))
+```
+
+```@example gradedarrays
+axes(b) == axes(a)
+```
+
+```@docs; canonical=false
+GradedArray
+FusedGradedMatrix
+FusedGradedVector
+```

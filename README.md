@@ -41,11 +41,39 @@ julia> Pkg.add("GradedArrays")
 
 ## Examples
 
+A graded axis is built from `sector => multiplicity` pairs, one block per pair. This one is
+graded by `U(1)` charge, with a one-dimensional zero-charge block and a two-dimensional
+charge-one block.
+
 ````julia
-using GradedArrays: GradedArrays
+using GradedArrays: U1, dual, gradedrange, isdual, sectors
+g = gradedrange([U1(0) => 1, U1(1) => 2])
 ````
 
-Examples go here.
+The sectors come back one per block.
+
+````julia
+sectors(g)
+````
+
+An axis also carries an arrow saying whether it transforms in a representation or in its dual.
+`dual` flips the arrow and leaves the sectors alone.
+
+````julia
+isdual(g), isdual(dual(g))
+````
+
+Calling an array constructor on graded axes gives an array that stores only the
+symmetry-allowed blocks.
+
+````julia
+a = randn(g, dual(g))
+````
+
+For the symmetries that are available, see
+[Symmetry sectors](https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/). For
+building axes and arrays over them, see
+[Graded arrays](https://itensor.github.io/GradedArrays.jl/dev/user_interface/graded_arrays/).
 
 ---
 
