@@ -181,8 +181,8 @@ function Base.show(io::IO, g::GradedOneTo)
     return nothing
 end
 
-# The `[sector => length, ...]` pair list, shared by the round-tripping `show` above (wrapped in
-# `gradedrange(...)`) and the compact `Dim` line a graded array prints for its axes.
+# The `[sector => length, ...]` pair list that the round-tripping `show` above wraps in
+# `gradedrange(...)`.
 function show_sector_pairs(io::IO, g::GradedOneTo)
     print(io, "[")
     join(io, (s => m for (s, m) in zip(g.sectors, datalengths(g))), ", ")
@@ -190,12 +190,24 @@ function show_sector_pairs(io::IO, g::GradedOneTo)
     return nothing
 end
 
-# A graded array's `Dim` line: the bare pair list, with a trailing `(dual)` for a dual axis. The
-# `gradedrange(...)` wrapper the standalone `show` adds is redundant next to the `Dim N:` label.
-show_axis(io::IO, g::AbstractUnitRange) = show(io, g)
-function show_axis(io::IO, g::GradedOneTo)
-    show_sector_pairs(io, g)
-    isdual(g) && print(io, " (dual)")
+# The codomain/domain axis lines of a graded array's display, with the axes aligned under each
+# other. The axes shown are the stored halves, so a domain line reads as the axis the constructor
+# takes rather than the dualized one `axes` derives, which is what lets a nested matricized form
+# agree with the array holding it. One line per axis rather than per group, since a group can be
+# empty. No trailing newline, so the caller owns what follows.
+function show_biaxes(io::IO, a::AbstractArray)
+    lines = [
+        "$(name) Dim $(d):" => g
+            for
+            (name, group) in (("Codomain", axes_codomain(a)), ("Domain", axes_domain(a)))
+            for (d, g) in enumerate(group)
+    ]
+    width = maximum(length ∘ first, lines; init = 0)
+    for (i, (label, g)) in enumerate(lines)
+        i > 1 && println(io)
+        print(io, "  ", rpad(label, width), " ")
+        show(io, g)
+    end
     return nothing
 end
 

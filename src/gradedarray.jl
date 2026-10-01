@@ -999,18 +999,8 @@ Base.show(io::IO, fa::GradedArray) = summary(io, fa)
 function Base.show(io::IO, ::MIME"text/plain", fa::GradedArray)
     summary(io, fa)
     println(io, ":")
-    # Show the per-leg axes as stored (domain axes codomain-facing), so the printed duality reflects
-    # storage rather than the on-the-fly dualization `axes(fa)` applies to domain legs.
-    for (d, g) in enumerate(axes_codomain(fa))
-        print(io, "  Codomain Dim $d: ")
-        show(io, g)
-        println(io)
-    end
-    for (d, g) in enumerate(axes_domain(fa))
-        print(io, "  Domain Dim $d: ")
-        show(io, g)
-        println(io)
-    end
+    show_biaxes(io, fa)
+    ndims(fa) == 0 || println(io)
     show(io, MIME"text/plain"(), matricize(fa))
     return nothing
 end

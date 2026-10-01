@@ -299,8 +299,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", v::FusedGradedVector)
     summary(io, v)
     println(io, ":")
-    print(io, "  Dim 1: ")
-    show_axis(io, axes(v, 1))
+    show_biaxes(io, v)
     isempty(sectordata(v)) && return nothing
     println(io)
     Base.print_array(io, v)

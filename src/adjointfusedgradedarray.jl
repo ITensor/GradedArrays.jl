@@ -68,6 +68,9 @@ end
 function Base.show(io::IO, ::MIME"text/plain", a::AdjointFusedGradedArray)
     summary(io, a)
     println(io, ":")
+    show_biaxes(io, a)
+    isempty(sectordata(parent(a))) && return nothing
+    println(io)
     Base.print_array(io, a)
     return nothing
 end

@@ -281,12 +281,9 @@ end
 function Base.show(io::IO, ::MIME"text/plain", m::AbstractFusedGradedMatrix)
     summary(io, m)
     println(io, ":")
-    for (d, g) in pairs(axes(m))
-        print(io, "  Dim $d: ")
-        show_axis(io, g)
-        println(io)
-    end
+    show_biaxes(io, m)
     isempty(sectordata(m)) && return nothing
+    println(io)
     Base.print_array(io, m)
     return nothing
 end

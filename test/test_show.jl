@@ -159,7 +159,8 @@ end
     s = sprint(show, MIME("text/plain"), a)
     @test occursin("GradedArray (codomain 1, domain 1)", s)
     @test occursin("Codomain Dim 1: gradedrange([U1(0) => 2, U1(1) => 2])", s)
-    @test occursin("Domain Dim 1: gradedrange([U1(0) => 2, U1(1) => 2])", s)
+    # The axis values line up, so the narrower `Domain` label carries two spaces of padding.
+    @test occursin("Domain Dim 1:   gradedrange([U1(0) => 2, U1(1) => 2])", s)
     # The matricized `FusedGradedMatrix` is shown below the header.
     @test occursin("FusedGradedMatrix", s)
     @test occursin("⋅", s)   # unstored blocks show as dots
