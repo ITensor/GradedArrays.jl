@@ -56,8 +56,8 @@ The sectors come back one per block.
 sectors(g)
 ````
 
-An axis also carries an arrow saying whether it transforms in a representation or in its dual.
-`dual` flips the arrow and leaves the sectors alone.
+A graded axis also carries an arrow saying whether it transforms in a representation or in
+its dual. `dual` flips the arrow and leaves the sectors alone.
 
 ````julia
 isdual(g), isdual(dual(g))
@@ -70,9 +70,16 @@ symmetry-allowed blocks.
 a = randn(g, dual(g))
 ````
 
+Other array constructors like `zeros`, `ones` and `fill` also work, and allocate only the
+elements corresponding to the allowed symmetry sectors.
+
+````julia
+zeros(g, dual(g))
+````
+
 For the symmetries that are available, see
 [Symmetry sectors](https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/). For
-building axes and arrays over them, see
+building graded axes and arrays over them, see
 [Graded arrays](https://itensor.github.io/GradedArrays.jl/dev/user_interface/graded_arrays/).
 
 ---

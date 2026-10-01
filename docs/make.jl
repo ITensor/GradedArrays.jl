@@ -26,7 +26,6 @@ makedocs(;
         ],
         "Reference" => "reference.md",
         "Internals" => "internals.md",
-        "Changelog" => "changelog.md",
     ]
 )
 
