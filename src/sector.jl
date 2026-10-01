@@ -47,8 +47,9 @@ TKS.Sector(s::Sector) = tensorkit_sectortype(s)(sector_labels(s)...)
 """
     TensorKitSector(c::TensorKitSectors.Sector)
 
-Any TensorKitSectors sector as a [`Sector`](@ref). This is the escape hatch for the symmetries
-GradedArrays does not give a name of its own, such as the anyons.
+Wrap a TensorKitSectors sector and reinterpret it as a [`Sector`](@ref). This is what supports
+the symmetries TensorKitSectors defines that have no GradedArrays sector of their own, such as
+the anyons.
 """
 struct TensorKitSector{I <: TKS.Sector} <: Sector
     sector::I
@@ -355,7 +356,7 @@ Sector(c::TKS.SU2Irrep) = SU2(c.j)
 """
     CU1(j::Real, s::Integer = ifelse(j > zero(j), 2, 0))
 
-An irreducible representation of `U(1) ⋊ C`, also written `O(2)`: the `U(1)` charge `j` together
+An irreducible representation of `U(1) ⋊ C`, also called `O(2)`: the `U(1)` charge `j` together
 with the representation `s` of charge conjugation. For `j > 0` the only value is `s = 2`, the
 two-dimensional representation. For `j == 0` there are two, `s = 0` and `s = 1`, the trivial and
 non-trivial representations of the conjugation.
@@ -456,13 +457,11 @@ sector_labels(c::TKS.Sector) = map(f -> getfield(c, f), fieldnames(typeof(c)))
 sector_labels(c::TKS.ProductSector) = map(Sector, c.sectors)
 
 # The GradedArrays name of a sector type, for the constructor-form display below. Upstream's
-# `type_repr` is the same idea for its own types, and a symmetry reached through
-# `TensorKitSector` defers to it rather than to a name we re-derive.
+# `type_repr` is the same idea for its own types.
 sectortype_repr(::Type{S}) where {S <: Sector} = string(nameof(S))
 sectortype_repr(::Type{Z{N}}) where {N} = "Z{$N}"
 # `Z2` is the one order with an exported alias of its own, so it shows under that name.
 sectortype_repr(::Type{Z2}) = "Z2"
-sectortype_repr(::Type{TensorKitSector{I}}) where {I} = TKS.type_repr(I)
 
 # A label as a reader should see it, since a stored `UInt8` would otherwise `show` as `0x01` and
 # a `Bool` parity as `true`. A `HalfInt` spin is not an `Integer`, so it keeps its `1/2` form.
@@ -480,23 +479,18 @@ function Base.show(io::IO, s::Sector)
     return print(io, ')')
 end
 
-# A `TKS.ProductSector` has no name of its own, so it shows as its components rather than
-# leaking `ProductSector` into the display. Components go through `Sector` so each prints under
-# its GradedArrays name. Only an explicitly wrapped product reaches these, since `Sector`
-# unwraps a `ProductSector` into a `TupleSectorProduct`.
-function Base.show(io::IO, s::TensorKitSector{<:TKS.ProductSector})
-    print(io, '(')
-    join(io, (sprint(show, Sector(c); context = io) for c in TKS.Sector(s).sectors), " × ")
-    return print(io, ')')
-end
-function Base.show(
-        io::IO, s::TensorKitSector{TKS.ProductSector{Tuple{TKS.U1Irrep, TKS.FermionParity}}}
-    )
-    c = TKS.Sector(s)
-    q = c.sectors[1].charge
-    # Recover the alias only for a value `FermionNumber` actually produces; any other
-    # `(U1, FermionParity)` product shows as its components.
-    isinteger(q) && TKS.FermionNumber(Int(q)) == c ||
-        return @invoke show(io::IO, s::TensorKitSector{<:TKS.ProductSector})
-    return print(io, "FermionNumber(", Int(q), ")")
+# The wrapping call around upstream's own spelling of the sector it wraps. The wrapper belongs in
+# the display because the printed form has to rebuild this value, and the native sector for the
+# same symmetry is a different one: `==` on a product and a non-product is `false` by
+# construction, so the native spelling would read back as something this does not equal. The
+# inside is upstream's spelling rather than one re-derived from the fields, which for
+# `FibonacciAnyon` would print its `isunit` flag as a number instead of the label that rebuilds
+# it. One case the round trip does not survive: upstream spells a product of irreps
+# `Irrep[U₁ × U₁](1, 2)`, whose `×` is theirs rather than ours, so reading that back needs theirs
+# in scope. Only an explicitly wrapped sector reaches this, since `Sector` unwraps anything with
+# a native counterpart, a `ProductSector` into a `TupleSectorProduct` included.
+function Base.show(io::IO, s::TensorKitSector)
+    print(io, "TensorKitSector(")
+    show(io, TKS.Sector(s))
+    return print(io, ")")
 end
