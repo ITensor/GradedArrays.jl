@@ -2,15 +2,11 @@
 #  AdjointFusedGradedArray — lazy adjoint of a fused graded array
 # ===========================================================================
 
-"""
-    AdjointFusedGradedArray{T,S<:SectorRange,N,P<:AbstractFusedGradedArray{T,S,N}} <: AbstractFusedGradedArray{T,S,N}
-
-Lazy adjoint (conjugate transpose) of a fused graded array, produced by `adjoint`/`'` on a fused
-graded matrix. Analogous to TensorKit's `AdjointTensorMap` and `LinearAlgebra.Adjoint`.
-"""
+# Lazy adjoint (conjugate transpose) of a fused graded array, produced by `adjoint`/`'` on a fused
+# graded matrix. Analogous to TensorKit's `AdjointTensorMap` and `LinearAlgebra.Adjoint`.
 struct AdjointFusedGradedArray{
         T,
-        S <: SectorRange,
+        S <: Sector,
         N,
         P <: AbstractFusedGradedArray{T, S, N},
     } <: AbstractFusedGradedArray{T, S, N}
@@ -72,6 +68,9 @@ end
 function Base.show(io::IO, ::MIME"text/plain", a::AdjointFusedGradedArray)
     summary(io, a)
     println(io, ":")
+    show_biaxes(io, a)
+    isempty(sectordata(parent(a))) && return nothing
+    println(io)
     Base.print_array(io, a)
     return nothing
 end

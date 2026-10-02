@@ -28,25 +28,25 @@ const SectorDataLayout{S, N} = SortedArrayDictionary{
 
 # Matrix form: one block per coupled sector (present on both codomain and domain), in sorted
 # coupled-sector order and column-major within each block (TensorKit's `.data` layout). A single
-# sorted merge over the two axes' sorted label vectors finds the coupled sectors and accumulates
+# sorted merge over the two axes' sorted sector vectors finds the coupled sectors and accumulates
 # the offsets.
 function sectordatalayout(
         codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
-    ) where {S <: SectorRange}
-    codl, codd = sectorlabels(codomain), datalengths(codomain)
-    doml, domd = sectorlabels(domain), datalengths(domain)
+    ) where {S <: Sector}
+    cods, codd = sectors(codomain), datalengths(codomain)
+    doms, domd = sectors(domain), datalengths(domain)
     coupled = S[]
     layouts = @NamedTuple{offset::Int, size::NTuple{2, Int}}[]
     offset = 0
     i = j = 1
-    while i <= length(codl) && j <= length(doml)
-        if isless(codl[i], doml[j])
+    while i <= length(cods) && j <= length(doms)
+        if isless(cods[i], doms[j])
             i += 1
-        elseif isless(doml[j], codl[i])
+        elseif isless(doms[j], cods[i])
             j += 1
         else
             sz = (codd[i], domd[j])
-            push!(coupled, S(codl[i]))
+            push!(coupled, cods[i])
             push!(layouts, (offset = offset, size = sz))
             offset += prod(sz)
             i += 1
@@ -73,16 +73,12 @@ end
 # buffer against it. The blocks are contiguous, so it is the sum of the block sizes.
 bufferlength(datalayout) = sum(layout -> prod(layout.size), datalayout; init = 0)
 
-"""
-    SectorData{S,T,P,I} <: Dictionaries.AbstractDictionary{S,T}
-
-Lazy dictionary of the per-coupled-sector block data of a fused graded array, wrapping the array
-itself. Keys are the coupled sectors; each value materializes on access as a `view` into the array's
-contiguous buffer (a 1-D view for a [`FusedGradedVector`](@ref), a reshaped 2-D view for a
-[`FusedGradedMatrix`](@ref)), so no block-shaped storage is held and writes through a value land in
-the buffer. The value type is `datatype(parent)`. The `datalayout` field is the array's carried
-sector → offset/size layout (see `sectordatalayout`), passed straight from the array's field.
-"""
+# Lazy dictionary of the per-coupled-sector block data of a fused graded array, wrapping the array
+# itself. Keys are the coupled sectors; each value materializes on access as a `view` into the array's
+# contiguous buffer (a 1-D view for a `FusedGradedVector`, a reshaped 2-D view for a
+# `FusedGradedMatrix`), so no block-shaped storage is held and writes through a value land in
+# the buffer. The value type is `datatype(parent)`. The `datalayout` field is the array's carried
+# sector → offset/size layout (see `sectordatalayout`), passed straight from the array's field.
 struct SectorData{S, T, P <: AbstractFusedGradedArray, I <: AbstractDictionary{S}} <:
     AbstractDictionary{S, T}
     parent::P
@@ -101,7 +97,12 @@ end
 # --- AbstractDictionary interface (read-only; values are views, so they mutate through) ---
 
 Base.keys(sd::SectorData) = keys(sd.datalayout)
+# Two methods for one body: Dictionaries defines its `isassigned` fallback at the key type, so the
+# first is what makes a key of that type unambiguous, and the second accepts every other spelling
+# `haskey` already takes. `getindex` needs only the narrow one, since the fallback that reaches it
+# converts the key first.
 Base.isassigned(sd::SectorData{S}, s::S) where {S} = haskey(sd.datalayout, s)
+Base.isassigned(sd::SectorData, s) = haskey(sd.datalayout, s)
 Base.@propagate_inbounds function Base.getindex(sd::SectorData{S}, s::S) where {S}
     layout = sd.datalayout[s]
     return _dataview(sd.parent.buffer, layout.offset, layout.size)

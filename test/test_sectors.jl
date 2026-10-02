@@ -1,25 +1,31 @@
-using GradedArrays: SU2, SectorRange, TrivialSector, U1, Z, dual, flip, istrivial, modulus,
-    sectortype, trivial
+using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, Trivial, U1, Z, dual, flip,
+    istrivial, modulus, sector_labels, sectortype, trivial
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
 
-const SU{N} = SectorRange{SUNRepresentations.SUNIrrep{N}}
-fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
+fundamental(::Type{<:SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
 
 @testset "Test SymmetrySectors Types" begin
-    @testset "TrivialSector" begin
-        q = TrivialSector()
+    @testset "Trivial" begin
+        q = Trivial()
 
-        @test sectortype(q) === TrivialSector
-        @test sectortype(typeof(q)) === TrivialSector
+        @test sectortype(q) === Trivial
+        @test sectortype(typeof(q)) === Trivial
         @test (@constinferred length(q)) == 1
         @test q == q
         @test trivial(q) == q
         @test istrivial(q)
 
-        @test dual(q) == q
+        @test q != U1(0)
+        @test U1(0) != q
+        @test q != Sector(U1(0), SU2(0))
+        @test Sector(U1(0), SU2(0)) != q
+        @test q != Sector(; Nf = U1(0))
+        @test Sector(; Nf = U1(0)) != q
+
+        @test flip(dual(q)) == q
         @test !isless(q, q)
     end
 
@@ -44,10 +50,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test U1(Int8(1)) == U1(1)
         @test U1(UInt32(1)) == U1(1)
 
-        @test U1(0) == TrivialSector()
-        @test TrivialSector() == U1(0)
-        @test TrivialSector() < U1(-1)
-        @test TrivialSector() < U1(1)
+        @test Trivial() < U1(-1)
+        @test Trivial() < U1(1)
         @test U1(Int8(1)) < U1(Int32(2))
     end
 
@@ -65,14 +69,22 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test flip(dual(z0)) == z0
         @test flip(dual(z1)) == z1
         @test modulus(z1) == 2
+        @test modulus(Z{2}) == 2
+
+        # The label is held in an `Int8`, so `N` is capped; the message is ours rather than
+        # upstream's, which names a type this package does not have.
+        @test modulus(Z{128}(127)) == 128
+        @test_throws ArgumentError Z{129}(0)
+        @test_throws ArgumentError Z{300}(5)
+        @test_throws ArgumentError Z{0}(0)
+        @test_throws ArgumentError Z{-1}(0)
 
         @test isless(Z{2}(0), Z{2}(1))
         @test !isless(Z{2}(1), Z{2}(0))
         @test Z{2}(0) == z0
         @test Z{2}(-3) == z1
 
-        @test Z{2}(0) == TrivialSector()
-        @test TrivialSector() < Z{2}(1)
+        @test Trivial() < Z{2}(1)
         @test_throws MethodError U1(0) < Z{2}(1)
         @test Z{2}(0) != Z{2}(1)
         @test Z{2}(0) != Z{3}(0)
@@ -80,13 +92,23 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "O(2)" begin
-        s0e = SectorRange(TKS.CU1Irrep(0, 0))
-        s0o = SectorRange(TKS.CU1Irrep(0, 1))
-        s12 = SectorRange(TKS.CU1Irrep(1 // 2, 2))
-        s1 = SectorRange(TKS.CU1Irrep(1, 2))
+        s0e = CU1(0, 0)
+        s0o = CU1(0, 1)
+        s12 = CU1(1 // 2, 2)
+        s1 = CU1(1, 2)
 
-        @test trivial(SectorRange{TKS.CU1Irrep}) == s0e
+        # `s` follows from `j` except at `j == 0`, so it defaults.
+        @test CU1(1 // 2) == s12
+        @test CU1(0) == s0e
+        # An upstream sector converts to this type rather than to the escape hatch.
+        @test Sector(TKS.CU1Irrep(0, 1)) === s0o
+        # Upstream rejects the pairs that are not irreps.
+        @test_throws ErrorException CU1(0, 2)
+        @test_throws ErrorException CU1(1, 0)
+
+        @test trivial(CU1) == s0e
         @test istrivial(s0e)
+        @test !istrivial(s0o)
 
         @test (@constinferred length(s0e)) == 1
         @test (@constinferred length(s0o)) == 1
@@ -99,9 +121,8 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test (@constinferred flip(dual(s1))) == s1
 
         @test s0e < s0o < s12 < s1
-        @test s0e == TrivialSector()
-        @test s0o > TrivialSector()
-        @test TrivialSector() < s12
+        @test s0o > Trivial()
+        @test Trivial() < s12
     end
 
     @testset "SU(2)" begin
@@ -129,29 +150,56 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test flip(dual(j4)) == j4
 
         @test j1 < j2 < j3 < j4
-        @test SU2(0) == TrivialSector()
-        @test !(j2 < TrivialSector())
-        @test TrivialSector() < j2
+        @test !(j2 < Trivial())
+        @test Trivial() < j2
     end
 
     @testset "SU(N)" begin
-        f3 = SU{3}((1, 0))
-        f4 = SU{4}((1, 0, 0))
-        ad3 = SU{3}((2, 1))
-        ad4 = SU{4}((2, 1, 1))
+        # Dynkin labels: `N - 1` of them, and the canonical form.
+        f3 = SU{3}(1, 0)
+        f4 = SU{4}(1, 0, 0)
+        ad3 = SU{3}(1, 1)
+        ad4 = SU{4}(1, 0, 1)
 
-        @test trivial(SU{3}) == SU{3}((0, 0))
-        @test istrivial(SU{3}((0, 0)))
-        @test trivial(SU{4}) == SU{4}((0, 0, 0))
-        @test istrivial(SU{4}((0, 0, 0)))
-        @test SU{3}((0, 0)) == TrivialSector()
-        @test SU{4}((0, 0, 0)) == TrivialSector()
+        # `N` labels are the highest weight instead, and name the same representations.
+        @test f3 === SU{3}(1, 0, 0)
+        @test ad3 === SU{3}(2, 1, 0)
+        @test sector_labels(f3) == (1, 0)
+        @test sector_labels(ad3) == (1, 1)
+
+        # A weight is shift-invariant, so any representative denotes the same representation.
+        @test SU{3}(2, 1, 1) == SU{3}(1, 0, 0)
+        @test SU{3}(0, -1, -2) == SU{3}(2, 1, 0)
+        @test hash(SU{3}(2, 1, 1)) == hash(SU{3}(1, 0, 0))
+        @test istrivial(SU{3}(1, 1, 1))
+
+        # A weight must be non-increasing, a Dynkin label within the byte range, and the number
+        # of labels either `N - 1` or `N`. The rank never follows from the count.
+        @test_throws ArgumentError SU{3}(0, 1, 0)
+        @test_throws ArgumentError SU{3}(-1, 0)
+        @test_throws ArgumentError SU{3}(256, 0)
+        @test_throws ArgumentError SU{3}(1, 0, 0, 0)
+        @test_throws ArgumentError SU{1}(0)
+        @test_throws ArgumentError SU(1, 0)
+        @test_throws ArgumentError SU{3, 5}((1, 1, 1, 1, 1))
+
+        # The labels are stored the way `SUNIrrep` stores them, so the two are the same size and
+        # `sector_labels` hands the stored bytes to the conversion without widening them. The
+        # display widens instead, so a label still reads as a number rather than as a byte.
+        @test sizeof(ad3) == sizeof(SUNRepresentations.SUNIrrep{3, 2}((1, 1)))
+        @test sector_labels(ad3) isa Tuple{UInt8, UInt8}
+        @test sprint(show, ad3) == "SU{3}(1, 1)"
+
+        @test trivial(SU{3}) == SU{3}(0, 0)
+        @test istrivial(SU{3}(0, 0))
+        @test trivial(SU{4}) == SU{4}(0, 0, 0)
+        @test istrivial(SU{4}(0, 0, 0))
 
         @test fundamental(SU{3}) == f3
         @test fundamental(SU{4}) == f4
 
-        @test flip(dual(f3)) == SU{3}((1, 1))
-        @test flip(dual(f4)) == SU{4}((1, 1, 1))
+        @test flip(dual(f3)) == SU{3}(0, 1)
+        @test flip(dual(f4)) == SU{4}(0, 0, 1)
         @test flip(dual(ad3)) == ad3
         @test flip(dual(ad4)) == ad4
 
@@ -159,20 +207,19 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
         @test length(f4) == 4
         @test length(ad3) == 8
         @test length(ad4) == 15
-        @test length(SU{3}((4, 2))) == 27
-        @test length(SU{3}((3, 3))) == 10
-        @test length(SU{3}((3, 0))) == 10
-        @test length(SU{3}((0, 0))) == 1
+        @test length(SU{3}(2, 2)) == 27
+        @test length(SU{3}(0, 3)) == 10
+        @test length(SU{3}(3, 0)) == 10
+        @test length(SU{3}(0, 0)) == 1
         @test (@constinferred length(f3)) == 3
     end
 
     @testset "Fibonacci" begin
-        ı = SectorRange(TKS.FibonacciAnyon(:I))
-        τ = SectorRange(TKS.FibonacciAnyon(:τ))
+        ı = Sector(TKS.FibonacciAnyon(:I))
+        τ = Sector(TKS.FibonacciAnyon(:τ))
 
-        @test trivial(SectorRange{TKS.FibonacciAnyon}) == ı
+        @test trivial(TensorKitSector{TKS.FibonacciAnyon}) == ı
         @test istrivial(ı)
-        @test ı == TrivialSector()
 
         @test flip(dual(ı)) == ı
         @test flip(dual(τ)) == τ
@@ -184,13 +231,12 @@ fundamental(::Type{SU{N}}) where {N} = SU{N}((1, zeros(Int, N - 2)...))
     end
 
     @testset "Ising" begin
-        ı = SectorRange(TKS.IsingAnyon(:I))
-        σ = SectorRange(TKS.IsingAnyon(:σ))
-        ψ = SectorRange(TKS.IsingAnyon(:ψ))
+        ı = Sector(TKS.IsingAnyon(:I))
+        σ = Sector(TKS.IsingAnyon(:σ))
+        ψ = Sector(TKS.IsingAnyon(:ψ))
 
-        @test trivial(SectorRange{TKS.IsingAnyon}) == ı
+        @test trivial(TensorKitSector{TKS.IsingAnyon}) == ı
         @test istrivial(ı)
-        @test ı == TrivialSector()
 
         @test flip(dual(ı)) == ı
         @test flip(dual(σ)) == σ

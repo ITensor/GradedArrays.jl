@@ -1,36 +1,38 @@
-"""
-    AbstractSectorArray{T,S,N} <: AbstractArray{T,N}
-
-Abstract supertype for data tensors labeled by sector information.
-Concrete subtypes:
-
-  - [`UniqueSectorArray`](@ref): unfused N-D abelian data tensor (one sector per axis)
-  - [`FusedSectorMatrix`](@ref): fused 2D data matrix (one coupled sector label)
-"""
+# Abstract supertype for a symmetric block that factorizes into a data-free structural factor
+# (`structure`, fixed by the symmetry) and the reduced matrix elements (`data`). Its `size` is the
+# full Kronecker extent of the two, so a subtype is the whole block rather than just the data it
+# stores.
+# Concrete subtypes:
+#
+#   - `UniqueSectorArray`: unfused N-D abelian block (one sector per axis)
+#   - `FusedSectorMatrix`: fused 2D block (one coupled sector label)
+#   - `FusedSectorVector`: fused 1-D block (the diagonal of a `FusedSectorMatrix`)
 abstract type AbstractSectorArray{T, S, N} <: AbstractArray{T, N} end
 
 sectortype(::Type{<:AbstractSectorArray{T, S}}) where {T, S} = S
 
-"""
-    data(sa::AbstractSectorArray)
-
-Return the raw data array underlying the sector array.
-"""
+# Return the raw data array underlying the sector array.
 data(sa::AbstractSectorArray) = sa.data
 
+# Return the structural (Schur) factor of a single-sector graded object: the data-free part that the
+# symmetry fixes, carrying no free parameters. It is the Kronecker cofactor of the raw data, so
+# `x == structure(x) ⊗ data(x)`; for an `AbstractSectorArray` it is the
+# `AbstractSectorDelta` with `sector_kron(structure(a), data(a)) === a`, and for a
+# `SectorOneTo` it is the `OrientedSector` of the rank-1 factorization.
+function structure end
+
 # Reconstruct a sector array from its structural sector factor and raw data
-# (the inverse of the `sector` / `data` split). Each concrete subtype defines a method.
+# (the inverse of the `structure` / `data` split). Each concrete subtype defines a method.
 function sector_kron end
 
-# The axes decompose into the structural sector factor and the reduced data, derived once here from
-# the `sector`/`data` primitives every concrete subtype provides, so no type re-derives them and
-# they cannot drift apart. `biaxes` carries the codomain/domain split as a `BiTuple`: the sector
-# factor supplies the split (via its own `biaxes`), so bipartition the flat reduced-data axes at the
-# same boundary and pair each with its sector label. `axes` is the flat form; `size` the flat shape.
-sectoraxes(sa::AbstractSectorArray) = axes(sector(sa))
+# The axes decompose into the structural sector factor and the reduced data, derived here from the
+# `structure`/`data` primitives every subtype provides. `biaxes` carries the codomain/domain split,
+# taking it from the sector factor and bipartitioning the reduced-data axes at the same boundary.
+structureaxes(x) = axes(structure(x))
+structureaxes(x, d::Int) = structureaxes(x)[d]
 dataaxes(sa::AbstractSectorArray) = axes(data(sa))
 function biaxes(sa::AbstractSectorArray)
-    sbi = biaxes(sector(sa))
+    sbi = biaxes(structure(sa))
     datacod, datadom = bipartition(dataaxes(sa), Val(length(sbi.t1)))
     return BiTuple(map(SectorOneTo, sbi.t1, datacod), map(SectorOneTo, sbi.t2, datadom))
 end
@@ -162,26 +164,27 @@ end
 # product. Matches `dot(Array(a), Array(b))` (the `kron`/`dot` mixed-product identity) and the
 # quantum-dimension weighting a fused graded array applies to each block.
 function LinearAlgebra.dot(a::AbstractSectorArray, b::AbstractSectorArray)
-    return LinearAlgebra.dot(sector(a), sector(b)) * LinearAlgebra.dot(data(a), data(b))
+    return LinearAlgebra.dot(structure(a), structure(b)) *
+        LinearAlgebra.dot(data(a), data(b))
 end
 
 # The `p`-norm factorizes through the Kronecker structure the same way: the product of the
 # structural-factor norm and the reduced-data norm (the `norm(A ⊗ B, p) = norm(A, p) * norm(B, p)`
 # identity that `KroneckerArrays` uses). Correct for every `p`, `Inf` included, with no special case.
 function LinearAlgebra.norm(a::AbstractSectorArray, p::Real = 2)
-    return LinearAlgebra.norm(sector(a), p) * LinearAlgebra.norm(data(a), p)
+    return LinearAlgebra.norm(structure(a), p) * LinearAlgebra.norm(data(a), p)
 end
 
 # ========================  densification  ========================
 
-# Materialize the block densely as `data(a) ⊗ sector(a)` (`reduced ⊗ I` for the identity/ones
+# Materialize the block densely as `data(a) ⊗ structure(a)` (`reduced ⊗ I` for the identity/ones
 # structural factor), repeating each reduced value over the irrep's quantum dimension. The reduced
 # data is the outer (slower) index, matching TensorKit's dense block layout, so this agrees with the
 # `to_tensormap` conversion (`Array(::FusedGradedMatrix)` and `Array(::GradedArray)` coincide). The generic
 # `AbstractArray` fallback can't be used: `size` is the full (structural × reduced) extent while
 # `data` is only the reduced block, so copying elementwise scalar-indexes past it into garbage.
 function Base.Array{T, N}(a::AbstractSectorArray{<:Any, <:Any, N}) where {T, N}
-    return kron_nd(Array{T, N}(data(a)), Array{T, N}(sector(a)))
+    return kron_nd(Array{T, N}(data(a)), Array{T, N}(structure(a)))
 end
 
 # ========================  random fills  ========================
@@ -214,20 +217,20 @@ Base.conj(a::AbstractSectorArray) = conj.(a)
 # (`f(I ⊗ A) = I ⊗ f(A)` for the real identity/ones structural factor). Defined directly on the
 # data rather than through the conjugating broadcast because, unlike `conj`, they are not semilinear
 # and cannot go through the linear-broadcast fold.
-Base.real(a::AbstractSectorArray) = sector_kron(sector(a), real(data(a)))
-Base.imag(a::AbstractSectorArray) = sector_kron(sector(a), imag(data(a)))
+Base.real(a::AbstractSectorArray) = sector_kron(structure(a), real(data(a)))
+Base.imag(a::AbstractSectorArray) = sector_kron(structure(a), imag(data(a)))
 
 # ========================  display  ========================
 
 function Base.print_array(io::IO, sa::AbstractSectorArray)
-    Base.print_array(io, sector(sa))
+    Base.print_array(io, structure(sa))
     println(io, "\n ⊗")
     Base.print_array(io, data(sa))
     return nothing
 end
 
 function Base.show(io::IO, sa::AbstractSectorArray)
-    show(io, sector(sa))
+    show(io, structure(sa))
     print(io, " ⊗ ")
     show(io, data(sa))
     return nothing

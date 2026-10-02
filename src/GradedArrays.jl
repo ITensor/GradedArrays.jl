@@ -2,14 +2,18 @@ module GradedArrays
 
 # exports
 # -------
-export TrivialSector, U1, SU2, Z, Z2
-export GradedArray, gradedrange
+export Sector, Trivial, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
+export sectorproduct, ×
+export GradedArray, gradedrange, sectors
 export dual, isdual
+# The array and axis types are exported rather than `public` because they name themselves in
+# every graded display, where `show` spells a name out in full unless the reader has it in scope.
+export FusedGradedMatrix, FusedGradedVector, GradedOneTo
 
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public GradedContract, SectorRange, sectors, with_scalar_indexing, with_block_indexing"
+            "public TensorKitSector, with_scalar_indexing, with_block_indexing"
         )
     )
 end
@@ -20,6 +24,7 @@ using BlockArrays: BlockArrays, AbstractBlockVector, AbstractBlockedUnitRange, B
     BlockIndexRange, BlockVector, BlockedArray, BlockedOneTo, block, blockedrange,
     blocklasts, blocklength, blocklengths, blocks, eachblockaxes1
 using Dictionaries: Dictionaries, Dictionary, dictionary, gettoken, gettokenvalue
+using HalfIntegers: HalfInt, twice
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, bipartition,
@@ -38,7 +43,7 @@ include("kron.jl")
 include("blocksparseinterface.jl")
 include("sparsearrays.jl")
 include("sortedarraydictionary.jl")
-include("sectorrange.jl")
+include("sector.jl")
 include("data.jl")
 include("sectoroneto.jl")
 include("abstractgradedoneto.jl")
@@ -64,6 +69,7 @@ include("adjointfusedgradedarray.jl")
 include("fusedgradedblocks.jl")
 
 include("sectorproduct.jl")
+include("fermionic.jl")
 
 include("fusion.jl")
 include("fusedgradeddiagonal.jl")

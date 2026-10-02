@@ -1,21 +1,26 @@
+# Supertype for graded axes — a unit range carved into sectors (its blocks), each with a data length
+# (multiplicity), plus a range-level `isdual` arrow. Concrete subtypes differ only in storage
+# and invariants:
+#
+#   - `GradedOneTo` stores parallel `sectors`/`datalengths` vectors and may hold
+#     repeated or unsorted sectors (the intermediate state of a not-yet-merged fusion), plus a
+#     cached fused form of itself.
+#   - `FusedGradedOneTo` stores sorted parallel label/length vectors and is always
+#     fused and sorted (each sector once, in sorted order).
+#
+# Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isdual`, plus
+# `dual` and `flip` (which return the same concrete type). Everything below is derived from
+# those.
+abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
+
+# A `SectorOneTo` gives the one sector it carries. A `GradedOneTo` may repeat a sector or leave
+# them unsorted, where a `FusedGradedOneTo` holds each once and in order.
 """
-    AbstractGradedOneTo{S<:SectorRange} <: AbstractUnitRange{Int}
+    sectors(g)
 
-Supertype for graded axes — a unit range carved into sectors (its blocks), each with a data length
-(multiplicity), plus a range-level `isdual` arrow. Concrete subtypes differ only in storage
-and invariants:
-
-  - [`GradedOneTo`](@ref) stores parallel `sectors`/`datalengths` vectors and may hold
-    repeated or unsorted sectors (the intermediate state of a not-yet-merged fusion), plus a
-    cached fused form of itself.
-  - [`FusedGradedOneTo`](@ref) stores sorted parallel label/length vectors and is always
-    fused and sorted (each sector once, in sorted order).
-
-Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isdual`, plus
-`dual` and `flip` (which return the same concrete type). Everything below is derived from
-those.
+The sector of each block of a graded axis, in block order.
 """
-abstract type AbstractGradedOneTo{S <: SectorRange} <: AbstractUnitRange{Int} end
+function sectors end
 
 # ========================  derived accessors  ========================
 
@@ -50,11 +55,11 @@ dataaxistype(::Type{<:AbstractGradedOneTo}) = Base.OneTo{Int}
 # ========================  BlockSparseArrays interface  ========================
 
 function eachblockaxis(g::AbstractGradedOneTo)
-    block_sectors = isdual(g) ? dual.(sectors(g)) : sectors(g)
-    return [SectorOneTo(s, m) for (s, m) in zip(block_sectors, datalengths(g))]
+    # The stored sectors carry no arrow, so each block axis takes the range's own.
+    return [SectorOneTo(s, m, isdual(g)) for (s, m) in zip(sectors(g), datalengths(g))]
 end
 eachdataaxis(g::AbstractGradedOneTo) = data.(eachblockaxis(g))
-eachsectoraxis(g::AbstractGradedOneTo) = sector.(eachblockaxis(g))
+eachstructureaxis(g::AbstractGradedOneTo) = structure.(eachblockaxis(g))
 
 # ========================  conj, flip_dual  ========================
 # `dual` and `flip` are concrete-type-specific (they return the same concrete type); `conj`
@@ -80,4 +85,13 @@ function Base.hash(g::AbstractGradedOneTo, h::UInt)
         :AbstractGradedOneTo,
         hash(sectors(g), hash(datalengths(g), hash(isdual(g), h)))
     )
+end
+
+# ========================  show  ========================
+# `showarg` rather than `summary`, so Base still supplies the element count and the `with indices`
+# tail and only the type name is ours.
+function Base.showarg(io::IO, g::AbstractGradedOneTo, toplevel::Bool)
+    toplevel || print(io, "::")
+    print(io, summary_typename(io, typeof(g)))
+    return nothing
 end

@@ -1,6 +1,6 @@
 using GradedArrays: GradedArrays, FusedSectorMatrix, FusedSectorVector, SU2, SectorIdentity,
-    SectorOneTo, SectorRange, U1, UniqueSectorArray, data, dataaxes, dual, isdual, sector,
-    sector_kron, sectoraxes, sectortype, with_scalar_indexing
+    SectorOneTo, SectorOnesVector, U1, UniqueSectorArray, data, dataaxes, dual, isdual,
+    sector, sector_kron, sectortype, structure, structureaxes, with_scalar_indexing
 using LinearAlgebra: dot, norm, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -9,12 +9,12 @@ using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
 @testset "FusedSectorMatrix" begin
-    @testset "Construction from SectorRange + data" begin
+    @testset "Construction from a sector + data" begin
         d = [1.0 2.0; 3.0 4.0]
         sm = FusedSectorMatrix(d, U1(1))
         @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test eltype(sm) == Float64
-        @test sectoraxes(sm, 1) == U1(1)
+        @test structureaxes(sm, 1) == U1(1)
     end
 
     @testset "data and dataaxes" begin
@@ -24,19 +24,36 @@ using Test: @test, @test_throws, @testset
         @test dataaxes(sm) == axes(d)
     end
 
-    @testset "sectoraxes" begin
+    @testset "structureaxes" begin
         d = ones(2, 3)
         sm = FusedSectorMatrix(d, U1(1))
-        @test sectoraxes(sm) == (U1(1), conj(U1(1)))
-        @test sectoraxes(sm, 1) == U1(1)
-        @test sectoraxes(sm, 2) == conj(U1(1))
+        @test structureaxes(sm) == (U1(1), conj(U1(1)))
+        @test structureaxes(sm, 1) == U1(1)
+        @test structureaxes(sm, 2) == conj(U1(1))
     end
 
-    @testset "sector returns SectorIdentity" begin
+    @testset "structure returns SectorIdentity" begin
         d = ones(2, 3)
         sm = FusedSectorMatrix(d, U1(1))
-        si = sector(sm)
+        si = structure(sm)
         @test si isa SectorIdentity{Float64, U1}
+    end
+
+    @testset "sector returns the stored sector, not the structural factor" begin
+        # `structure` and `sector` are distinct accessors: `structure` is the data-free
+        # Kronecker cofactor, `sector` the sector it is built from. SU2(1/2) has quantum
+        # dimension 2, so the two disagree in size as well as in type.
+        sm = FusedSectorMatrix(ones(2, 3), SU2(1 // 2))
+        @test sector(sm) === SU2(1 // 2)
+        @test structure(sm) isa SectorIdentity{Float64, SU2}
+        @test size(structure(sm)) == (2, 2)
+        @test sector(structure(sm)) === sector(sm)
+
+        sv = FusedSectorVector{Float64}(undef, SU2(1 // 2), 3)
+        @test sector(sv) === SU2(1 // 2)
+        @test structure(sv) isa SectorOnesVector{Float64, SU2}
+        @test size(structure(sv)) == (2,)
+        @test sector(structure(sv)) === sector(sv)
     end
 
     @testset "sectortype and datatype" begin
@@ -84,7 +101,7 @@ using Test: @test, @test_throws, @testset
         d = [1.0 2.0; 3.0 4.0]
         sm = FusedSectorMatrix(d, U1(0))
         sm2 = copy(sm)
-        @test sectoraxes(sm2) == sectoraxes(sm)
+        @test structureaxes(sm2) == structureaxes(sm)
         @test data(sm2) ≈ data(sm)
         with_scalar_indexing() do
             sm2[1, 1] = 999.0
@@ -122,7 +139,7 @@ using Test: @test, @test_throws, @testset
         d = [1.0 2.0; 3.0 4.0]
         sm = sector_kron(si, d)
         @test sm isa FusedSectorMatrix
-        @test sectoraxes(sm, 1) == U1(1)
+        @test structureaxes(sm, 1) == U1(1)
         @test data(sm) === d
     end
 
@@ -130,11 +147,11 @@ using Test: @test, @test_throws, @testset
         sm = FusedSectorMatrix([1.0 2.0; 3.0 4.0], U1(0))
         r = 2.0 .* sm
         @test r isa FusedSectorMatrix
-        @test sectoraxes(r) == sectoraxes(sm)
+        @test structureaxes(r) == structureaxes(sm)
         @test data(r) == 2.0 .* data(sm)
         s = sm .+ sm
         @test s isa FusedSectorMatrix
-        @test sectoraxes(s) == sectoraxes(sm)
+        @test structureaxes(s) == structureaxes(sm)
         @test data(s) == 2.0 .* data(sm)
         @test_throws ArgumentError sm .* sm
     end
@@ -150,8 +167,8 @@ using Test: @test, @test_throws, @testset
         @test rm isa FusedSectorMatrix
         @test imm isa FusedSectorMatrix
         # The structural sector factor is left intact; only the reduced data takes real/imag parts.
-        @test sectoraxes(rm) == sectoraxes(sm)
-        @test sectoraxes(imm) == sectoraxes(sm)
+        @test structureaxes(rm) == structureaxes(sm)
+        @test structureaxes(imm) == structureaxes(sm)
         @test data(rm) == real.(d)
         @test data(imm) == imag.(d)
         # `real(sm) + im * imag(sm)` reconstructs the data.
@@ -162,14 +179,14 @@ using Test: @test, @test_throws, @testset
         sm = FusedSectorMatrix{Float64}(undef, U1(0), 3, 4)
         @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (3, 4)
-        @test sectoraxes(sm, 1) == U1(0)
+        @test structureaxes(sm, 1) == U1(0)
     end
 
     @testset "Undef constructor (AbstractUnitRange dims)" begin
         sm = FusedSectorMatrix{Float64}(undef, U1(1), Base.OneTo(2), Base.OneTo(5))
         @test sm isa FusedSectorMatrix{Float64, U1, Matrix{Float64}}
         @test size(data(sm)) == (2, 5)
-        @test sectoraxes(sm, 1) == U1(1)
+        @test structureaxes(sm, 1) == U1(1)
     end
 
     @testset "Undef constructor (fully parameterized)" begin

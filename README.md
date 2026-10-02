@@ -7,6 +7,10 @@
 [![Code Style](https://img.shields.io/badge/code_style-ITensor-purple)](https://github.com/ITensor/ITensorFormatter.jl)
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
+A Julia package for arrays with graded (blocked) spaces, such as those invariant under group
+actions. Built on top of, and compatible with,
+[TensorKit.jl](https://github.com/QuantumKitHub/TensorKit.jl).
+
 ## Support
 
 <picture>
@@ -41,11 +45,43 @@ julia> Pkg.add("GradedArrays")
 
 ## Examples
 
+A `GradedArray` is an array over spaces graded by symmetry sectors, and it stores only the
+blocks the symmetry allows. Build the spaces from `sector => multiplicity` pairs and pass
+them to the standard Julia array constructors.
+
 ````julia
-using GradedArrays: GradedArrays
+using GradedArrays: U1, dual, gradedrange
+g = gradedrange([U1(0) => 1, U1(1) => 2])
+a = randn(g, dual(g))
 ````
 
-Examples go here.
+`dual` gives the dual of a space. `zeros`, `ones`, and `fill` work the same way, and allocate
+only the allowed blocks.
+
+````julia
+zeros(g, dual(g))
+````
+
+A `GradedArray` supports many basic array operations, such as multiplication by a scalar,
+addition, and permutation of the dimensions.
+
+````julia
+2 * a
+````
+
+````julia
+b = randn(g, dual(g))
+a + b
+````
+
+````julia
+permutedims(a, (2, 1))
+````
+
+For the symmetries that are available, see
+[Symmetry sectors](https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/).
+For more information on graded spaces and arrays, see
+[Graded arrays](https://itensor.github.io/GradedArrays.jl/dev/user_interface/graded_arrays/).
 
 ---
 

@@ -7,7 +7,7 @@
 # independent of the concrete array.
 
 # An axis is a `GradedOneTo` or a vector of `sector => multiplicity` pairs (keyed by a
-# `SectorRange` or a bare `TensorKitSectors.Sector`), normalized to a `GradedOneTo` by
+# GradedArrays `Sector` or a bare `TensorKitSectors.Sector`), normalized to a `GradedOneTo` by
 # `TA.to_range`. Each of `rand`/`randn`/`zeros`/`ones`/`fill` supports three shapes:
 #     f(axs...) / f((axs...,))         codomain-only, allocated directly
 #     f((cod...), (dom...))            tensor map, `dom` axes stored dual
@@ -71,12 +71,14 @@ function TA.fill_map(
 end
 
 # Public `Base` constructors: normalize pairs-vector axes with `to_range` and route to `*_map`.
-# Pairs-vector axes are keyed by `SectorRange` (which every GradedArrays sector subtypes); keying
-# by a bare `TensorKitSectors.Sector` is not accepted, since overloading `Base` constructors on a
-# purely TensorKitSectors signature would be type piracy. Wrap such sectors with `SectorRange`.
+# Pairs-vector axes are keyed by a GradedArrays `Sector`, and only by that: keying by a bare
+# `TensorKitSectors.Sector` would make these `Base` constructors type piracy, and the tuple and
+# named-tuple keys that `to_range` also accepts are left out on cost. The axis type is a
+# multiplier over both loops here, so admitting those two would double the generated methods to
+# buy a spelling the caller can reach with one `Sector` or `gradedrange` call.
 for axis_type in (
         :AbstractGradedOneTo,
-        :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
+        :(AbstractVector{<:Pair{<:Sector, <:Integer}}),
     )
     axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
     for f in (:rand, :randn)
@@ -204,17 +206,17 @@ for axis_type in (
 end
 
 # Flux `f(flux, (cod...)[, (dom...)])`: append a multiplicity-1 leg carrying `flux` to the
-# dualized domain, so the physical axes fuse to that total charge. The flux may be a `SectorRange`
-# or a bare `TensorKitSectors.Sector`: these forms always carry a physical axis (`GradedOneTo` or
-# a `SectorRange`-keyed pairs vector), so the signature contains a GradedArrays-owned type and
-# accepting a bare sector is not type piracy. The axis-less flux-only forms below stay
-# `SectorRange`-only, where a bare-sector method would be piracy.
+# dualized domain, so the physical axes fuse to that total charge. The flux may be a GradedArrays
+# `Sector` or a bare `TensorKitSectors.Sector`: these forms always carry a physical axis
+# (`GradedOneTo` or a `Sector`-keyed pairs vector), so the signature contains a GradedArrays-owned
+# type and accepting a bare sector is not type piracy. The axis-less flux-only forms below stay
+# `Sector`-only, where a bare-sector method would be piracy.
 for axis_type in (
         :AbstractGradedOneTo,
-        :(AbstractVector{<:Pair{<:SectorRange, <:Integer}}),
+        :(AbstractVector{<:Pair{<:Sector, <:Integer}}),
     )
     axs_type = :(Tuple{$axis_type, Vararg{$axis_type}})
-    for flux_type in (:(TKS.Sector), :SectorRange)
+    for flux_type in (:(TKS.Sector), :Sector)
         for f in (:rand, :randn)
             fmap = Symbol(f, :_map)
             @eval begin
@@ -395,93 +397,93 @@ for axis_type in (
 end
 # Flux-only forms: no physical axes, just the flux leg. Independent of `axis_type`, so defined
 # outside the `axis_type` loop. `f(flux, ())` and `f(flux)` are shorthands for `f(flux, (), ())`,
-# mirroring how the codomain-only and empty-domain forms collapse. These dispatch on `SectorRange`
+# mirroring how the codomain-only and empty-domain forms collapse. These dispatch on `Sector`
 # and so take precedence over `Base.rand`/`zeros`/`fill` on a plain range, returning a graded
 # array carrying the flux rather than a plain array over that range.
 for f in (:rand, :randn)
     fmap = Symbol(f, :_map)
     @eval begin
         function Base.$f(
-                rng::AbstractRNG, ::Type{T}, c::SectorRange, ::Tuple{}, ::Tuple{}
+                rng::AbstractRNG, ::Type{T}, c::Sector, ::Tuple{}, ::Tuple{}
             ) where {T}
             return TA.$fmap(rng, T, (), (to_gradedrange(c),))
         end
-        function Base.$f(::Type{T}, c::SectorRange, cod::Tuple{}, dom::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, cod::Tuple{}, dom::Tuple{}) where {T}
             return $f(Random.default_rng(), T, c, cod, dom)
         end
-        function Base.$f(rng::AbstractRNG, c::SectorRange, cod::Tuple{}, dom::Tuple{})
+        function Base.$f(rng::AbstractRNG, c::Sector, cod::Tuple{}, dom::Tuple{})
             return $f(rng, Float64, c, cod, dom)
         end
-        function Base.$f(c::SectorRange, cod::Tuple{}, dom::Tuple{})
+        function Base.$f(c::Sector, cod::Tuple{}, dom::Tuple{})
             return $f(Random.default_rng(), Float64, c, cod, dom)
         end
         function Base.$f(
                 rng::AbstractRNG,
                 ::Type{T},
-                c::SectorRange,
+                c::Sector,
                 dom::Tuple{}
             ) where {T}
             return $f(rng, T, c, (), dom)
         end
-        function Base.$f(::Type{T}, c::SectorRange, dom::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, dom::Tuple{}) where {T}
             return $f(T, c, (), dom)
         end
-        function Base.$f(rng::AbstractRNG, c::SectorRange, dom::Tuple{})
+        function Base.$f(rng::AbstractRNG, c::Sector, dom::Tuple{})
             return $f(rng, c, (), dom)
         end
-        Base.$f(c::SectorRange, dom::Tuple{}) = $f(c, (), dom)
-        function Base.$f(rng::AbstractRNG, ::Type{T}, c::SectorRange) where {T}
+        Base.$f(c::Sector, dom::Tuple{}) = $f(c, (), dom)
+        function Base.$f(rng::AbstractRNG, ::Type{T}, c::Sector) where {T}
             return $f(rng, T, c, ())
         end
-        function Base.$f(::Type{T}, c::SectorRange) where {T}
+        function Base.$f(::Type{T}, c::Sector) where {T}
             return $f(T, c, ())
         end
-        Base.$f(rng::AbstractRNG, c::SectorRange) = $f(rng, c, ())
-        Base.$f(c::SectorRange) = $f(c, ())
+        Base.$f(rng::AbstractRNG, c::Sector) = $f(rng, c, ())
+        Base.$f(c::Sector) = $f(c, ())
     end
 end
 for f in (:zeros, :ones)
     fmap = Symbol(f, :_map)
     @eval begin
-        function Base.$f(::Type{T}, c::SectorRange, ::Tuple{}, ::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, ::Tuple{}, ::Tuple{}) where {T}
             return TA.$fmap(T, (), (to_gradedrange(c),))
         end
-        function Base.$f(c::SectorRange, cod::Tuple{}, dom::Tuple{})
+        function Base.$f(c::Sector, cod::Tuple{}, dom::Tuple{})
             return $f(Float64, c, cod, dom)
         end
-        function Base.$f(::Type{T}, c::SectorRange, dom::Tuple{}) where {T}
+        function Base.$f(::Type{T}, c::Sector, dom::Tuple{}) where {T}
             return $f(T, c, (), dom)
         end
-        Base.$f(c::SectorRange, dom::Tuple{}) = $f(Float64, c, (), dom)
-        function Base.$f(::Type{T}, c::SectorRange) where {T}
+        Base.$f(c::Sector, dom::Tuple{}) = $f(Float64, c, (), dom)
+        function Base.$f(::Type{T}, c::Sector) where {T}
             return $f(T, c, ())
         end
-        Base.$f(c::SectorRange) = $f(c, ())
+        Base.$f(c::Sector) = $f(c, ())
     end
 end
 @eval begin
-    function Base.fill(value, c::SectorRange, ::Tuple{}, ::Tuple{})
+    function Base.fill(value, c::Sector, ::Tuple{}, ::Tuple{})
         return TA.fill_map(value, (), (to_gradedrange(c),))
     end
-    Base.fill(value, c::SectorRange, dom::Tuple{}) = fill(value, c, (), dom)
-    Base.fill(value, c::SectorRange) = fill(value, c, ())
+    Base.fill(value, c::Sector, dom::Tuple{}) = fill(value, c, (), dom)
+    Base.fill(value, c::Sector) = fill(value, c, ())
 end
 
 """
-    zeros([T=Float64,] axs::GradedOneTo...)
+    zeros([T=Float64,] axs...)
     zeros([T=Float64,] (codomain...)[, (domain...)])
     zeros([T=Float64,] flux, (codomain...)[, (domain...)])
 
-Construct a graded array (`GradedArray{T}`) over the given graded axes with every symmetry-allowed
-(zero-flux) block allocated and filled with zeros. Each axis may be a `GradedOneTo` or a vector
-of `sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map,
+Construct a `GradedArray` over the given graded axes with every symmetry-allowed (zero-flux)
+block allocated and filled with zeros. Each axis may be a graded range or a vector of
+`sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map,
 storing the domain axes dual; a leading `flux` sector appends a multiplicity-1 leg carrying it,
 so the physical axes fuse to that total charge.
 """
 Base.zeros(::Type{T}, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}) where {T}
 
 """
-    ones([T=Float64,] axs::GradedOneTo...)
+    ones([T=Float64,] axs...)
     ones([T=Float64,] (codomain...)[, (domain...)])
     ones([T=Float64,] flux, (codomain...)[, (domain...)])
 
@@ -490,7 +492,7 @@ Like [`zeros`](@ref), but filling every symmetry-allowed block with ones.
 Base.ones(::Type{T}, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}) where {T}
 
 """
-    fill(v, axs::GradedOneTo...)
+    fill(v, axs...)
     fill(v, (codomain...)[, (domain...)])
     fill(v, flux, (codomain...)[, (domain...)])
 
@@ -614,18 +616,17 @@ function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
     src = reshape(src, length.(stored))
     I = Tuple(findmax(abs, src)[2])
     secs = map(stored, I) do ax, i
-        return eachsectoraxis(ax)[Int(BlockArrays.findblock(ax, i))]
+        return eachstructureaxis(ax)[Int(BlockArrays.findblock(ax, i))]
     end
     return reduce(tensor_product, secs)
 end
 
 """
-    getindex(a::AbstractArray, ax1::GradedOneTo, axs::GradedOneTo...)
+    getindex(a::AbstractArray, ax1, axs...)
 
-Construct a graded array (`GradedArray`) by projecting the dense data of `a` onto the
-symmetry-allowed blocks of the graded axes `(ax1, axs...)`, via
-`TA.project` (which errors if `a` has weight outside
-the allowed blocks). `a` is reshaped to `length.((ax1, axs...))` first, so a
+Construct a `GradedArray` by projecting the dense data of `a` onto the symmetry-allowed blocks
+of the graded axes `(ax1, axs...)`, which errors if `a` has weight outside the allowed blocks.
+`a` is reshaped to `length.((ax1, axs...))` first, so a
 trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
 so index with `dual`/`conj` axes to set duality.
 """

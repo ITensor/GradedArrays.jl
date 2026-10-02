@@ -1,7 +1,10 @@
 using Documenter: Documenter, DocMeta, deploydocs, makedocs
-using GradedArrays: GradedArrays
+using GradedArrays
 using ITensorFormatter: ITensorFormatter
 
+# `using GradedArrays` above is whole-module rather than an explicit list on purpose:
+# Documenter renders an `@example` result against the `Main` of this process rather than the
+# page's own module, so an exported name prints unqualified only if it is in scope here.
 DocMeta.setdocmeta!(GradedArrays, :DocTestSetup, :(using GradedArrays); recursive = true)
 
 ITensorFormatter.make_index!(pkgdir(GradedArrays))
@@ -17,6 +20,10 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
+        "User Interface" => [
+            "Symmetry sectors" => "user_interface/sectors.md",
+            "Graded arrays" => "user_interface/graded_arrays.md",
+        ],
         "Reference" => "reference.md",
         "Internals" => "internals.md",
     ]

@@ -1,14 +1,14 @@
 using BlockArrays: blocklength, blocklengths
 using Dictionaries: Dictionary
 using GradedArrays: GradedArrays, AbstractGradedOneTo, FusedGradedOneTo, GradedOneTo, SU2,
-    SectorRange, U1, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, label,
-    sectorlengths, sectors, sectortype
+    U1, Z, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, sectorlengths,
+    sectors, sectortype
 using TensorAlgebra: TensorAlgebra
 using TensorKit: TensorKit
 using Test: @test, @test_throws, @testset
 
 @testset "FusedGradedOneTo" begin
-    @testset "fusedgradedrange from SectorRange (U1)" begin
+    @testset "fusedgradedrange from sectors (U1)" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
         @test g isa FusedGradedOneTo{U1}
         @test g isa AbstractGradedOneTo{U1}
@@ -36,7 +36,7 @@ using Test: @test, @test_throws, @testset
         @test isdual(g) == true
         @test sectors(g) == [U1(0), U1(1)]   # stored non-dual
         @test datalengths(g) == [2, 3]
-        @test_throws ArgumentError fusedgradedrange([conj(U1(0)) => 2])   # dual sector rejected
+        @test_throws MethodError fusedgradedrange([conj(U1(0)) => 2])   # dual sector rejected
     end
 
     @testset "constructors reject unsorted / accept a Dictionary" begin
@@ -120,22 +120,63 @@ using Test: @test, @test_throws, @testset
         @test_throws Exception FusedGradedOneTo(gradedrange([U1(0) => 2, U1(0) => 1]))      # repeated
     end
 
-    @testset "eachblockaxis / eachsectoraxis apply the arrow" begin
+    @testset "eachblockaxis / eachstructureaxis apply the arrow" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
-        @test GradedArrays.eachsectoraxis(g) == [U1(0), U1(1)]
-        @test GradedArrays.eachsectoraxis(dual(g)) == [conj(U1(0)), conj(U1(1))]
+        @test GradedArrays.eachstructureaxis(g) == [U1(0), U1(1)]
+        @test GradedArrays.eachstructureaxis(dual(g)) == [conj(U1(0)), conj(U1(1))]
     end
 
     # `setsectors` routinely produces zero-length sectors, and TensorKit's dictionary-backed
     # spaces drop them, so the space must come out as if those sectors were never there.
     @testset "ElementarySpace from an axis with a zero-length sector" begin
         g = fusedgradedrange([U1(0) => 2, U1(1) => 3])
-        g0 = GradedArrays.setsectors(
-            g, GradedArrays.to_labelvector([U1(0), U1(1), U1(2)])
-        )
+        g0 = GradedArrays.setsectors(g, [U1(0), U1(1), U1(2)])
         @test datalengths(g0) == [2, 3, 0]
         @test TensorKit.ElementarySpace(g0) == TensorKit.ElementarySpace(g)
         @test TensorKit.ElementarySpace(dual(g0)) == TensorKit.ElementarySpace(dual(g))
+    end
+
+    # The storage design exists for this: a `FusedGradedOneTo` holds exactly what a `GradedSpace`
+    # holds, so the conversion hands over the axis's own vectors and the space aliases the axis.
+    # Asserted by identity, which means reaching into TensorKit's `SectorDict` storage. If that
+    # layout changes this test fails, which is the point: the claim needs re-checking, not
+    # patching. Only the dictionary-backed spaces can share, so `Z{2}` is excluded: its space
+    # stores a bare `Tuple` of dimensions with no `keys`/`values` to compare.
+    @testset "ElementarySpace shares the axis's vectors" begin
+        for g in (
+                fusedgradedrange([U1(0) => 2, U1(1) => 3]),
+                fusedgradedrange([SU2(0) => 1, SU2(1 // 2) => 2]),
+            )
+            for h in (g, dual(g))
+                dims = getfield(TensorKit.ElementarySpace(h), :dims)
+                @test dims.keys === GradedArrays.tensorkit_sectors(h)
+                @test dims.values === datalengths(h)
+            end
+        end
+    end
+
+    # The reverse conversion. A space's duality comes back on the range's `isdual` rather than on
+    # its sectors, so a dual space round-trips to a dual range over the same stored sectors. Both
+    # of TensorKit's storage variants are covered, since `Vect[I]` is dictionary-backed for `U1`
+    # and `SU2` and dense tuple-backed for `Z{2}`.
+    @testset "GradedOneTo from an ElementarySpace" begin
+        for g in (
+                gradedrange([U1(0) => 2, U1(1) => 3]),
+                gradedrange([SU2(0) => 1, SU2(1 // 2) => 2]),
+                gradedrange([Z{2}(0) => 2, Z{2}(1) => 3]),
+            )
+            back = GradedOneTo(TensorKit.ElementarySpace(g))
+            @test back == g
+            @test !isdual(back)
+            @test sectors(back) == sectors(g)
+            @test datalengths(back) == datalengths(g)
+
+            backdual = GradedOneTo(TensorKit.ElementarySpace(dual(g)))
+            @test backdual == dual(g)
+            @test isdual(backdual)
+            @test sectors(backdual) == sectors(g)
+            @test datalengths(backdual) == datalengths(g)
+        end
     end
 
     @testset "GradedOneTo is also an AbstractGradedOneTo" begin

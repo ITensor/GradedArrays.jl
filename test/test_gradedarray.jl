@@ -1,10 +1,10 @@
 using BlockArrays: Block, blocklengths, blocks
 using Dictionaries: dictionary
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
-    FusedGradedVector, GradedArray, SU2, SectorRange, U1, UniqueSectorArray, Z2,
-    checksquare, data, dual, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector,
-    gradedrange, isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sector,
-    sectordata, tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
+    FusedGradedVector, GradedArray, SU2, U1, UniqueSectorArray, Z2, checksquare, data, dual,
+    fZ2, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, gradedrange,
+    isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sectordata, structure,
+    tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal, diag, lmul!, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -20,8 +20,8 @@ using Test: @test, @test_throws, @testset
 # included on purpose: they exercise the leg-bend path in `matricize`, which is not a free
 # reshape for the block-diagonal storage.
 
-const fP0 = SectorRange(TKS.FermionParity(false))  # even parity
-const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
+const fP0 = fZ2(false)  # even parity
+const fP1 = fZ2(true)   # odd parity
 
 # Bring a contraction result to a canonical all-codomain `TensorMap` with legs in `want` order, so
 # results with different codomain/domain splits or operand orders compare with `≈`. Uses TensorKit's
@@ -272,7 +272,7 @@ end
                 for I in GradedArrays.eachblockstoredindex(fa)
                     Ip = Block(ntuple(d -> Int(Tuple(I)[perm[d]]), ndims(fa))...)
                     gt = fp[Ip]
-                    dest = UniqueSectorArray(similar(data(gt)), sector(gt))
+                    dest = UniqueSectorArray(similar(data(gt)), structure(gt))
                     TensorAlgebra.bipermutedimsopadd!(
                         dest,
                         identity,
@@ -845,7 +845,7 @@ end
     @test !Base.mightalias(matricize(a), b)
     @test !Base.mightalias(a, b)
     @test !Base.mightalias(copy(matricize(a)), a)
-    d = fusedgradeddiagonal([SectorRange(U1(0)) => randn(2)])
+    d = fusedgradeddiagonal([U1(0) => randn(2)])
     @test Base.mightalias(d, MAK.diagview(d))
 end
 
@@ -861,8 +861,8 @@ end
     for _ in 1:3
         c, = contract(a, (1, -1), b, (-1, 2))
         mc = matricize(c)
-        @test issetequal(collect(keys(sectordata(mc))), SectorRange.([U1(0), U1(1)]))
-        @test iszero(sectordata(mc)[SectorRange(U1(1))])
+        @test issetequal(collect(keys(sectordata(mc))), [U1(0), U1(1)])
+        @test iszero(sectordata(mc)[U1(1)])
         @test Array(c) ≈ Array(a) * Array(b)
     end
 end
@@ -924,9 +924,9 @@ end
     @test all(sd[c] == ref[c] for c in keys(ref))
     @test collect(pairs(sd)) == collect(pairs(ref))
     @test collect(sd) == collect(ref)
-    @test !haskey(sd, SectorRange(U1(2)))   # codomain-only sector is not coupled
-    @test !haskey(sd, SectorRange(U1(3)))   # domain-only sector is not coupled
-    @test isnothing(get(sd, SectorRange(U1(9)), nothing))
+    @test !haskey(sd, U1(2))   # codomain-only sector is not coupled
+    @test !haskey(sd, U1(3))   # domain-only sector is not coupled
+    @test isnothing(get(sd, U1(9), nothing))
 
     # Adjoint: same coupled sectors, each block the parent's adjoint.
     sda = sectordata(m')
@@ -937,7 +937,7 @@ end
     # Vector: one block per axis sector, offsets the prefix sums of the data lengths.
     v = fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)])
     vref = dictionary(
-        [SectorRange(U1(0)) => v.buffer[1:2], SectorRange(U1(1)) => v.buffer[3:5]]
+        [U1(0) => v.buffer[1:2], U1(1) => v.buffer[3:5]]
     )
     sdv = sectordata(v)
     @test collect(keys(sdv)) == collect(keys(vref))

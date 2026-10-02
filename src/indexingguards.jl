@@ -1,18 +1,15 @@
 # =============================================================================
 #  Scalar- and block-indexing guards.
 #
-#  Scalar indexing (`a[i, j, ...]`) and block indexing (`view(a, ::Block)` and its
-#  derived get/set surface) of graded/fused arrays are disabled by default. Both are
-#  well-defined only in restricted circumstances (scalar indexing needs unique fusion;
-#  block access needs the caller to be block-structure-aware), and the generic
-#  `AbstractArray` fallbacks reach for them implicitly. Turning them off by default makes
-#  any such implicit reliance an error at the point it happens rather than a silent wrong
-#  result or a slow elementwise loop.
+#  Scalar indexing (`a[i, j, ...]`) and block indexing (`view(a, ::Block)` and its derived
+#  get/set surface) of graded/fused arrays are disabled by default. Each is well defined only
+#  in restricted circumstances (scalar indexing needs unique fusion, block access needs a
+#  block-structure-aware caller), and the generic `AbstractArray` fallbacks reach for them
+#  implicitly, so turning them off makes that reliance an error where it happens rather than a
+#  silent wrong result or a slow elementwise loop.
 #
-#  Opt back in for a specific call with the do-block forms `with_scalar_indexing` /
-#  `with_block_indexing`. The two guards are independent, so one can be allowed without the
-#  other. The toggles are `ScopedValue`s, so they apply only for the dynamic extent of the
-#  wrapped call and compose across tasks without global mutable state.
+#  Opt back in for one call with the do-block forms `with_scalar_indexing` /
+#  `with_block_indexing`, which are independent of each other and scoped to that call.
 # =============================================================================
 
 using ScopedValues: ScopedValue, with

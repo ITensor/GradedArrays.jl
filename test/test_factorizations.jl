@@ -1,6 +1,6 @@
 import MatrixAlgebraKit as MAK
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix,
-    FusedGradedMatrixAlgorithm, FusedGradedVector, GradedArray, SectorRange, U1, Z2, dual,
+    FusedGradedMatrixAlgorithm, FusedGradedVector, GradedArray, U1, Z2, dual, fZ2,
     fusedgradeddiagonal, fusedgradedmatrix, gradedrange, sectordata
 using LinearAlgebra:
     Diagonal, I, diag, eigvals, isposdef, istril, istriu, lmul!, norm, rmul!
@@ -8,7 +8,6 @@ using MatrixAlgebraKit: isisometric, isunitary
 using Random: randn!
 using StableRNGs: StableRNG
 using TensorAlgebra: TensorAlgebra, bipermutedims, invsqrth_safe, matricize, sqrth_safe
-using TensorKitSectors: FermionParity
 using Test: @test, @test_throws, @testset
 
 # ---------------------------------------------------------------------------
@@ -606,7 +605,7 @@ end
     @testset "sqrth_safe on a FusedGradedDiagonal ($(nameof(typeof(sects[1]))))" for sects in
         (
             [U1(0), U1(1), U1(2)],
-            SectorRange.([FermionParity(false), FermionParity(true)]),
+            [fZ2(false), fZ2(true)],
         )
         for T in (Float64, ComplexF64)
             dims = [n for n in 2:(length(sects) + 1)]
@@ -804,7 +803,7 @@ end
 
     # The added sector's block is a zero-size view into the shared buffer, the same block type as
     # the stored blocks, not a freshly allocated dense array.
-    blk = sectordata(w)[SectorRange(U1(2))]
+    blk = sectordata(w)[U1(2)]
     @test size(blk) == (2, 0)
     @test !(blk isa Array)
     @test blk isa GradedArrays.datatype(typeof(w))
@@ -814,7 +813,7 @@ end
     @test GradedArrays.setsectors(w, GradedArrays.sectorsupport(w)) === w
 
     # Exact semantics: `cs` must cover every axis support; an uncovering `cs` throws.
-    @test_throws ArgumentError GradedArrays.setsectors(A, [SectorRange(U1(3))])
+    @test_throws ArgumentError GradedArrays.setsectors(A, [U1(3)])
 
     # Co-iteration over an explicit sector union: the set arrays line up with the lenient
     # per-sector reads on a null-kernel case (a sector absent from `A`'s storage).
@@ -823,11 +822,11 @@ end
     wA = GradedArrays.setsectors(A, cs)
     wN = GradedArrays.setsectors(N, cs)
 
-    # An axis whose support already equals `cs` is returned as-is; the rebuilt axes store
-    # `cs`'s bare label vector itself, one object shared across the participants.
+    # An axis whose support already equals `cs` is returned as-is, and the rebuilt axes carry the
+    # sectors of `cs`.
     @test GradedArrays.axis_codomain(wA) === GradedArrays.axis_codomain(A)
-    ls = GradedArrays.sectorlabels(GradedArrays.axis_domain(wA))
-    @test GradedArrays.sectorlabels(GradedArrays.axis_domain(wN)) === ls
+    ls = GradedArrays.sectors(GradedArrays.axis_domain(wA))
+    @test GradedArrays.sectors(GradedArrays.axis_domain(wN)) == ls == cs
 
     for (i, c) in enumerate(cs), (x, wx) in ((A, wA), (N, wN))
         ref = if haskey(sectordata(x), c)

@@ -45,8 +45,6 @@ end
 # entry points in `gradedarray.jl` (defined there because `GradedArray` is not yet defined here).
 # Dispatch must not catch `FusedGradedMatrix`: the matricizing forms produce one, which must
 # terminate at its own in-place block algorithm rather than route back here (that would recurse).
-# Omitted: `project_antihermitian`/`project_isometric` (no `TensorAlgebra` perm-form) and the
-# null-space factorizations, whose `GradedArray` entry points are a follow-up.
 const BARE_MATRIX_FACTORIZATIONS = (
     :svd_compact, :svd_full, :svd_vals, :qr_compact, :qr_full, :lq_compact,
     :lq_full, :eig_full, :eig_vals, :eigh_full, :eigh_vals, :left_polar,
@@ -60,10 +58,6 @@ const BARE_MATRIX_FACTORIZATIONS = (
 # the identity, and `project(I ⊗ M) = I ⊗ project(M)`, so the projection passes straight to
 # the reduced data. This is why it is well defined in the non-abelian case, where the generic
 # `AbstractMatrix` path scalar-indexes the block and hits the unique-fusion guard.
-#
-# `FusedSectorMatrixAlgorithm` wraps the reduced-data algorithm so the block projection dispatches on
-# a distinct type (mirroring `FusedGradedMatrixAlgorithm` one level up), forwarding the wrapped inner
-# algorithm to the data and staying clear of the generic `AbstractMatrix` projection methods.
 struct FusedSectorMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A
 end
@@ -101,10 +95,8 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, F, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_full!, :eigh_full!) && :(checksquare(A)))
-        cs = sectorsupport(A, F...)
-        wA = setsectors(A, cs)
-        wFs = map(x -> setsectors(x, cs), F)
-        for i in eachindex(cs)
+        wA, wFs... = promote_sectorsupport(A, F...)
+        for i in 1:blocklength(axis_codomain(wA))
             Fi = map(w -> sectordata(w, i), wFs)
             Fi′ = MAK.$f!(sectordata(wA, i), Fi, alg.alg)
             # `foreach`, not a `.`-broadcast: broadcast materialization over these small
@@ -123,10 +115,8 @@ for f! in (
     )
     @eval function MAK.$f!(A::FusedGradedMatrix, N, alg::FusedGradedMatrixAlgorithm)
         $(f! in (:eig_vals!, :eigh_vals!) && :(checksquare(A)))
-        cs = sectorsupport(A, N)
-        wA = setsectors(A, cs)
-        wN = setsectors(N, cs)
-        for i in eachindex(cs)
+        wA, wN = promote_sectorsupport(A, N)
+        for i in 1:blocklength(axis_codomain(wA))
             Ni = sectordata(wN, i)
             _ensure_inplace!(Ni, MAK.$f!(sectordata(wA, i), Ni, alg.alg))
         end
@@ -263,16 +253,16 @@ end
 # omitting the sectors with no excess. A walk over `axis`'s sorted stored vectors, so the result
 # stays canonical.
 function nullspace_axis(axis::FusedGradedOneTo, other::FusedGradedOneTo)
-    labels = empty(sectorlabels(axis))
+    ss = sectortype(axis)[]
     lens = Int[]
-    for (l, d) in zip(sectorlabels(axis), datalengths(axis))
-        n = d - getsectordatalengths(other, SectorRange(l))
+    for (s, d) in zip(sectors(axis), datalengths(axis))
+        n = d - getsectordatalengths(other, s)
         if n > 0
-            push!(labels, l)
+            push!(ss, s)
             push!(lens, n)
         end
     end
-    return FusedGradedOneTo(labels, lens)
+    return FusedGradedOneTo(ss, lens)
 end
 
 # QR decomposition

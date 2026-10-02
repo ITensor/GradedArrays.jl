@@ -5,26 +5,19 @@
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
-"""
-    FusedGradedDiagonal{T,S<:SectorRange,V<:DenseVector{T}} <: AbstractFusedGradedMatrix{T,S}
-
-Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
-factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
-`DiagonalTensorMap`. Wraps a [`FusedGradedVector`](@ref) of the diagonals; the `Diagonal` blocks are
-the lazy `sectordata(d)` view over that vector.
-"""
-struct FusedGradedDiagonal{T, S <: SectorRange, V <: DenseVector{T}} <:
+# Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
+# factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
+# `DiagonalTensorMap`. Wraps a `FusedGradedVector` of the diagonals; the `Diagonal` blocks are
+# the lazy `sectordata(d)` view over that vector. `I` is the TensorKitSectors sector type corresponding to
+# the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
+struct FusedGradedDiagonal{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedMatrix{T, S}
-    diag::FusedGradedVector{T, S, V}
+    diag::FusedGradedVector{T, S, V, I}
 end
 
-"""
-    FusedGradedDiagonal(buffer, axis)
-
-Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedDiagonal` with the given `axis`; the
-`Diagonal` blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
-form. To build from per-sector diagonal data instead, use [`fusedgradeddiagonal`](@ref).
-"""
+# Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedDiagonal` with the given `axis`; the
+# `Diagonal` blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
+# form. To build from per-sector diagonal data instead, use `fusedgradeddiagonal`.
 function FusedGradedDiagonal(buffer::DenseVector, axis::AbstractGradedOneTo)
     return FusedGradedDiagonal(FusedGradedVector(buffer, axis))
 end
@@ -33,16 +26,11 @@ function FusedGradedDiagonal{T}(::UndefInitializer, axis::AbstractGradedOneTo) w
     return FusedGradedDiagonal(FusedGradedVector{T}(undef, axis))
 end
 
-"""
-    fusedgradeddiagonal(sectors .=> data)
-    fusedgradeddiagonal(sectordata::Dictionary)
-
-Build a `FusedGradedDiagonal` from the per-sector diagonal data (`sector => data` pairs, any iterator
-of pairs, or a `Dictionary` keyed by sector): the pair `sectors[i] => data[i]` gives the diagonal
-entries of the block at `sectors[i]`. The axis is derived from the blocks, as for
-[`fusedgradedvector`](@ref). To wrap an existing contiguous buffer instead, use
-[`FusedGradedDiagonal`](@ref).
-"""
+# Build a `FusedGradedDiagonal` from the per-sector diagonal data (`sector => data` pairs, any iterator
+# of pairs, or a `Dictionary` keyed by sector): the pair `sectors[i] => data[i]` gives the diagonal
+# entries of the block at `sectors[i]`. The axis is derived from the blocks, as for
+# `fusedgradedvector`. To wrap an existing contiguous buffer instead, use
+# `FusedGradedDiagonal`.
 fusedgradeddiagonal(sectordata) = FusedGradedDiagonal(fusedgradedvector(sectordata))
 
 # Densify to a full `FusedGradedMatrix`, forwarding the diagonal's block backend `V` through the
@@ -61,10 +49,10 @@ function sectordata(d::FusedGradedDiagonal)
     return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
 end
 
-# Set the wrapped diagonal vector's axis to exactly `ls` (see
-# `setsectors(::FusedGradedVector, ls)`); the `Diagonal` blocks at the added sectors are 0×0.
-function setsectors(d::FusedGradedDiagonal, ls::Vector{<:TKS.Sector})
-    diag = setsectors(MAK.diagview(d), ls)
+# Set the wrapped diagonal vector's axis to exactly `ss` (see
+# `setsectors(::FusedGradedVector, ss)`); the `Diagonal` blocks at the added sectors are 0×0.
+function setsectors(d::FusedGradedDiagonal, ss::AbstractVector)
+    diag = setsectors(MAK.diagview(d), ss)
     # An unchanged diagonal means the set is the identity; return `d` itself.
     diag === MAK.diagview(d) && return d
     return FusedGradedDiagonal(diag)

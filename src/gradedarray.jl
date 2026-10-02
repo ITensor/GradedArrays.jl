@@ -10,38 +10,33 @@ using TensorKit: TensorKit as TK, ←
 const GA = GradedArrays
 
 """
-    GradedArray{T,S,N,NC,ND,M} <: AbstractArray{T,N}
+    GradedArray
 
-Always-fused symmetric array: an `N`-dimensional graded array split into `NC` codomain and `ND`
-domain legs (`NC + ND == N`), backed by a matricized [`FusedGradedMatrix`](@ref). The external axes
-are `GradedOneTo` and may be unfused or unsorted (a sector repeated, or out of `SectorRange` order);
-the `matricized` backing is always over the fused-sorted coupled space, and the per-leg sort
-permutation relates the two.
+An array over graded axes, storing only the symmetry-allowed blocks. Its legs are split into a
+codomain and a domain group, so it can also be read as a map between spaces, and it is stored
+as a block-diagonal matrix over the coupled sectors, with the codomain legs fused to its rows
+and the domain legs to its columns.
 """
 struct GradedArray{
-        T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S},
+        T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S}, I <: TKS.Sector,
     } <: AbstractArray{T, N}
     matricized::M
-    axes_codomain::NTuple{NC, GradedOneTo{S}}
-    axes_domain::NTuple{ND, GradedOneTo{S}}
+    axes_codomain::NTuple{NC, GradedOneTo{S, I}}
+    axes_domain::NTuple{ND, GradedOneTo{S, I}}
 
     function GradedArray(
             matricized::AbstractFusedGradedMatrix{T, S},
             axes_codomain::NTuple{NC, AbstractGradedOneTo{S}},
             axes_domain::NTuple{ND, AbstractGradedOneTo{S}}
         ) where {T, S, NC, ND}
-        return new{T, S, NC + ND, NC, ND, typeof(matricized)}(
+        return new{T, S, NC + ND, NC, ND, typeof(matricized), tensorkit_sectortype(S)}(
             matricized, map(GradedOneTo, axes_codomain), map(GradedOneTo, axes_domain)
         )
     end
 end
 
-"""
-    GradedArray(m::AbstractFusedGradedMatrix)
-
-Wrap a matrix-level fused graded matrix as its tensor-level `{1,1}` `GradedArray`, with the
-matrix's own coupled axes as the codomain and domain axes. The wrap shares storage.
-"""
+# Wrap a matrix-level fused graded matrix as its tensor-level `{1,1}` `GradedArray`, with the
+# matrix's own coupled axes as the codomain and domain axes. The wrap shares storage.
 GradedArray(m::AbstractFusedGradedMatrix) = GradedArray(m, axes_codomain(m), axes_domain(m))
 
 # ============================  Accessors  ============================
@@ -86,14 +81,14 @@ function viewblock(
     assert_block_indexing()
     require_unique_fusion(a)
     bk = Int.(Tuple(I))
-    sects = ntuple(d -> eachsectoraxis(axes(a, d))[bk[d]], Val(N))
+    sects = ntuple(d -> eachstructureaxis(axes(a, d))[bk[d]], Val(N))
     # The block carries the array's own codomain/domain split. The codomain legs are stored as-is;
     # the domain legs are stored codomain-facing (un-dualed), taken from `axes_domain(a)` rather than
     # the dualized `axes(a)`, matching the block type's storage convention (its `axes` re-dualizes).
     cod = ntuple(i -> sects[i], Val(NC))
-    dom = ntuple(j -> eachsectoraxis(axes_domain(a)[j])[bk[NC + j]], Val(ND))
-    # Dualize each leg's sector on dual axes to match TensorKit's external-sector indexing.
-    blockdata = to_tensormap(a)[map(r -> isdual(r) ? TKS.dual(label(r)) : label(r), sects)]
+    dom = ntuple(j -> eachstructureaxis(axes_domain(a)[j])[bk[NC + j]], Val(ND))
+    # Conjugate each dual leg's sector to match TensorKit's external-sector indexing.
+    blockdata = to_tensormap(a)[map(r -> TKS.Sector(flip_dual(r)), sects)]
     # Fused-sorted axes have one block per sector, so the merged block is the whole block. Only an
     # unfused axis (a repeated sector) stores its positional blocks as one merged block, so then slice
     # each leg to this block's subrange within its merged sector: `invblockmergeperm` maps a fine block
@@ -330,7 +325,7 @@ end
     GradedArray(t::TK.AbstractTensorMap)
 
 Build a `GradedArray` from a `TensorMap`, taking the per-leg external axes from its codomain
-and domain spaces. This copies the data; `to_gradedarray` is the zero-copy view counterpart.
+and domain spaces. This copies the data.
 """
 function GradedArray(t::TK.AbstractTensorMap)
     axes_codomain = map(GradedOneTo, Tuple(TK.codomain(t)))
@@ -344,7 +339,7 @@ GradedArray(t::TK.TensorMap) = copy(to_gradedarray(t))
 function Base.copy!(m::FusedGradedMatrix, t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1})
     msd = sectordata(m)
     for c in TK.blocksectors(t)
-        copy!(msd[SectorRange(c)], TK.block(t, c))
+        copy!(msd[Sector(c)], TK.block(t, c))
     end
     return m
 end
@@ -352,7 +347,7 @@ end
 # Copy a `FusedGradedMatrix` block-wise into a matrix `TensorMap` (one codomain and one domain leg).
 function Base.copy!(t::TK.AbstractTensorMap{<:Any, <:Any, 1, 1}, m::FusedGradedMatrix)
     for (c, b) in pairs(sectordata(m))
-        copy!(TK.block(t, label(c)), b)
+        copy!(TK.block(t, TKS.Sector(c)), b)
     end
     return t
 end
@@ -363,7 +358,7 @@ function Base.copy!(a::GradedArray, t::TK.AbstractTensorMap)
         throw(DimensionMismatch("TensorMap codomain/domain does not match the GradedArray"))
     asd = sectordata(matricize(a))
     for c in TK.blocksectors(t)
-        copy!(asd[SectorRange(c)], TK.block(t, c))
+        copy!(asd[Sector(c)], TK.block(t, c))
     end
     return a
 end
@@ -373,7 +368,7 @@ function Base.copy!(t::TK.AbstractTensorMap, a::GradedArray)
     (TK.numout(t) == ndims_codomain(a) && TK.numin(t) == ndims_domain(a)) ||
         throw(DimensionMismatch("TensorMap codomain/domain does not match the GradedArray"))
     for (c, b) in pairs(sectordata(matricize(a)))
-        copy!(TK.block(t, label(c)), b)
+        copy!(TK.block(t, TKS.Sector(c)), b)
     end
     return t
 end
@@ -735,18 +730,50 @@ function TensorAlgebra.contractpermalign(
     )
 end
 
-# A contraction whose right factor is a `GradedArray` runs the graded kernel (`GradedContract`,
-# see `tensoralgebra.jl`), which twists that factor's contracted legs before matricizing it. The
-# left factor may be a tensor-level or matrix-level fused operand. A matrix-level right factor
-# needs no twist and stays on the generic `MatricizeContract`. Keyed on the right factor only,
-# since the twist comes from the contraction braiding, not from where the result is written.
-for A in (:GradedArray, :AbstractFusedGradedArray)
-    @eval function TensorAlgebra.default_algorithm(
-            ::typeof(TensorAlgebra.contract!),
-            ::Type{<:Tuple{AbstractArray, $A, GradedArray}}
+# ========================  graded contraction  ========================
+# Fermionic contractions need the second (right) factor's contracted legs twisted before
+# matricization, so the result does not depend on contraction order. This kernel matricizes the
+# left factor as usual and sends the right factor through `twisted_matricizeop`, which inserts the
+# twist between the permute and the matricize. The twist is a no-op for bosonic sectors.
+#
+# Every operand reaching here is tensor-level, since `contractpermalign` above lifts a
+# matrix-level one to its `GradedArray` wrap, and the destination is allocated graded in turn.
+# Naming the type in all three slots rather than only in the one the twist is keyed on keeps this
+# method a subtype of TensorAlgebra's own kernel in every slot, so it cannot tie with a method
+# that narrows a different slot.
+
+function TensorAlgebra.contractpermopadd!(
+        ::TensorAlgebra.MatricizeContract,
+        a_dest::GradedArray, biperm_dest_codomain, biperm_dest_domain,
+        op1, a1::GradedArray, biperm1_codomain, biperm1_domain,
+        op2, a2::GradedArray, biperm2_codomain, biperm2_domain,
+        α::Number, β::Number
+    )
+    biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
+    invperm_codomain, invperm_domain =
+        TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
+    check_input(
+        TensorAlgebra.contract!,
+        a_dest, invperm_codomain, invperm_domain,
+        a1, biperm1_codomain, biperm1_domain,
+        a2, biperm2_codomain, biperm2_domain
+    )
+    a1_mat = TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
+    a2_mat = twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
+    if TensorAlgebra.is_output_view(
+            TensorAlgebra.matricizeop, identity, a_dest, invperm_codomain, invperm_domain
         )
-        return GradedContract()
+        a_dest_mat = TensorAlgebra.matricizeopview(
+            identity, a_dest, invperm_codomain, invperm_domain
+        )
+        LinearAlgebra.mul!(a_dest_mat, a1_mat, a2_mat, α, β)
+    else
+        a_dest_mat = a1_mat * a2_mat
+        TensorAlgebra.unmatricizeadd!(
+            a_dest, a_dest_mat, invperm_codomain, invperm_domain, α, β
+        )
     end
+    return a_dest
 end
 
 # Whether the two axis groups hold the same axes with the same repeats, in any order. Reordering
@@ -890,10 +917,9 @@ end
 
 # ============================  concatenation  ============================
 # Place whole symmetry-allowed blocks (no scalar indexing) via `concatenate_sparse!` on the block
-# containers. When the containers subtyped `AbstractSparseArray` this went through the generic
-# `TensorAlgebra.concatenate!` (which slices the destination); `concatenate_sparse!` is the
-# whole-block stand-in that needs only the stored-entry interface. The block views are guarded, so
-# opt into block indexing for the placement.
+# containers, which needs only the stored-entry interface where the generic
+# `TensorAlgebra.concatenate!` slices the destination. The block views are guarded, so opt into
+# block indexing for the placement.
 #
 # Abelian-only stand-in: `cat` / `directsum` will be reimplemented for non-abelian fusion, superseding
 # this path.
@@ -975,18 +1001,8 @@ Base.show(io::IO, fa::GradedArray) = summary(io, fa)
 function Base.show(io::IO, ::MIME"text/plain", fa::GradedArray)
     summary(io, fa)
     println(io, ":")
-    # Show the per-leg axes as stored (domain axes codomain-facing), so the printed duality reflects
-    # storage rather than the on-the-fly dualization `axes(fa)` applies to domain legs.
-    for (d, g) in enumerate(axes_codomain(fa))
-        print(io, "  Codomain Dim $d: ")
-        show(io, g)
-        println(io)
-    end
-    for (d, g) in enumerate(axes_domain(fa))
-        print(io, "  Domain Dim $d: ")
-        show(io, g)
-        println(io)
-    end
+    show_biaxes(io, fa)
+    ndims(fa) == 0 || println(io)
     show(io, MIME"text/plain"(), matricize(fa))
     return nothing
 end

@@ -1,5 +1,4 @@
-using GradedArrays:
-    SU2, SectorIdentity, SectorRange, U1, dual, isdual, sectoraxes, sectortype
+using GradedArrays: SU2, SectorIdentity, U1, dual, isdual, sector, sectortype, structureaxes
 using LinearAlgebra: norm, tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -12,7 +11,7 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "Construction rejects a dual sector (non-dual first axis)" begin
-        @test_throws ArgumentError SectorIdentity{Float64}(conj(U1(1)))
+        @test_throws MethodError SectorIdentity{Float64}(conj(U1(1)))
     end
 
     @testset "size and axes — U1 (dim=1)" begin
@@ -35,6 +34,11 @@ using Test: @test, @test_throws, @testset
         @test axes(si) == (U1(1), conj(U1(1)))
         @test axes(si, 1) == U1(1)
         @test axes(si, 2) == conj(U1(1))
+    end
+
+    @testset "sector" begin
+        @test sector(SectorIdentity{Float64}(U1(1))) === U1(1)
+        @test sector(SectorIdentity{Float64}(SU2(1 // 2))) === SU2(1 // 2)
     end
 
     @testset "sectortype" begin

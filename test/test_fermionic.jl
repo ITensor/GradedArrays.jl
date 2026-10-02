@@ -1,17 +1,18 @@
 import GradedArrays
 using BlockArrays: Block, blocklengths, blocksize
-using GradedArrays: GradedArray, GradedContract, SectorProduct, SectorRange, U1,
-    UniqueSectorArray, UniqueSectorDelta, dual, eachblockstoredindex, eachsectoraxis, flip,
-    gradedrange, isdual, sectoraxes, sectors, with_block_indexing, with_scalar_indexing
+using GradedArrays: GradedArray, Sector, U1, UniqueSectorArray, UniqueSectorDelta, dual,
+    eachblockstoredindex, eachstructureaxis, fZ2, flip, gradedrange, isdual, sectors,
+    structureaxes, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, contract, contractalign, matricize, matricizeop,
-    permutedimsop, project, unmatricize, unmatricize!, unmatricizeadd!, unproject
+using TensorAlgebra: TensorAlgebra, MatricizeContract, contract, contractalign, matricize,
+    matricizeop, permutedimsop, project, unmatricize, unmatricize!, unmatricizeadd!,
+    unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
-const fP0 = SectorRange(TKS.FermionParity(false))  # even parity
-const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
+const fP0 = fZ2(false)  # even parity
+const fP1 = fZ2(true)   # odd parity
 
 # `Array(::GradedArray)` matches TensorKit's `convert(Array, ::TensorMap)`: split-dependent, with no
 # fermion domain-bend sign baked into the dense entries.
@@ -21,30 +22,25 @@ const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
     # component, on which `TKS.fermionparity` errors; decomposing over components with a
     # bosonic-irrep fallback handles it.
     for n in -2:2
-        c = SectorRange(TKS.FermionNumber(n))
+        c = Sector(TKS.FermionNumber(n))
         @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
 
-    # The same holds for GradedArrays' own `SectorProduct`, in both tuple and named form.
+    # The same holds when the product is named rather than positional.
     for n in -2:2
-        c = SectorRange(SectorProduct(TKS.U1Irrep(n), TKS.FermionParity(isodd(n))))
-        @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
-        @test GradedArrays.fermionparity(c) == isodd(n)
-        c = SectorRange(
-            SectorProduct(; N = TKS.U1Irrep(n), f = TKS.FermionParity(isodd(n)))
-        )
+        c = Sector(; N = TKS.U1Irrep(n), f = TKS.FermionParity(isodd(n)))
         @test GradedArrays.twist(c) == (isodd(n) ? -1 : 1)
         @test GradedArrays.fermionparity(c) == isodd(n)
     end
 
     # A product of bosonic sectors, and the empty product, twist trivially.
-    boson = SectorProduct(TKS.U1Irrep(1), TKS.SU2Irrep(1))
-    @test GradedArrays.twist(SectorRange(boson)) == 1
-    @test GradedArrays.twist(SectorRange(SectorProduct(()))) == 1
+    boson = Sector(TKS.U1Irrep(1), TKS.SU2Irrep(1))
+    @test GradedArrays.twist(boson) == 1
+    @test GradedArrays.twist(Sector(())) == 1
 
     # Plain bosonic group irreps have even fermion parity.
-    @test GradedArrays.fermionparity(SectorRange(TKS.U1Irrep(2))) == false
+    @test GradedArrays.fermionparity(U1(2)) == false
     @test GradedArrays.fermionparity(U1(0)) == false
 
     # `FermionParity` delegates to TensorKitSectors unchanged.
@@ -52,7 +48,7 @@ const fP1 = SectorRange(TKS.FermionParity(true))   # odd parity
     @test GradedArrays.fermionparity(fP1) == true
 
     # A sector with no fermion parity (an anyon) has no method.
-    @test_throws MethodError GradedArrays.fermionparity(SectorRange(TKS.FibonacciAnyon(:τ)))
+    @test_throws MethodError GradedArrays.fermionparity(Sector(TKS.FibonacciAnyon(:τ)))
 
     # `twist!` is total over array types: a non-graded array has no sectors, so no braiding and no
     # twist. `contraction_twist!` accepts any array, and reaches dense and `Diagonal` factors.
@@ -69,7 +65,7 @@ function randn_blockdiagonal(elt::Type, axs::Tuple)
     N = ndims(a)
     with_block_indexing() do
         for i in 1:blockdiaglength
-            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_sectors = ntuple(d -> eachstructureaxis(axs[d])[i], N)
             block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
             block_data = randn!(Array{elt}(undef, block_dims...))
             a[Block(ntuple(Returns(i), N)...)] =
@@ -113,8 +109,8 @@ end
     fpp = GradedArrays.fermion_permutation_phase
 
     # Bosonic (U1): always +1 regardless of permutation
-    u0 = SectorRange(TKS.U1Irrep(0))
-    u1 = SectorRange(TKS.U1Irrep(1))
+    u0 = U1(0)
+    u1 = U1(1)
     d_bos = UniqueSectorDelta{Float64}((u0, u1))
     @test fpp(d_bos, (2, 1)) == 1
     @test fpp(d_bos, (1, 2)) == 1
@@ -150,7 +146,7 @@ end
         sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
         sp = permutedims(sa, (2, 1))
         @test sp[1, 1] ≈ -3.0
-        @test sectoraxes(sp) == (fP1, fP1)
+        @test structureaxes(sp) == (fP1, fP1)
 
         # Two even sectors: swap gives no phase
         sa_even = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0))
@@ -161,7 +157,7 @@ end
         sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
         sp_mix = permutedims(sa_mix, (2, 1))
         @test sp_mix[1, 1] ≈ 3.0
-        @test sectoraxes(sp_mix) == (fP1, fP0)
+        @test structureaxes(sp_mix) == (fP1, fP0)
 
         # Double permutation recovers original (phase squares to 1)
         @test permutedims(permutedims(sa, (2, 1)), (2, 1))[1, 1] ≈ sa[1, 1]
@@ -177,7 +173,7 @@ end
         @test permutedims(sa_val, (2, 1))[1, 1] ≈ -7.5
 
         # No phase for bosonic (U1) sectors even though same permutation
-        u1 = SectorRange(TKS.U1Irrep(1))
+        u1 = U1(1)
         sa_u1 = UniqueSectorArray(fill(3.0, 1, 1), (u1, u1))
         sp_u1 = permutedims(sa_u1, (2, 1))
         @test sp_u1[1, 1] ≈ 3.0
@@ -190,7 +186,7 @@ end
         sa = UniqueSectorArray(fill(3.0, 1, 1), (fP1, fP1))
         sc = conj(sa)
         @test sc[1, 1] ≈ -3.0
-        @test sectoraxes(sc) == (dual(fP1), dual(fP1))
+        @test structureaxes(sc) == (dual(fP1), dual(fP1))
 
         # Two even sectors: no phase, data just conjugated
         @test conj(UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP0)))[1, 1] ≈ 3.0
@@ -198,7 +194,7 @@ end
         # Mixed (even, odd): single odd leg → no odd-odd inversion → no phase
         sa_mix = UniqueSectorArray(fill(3.0, 1, 1), (fP0, fP1))
         @test conj(sa_mix)[1, 1] ≈ 3.0
-        @test sectoraxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
+        @test structureaxes(conj(sa_mix)) == (dual(fP0), dual(fP1))
 
         # Three odd sectors: reverse(1,2,3) has 3 odd-odd inversions → odd → -1 phase
         @test conj(UniqueSectorArray(fill(2.0, 1, 1, 1), (fP1, fP1, fP1)))[1, 1, 1] ≈ -2.0
@@ -209,7 +205,7 @@ end
 
         # Involution: conj ∘ conj recovers data and sectors (phase squares to 1)
         @test conj(conj(sa))[1, 1] ≈ sa[1, 1]
-        @test sectoraxes(conj(conj(sa))) == (fP1, fP1)
+        @test structureaxes(conj(conj(sa))) == (fP1, fP1)
         @test conj(conj(sa_c))[1, 1] ≈ sa_c[1, 1]
 
         # Mutation safety: conj must not scale the parent block in place
@@ -218,7 +214,7 @@ end
         @test sa_mut[1, 1] ≈ 5.0
 
         # Bosonic (U1) sectors: no fermionic phase, just data conj
-        u1 = SectorRange(TKS.U1Irrep(1))
+        u1 = U1(1)
         @test conj(UniqueSectorArray(fill(1.0 + 2.0im, 1, 1), (u1, u1)))[1, 1] ≈ 1.0 - 2.0im
     end
 end
@@ -234,7 +230,7 @@ end
     with_scalar_indexing() do
         @test cs[1, 1] ≈ conj.(sa)[1, 1] - conj.(sb)[1, 1] / 2
     end
-    @test sectoraxes(cs) == sectoraxes(conj.(sa))
+    @test structureaxes(cs) == structureaxes(conj.(sa))
 end
 
 @testset "conj broadcast on fermionic graded arrays (eltype=$elt)" for elt in
@@ -421,7 +417,7 @@ function const_blockdiagonal(elt::Type, axs::Tuple, vals)
     N = ndims(a)
     with_block_indexing() do
         for (i, v) in enumerate(vals)
-            block_sectors = ntuple(d -> eachsectoraxis(axs[d])[i], N)
+            block_sectors = ntuple(d -> eachstructureaxis(axs[d])[i], N)
             block_dims = ntuple(d -> blocklengths(axs[d])[i], N)
             a[Block(ntuple(Returns(i), N)...)] =
                 UniqueSectorArray(fill(elt(v), block_dims...), block_sectors)
@@ -597,12 +593,14 @@ end
         @test Array(c_fast) ≈ Array(c_ref)
         @test axes(c_fast) == axes(c_ref)
         @test Array(a2) ≈ a2_dense_before
-        # Graded operands select the graded kernel, whose right factor goes through
-        # `twisted_matricizeop`. With a non-dual contracted (codomain) leg the twist is a
-        # no-op, so the fast path returns the stored matrix itself.
+        # Graded operands stay on the generic algorithm: the twist comes from the graded
+        # `contractpermopadd!` kernel that the right factor's type selects, not from an
+        # algorithm of their own.
         @test TensorAlgebra.default_algorithm(
             TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
-        ) === GradedContract()
+        ) === MatricizeContract()
+        # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
+        # returns the stored matrix itself.
         m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,))
         if isdual(rc)
             @test m !== matricize(a2)

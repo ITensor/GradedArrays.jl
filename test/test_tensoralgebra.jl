@@ -3,17 +3,16 @@ using BlockArrays: Block, blocklength
 using GradedArrays: FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
     FusedSectorMatrix, GradedArray, GradedOneTo, SU2, SectorIdentity, SectorOneTo,
     SectorOnesVector, U1, UniqueSectorArray, UniqueSectorDelta, axis_codomain, axis_domain,
-    data, datalengths, dual, eachblockstoredindex, eachsectoraxis, flip,
+    data, datalengths, dual, eachblockstoredindex, eachstructureaxis, fU1, flip,
     fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, fusesectors, gradedrange,
-    isdual, sector, sectoraxes, sectordata, sectors, sectortype, tensor_product,
-    with_block_indexing, with_scalar_indexing
+    isdual, sector, sectordata, sectors, sectortype, structure, structureaxes,
+    tensor_product, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: I, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, contract, contractalign, has_bipartition,
     linearbroadcasted, matricize, unmatricize
-using TensorKitSectors: FermionNumber
-using Test: @test, @test_broken, @test_throws, @testset
+using Test: @test, @test_throws, @testset
 
 @testset "UniqueSectorArray linear broadcasting" begin
     s = UniqueSectorArray(randn!(Matrix{ComplexF64}(undef, 2, 2)), (U1(0), dual(U1(0))))
@@ -36,7 +35,7 @@ using Test: @test, @test_broken, @test_throws, @testset
     cst = conj.(s) .- conj.(t) ./ β
     @test cst isa UniqueSectorArray
     @test Array(cst) ≈ conj.(Array(s)) .- conj.(Array(t)) ./ β
-    @test sectoraxes(cst) == sectoraxes(conj(s))
+    @test structureaxes(cst) == structureaxes(conj(s))
     @test Array(conj.(s)) ≈ conj(Array(s))
 
     # Conjugating only some operands leaves dualized axes against non-dual ones: rejected.
@@ -71,8 +70,8 @@ end
     s = UniqueSectorArray(data, (U1(0), dual(U1(1))))
     sp = permutedims(s, (2, 1))
     @test sp isa UniqueSectorArray
-    @test sectoraxes(sp, 1) == dual(U1(1))
-    @test sectoraxes(sp, 2) == U1(0)
+    @test structureaxes(sp, 1) == dual(U1(1))
+    @test structureaxes(sp, 2) == U1(0)
     @test Array(sp) ≈ permutedims(data)
 end
 
@@ -81,9 +80,9 @@ end
     s = UniqueSectorArray(data, (U1(0), U1(1), U1(2)))
     sp = permutedims(s, (3, 1, 2))
     @test sp isa UniqueSectorArray
-    @test sectoraxes(sp, 1) == U1(2)
-    @test sectoraxes(sp, 2) == U1(0)
-    @test sectoraxes(sp, 3) == U1(1)
+    @test structureaxes(sp, 1) == U1(2)
+    @test structureaxes(sp, 2) == U1(0)
+    @test structureaxes(sp, 3) == U1(1)
     @test Array(sp) ≈ permutedims(data, (3, 1, 2))
 end
 
@@ -454,7 +453,7 @@ end
 
 @testset "FusedGradedMatrix conj is disallowed ($label)" for (label, sectorpairs) in (
         "bosonic" => [U1(0) => 1, U1(1) => 2, U1(2) => 1],
-        "fermionic" => [FermionNumber(0) => 1, FermionNumber(1) => 2, FermionNumber(2) => 1],
+        "fermionic" => [fU1(0) => 1, fU1(1) => 2, fU1(2) => 1],
     )
     # `conj` would dualize each coupled sector, flipping the first axis to dual, which the fused
     # storage types disallow. The dotted form is rejected by the constructor invariant when it
@@ -508,7 +507,7 @@ end
     v = randn!(
         FusedGradedVector{ComplexF64}(
             undef,
-            gradedrange([FermionNumber(n) => l for (n, l) in zip(0:2, (1, 2, 1))])
+            gradedrange([fU1(n) => l for (n, l) in zip(0:2, (1, 2, 1))])
         )
     )
     @test_throws ErrorException conj(v)
@@ -523,8 +522,8 @@ end
         [SU2(0), SU2(1 // 2), SU2(1)] .=>
             [Float64[10.0], Float64[20.0], Float64[30.0]]
     )
-    @test sector(view(v, Block(2))) isa SectorOnesVector
-    @test Array(sector(view(v, Block(2)))) == ones(2)
+    @test structure(view(v, Block(2))) isa SectorOnesVector
+    @test Array(structure(view(v, Block(2)))) == ones(2)
     @test Array(v) == [10.0, 20.0, 20.0, 30.0, 30.0, 30.0]
 end
 

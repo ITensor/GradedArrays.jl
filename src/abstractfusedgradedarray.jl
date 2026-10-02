@@ -1,9 +1,5 @@
-"""
-    AbstractFusedGradedArray{T,S,N} <: AbstractArray{T,N}
-
-Supertype of the fused (coupled-sector-block) graded arrays, [`FusedGradedMatrix`](@ref) and
-[`FusedGradedVector`](@ref). Holds the code shared between the two.
-"""
+# Supertype of the fused (coupled-sector-block) graded arrays, `FusedGradedMatrix` and
+# `FusedGradedVector`. Holds the code shared between the two.
 abstract type AbstractFusedGradedArray{T, S, N} <: AbstractArray{T, N} end
 const AbstractFusedGradedMatrix{T, S} = AbstractFusedGradedArray{T, S, 2}
 const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}
@@ -42,25 +38,38 @@ function sectordata end
 
 # The sorted union of the arguments' axis supports (analogous to `eachindex(A...)`): ordered
 # random access for a positional walk over each argument's support-set form (see `setsectors`),
-# and a valid `setsectors` target for every argument by construction (it covers each axis).
-# Returned as the lazy sector view over one bare-label vector, which `setsectors` stores
-# directly, so every axis set from one union shares that vector.
-function sectorsupport(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
-    ls = mapreduce(mergesortedunique, (a, as...)) do x
+# and a valid `setsectors` target for every argument by construction (it covers each axis). The
+# sectors carry no arrow, so one union covers axes of either arrow.
+function tensorkit_sectorsupport(
+        a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...
+    )
+    return mapreduce(mergesortedunique, (a, as...)) do x
         return mapreduce(
-            sectorlabels,
+            tensorkit_sectors,
             mergesortedunique,
             (axes_codomain(x)..., axes_domain(x)...)
         )
     end
-    # The concrete `SectorRange{...}` (not the bare `UnionAll`) keeps the view's eltype concrete:
-    # `mappedarray` takes a given type verbatim as the eltype.
-    return mappedarray(SectorRange{eltype(ls)}, ls)
+end
+function sectorsupport(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...)
+    return map(Sector, tensorkit_sectorsupport(a, as...))
+end
+
+# Bring the arguments onto the union of their axis supports, so that one position indexes the
+# same sector in every one of them. Each result shares its argument's buffer, and an argument
+# that already spans the union comes back itself. The union is built and stored in the sectors'
+# TensorKitSectors form, the form the axes hold, so one vector is shared by every axis of every
+# result.
+function promote_sectorsupport(
+        a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...
+    )
+    cs = tensorkit_sectorsupport(a, as...)
+    return map(x -> setsectors(x, cs), (a, as...))
 end
 
 # Union of two sorted, unique vectors, returned in sorted order. Sorted inputs make the union a
 # merge.
-function mergesortedunique(a::Vector{S}, b::Vector{S}) where {S}
+function mergesortedunique(a::AbstractVector{S}, b::AbstractVector{S}) where {S}
     out = S[]
     i = j = 1
     while i <= length(a) && j <= length(b)
@@ -81,25 +90,19 @@ function mergesortedunique(a::Vector{S}, b::Vector{S}) where {S}
     return out
 end
 
-# `setsectors(a, cs)` (one method per concrete fused array) sets every axis's sector support to
-# exactly `cs`, keeping the stored per-sector lengths and giving the added sectors length zero.
+# `setsectors(a, ss)` (one method per concrete fused array) sets every axis's sector support to
+# exactly `ss`, keeping the stored per-sector lengths and giving the added sectors length zero.
 # The result shares `a`'s buffer: a zero-length sector contributes no data, so the layout carves
-# the stored blocks at their existing offsets. `cs` must be sorted (`SectorRange` order) and
-# cover every axis's support; setting arrays that will be co-iterated from one shared `cs` (the
+# the stored blocks at their existing offsets. `ss` must be sorted (`Sector` order) and
+# cover every axis's support; setting arrays that will be co-iterated from one shared `ss` (the
 # axis-support union `sectorsupport(a, bs...)`) makes a single position index them all. An
 # unchanged support returns `a` itself.
 setsectors(a::AbstractFusedGradedArray) = setsectors(a, sectorsupport(a))
 
-# Strip a sector vector to its bare label vector once per array (zero-copy for the lazy
-# `sectors` view), so both axes of the array are set from the same vector.
-function setsectors(a::AbstractFusedGradedArray, cs::AbstractVector{<:SectorRange})
-    return setsectors(a, to_labelvector(cs))
-end
-
 sectordata(a::AbstractFusedGradedArray, c) = sectordata(a)[c]
 
 # Positional form: the block of the i-th stored sector (the tokens of the sorted storage are
-# positions). Unambiguous with the keyed form because sector keys are `SectorRange`s, never `Int`s.
+# positions). Unambiguous with the keyed form because sector keys are `Sector`s, never `Int`s.
 sectordata(a::AbstractFusedGradedArray, i::Int) = gettokenvalue(sectordata(a), i)
 
 # Each concrete type implements the bipartite-axes primitives `axes_codomain`/`axes_domain` (its
@@ -267,7 +270,7 @@ function Base.summary(io::IO, m::AbstractFusedGradedMatrix)
     sd = sectordata(m)
     print(
         io, blocklength(axis_codomain(m)), "×", blocklength(axis_domain(m)), " ",
-        summary_typename(typeof(m)),
+        summary_typename(io, typeof(m)),
         " with ", length(sd), " stored block", length(sd) == 1 ? "" : "s", " at sectors ["
     )
     join(io, keys(sd), ", ")
@@ -278,12 +281,9 @@ end
 function Base.show(io::IO, ::MIME"text/plain", m::AbstractFusedGradedMatrix)
     summary(io, m)
     println(io, ":")
-    for (d, g) in pairs(axes(m))
-        print(io, "  Dim $d: ")
-        show_axis(io, g)
-        println(io)
-    end
+    show_biaxes(io, m)
     isempty(sectordata(m)) && return nothing
+    println(io)
     Base.print_array(io, m)
     return nothing
 end
@@ -291,7 +291,7 @@ end
 function Base.show(io::IO, m::AbstractFusedGradedMatrix)
     print(
         io, blocklength(axis_codomain(m)), "×", blocklength(axis_domain(m)), " ",
-        summary_typename(typeof(m)), " (", length(sectordata(m)), " stored)"
+        summary_typename(io, typeof(m)), " (", length(sectordata(m)), " stored)"
     )
     return nothing
 end
@@ -327,8 +327,6 @@ end
 # ---------------------------------------------------------------------------
 #  fill! / zero! / scale! — block-wise over the stored blocks
 #
-#  Defined once via the `eachblockstoredindex`/`view` interface every
-#  `AbstractFusedGradedArray` implements, so both fused subtypes are covered.
 #  These only touch stored (symmetry-allowed) blocks, so a nonzero `fill!`
 #  value leaves the forbidden positions at zero.
 # ---------------------------------------------------------------------------
@@ -372,23 +370,26 @@ Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
 #  block grid; unstored blocks become `Zeros`, which print as `⋅`.
 # ---------------------------------------------------------------------------
 
-# Compact type name for the summary line. The buffer-backed fused arrays carry `{T,S,V}` — element,
-# sector, and storage-buffer types. Only the element `T` and the storage buffer `V` are informative in
-# the header (the sector is spelled out in the `Dim` lines below), so keep the first and last type
-# parameters and elide the middle to `…`.
-function summary_typename(type::Type{<:AbstractFusedGradedArray})
-    alias = Base.make_typealias(type)
-    base, params = if isnothing(alias)
-        string(nameof(type)), collect(type.parameters)
-    else
-        globalref, alias_params = alias
-        string(globalref.name), collect(alias_params)
-    end
+# Compact type name for the summary line: the type's own parameters, with the trailing
+# TensorKitSectors sector type shown as `…`. That parameter only aids conversion to and from
+# TensorKit, so eliding it keeps the header short, and eliding rather than dropping it keeps the
+# spelling from reading as the whole concrete type. The name and the parameters all go through
+# `show` against the caller's context, so whether each prints qualified follows what the reader
+# has in scope. The name comes from the parameterless `wrapper` rather than `nameof`, which
+# would strip the module unconditionally.
+function summary_typename(
+        io::IO, type::Type{<:Union{AbstractFusedGradedArray, AbstractGradedOneTo}}
+    )
+    base = sprint(show, type.name.wrapper; context = io)
+    params = collect(type.parameters)
     isempty(params) && return base
-    strs = if length(params) <= 2
-        map(string, params)
-    else
-        [string(first(params)), "…", string(last(params))]
+    strs = map(params) do p
+        p isa Type && p <: SectorProduct &&
+            return sprint(show_sectorproduct_type, p; context = io)
+        return sprint(show, p; context = io)
+    end
+    if params[end] isa Type && params[end] <: TKS.Sector
+        strs[end] = "…"
     end
     return string(base, "{", join(strs, ", "), "}")
 end
@@ -404,7 +405,7 @@ function _to_blockarray(a::AbstractFusedGradedArray{T, <:Any, N}) where {T, N}
     for bI in eachblockstoredindex(a)
         blk = view(a, bI)
         blockmat[CartesianIndex(Int.(Tuple(bI)))] =
-            kron_nd(collect(data(blk)), Array(sector(blk)))
+            kron_nd(collect(data(blk)), Array(structure(blk)))
     end
     return mortar(blockmat)
 end
@@ -509,10 +510,9 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
 end
 
 # ============================  similar_map  ============================
-# `similar_map` with explicit axes off a fused prototype previously allocated a `GradedArray`; that
-# implicitly crossed the `FusedGradedMatrix` (internal) / `GradedArray` (external) boundary, so it is
-# now undefined. A fused matrix permutes through `permutedims` / `permutedimsop` (staying fused via
-# `allocate_output(permutedimsop, ::AbstractFusedGradedMatrix, …)` below).
+# Undefined on purpose: allocating a `GradedArray` off a fused prototype would implicitly cross the
+# `FusedGradedMatrix` (internal) / `GradedArray` (external) boundary. A fused matrix permutes
+# through `permutedims` / `permutedimsop`, staying fused via the `allocate_output` below.
 function TensorAlgebra.similar_map(
         ::AbstractFusedGradedArray, ::Type, ::Tuple, ::Tuple
     )

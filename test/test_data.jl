@@ -1,7 +1,7 @@
 using BlockArrays: Block, blockedrange
 using GradedArrays: GradedArrays, Data, FusedGradedMatrix, FusedSectorMatrix, GradedOneTo,
-    U1, UniqueSectorArray, data, dual, eachblockstoredindex, fusedgradedmatrix, gradedrange,
-    sectoraxes, sectordata, sectors, with_block_indexing
+    OrientedSector, U1, UniqueSectorArray, data, dual, eachblockstoredindex,
+    fusedgradedmatrix, gradedrange, sectordata, sectors, structureaxes, with_block_indexing
 using Test: @test, @test_throws, @testset
 
 @testset "Data indexing" begin
@@ -21,6 +21,25 @@ using Test: @test, @test_throws, @testset
         @testset "Data getindex second block" begin
             d = m[Data(2, 2)]
             @test d == 2 * ones(4, 5)
+        end
+
+        @testset "Lookups agree across spellings of a sector" begin
+            sd = sectordata(m)
+            # A non-dual `OrientedSector` is equal to the sector it wraps, so every accessor has
+            # to take it. `isassigned` needs a method at the key type of its own to beat the
+            # Dictionaries fallback, and `show` is what calls it there.
+            for c in (U1(0), OrientedSector(U1(0), false))
+                @test haskey(sd, c)
+                @test isassigned(sd, c)
+                @test sd[c] == ones(2, 3)
+            end
+            @test !haskey(sd, U1(2))
+            @test !isassigned(sd, U1(2))
+            @test_throws ArgumentError haskey(sd, dual(U1(0)))
+            @test_throws ArgumentError isassigned(sd, dual(U1(0)))
+            @test_throws ArgumentError sd[dual(U1(0))]
+            @test occursin("U1(0)", sprint(show, sd))
+            @test occursin("U1(0)", sprint(show, MIME("text/plain"), sd))
         end
 
         @testset "Data setindex! copies into raw block" begin

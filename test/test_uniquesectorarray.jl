@@ -1,12 +1,12 @@
-using GradedArrays: GradedArrays, SU2, SectorOneTo, SectorRange, U1, UniqueSectorArray,
-    UniqueSectorDelta, UniqueSectorMatrix, UniqueSectorVector, data, dual, isdual, sector,
-    sector_kron, sectoraxes, sectortype, with_scalar_indexing
+using GradedArrays: GradedArrays, SU2, SectorOneTo, U1, UniqueSectorArray,
+    UniqueSectorDelta, UniqueSectorMatrix, UniqueSectorVector, data, dual, isdual,
+    sector_kron, sectortype, structure, structureaxes, with_scalar_indexing
 using LinearAlgebra: tr
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
 @testset "UniqueSectorArray" begin
-    @testset "Construction from SectorRange tuples" begin
+    @testset "Construction from sector tuples" begin
         data = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
         @test sa isa UniqueSectorArray{Float64, U1, 2, <:Any, <:Any, Matrix{Float64}}
@@ -16,7 +16,7 @@ using Test: @test, @test_throws, @testset
     @testset "Construction with dual sectors" begin
         data = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
-        @test sectoraxes(sa) == (U1(1), conj(U1(-1)))
+        @test structureaxes(sa) == (U1(1), conj(U1(-1)))
     end
 
     @testset "Undef constructor (SectorOneTo)" begin
@@ -26,36 +26,36 @@ using Test: @test, @test_throws, @testset
         )
         @test size(sa) == (3, 4)
         @test eltype(sa) == Float64
-        @test sectoraxes(sa) == (U1(0), U1(1))
+        @test structureaxes(sa) == (U1(0), U1(1))
     end
 
     @testset "Primitive accessors" begin
         data = ones(2, 3, 4)
         sa = UniqueSectorArray(data, (U1(1), conj(U1(0)), U1(-1)))
 
-        @test sectoraxes(sa) == (U1(1), conj(U1(0)), U1(-1))
-        @test sectoraxes(sa, 1) == U1(1)
-        @test sectoraxes(sa, 2) == conj(U1(0))
-        @test sectoraxes(sa, 3) == U1(-1)
+        @test structureaxes(sa) == (U1(1), conj(U1(0)), U1(-1))
+        @test structureaxes(sa, 1) == U1(1)
+        @test structureaxes(sa, 2) == conj(U1(0))
+        @test structureaxes(sa, 3) == U1(-1)
         @test isdual(axes(sa, 1)) == false
         @test isdual(axes(sa, 2)) == true
         @test isdual(axes(sa, 3)) == false
     end
 
-    @testset "Derived accessors — sectoraxes" begin
+    @testset "Derived accessors — structureaxes" begin
         data = ones(2, 3)
         sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
-        @test sectoraxes(sa, 1) == U1(1)
-        @test sectoraxes(sa, 2) == conj(U1(-1))
-        @test sectoraxes(sa) == (U1(1), conj(U1(-1)))
+        @test structureaxes(sa, 1) == U1(1)
+        @test structureaxes(sa, 2) == conj(U1(-1))
+        @test structureaxes(sa) == (U1(1), conj(U1(-1)))
     end
 
-    @testset "sector(::UniqueSectorArray) returns UniqueSectorDelta" begin
+    @testset "structure(::UniqueSectorArray) returns UniqueSectorDelta" begin
         data = ones(2, 3)
         sa = UniqueSectorArray(data, (U1(1), conj(U1(-1))))
-        sd = sector(sa)
+        sd = structure(sa)
         @test sd isa UniqueSectorDelta{Float64, U1, 2}
-        @test axes(sd) == sectoraxes(sa)
+        @test axes(sd) == structureaxes(sa)
     end
 
     @testset "sectortype" begin
@@ -65,16 +65,18 @@ using Test: @test, @test_throws, @testset
     end
 
     @testset "rank-0 (scalar) array" begin
-        # A rank-0 array has an empty `sectors` tuple, so `sector` and the delta/data
+        # A rank-0 array has an empty `sectors` tuple, so `structure` and the delta/data
         # constructor take the sector type from the type rather than inferring it.
-        sa = UniqueSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(fill(2.0), (), ())
+        sa = UniqueSectorArray{Float64, U1, 0, 0, 0, Array{Float64, 0}}(
+            fill(2.0), (), (), (), ()
+        )
         @test ndims(sa) == 0
         @test sectortype(sa) === U1
         with_scalar_indexing() do
             @test sa[] == 2.0
         end
 
-        sd = sector(sa)
+        sd = structure(sa)
         @test sd isa UniqueSectorDelta{Float64, U1, 0}
         @test sectortype(sd) === U1
 
@@ -113,7 +115,7 @@ using Test: @test, @test_throws, @testset
         sa2 = copy(sa)
         with_scalar_indexing() do
             @test sa2[1, 1] == sa[1, 1]
-            @test sectoraxes(sa2) == sectoraxes(sa)
+            @test structureaxes(sa2) == structureaxes(sa)
 
             sa2[1, 1] = 999.0
             @test sa[1, 1] == 1.0
@@ -183,7 +185,7 @@ using Test: @test, @test_throws, @testset
         sa = UniqueSectorArray(data, (U1(1), conj(U1(0))))
         sa_perm = permutedims(sa, (2, 1))
         @test size(sa_perm) == (3, 2)
-        @test sectoraxes(sa_perm) == (conj(U1(0)), U1(1))
+        @test structureaxes(sa_perm) == (conj(U1(0)), U1(1))
         with_scalar_indexing() do
             @test sa_perm[1, 1] == 1.0
             @test sa_perm[1, 2] == 4.0
@@ -256,7 +258,7 @@ using Test: @test, @test_throws, @testset
         @test ra isa UniqueSectorArray
         @test ia isa UniqueSectorArray
         # The structural sector factor is left intact; only the reduced data takes real/imag parts.
-        @test sectoraxes(ra) == sectoraxes(sa)
+        @test structureaxes(ra) == structureaxes(sa)
         @test data(ra) == real.(d)
         @test data(ia) == imag.(d)
         @test data(ra) + im * data(ia) ≈ d
@@ -265,19 +267,22 @@ using Test: @test, @test_throws, @testset
     @testset "split block: round-trip, real/imag, eltype independence" begin
         d = randn(ComplexF64, 2, 3)
         sa = UniqueSectorArray(d, (U1(1),), (U1(1),))   # a genuine (1, 1) split
-        sd = sector(sa)
+        sd = structure(sa)
         @test (length(sd.sectors_codomain), length(sd.sectors_domain)) == (1, 1)
         # The domain leg is stored codomain-facing but reads as dual externally.
-        @test sectoraxes(sa) == (U1(1), dual(U1(1)))
+        @test structureaxes(sa) == (U1(1), dual(U1(1)))
         # Exact structural round-trip keeps the split (and the data object).
-        @test sector_kron(sector(sa), data(sa)) === sa
+        @test sector_kron(structure(sa), data(sa)) === sa
         # real/imag keep the split and are eltype-independent: the delta's `T` need not track the data's.
         ra = real(sa)
         ia = imag(sa)
-        @test (length(sector(ra).sectors_codomain), length(sector(ra).sectors_domain)) ==
+        @test (
+            length(structure(ra).sectors_codomain),
+            length(structure(ra).sectors_domain),
+        ) ==
             (1, 1)
         @test eltype(ra) == Float64
-        @test sectoraxes(ra) == sectoraxes(sa)
+        @test structureaxes(ra) == structureaxes(sa)
         @test data(ra) + im * data(ia) ≈ d
     end
 end

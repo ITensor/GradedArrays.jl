@@ -1,8 +1,8 @@
 using StridedViews: StridedViews, StridedView, isstrided
 
 # ========================  bipartite-axes interface  ========================
-# The shared codomain/domain axis interface for `GradedArray` and the fused graded arrays (a candidate
-# to move to TensorAlgebra alongside `BiTuple`/`bispace`). A type implements the two primitives
+# The shared codomain/domain axis interface for `GradedArray` and the fused graded arrays. A type
+# implements the two primitives
 # `axes_codomain`/`axes_domain` — its codomain and domain axis groups in un-dualized (codomain-facing)
 # form — and these derived helpers follow. `biaxes` wraps the halves into the `bispace`/`BiTuple` form
 # (dualizing the domain), so an implementer never constructs a `BiTuple`; `axis_codomain`/`axis_domain`
@@ -58,7 +58,7 @@ end
 # ========================  sorting utilities  ========================
 
 # convention: sort dual GradedOneTo according to nondual blocks
-# Sort by SectorRange to use the custom isless ordering
+# Sort by sector to use the custom isless ordering
 function sectorsortperm(g::AbstractGradedOneTo)
     return Block.(sortperm(sectors(g)))
 end
@@ -99,12 +99,10 @@ function invblockmergeperm(
 end
 
 # The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`. The `mergesectors` worker over the
-# axis parts lives in `fusedgradedoneto.jl`; `GradedOneTo` and `FusedGradedOneTo` have
-# constant-time fast paths (the cached fused form and the identity).
+# encodes that invariant rather than a plain `GradedOneTo`. `GradedOneTo` and `FusedGradedOneTo`
+# have constant-time fast paths (the cached fused form and the identity).
 function fusesectors(g::AbstractGradedOneTo)
-    merged_sectors, merged_datalengths = mergesectors(sectors(g), datalengths(g))
-    return FusedGradedOneTo(to_labelvector(merged_sectors), merged_datalengths, isdual(g))
+    return sortmergesectors(sectors(g), datalengths(g), isdual(g))
 end
 
 # Always returns a non-dual fused-sorted axis. Conjugation is a sector bijection, so flipping
@@ -112,6 +110,16 @@ end
 function tensor_product(g::AbstractGradedOneTo)
     f = fusesectors(g)
     return isdual(f) ? flip(f) : f
+end
+
+# `reduce` over a one-element collection hands back the element through `reduce_first`
+# without calling the operation, which would skip the arrow normalization that the
+# one-argument `tensor_product` performs.
+function Base.reduce_first(
+        ::typeof(tensor_product),
+        x::Union{AbstractOrientedSector, SectorOneTo, AbstractGradedOneTo}
+    )
+    return tensor_product(x)
 end
 
 function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
@@ -130,19 +138,36 @@ function tensor_product(g::AbstractGradedOneTo, s::SectorOneTo)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# SectorRange ↔ GradedOneTo
-function tensor_product(s::SectorRange, g::AbstractGradedOneTo)
+# Sector ↔ GradedOneTo
+function tensor_product(s::Sector, g::AbstractGradedOneTo)
     return tensor_product(to_gradedrange(s), g)
 end
-function tensor_product(g::AbstractGradedOneTo, s::SectorRange)
+function tensor_product(g::AbstractGradedOneTo, s::Sector)
     return tensor_product(g, to_gradedrange(s))
 end
 
-# SectorRange ↔ SectorOneTo
-function tensor_product(s::SectorRange, r::SectorOneTo)
+# OrientedSector ↔ GradedOneTo. Reached mid-`reduce` over oriented sectors once a non-abelian
+# fusion step has turned the accumulator into a graded range.
+function tensor_product(s::OrientedSector, g::AbstractGradedOneTo)
+    return tensor_product(to_gradedrange(s), g)
+end
+function tensor_product(g::AbstractGradedOneTo, s::OrientedSector)
+    return tensor_product(g, to_gradedrange(s))
+end
+
+# OrientedSector ↔ SectorOneTo
+function tensor_product(s::OrientedSector, r::SectorOneTo)
     return tensor_product(to_gradedrange(s), to_gradedrange(r))
 end
-function tensor_product(r::SectorOneTo, s::SectorRange)
+function tensor_product(r::SectorOneTo, s::OrientedSector)
+    return tensor_product(to_gradedrange(r), to_gradedrange(s))
+end
+
+# Sector ↔ SectorOneTo
+function tensor_product(s::Sector, r::SectorOneTo)
+    return tensor_product(to_gradedrange(s), to_gradedrange(r))
+end
+function tensor_product(r::SectorOneTo, s::Sector)
     return tensor_product(to_gradedrange(r), to_gradedrange(s))
 end
 
@@ -172,13 +197,13 @@ function TensorAlgebra.bipermutedimsopadd!(
     )
     check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
-    sx = sector(x)
+    sx = structure(x)
     # Fermion signs go on the reduced data (the delta is `one(T)`). `fermion_permutation_phase`
     # (op-aware) gives the braiding sign, plus the ket->bra leg reversal for `op === conj`. The two
     # `fermion_bend_phase` factors reconcile the splits (unbend the source's domain legs, rebend the
     # destination's) and are `1` for all-codomain blocks.
     ndims_domain_src = ndims_domain(sx)
-    ndims_domain_dest = ndims_domain(sector(y))
+    ndims_domain_dest = ndims_domain(structure(y))
     src_domain_legs = ntuple(i -> ndims_codomain(sx) + i, ndims_domain_src)
     dest_domain_legs =
         ntuple(i -> perm[ndims(x) - ndims_domain_dest + i], ndims_domain_dest)
@@ -233,15 +258,10 @@ function TensorAlgebra.bipermutedimsopadd!(
         end
         throw(ArgumentError("output array must not be aliased with the input array"))
     end
-    # `scale!(y, 0)` doesn't reliably zero `y`: if any block of `y` holds
-    # `NaN`/`Inf` (uninitialized memory from `undef` allocation or a stale
-    # garbage value), `NaN * 0 == NaN` keeps it poisoned, and subsequent
-    # `bipermutedimsopadd!(..., α, one(β))` calls on a block of `y` that
-    # doesn't get visited by the loop below would leak that garbage into the
-    # result. Allocating broadcasts like `3 * a` go through this path (they
-    # call with β == 0 on a fresh `similar`-allocated array); before this
-    # fix they occasionally produced `NaN`s in unstored-block slots. Call
-    # `zero!` explicitly for β == 0 to avoid the NaN-propagation trap.
+    # `scale!(y, 0)` does not reliably zero `y`: a block holding `NaN`/`Inf` from an `undef`
+    # allocation stays poisoned, since `NaN * 0 == NaN`, and the loop below leaves any block it
+    # does not visit as it is. Allocating broadcasts like `3 * a` reach this with β == 0 on a
+    # fresh `similar`, so zero explicitly instead.
     iszero(β) ? zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
@@ -253,75 +273,17 @@ function TensorAlgebra.bipermutedimsopadd!(
     return y
 end
 
-# ========================  graded contraction  ========================
-# Fermionic contractions need the second (right) factor's contracted legs twisted before
-# matricization, so the result does not depend on contraction order. The graded family therefore
-# owns its contraction algorithm: `GradedContract` matricizes the left factor as usual and sends
-# the right factor through `twisted_matricizeop`, which inserts the twist between the permute
-# and the matricize. The twist is a no-op for bosonic sectors. `default_algorithm` selects it
-# whenever the right factor is a `GradedArray` (see `gradedarray.jl`).
-
-"""
-    GradedContract <: TensorAlgebra.ContractAlgorithm
-
-Matricized contraction for graded arrays: fuse both operands, twisting the right factor's
-contracted legs for fermionic sectors, multiply the fused matrices, and scatter the product back
-into the destination.
-"""
-struct GradedContract <: TensorAlgebra.ContractAlgorithm end
-
-function TensorAlgebra.contractpermopadd!(
-        ::GradedContract,
-        a_dest::AbstractArray, biperm_dest_codomain, biperm_dest_domain,
-        op1, a1::AbstractArray, biperm1_codomain, biperm1_domain,
-        op2, a2::AbstractArray, biperm2_codomain, biperm2_domain,
-        α::Number, β::Number
-    )
-    biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
-    invperm_codomain, invperm_domain =
-        TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
-    check_input(
-        TensorAlgebra.contract!,
-        a_dest, invperm_codomain, invperm_domain,
-        a1, biperm1_codomain, biperm1_domain,
-        a2, biperm2_codomain, biperm2_domain
-    )
-    a1_mat = TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
-    a2_mat = twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
-    if TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, identity, a_dest, invperm_codomain, invperm_domain
-        )
-        a_dest_mat = TensorAlgebra.matricizeopview(
-            identity, a_dest, invperm_codomain, invperm_domain
-        )
-        LinearAlgebra.mul!(a_dest_mat, a1_mat, a2_mat, α, β)
-    else
-        a_dest_mat = a1_mat * a2_mat
-        TensorAlgebra.unmatricizeadd!(
-            a_dest, a_dest_mat, invperm_codomain, invperm_domain, α, β
-        )
-    end
-    return a_dest
-end
-
+# ========================  contraction twist  ========================
 # A non-graded array carries no sector data, so there is no braiding and the twist is the identity.
 # `contraction_twist!` below accepts any array, so without this it throws a `MethodError` on the
 # dense and `Diagonal` factors that a factorization of an unsymmetric array produces.
 twist!(a::AbstractArray, dims) = a
 
-"""
-    contraction_twist!(a::UniqueSectorArray, ndims_codomain::Int) -> a
-
-Apply the twist convention for the supertrace formalism of fermionic contractions.
-This means that ``⟨i| ⋅ |j⟩ = δᵢⱼ``, and ``|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ``.
-Here, ``θᵢⱼ = ±1`` is defined as the phase from applying a self-crossing,
-which is always ``1`` for bosonic symmetries, but can be ``-1`` for odd fermion charges.
-
-Equivalent to `twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`.
-A no-op unless `BraidingStyle(sectortype(a))` is `Fermionic`.
-
-See also `twist!`.
-"""
+# The twist convention for the supertrace formalism of fermionic contractions: `⟨i| ⋅ |j⟩ = δᵢⱼ`
+# and `|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ`, where `θᵢⱼ = ±1` is the phase from a self-crossing, always `1` for a
+# bosonic symmetry and possibly `-1` for an odd fermion charge. Equivalent to
+# `twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`, and a no-op unless
+# `BraidingStyle(sectortype(a))` is `Fermionic`.
 function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
     return twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
 end

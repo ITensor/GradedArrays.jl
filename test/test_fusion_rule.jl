@@ -1,12 +1,10 @@
 using BlockArrays: blocklengths
-using GradedArrays: GradedArrays, SU2, SectorRange, TrivialSector, U1, Z, dual, flip,
-    gradedrange, nsymbol, tensor_product, trivial, unmerged_tensor_product
-using SUNRepresentations: SUNIrrep
-using TensorKitSectors: TensorKitSectors as TKS
+using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, Trivial, U1, Z, dual, flip,
+    gradedrange, tensor_product, trivial, unmerged_tensor_product
+using SUNRepresentations: SUNRepresentations
+using TensorKitSectors: TensorKitSectors as TKS, Nsymbol
 using Test: @test, @test_throws, @testset
 using TestExtras: @constinferred
-
-const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
 
 @testset "Simple SymmetrySector fusion rules" begin
     @testset "Z{2} fusion rules" begin
@@ -18,11 +16,11 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         @test tensor_product(z1, z1) == z0
         @test (@constinferred tensor_product(z0, z0)) == z0
 
-        q = TrivialSector()
+        q = Trivial()
         @test (@constinferred tensor_product(q, q)) == q
         @test (@constinferred tensor_product(q, z0)) == z0
         @test (@constinferred tensor_product(z1, q)) == z1
-        @test nsymbol(q, q, q) == 1
+        @test Nsymbol(q, q, q) == 1
 
         # test different input number
         @test tensor_product(z0) == z0
@@ -40,17 +38,17 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         @test tensor_product(q1, q2) == U1(3)
         @test tensor_product(q2, q1) == U1(3)
         @test (@constinferred tensor_product(q1, q2)) == q3
-        @test nsymbol(q1, q2, q3) == 1
-        @test nsymbol(q1, q1, q3) == 0
+        @test Nsymbol(q1, q2, q3) == 1
+        @test Nsymbol(q1, q1, q3) == 0
     end
 
     @testset "O2 fusion rules" begin
-        s0e = SectorRange(TKS.CU1Irrep(0, 0))
-        s0o = SectorRange(TKS.CU1Irrep(0, 1))
-        s12 = SectorRange(TKS.CU1Irrep(1 // 2, 2))
-        s1 = SectorRange(TKS.CU1Irrep(1, 2))
+        s0e = CU1(0, 0)
+        s0o = CU1(0, 1)
+        s12 = CU1(1 // 2, 2)
+        s1 = CU1(1, 2)
 
-        q = TrivialSector()
+        q = Trivial()
         @test (@constinferred tensor_product(s0e, q)) == gradedrange([s0e => 1])
         @test (@constinferred tensor_product(q, s0o)) == gradedrange([s0o => 1])
 
@@ -64,7 +62,7 @@ const SU{N} = GradedArrays.SectorRange{SUNIrrep{N}}
         @test (@constinferred tensor_product(s12, s0e)) == gradedrange([s12 => 1])
         @test (@constinferred tensor_product(s12, s0o)) == gradedrange([s12 => 1])
         @test (@constinferred tensor_product(s12, s1)) ==
-            gradedrange([s12 => 1, SectorRange(TKS.CU1Irrep(3 // 2, 2)) => 1])
+            gradedrange([s12 => 1, Sector(TKS.CU1Irrep(3 // 2, 2)) => 1])
         @test (@constinferred tensor_product(s12, s12)) ==
             gradedrange([s0e => 1, s0o => 1, s1 => 1])
 
@@ -229,23 +227,23 @@ end
         @test (@constinferred blocklengths(g3)) == [1, 4, 3]
 
         # test dual on non self-conjugate non-abelian representations
-        s1 = SU{3}((0, 0))
-        f3 = SU{3}((1, 0))
-        c3 = SU{3}((1, 1))
-        ad8 = SU{3}((2, 1))
+        s1 = SU{3}(0, 0)
+        f3 = SU{3}(1, 0)
+        c3 = SU{3}(0, 1)
+        ad8 = SU{3}(1, 1)
 
         g5 = gradedrange([s1 => 1, f3 => 1])
         g6 = gradedrange([s1 => 1, c3 => 1])
         @test dual(flip(g5)) == g6
         @test tensor_product(g5, g6) == gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
         @test tensor_product(dual(g5), g6) ==
-            gradedrange([s1 => 1, c3 => 2, f3 => 1, SU{3}((2, 2)) => 1])
+            gradedrange([s1 => 1, c3 => 2, f3 => 1, SU{3}(0, 2) => 1])
         @test tensor_product(g5, dual(g6)) ==
-            gradedrange([s1 => 1, c3 => 1, f3 => 2, SU{3}((2, 0)) => 1])
+            gradedrange([s1 => 1, c3 => 1, f3 => 2, SU{3}(2, 0) => 1])
         @test tensor_product(dual(g5), dual(g6)) ==
             gradedrange([s1 => 2, c3 => 1, f3 => 1, ad8 => 1])
 
-        @test nsymbol(ad8, ad8, ad8) == 2
+        @test Nsymbol(ad8, ad8, ad8) == 2
     end
 
     @testset "Mixed GradedOneTo - Sector fusion rules" begin
