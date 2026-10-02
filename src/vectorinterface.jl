@@ -24,7 +24,7 @@ for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
         end
         VI.scale!(a::$AT, α::Number) = TensorAlgebra.scale!(a, α)
         function VI.scale!(b::$AT, a::$AT, α::Number)
-            return TensorAlgebra.add!(b, a, α, false)
+            return TensorAlgebra.scaleadd!(b, a, α, false)
         end
         # The `!!` methods fall back to out-of-place allocation when the destination can't hold the
         # result.
@@ -50,7 +50,7 @@ for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
             return VI.add!(VI.scale!(similar(a, T), a, β), b, α, true)
         end
         function VI.add!(a::$AT, b::$AT, α::Number, β::Number)
-            return TensorAlgebra.add!(a, b, α, β)
+            return TensorAlgebra.scaleadd!(a, b, α, β)
         end
         function VI.add!!(a::$AT, b::$AT, α::Number, β::Number)
             T = Base.promote_op(

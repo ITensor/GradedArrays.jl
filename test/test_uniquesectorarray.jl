@@ -204,22 +204,22 @@ using Test: @test, @test_throws, @testset
         @test data(c) ≈ a_data * b_data
     end
 
-    @testset "TensorAlgebra.add! (UniqueSectorArray to UniqueSectorArray)" begin
+    @testset "TensorAlgebra.scaleadd! (UniqueSectorArray to UniqueSectorArray)" begin
         using TensorAlgebra: TensorAlgebra
         data1 = [1.0 2.0; 3.0 4.0]
         data2 = [10.0 20.0; 30.0 40.0]
         sa1 = UniqueSectorArray(data1, (U1(0), U1(1)))
         sa2 = UniqueSectorArray(data2, (U1(0), U1(1)))
-        TensorAlgebra.add!(sa1, sa2, 2.0, 1.0)
+        TensorAlgebra.scaleadd!(sa1, sa2, 2.0, 1.0)
         @test data(sa1) ≈ [21.0 42.0; 63.0 84.0]
     end
 
-    @testset "TensorAlgebra.add! (UniqueSectorArray to plain Array)" begin
+    @testset "TensorAlgebra.scaleadd! (UniqueSectorArray to plain Array)" begin
         using TensorAlgebra: TensorAlgebra
         dest = zeros(2, 2)
         data = [1.0 2.0; 3.0 4.0]
         sa = UniqueSectorArray(data, (U1(0), U1(1)))
-        TensorAlgebra.add!(dest, sa, 3.0, 0.0)
+        TensorAlgebra.scaleadd!(dest, sa, 3.0, 0.0)
         @test dest ≈ [3.0 6.0; 9.0 12.0]
     end
 

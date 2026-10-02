@@ -887,7 +887,7 @@ function TensorAlgebra.unmatricizeadd!(
             ndims_codomain(a_dest) == length(invperm_codomain) &&
             (invperm_codomain..., invperm_domain...) == ntuple(identity, Val(N)) &&
             axis_codomain(m) == axis_codomain(md) && axis_domain(m) == axis_domain(md)
-        TensorAlgebra.add!(md.buffer, m.buffer, α, β)
+        TensorAlgebra.scaleadd!(md.buffer, m.buffer, α, β)
         return a_dest
     end
     # Wrap `m` in `a_dest`'s axes reordered into the matricized leg order: `bipartition_axes` takes
