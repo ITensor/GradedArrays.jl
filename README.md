@@ -43,13 +43,15 @@ julia> Pkg.add("GradedArrays")
 
 A `GradedArray` is an array over spaces graded by symmetry sectors, and it stores only the
 blocks the symmetry allows. Build the spaces from `sector => multiplicity` pairs and pass
-them to the standard Julia array constructors. `dual` gives the dual of a space.
+them to the standard Julia array constructors.
 
 ````julia
 using GradedArrays: U1, dual, gradedrange
 g = gradedrange([U1(0) => 1, U1(1) => 2])
 a = randn(g, dual(g))
 ````
+
+`dual` gives the dual of a space.
 
 `zeros`, `ones`, and `fill` work the same way, and allocate only the allowed blocks.
 
