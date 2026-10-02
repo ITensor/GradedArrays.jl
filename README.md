@@ -74,8 +74,8 @@ permutedims(a, (2, 1))
 ````
 
 For the symmetries that are available, see
-[Symmetry sectors](https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/). For
-building graded spaces and arrays over them, see
+[Symmetry sectors](https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/).
+For more information on graded spaces and arrays, see
 [Graded arrays](https://itensor.github.io/GradedArrays.jl/dev/user_interface/graded_arrays/).
 
 ---
