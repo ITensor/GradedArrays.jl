@@ -4,17 +4,16 @@
 CurrentModule = GradedArrays
 ```
 
-A sector is an irreducible label of a symmetry, such as a `U(1)` charge or an `SU(2)` spin. It
-is also the range of the degrees of freedom that label spans, so `length` of a sector is its
-dimension.
+A sector is an irreducible label of a symmetry, such as a `U(1)` charge or an `SU(2)` spin.
+`length` of a sector is its dimension.
 
 ```@example sectors
 using GradedArrays: SU2, U1
 length(U1(1)), length(SU2(1//2))
 ```
 
-Sectors grade a space, making it a graded space. See [Graded arrays](@ref) for building
-graded spaces and the arrays over them.
+Sectors grade a space. For more information on graded spaces and arrays, see
+[Graded arrays](@ref).
 
 ## Available sectors
 
@@ -30,7 +29,7 @@ graded spaces and the arrays over them.
 | [`fU1`](@ref) | fermion number | `fU1(1)` |
 | [`fSU2`](@ref) | fermion spin | `fSU2(1//2)` |
 
-The fermionic ones carry the parity their charge forces, so each takes only the charge.
+The fermionic sectors take only a charge, and the parity follows from it.
 
 ```@example sectors
 using GradedArrays: fSU2, fU1, fZ2
@@ -78,7 +77,7 @@ U1 × fZ2
 Sector(U1(1), SU2(1//2)) == U1(1) × SU2(1//2)
 ```
 
-A product can also name its factors instead of ordering them.
+You can also name the factors of a product instead of ordering them.
 
 ```@example sectors
 Sector(; charge = U1(1), spin = SU2(1//2))
@@ -99,10 +98,9 @@ sectorproduct
 
 ## TensorKitSectors compatibility
 
-The sectors here correspond to the ones in
-[TensorKitSectors.jl](https://github.com/QuantumKitHub/TensorKitSectors.jl), and convert both
-ways: [`Sector`](@ref) takes a TensorKitSectors sector, and `TensorKitSectors.Sector` takes one
-of these.
+Every sector here has a counterpart in
+[TensorKitSectors.jl](https://github.com/QuantumKitHub/TensorKitSectors.jl). [`Sector`](@ref)
+converts a TensorKitSectors sector, and `TensorKitSectors.Sector` converts one back.
 
 ```@example sectors
 using GradedArrays: Sector
@@ -110,10 +108,8 @@ using TensorKitSectors: TensorKitSectors, SU2Irrep
 Sector(SU2Irrep(1//2)), TensorKitSectors.Sector(SU2(1//2))
 ```
 
-Fusion rules and the rest of a sector's topological data come from that conversion rather than
-from definitions of their own, so the two packages agree on them by construction.
+Fusion rules and other sector data come from TensorKitSectors through that conversion.
 
-`SU` is the exception. It can be constructed and compared on its own, but everything that needs
-`SU(N)` representation theory, its dimension and its fusion rule included, comes from
-[SUNRepresentations.jl](https://github.com/QuantumKitHub/SUNRepresentations.jl) through a
-package extension. A graded space over `SU` sectors needs that package loaded.
+`SU` is the exception. Its sector data comes from
+[SUNRepresentations.jl](https://github.com/QuantumKitHub/SUNRepresentations.jl) through a package
+extension. A graded space over `SU` sectors needs that package loaded.
