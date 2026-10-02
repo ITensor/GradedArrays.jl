@@ -37,15 +37,6 @@ using GradedArrays: fSU2, fU1, fZ2
 fU1(1), fSU2(1//2), fZ2(true)
 ```
 
-[`Sector`](@ref) converts a TensorKitSectors sector to the GradedArrays sector of the same
-symmetry.
-
-```@example sectors
-using GradedArrays: Sector
-using TensorKitSectors: SU2Irrep
-Sector(SU2Irrep(1//2))
-```
-
 ```@docs; canonical=false
 Sector
 Trivial
@@ -105,3 +96,24 @@ gradedrange([
 ```@docs; canonical=false
 sectorproduct
 ```
+
+## TensorKitSectors compatibility
+
+The sectors here correspond to the ones in
+[TensorKitSectors.jl](https://github.com/QuantumKitHub/TensorKitSectors.jl), and convert both
+ways: [`Sector`](@ref) takes a TensorKitSectors sector, and `TensorKitSectors.Sector` takes one
+of these.
+
+```@example sectors
+using GradedArrays: Sector
+using TensorKitSectors: TensorKitSectors, SU2Irrep
+Sector(SU2Irrep(1//2)), TensorKitSectors.Sector(SU2(1//2))
+```
+
+Fusion rules and the rest of a sector's topological data come from that conversion rather than
+from definitions of their own, so the two packages agree on them by construction.
+
+`SU` is the exception. It can be constructed and compared on its own, but everything that needs
+`SU(N)` representation theory, its dimension and its fusion rule included, comes from
+[SUNRepresentations.jl](https://github.com/QuantumKitHub/SUNRepresentations.jl) through a
+package extension. A graded space over `SU` sectors needs that package loaded.
