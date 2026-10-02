@@ -41,45 +41,43 @@ julia> Pkg.add("GradedArrays")
 
 ## Examples
 
-A graded axis is built from `sector => multiplicity` pairs, one block per pair. This one is
-graded by `U(1)` charge, with a one-dimensional zero-charge block and a two-dimensional
-charge-one block.
+A `GradedArray` is an array over spaces graded by symmetry sectors, and it stores only the
+blocks the symmetry allows. Build the spaces from `sector => multiplicity` pairs and pass
+them to the standard Julia array constructors. `dual` gives the dual of a space.
 
 ````julia
-using GradedArrays: U1, dual, gradedrange, isdual, sectors
+using GradedArrays: U1, dual, gradedrange
 g = gradedrange([U1(0) => 1, U1(1) => 2])
-````
-
-The sectors come back one per block.
-
-````julia
-sectors(g)
-````
-
-A graded axis also carries an arrow saying whether it transforms in a representation or in
-its dual. `dual` flips the arrow and leaves the sectors alone.
-
-````julia
-isdual(g), isdual(dual(g))
-````
-
-Calling an array constructor on graded axes gives an array that stores only the
-symmetry-allowed blocks.
-
-````julia
 a = randn(g, dual(g))
 ````
 
-Other array constructors like `zeros`, `ones` and `fill` also work, and allocate only the
-elements corresponding to the allowed symmetry sectors.
+`zeros`, `ones`, and `fill` work the same way, and allocate only the allowed blocks.
 
 ````julia
 zeros(g, dual(g))
 ````
 
+A `GradedArray` behaves like any other array. Scale one,
+
+````julia
+2 * a
+````
+
+add two over the same spaces,
+
+````julia
+a + randn(g, dual(g))
+````
+
+or permute the dimensions.
+
+````julia
+permutedims(a, (2, 1))
+````
+
 For the symmetries that are available, see
 [Symmetry sectors](https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/). For
-building graded axes and arrays over them, see
+building graded spaces and arrays over them, see
 [Graded arrays](https://itensor.github.io/GradedArrays.jl/dev/user_interface/graded_arrays/).
 
 ---
