@@ -91,7 +91,7 @@ axes(b) == axes(a)
 ```
 
 When printing, by convention domain axes are implicitly dual. The format and conventions are
-compatible with those of [TensorKit.jl](https://github.com/Jutho/TensorKit.jl).
+compatible with those of [TensorKit.jl](https://github.com/QuantumKitHub/TensorKit.jl).
 
 ```@docs; canonical=false
 GradedArray
