@@ -57,19 +57,17 @@ a = randn(g, dual(g))
 zeros(g, dual(g))
 ````
 
-A `GradedArray` behaves like any other array. Scale one,
+A `GradedArray` supports many basic array operations, such as multiplication by a scalar,
+addition, and permutation of the dimensions.
 
 ````julia
 2 * a
 ````
 
-add two over the same spaces,
-
 ````julia
-a + randn(g, dual(g))
+b = randn(g, dual(g))
+a + b
 ````
-
-or permute the dimensions.
 
 ````julia
 permutedims(a, (2, 1))
