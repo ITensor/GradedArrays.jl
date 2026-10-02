@@ -63,9 +63,9 @@ a = randn(g, dual(g))
 
 ## Codomain and domain
 
-A graded array partitions its legs into a codomain and a domain, the output and input legs of a
-tensor map, and stores the block diagonal matrix that bipartitioning gives. Both legs landed in
-the codomain above, which is why the stored form there is a single column. `matricize` is that
+A graded array partitions its legs into a codomain and a domain, so it reads as a map between
+spaces, and stores the block diagonal matrix that bipartitioning gives. Both legs landed in the
+codomain above, which is why the stored form there is a single column. `matricize` is that
 regrouping on its own, fusing the codomain legs to the rows and the domain legs to the columns.
 
 ```@example gradedarrays
@@ -86,9 +86,8 @@ b = randn((g,), (g,))
 axes(b) == axes(a)
 ```
 
-A domain axis is shown the way it was passed rather than the way `axes` returns it, so `isdual`
-reports a domain axis as dual where the display carries no `dual(...)` wrapper. The format and
-conventions are compatible with those of
+When printing, by convention domain axes are implicitly dual, shown the way they were passed
+rather than the way `axes` returns them. The format and conventions are compatible with those of
 [TensorKit.jl](https://github.com/Jutho/TensorKit.jl).
 
 ```@docs; canonical=false

@@ -13,9 +13,9 @@ const GA = GradedArrays
     GradedArray
 
 An array over graded axes, storing only the symmetry-allowed blocks. Its legs are split into a
-codomain and a domain group, so it can also be read as a tensor map, and it is stored as a
-block-diagonal matrix over the coupled sectors, with the codomain legs fused to its rows and the
-domain legs to its columns.
+codomain and a domain group, so it can also be read as a map between spaces, and it is stored
+as a block-diagonal matrix over the coupled sectors, with the codomain legs fused to its rows
+and the domain legs to its columns.
 """
 struct GradedArray{
         T, S, N, NC, ND, M <: AbstractFusedGradedMatrix{T, S}, I <: TKS.Sector,
