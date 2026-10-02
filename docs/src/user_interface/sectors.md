@@ -13,8 +13,8 @@ using GradedArrays: SU2, U1
 length(U1(1)), length(SU2(1//2))
 ```
 
-Sectors grade an axis, making it a graded axis. See [Graded arrays](@ref) for building graded
-axes and the arrays over them.
+Sectors grade a space, making it a graded space. See [Graded arrays](@ref) for building
+graded spaces and the arrays over them.
 
 ## Available sectors
 
@@ -29,7 +29,6 @@ axes and the arrays over them.
 | [`fZ2`](@ref) | fermion parity | `fZ2(true)` |
 | [`fU1`](@ref) | fermion number | `fU1(1)` |
 | [`fSU2`](@ref) | fermion spin | `fSU2(1//2)` |
-| [`TensorKitSector`](@ref) | a wrapped TensorKitSectors sector | `TensorKitSector(c)` |
 
 The fermionic ones carry the parity their charge forces, so each takes only the charge.
 
@@ -38,16 +37,13 @@ using GradedArrays: fSU2, fU1, fZ2
 fU1(1), fSU2(1//2), fZ2(true)
 ```
 
-[`TensorKitSector`](@ref) wraps a TensorKitSectors sector and reinterprets it as a sector here,
-which is what supports the symmetries TensorKitSectors defines that have none of their own, such
-as the anyons. [`Sector`](@ref) converts any TensorKitSectors
-sector, to the GradedArrays name when there is one and to `TensorKitSector` when there is
-not.
+[`Sector`](@ref) converts a TensorKitSectors sector to the GradedArrays sector of the same
+symmetry.
 
 ```@example sectors
 using GradedArrays: Sector
-using TensorKitSectors: FibonacciAnyon, SU2Irrep
-Sector(SU2Irrep(1//2)), Sector(FibonacciAnyon(:τ))
+using TensorKitSectors: SU2Irrep
+Sector(SU2Irrep(1//2))
 ```
 
 ```@docs; canonical=false
@@ -62,13 +58,12 @@ CU1
 fZ2
 fU1
 fSU2
-TensorKitSector
 ```
 
 ## Products of sectors
 
-[`sectorproduct`](@ref) combines symmetries, and `×` is the same thing infix. `Trivial` is its
-unit and drops out of any product.
+[`sectorproduct`](@ref) creates products of symmetry sectors, which can also be written as
+`×`. `Trivial` is its unit and drops out of any product.
 
 ```@example sectors
 using GradedArrays: SU2, Sector, U1, sectorproduct, ×
@@ -98,8 +93,7 @@ A product can also name its factors instead of ordering them.
 Sector(; charge = U1(1), spin = SU2(1//2))
 ```
 
-Anything [`Sector`](@ref) accepts can be passed where a sector is expected and is converted
-there, so a product needs no `Sector` call of its own.
+[`Sector`](@ref) is used to convert to sector types in functions such as `gradedrange`:
 
 ```@example sectors
 using GradedArrays: gradedrange

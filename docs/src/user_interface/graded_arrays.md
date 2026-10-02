@@ -4,9 +4,9 @@
 CurrentModule = GradedArrays
 ```
 
-## Graded axes
+## Graded spaces
 
-[`gradedrange`](@ref) builds a graded axis from `sector => multiplicity` pairs. Each pair
+[`gradedrange`](@ref) builds a graded space from `sector => multiplicity` pairs. Each pair
 contributes one block, whose length is the multiplicity times the sector's dimension.
 
 ```@example gradedarrays
@@ -14,11 +14,12 @@ using GradedArrays: U1, gradedrange
 g = gradedrange([U1(0) => 1, U1(1) => 2])
 ```
 
-Read the sectors back with [`sectors`](@ref), which gives one per block in block order.
+The total length of the space is the sum of the block lengths, and [`sectors`](@ref) reads
+the sectors back, one per block in block order.
 
 ```@example gradedarrays
 using GradedArrays: sectors
-sectors(g)
+length(g), sectors(g)
 ```
 
 ```@docs; canonical=false
@@ -29,11 +30,10 @@ sectors
 
 ## Duality
 
-A graded axis carries an arrow saying whether it transforms in a representation or in its
-dual. `dual` flips the arrow and leaves the sectors alone, `conj` is an alternative spelling
-of it, and `isdual` asks which way it points. GradedArrays re-exports all three from
-TensorAlgebra, so their docstrings live there and they are shown here by example rather than
-in the [Reference](@ref).
+A graded space carries an arrow saying whether it is the dual space or not. `dual` flips the
+arrow and leaves the sectors alone, `conj` is an alternative spelling of it, and `isdual` asks
+which way it points. GradedArrays re-exports all three from TensorAlgebra, so their docstrings
+live there and they are shown here by example rather than in the [Reference](@ref).
 
 ```@example gradedarrays
 using GradedArrays: dual, isdual
@@ -45,16 +45,16 @@ isdual(g), isdual(dg)
 conj(g) == dual(g)
 ```
 
-Duality belongs to the graded axis, not to the sectors it carries, so the sectors come back
+Duality belongs to the graded space, not to the sectors it carries, so the sectors come back
 unchanged.
 
 ```@example gradedarrays
 sectors(dg) == sectors(g)
 ```
 
-## Arrays over graded axes
+## Arrays over graded spaces
 
-Calling a `Base` array constructor on graded axes gives a [`GradedArray`](@ref), which stores
+Calling a `Base` array constructor on graded spaces gives a [`GradedArray`](@ref), which stores
 only the symmetry-allowed blocks.
 
 ```@example gradedarrays
