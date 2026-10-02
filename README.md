@@ -51,9 +51,8 @@ g = gradedrange([U1(0) => 1, U1(1) => 2])
 a = randn(g, dual(g))
 ````
 
-`dual` gives the dual of a space.
-
-`zeros`, `ones`, and `fill` work the same way, and allocate only the allowed blocks.
+`dual` gives the dual of a space. `zeros`, `ones`, and `fill` work the same way, and allocate
+only the allowed blocks.
 
 ````julia
 zeros(g, dual(g))
