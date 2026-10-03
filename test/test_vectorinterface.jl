@@ -175,7 +175,7 @@ end
     @test a ≈ 2 .* a0
 
     a = copy(a0)
-    TensorAlgebra.add!(a, a, 2, 3)
+    TensorAlgebra.scaleadd!(a, a, 2, 3)
     @test a ≈ 5 .* a0
 end
 
