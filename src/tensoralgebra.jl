@@ -274,18 +274,15 @@ function TensorAlgebra.bipermutedimsopadd!(
 end
 
 # ========================  contraction twist  ========================
-# A non-graded array carries no sector data, so there is no braiding and the twist is the identity.
-# `contraction_twist!` below accepts any array, so without this it throws a `MethodError` on the
-# dense and `Diagonal` factors that a factorization of an unsymmetric array produces.
-twist!(a::AbstractArray, dims) = a
-
 # The twist convention for the supertrace formalism of fermionic contractions: `⟨i| ⋅ |j⟩ = δᵢⱼ`
 # and `|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ`, where `θᵢⱼ = ±1` is the phase from a self-crossing, always `1` for a
 # bosonic symmetry and possibly `-1` for an odd fermion charge. Equivalent to
-# `twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`, and a no-op unless
-# `BraidingStyle(sectortype(a))` is `Fermionic`.
+# `TA.twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`, and a no-op unless
+# `BraidingStyle(sectortype(a))` is `Fermionic`. The dense and `Diagonal` factors that a
+# factorization of an unsymmetric array produces carry no sector data, and reach `TA.twist!`'s
+# identity fallback.
 function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
-    return twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
+    return TA.twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))
 end
 
 function needs_contraction_twist(a, perm_codomain)

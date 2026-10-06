@@ -29,7 +29,8 @@ using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, bipartition,
     bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear, isdual,
-    matricize, ndims_codomain, ndims_domain, permutedimsadd!, scale!, unmatricize, zero!
+    matricize, ndims_codomain, ndims_domain, permutedimsadd!, scale!, twist!, unmatricize,
+    zero!
 using TensorKitSectors: TensorKitSectors as TKS
 using VectorInterface: VectorInterface as VI
 
