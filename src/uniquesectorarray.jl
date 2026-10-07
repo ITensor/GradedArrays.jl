@@ -204,7 +204,7 @@ end
 
 # ========================  twist!  ========================
 
-function twist!(a::UniqueSectorArray, dims)
+function TA.twist!(a::UniqueSectorArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
     phase = mapreduce(i -> twist(sector(structureaxes(a, i))), *, dims; init = 1)
     isone(phase) || (data(a) .*= phase)

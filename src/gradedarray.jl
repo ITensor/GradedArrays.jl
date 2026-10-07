@@ -596,8 +596,8 @@ end
 
 # ============================  fermionic twist  ============================
 # The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
-# The `TensorMap` shares its buffer, so `TK.twist!` scales it in place.
-function twist!(a::GradedArray, dims)
+# `TensorMap` shares its buffer, so `TK.twist!` scales it in place.
+function TA.twist!(a::GradedArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
     TK.twist!(to_tensormap(a), dims)
     return a
