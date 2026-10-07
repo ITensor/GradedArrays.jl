@@ -233,19 +233,11 @@ function Base.:(==)(a::GradedArray, b::GradedArray)
 end
 
 # ============================  dot  ============================
-# Sum the coupled-block inner products of the (norm-preserving) matricized forms, rather than the
-# block-walk that iterates `eachblockstoredindex` (unique-fusion-only for `GradedArray`)
-# and scalar-indexes. `b` is rematricized to `a`'s split so the coupled blocks line up.
+# `b` is rematricized to `a`'s split so the coupled blocks line up.
 function LinearAlgebra.dot(a::GradedArray, b::GradedArray)
     axes(a) == axes(b) ||
         throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
-    ma = matricize(a)
-    mb = matricize(b, Val(ndims_codomain(a)))
-    init = zero(LinearAlgebra.dot(zero(eltype(a)), zero(eltype(b))))
-    sda, sdb = sectordata(ma), sectordata(mb)
-    return sum(keys(sda); init) do c
-        return LinearAlgebra.dot(sda[c], sdb[c])
-    end
+    return LinearAlgebra.dot(matricize(a), matricize(b, Val(ndims_codomain(a))))
 end
 
 # `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`, which scalar-indexes

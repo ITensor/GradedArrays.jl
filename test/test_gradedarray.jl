@@ -2,10 +2,10 @@ using BlockArrays: Block, blocklengths, blocks
 using Dictionaries: dictionary
 using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedGradedOneTo,
     FusedGradedVector, GradedArray, SU2, U1, UniqueSectorArray, Z2, checksquare, data, dual,
-    fZ2, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, gradedrange,
+    fSU2, fZ2, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, gradedrange,
     isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sectordata, structure,
     tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
-using LinearAlgebra: Diagonal, diag, lmul!, rmul!
+using LinearAlgebra: Diagonal, diag, dot, lmul!, norm, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, bipermutedims, contract, contractalign, eig_full,
@@ -32,6 +32,31 @@ function canonical(t, labels, want)
 end
 
 @testset "GradedArray" begin
+    @testset "inner product ($G, $T, split=$n)" for (G, g) in (
+                ("Z2", gradedrange([Z2(0) => 2, Z2(1) => 1])),
+                ("fZ2", gradedrange([fZ2(false) => 2, fZ2(true) => 1])),
+                ("SU2", gradedrange([SU2(0) => 2, SU2(1 // 2) => 1, SU2(1) => 1])),
+                ("fSU2", gradedrange([fSU2(0) => 2, fSU2(1 // 2) => 1, fSU2(1) => 1])),
+            ),
+            T in (Float64, ComplexF64),
+            n in 0:3
+
+        cod = ntuple(_ -> g, n)
+        dom = ntuple(_ -> g, 3 - n)
+        a = randn(T, cod, dom)
+        b = randn(T, cod, dom)
+        @test dot(a, a) ≈ norm(a)^2
+        @test_throws DimensionMismatch dot(a, randn(T, (g,), (g,)))
+        @test dot(a, b) ≈ dot(TensorKit.TensorMap(a), TensorKit.TensorMap(b))
+        @test dot(a, b) ≈ conj(dot(b, a))
+        for m in 0:3
+            b_repartitioned = bipermutedims(b, Tuple(1:m), Tuple((m + 1):3))
+            @test axes(b_repartitioned) == axes(b)
+            @test b_repartitioned ≈ b
+            @test dot(a, b_repartitioned) ≈ dot(a, b)
+        end
+    end
+
     @testset "construction and TensorMap round-trip ($G)" for (G, i, j) in (
             (
                 "U1",
