@@ -10,17 +10,17 @@ a = randn(g, dual(g))</code></pre><pre class="documenter-example-output"><code c
 3×1 FusedGradedMatrix{Float64, U1, Vector{Float64}, …} with 1 stored block at sectors [U1(0)]:
   Codomain Dim 1: fusedgradedrange([U1(0) =&gt; 5, U1(1) =&gt; 2, U1(-1) =&gt; 2])
   Domain Dim 1:   fusedgradedrange([U1(0) =&gt; 1])
- -0.7356614890290615 
- -0.8548893889766536 
- -0.19118676104655005
- -0.17006121124336054
- -1.292494908681549  
- ────────────────────
-   ⋅                 
-   ⋅                 
- ────────────────────
-   ⋅                 
-   ⋅                 </code></pre><p><code>dual</code> gives the dual of a space. <code>zeros</code>, <code>ones</code>, and <code>fill</code> work the same way, and allocate only the allowed blocks.</p><pre><code class="language-julia hljs">zeros(g, dual(g))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3×3 GradedArray (codomain 2, domain 0):
+  2.249561190759176 
+ -0.7440096470782623
+  0.8287197441957226
+  0.551941749182374 
+ -0.8047948074874168
+ ───────────────────
+   ⋅                
+   ⋅                
+ ───────────────────
+   ⋅                
+   ⋅                </code></pre><p><code>dual</code> gives the dual of a space. <code>zeros</code>, <code>ones</code>, and <code>fill</code> work the same way, and allocate only the allowed blocks.</p><pre><code class="language-julia hljs">zeros(g, dual(g))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3×3 GradedArray (codomain 2, domain 0):
   Codomain Dim 1: gradedrange([U1(0) =&gt; 1, U1(1) =&gt; 2])
   Codomain Dim 2: dual(gradedrange([U1(0) =&gt; 1, U1(1) =&gt; 2]))
 3×1 FusedGradedMatrix{Float64, U1, Vector{Float64}, …} with 1 stored block at sectors [U1(0)]:
@@ -42,11 +42,11 @@ a = randn(g, dual(g))</code></pre><pre class="documenter-example-output"><code c
 3×1 FusedGradedMatrix{Float64, U1, Vector{Float64}, …} with 1 stored block at sectors [U1(0)]:
   Codomain Dim 1: fusedgradedrange([U1(0) =&gt; 5, U1(1) =&gt; 2, U1(-1) =&gt; 2])
   Domain Dim 1:   fusedgradedrange([U1(0) =&gt; 1])
- -1.471322978058123 
- -1.7097787779533071
- -0.3823735220931001
- -0.3401224224867211
- -2.584989817363098 
+  4.499122381518352 
+ -1.4880192941565247
+  1.6574394883914452
+  1.103883498364748 
+ -1.6095896149748337
  ───────────────────
    ⋅                
    ⋅                
@@ -59,30 +59,30 @@ a + b</code></pre><pre class="documenter-example-output"><code class="nohighligh
 3×1 FusedGradedMatrix{Float64, U1, Vector{Float64}, …} with 1 stored block at sectors [U1(0)]:
   Codomain Dim 1: fusedgradedrange([U1(0) =&gt; 5, U1(1) =&gt; 2, U1(-1) =&gt; 2])
   Domain Dim 1:   fusedgradedrange([U1(0) =&gt; 1])
-  0.06654233082060368
- -1.1686314770670232 
- -0.0754754895715398 
- -1.0995057551393916 
- -1.3012824102519434 
- ────────────────────
-   ⋅                 
-   ⋅                 
- ────────────────────
-   ⋅                 
-   ⋅                 </code></pre><pre><code class="language-julia hljs">permutedims(a, (2, 1))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3×3 GradedArray (codomain 2, domain 0):
+  1.2921703862065583
+ -1.5163498785104206
+  1.151666543344745 
+  1.1948324225892428
+ -2.8194923883621943
+ ───────────────────
+   ⋅                
+   ⋅                
+ ───────────────────
+   ⋅                
+   ⋅                </code></pre><pre><code class="language-julia hljs">permutedims(a, (2, 1))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3×3 GradedArray (codomain 2, domain 0):
   Codomain Dim 1: dual(gradedrange([U1(0) =&gt; 1, U1(1) =&gt; 2]))
   Codomain Dim 2: gradedrange([U1(0) =&gt; 1, U1(1) =&gt; 2])
 3×1 FusedGradedMatrix{Float64, U1, Vector{Float64}, …} with 1 stored block at sectors [U1(0)]:
   Codomain Dim 1: fusedgradedrange([U1(0) =&gt; 5, U1(1) =&gt; 2, U1(-1) =&gt; 2])
   Domain Dim 1:   fusedgradedrange([U1(0) =&gt; 1])
- -0.7356614890290615 
- -0.8548893889766536 
- -0.17006121124336054
- -0.19118676104655005
- -1.292494908681549  
- ────────────────────
-   ⋅                 
-   ⋅                 
- ────────────────────
-   ⋅                 
-   ⋅                 </code></pre><p>For the symmetries that are available, see <a href="https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/">Symmetry sectors</a>. For more information on graded spaces and arrays, see <a href="https://itensor.github.io/GradedArrays.jl/dev/user_interface/graded_arrays/">Graded arrays</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="user_interface/sectors/">Symmetry sectors »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Thursday 15 October 2026 09:00">Thursday 15 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+  2.249561190759176 
+ -0.7440096470782623
+  0.551941749182374 
+  0.8287197441957226
+ -0.8047948074874168
+ ───────────────────
+   ⋅                
+   ⋅                
+ ───────────────────
+   ⋅                
+   ⋅                </code></pre><p>For the symmetries that are available, see <a href="https://itensor.github.io/GradedArrays.jl/dev/user_interface/sectors/">Symmetry sectors</a>. For more information on graded spaces and arrays, see <a href="https://itensor.github.io/GradedArrays.jl/dev/user_interface/graded_arrays/">Graded arrays</a>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="user_interface/sectors/">Symmetry sectors »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Thursday 22 October 2026 09:18">Thursday 22 October 2026</span>. Using Julia version 1.13.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
