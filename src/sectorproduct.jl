@@ -217,6 +217,10 @@ function Base.:(==)(a::TupleSectorProduct, b::TupleSectorProduct)
     return arguments(a) == arguments(b)
 end
 
+# With the same names on both sides, the rule below reduces to comparing the values in order.
+# Comparing the argument tuples does that unrolled, where looping over the names boxes each value.
+Base.:(==)(a::P, b::P) where {P <: NamedSectorProduct} = arguments(a) == arguments(b)
+
 function Base.:(==)(a::NamedSectorProduct, b::NamedSectorProduct)
     aa, bb = arguments(a), arguments(b)
     for k in keys(aa)
@@ -256,9 +260,10 @@ function Base.hash(s::TupleSectorProduct, h::UInt)
 end
 function Base.hash(s::NamedSectorProduct, h::UInt)
     args = arguments(s)
-    for k in keys(args)
-        v = args[k]
-        istrivial(v) || (h = hash(k, hash(v, h)))
+    # Folded over the (name, value) pairs rather than looped over the names, so it is unrolled
+    # instead of boxing each value.
+    h = foldl(map(tuple, keys(args), values(args)); init = h) do h, (k, v)
+        return istrivial(v) ? h : hash(k, hash(v, h))
     end
     return hash(:NamedSectorProduct, h)
 end

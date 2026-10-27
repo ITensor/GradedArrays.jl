@@ -263,6 +263,14 @@ end
         @test hash(a) == hash(b)
         c = (B = U1(2),) × (C = U1(1),)
         @test a != c
+
+        # The same names on both sides, including trivial values, compare value by value.
+        d = Sector((; A = U1(0), B = U1(2), P = fZ2(1)))
+        @test d == Sector((; A = U1(0), B = U1(2), P = fZ2(1)))
+        @test hash(d) == hash(Sector((; A = U1(0), B = U1(2), P = fZ2(1))))
+        @test d != Sector((; A = U1(1), B = U1(2), P = fZ2(1)))
+        @test d != Sector((; A = U1(0), B = U1(2), P = fZ2(0)))
+        @test (@constinferred d == d) && (@constinferred hash(d)) isa UInt
     end
 
     @testset "Quantum dimension and GradedOneTo" begin
