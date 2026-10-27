@@ -11,10 +11,14 @@ end
 
 # Fuse a group of leg axes into its coupled fused-sorted axis. A single leg goes straight to
 # `tensor_product` (the axis's cached fused form for a non-dual axis, its `flip` for a dual one);
-# a multi-leg group reduces pairwise.
+# a multi-leg group goes through TensorKit's `fuse` of the product space, which is much faster than
+# reducing pairwise with `tensor_product`, since that builds and merges an unmerged axis at every
+# step.
 fuseaxes(::Type{S}, axs::Tuple{}) where {S <: Sector} = trivial_gradedrange(S)
 fuseaxes(::Type{<:Sector}, axs::Tuple{Any}) = tensor_product(only(axs))
-fuseaxes(::Type{<:Sector}, axs::Tuple) = reduce(tensor_product, axs)
+function fuseaxes(::Type{<:Sector}, axs::Tuple{Any, Any, Vararg{Any}})
+    return FusedGradedOneTo(TK.fuse(reduce(TK.:⊗, map(ElementarySpace ∘ fusesectors, axs))))
+end
 
 # ========================  unmerged_matricize_axes  ========================
 

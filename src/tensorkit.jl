@@ -52,3 +52,11 @@ function GradedOneTo(V::ElementarySpace)
     g = gradedrange(ps)
     return TK.isdual(V) ? dual(g) : g
 end
+
+# The inverse of `ElementarySpace(::FusedGradedOneTo)`: a `GradedSpace` already lists its sectors
+# sorted and unique, in their TensorKitSectors form, so they are read off as they are.
+function FusedGradedOneTo(V::ElementarySpace)
+    V0 = TK.isdual(V) ? TK.dual(V) : V
+    cs = collect(TK.sectors(V0))
+    return FusedGradedOneTo(cs, Int[TK.dim(V0, c) for c in cs], TK.isdual(V))
+end

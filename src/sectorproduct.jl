@@ -222,9 +222,10 @@ end
 # `promote_sector` is not used here: it throws on operands it cannot bring to a common argument
 # set, and `hash` takes one operand and so has nothing to promote against.
 
+# Tuple `==` compares the arguments unrolled; iterating a `zip` of the heterogeneous argument tuples
+# boxes each argument.
 function Base.:(==)(a::TupleSectorProduct, b::TupleSectorProduct)
-    length(arguments(a)) == length(arguments(b)) || return false
-    return all(splat(==), zip(arguments(a), arguments(b)))
+    return arguments(a) == arguments(b)
 end
 
 function Base.:(==)(a::NamedSectorProduct, b::NamedSectorProduct)

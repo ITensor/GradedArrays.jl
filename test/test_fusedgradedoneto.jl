@@ -4,7 +4,7 @@ using GradedArrays: GradedArrays, AbstractGradedOneTo, FusedGradedOneTo, GradedO
     U1, Z, datalengths, dual, flip, fusedgradedrange, gradedrange, isdual, sectorlengths,
     sectors, sectortype
 using TensorAlgebra: TensorAlgebra
-using TensorKit: TensorKit
+using TensorKit: TensorKit, ⊗
 using Test: @test, @test_throws, @testset
 
 @testset "FusedGradedOneTo" begin
@@ -176,6 +176,25 @@ using Test: @test, @test_throws, @testset
             @test isdual(backdual)
             @test sectors(backdual) == sectors(g)
             @test datalengths(backdual) == datalengths(g)
+        end
+    end
+
+    @testset "FusedGradedOneTo from an ElementarySpace" begin
+        for g in (
+                fusedgradedrange([U1(0) => 2, U1(1) => 3]),
+                fusedgradedrange([SU2(0) => 1, SU2(1 // 2) => 2]),
+                fusedgradedrange([Z{2}(0) => 2, Z{2}(1) => 3]),
+            )
+            for h in (g, dual(g))
+                V = TensorKit.ElementarySpace(h)
+                @test FusedGradedOneTo(V) == h
+                @test isdual(FusedGradedOneTo(V)) == isdual(h)
+                @test TensorKit.ElementarySpace(FusedGradedOneTo(V)) == V
+            end
+            V = TensorKit.fuse(
+                TensorKit.ElementarySpace(g) ⊗ TensorKit.ElementarySpace(dual(g))
+            )
+            @test FusedGradedOneTo(V) == FusedGradedOneTo(GradedOneTo(V))
         end
     end
 
