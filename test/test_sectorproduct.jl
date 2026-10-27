@@ -50,6 +50,19 @@ using TestExtras: @constinferred
         @test s > trivial(s)
     end
 
+    @testset "A positional product is not a factor" begin
+        @test_throws ArgumentError Sector(U1(0), Sector(U1(1), fZ2(1)))
+        @test_throws ArgumentError Sector(U1(1), fSU2(1 // 2))
+        @test_throws ArgumentError Sector((Sector(U1(1), SU2(0)), U1(2)))
+        # `sectorproduct` multiplies instead, giving a flat product whose traits infer.
+        s = @constinferred sectorproduct(U1(1), fSU2(1 // 2))
+        @test s ≡ Sector(U1(1), SU2(1 // 2), fZ2(1))
+        @test U1(1) × fSU2(1 // 2) ≡ s
+        c = TKS.Sector(s)
+        @test (@constinferred TKS.FusionStyle(typeof(c))) isa TKS.SimpleFusion
+        @test (@constinferred TKS.BraidingStyle(typeof(c))) isa TKS.Fermionic
+    end
+
     @testset "Ordered comparisons" begin
         # A position identifies a factor only within its own product, so the arity is part of the
         # sector's identity and no argument is ever filled in.

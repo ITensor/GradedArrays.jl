@@ -40,8 +40,22 @@ end
 # arguments, which is what lets TensorKitSectors sectors appear inside a product. The positional
 # form takes two factors before its `Vararg` so it cannot compete with the arity-1 methods, which
 # leaves the container forms as the only way to write a product of one factor or none.
+#
+# `Sector` spells out the factors rather than multiplying them, so a positional product as a
+# factor would nest. That is never what is meant (`Sector(U1(0), fSU2(0))` for the flat
+# `U1(0) × fSU2(0)`), and TensorKitSectors can't infer the fusion and braiding styles of a nested
+# `ProductSector`, so it is rejected in favor of `sectorproduct`.
 Sector(s1, s2, srest...) = Sector((s1, s2, srest...))
-Sector(t::Tuple) = TupleSectorProduct(map(Sector, t))
+function Sector(t::Tuple)
+    args = map(Sector, t)
+    any(a -> a isa TupleSectorProduct, args) && throw(
+        ArgumentError(
+            "a positional product cannot be a factor of another positional product, use " *
+                "`sectorproduct` (or `×`) to multiply products instead"
+        )
+    )
+    return TupleSectorProduct(args)
+end
 Sector(nt::NamedTuple) = NamedSectorProduct(map(Sector, nt))
 Sector(; kws...) = Sector(values(kws))
 
