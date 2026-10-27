@@ -533,7 +533,7 @@ end
 # `fusesectors` of its (possibly unfused/unsorted) axis; the rank-0 case resolves the trivial
 # space from the sector type since it has no legs.
 function tensormapspace(::Type{S}, axes_codomain::Tuple, axes_domain::Tuple) where {S}
-    Sp = typeof(ElementarySpace(trivial_gradedrange(S)))
+    Sp = Vect[tensorkit_sectortype(S)]
     codomain =
         mapreduce(ElementarySpace ∘ fusesectors, TK.:⊗, axes_codomain; init = one(Sp))
     domain =
@@ -588,10 +588,24 @@ end
 
 # ============================  fermionic twist  ============================
 # The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
-# `TensorMap` shares its buffer, so `TK.twist!` scales it in place.
+# `TensorMap` shares its buffer, so scaling its subblocks scales `a` in place. This loops over
+# `TK.subblocks` rather than calling `TK.twist!`, which indexes `t[f₁, f₂]` once per fusion tree
+# pair and so rebuilds the subblock structure of the whole space each time.
 function TA.twist!(a::GradedArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    TK.twist!(to_tensormap(a), dims)
+    t = to_tensormap(a)
+    TK.has_shared_twist(t, dims) && return a
+    N₁ = TK.numout(t)
+    # By position: `StridedSubblocks` is in the order of `fusiontrees`. Iterating `TK.subblocks`
+    # instead returns each element boxed, since its `iterate` is not inlined.
+    blocks = TK.StridedSubblocks(t)
+    for (i, (f₁, f₂)) in enumerate(TK.fusiontrees(t))
+        θ = prod(
+            k -> k <= N₁ ? TKS.twist(f₁.uncoupled[k]) : TKS.twist(f₂.uncoupled[k - N₁]),
+            dims
+        )
+        isone(θ) || TK.scale!(@inbounds(blocks[i]), θ)
+    end
     return a
 end
 
@@ -723,10 +737,10 @@ function TensorAlgebra.contractpermalign(
 end
 
 # ========================  graded contraction  ========================
-# Fermionic contractions need the second (right) factor's contracted legs twisted before
-# matricization, so the result does not depend on contraction order. This kernel matricizes the
-# left factor as usual and sends the right factor through `twisted_matricizeop`, which inserts the
-# twist between the permute and the matricize. The twist is a no-op for bosonic sectors.
+# Fermionic contractions need the contracted legs twisted before matricization, so the result does
+# not depend on contraction order. This kernel sends one factor through `twisted_matricizeop`,
+# which inserts the twist between the permute and the matricize, and matricizes the other as
+# usual. The twist is a no-op for bosonic sectors.
 #
 # Every operand reaching here is tensor-level, since `contractpermalign` above lifts a
 # matrix-level one to its `GradedArray` wrap, and the destination is allocated graded in turn.
@@ -750,8 +764,31 @@ function TensorAlgebra.contractpermopadd!(
         a1, biperm1_codomain, biperm1_domain,
         a2, biperm2_codomain, biperm2_domain
     )
-    a1_mat = TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
-    a2_mat = twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
+    # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
+    # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
+    twist1 = twist2 = false
+    if needs_contraction_twist(a2, biperm2_codomain)
+        copy1 =
+            !TensorAlgebra.is_output_view(
+            TensorAlgebra.matricizeop, op1, a1, biperm1_codomain, biperm1_domain
+        )
+        copy2 =
+            !TensorAlgebra.is_output_view(
+            TensorAlgebra.matricizeop, op2, a2, biperm2_codomain, biperm2_domain
+        )
+        twist1 = copy1 ⊻ copy2 ? copy1 : length(a1) < length(a2)
+        twist2 = !twist1
+    end
+    a1_mat = if twist1
+        twisted_matricizeop(op1, a1, biperm1_codomain, biperm1_domain, :domain)
+    else
+        TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
+    end
+    a2_mat = if twist2
+        twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain, :codomain)
+    else
+        TensorAlgebra.matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
+    end
     if TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeop, identity, a_dest, invperm_codomain, invperm_domain
         )
