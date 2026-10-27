@@ -50,17 +50,15 @@ using TestExtras: @constinferred
         @test s > trivial(s)
     end
 
-    @testset "Nested products flatten" begin
-        s = @constinferred Sector(U1(0), Sector(U1(1), fZ2(1)))
-        @test s ≡ Sector(U1(0), U1(1), fZ2(1))
-        @test s ≡ U1(0) × (U1(1) × fZ2(1))
-        @test (@constinferred Sector((Sector(U1(1), SU2(0)), U1(2)))) ≡
-            Sector(U1(1), SU2(0), U1(2))
-        @test (@constinferred Sector(U1(1), fSU2(1 // 2))) isa U1 × fSU2
-        # `Trivial` is kept, since the container spells out the factors.
-        @test length(arguments(Sector(Trivial(), Sector(U1(1), U1(2))))) == 3
-        # Flat, so TensorKitSectors infers the traits of the product.
-        c = TKS.Sector(Sector(U1(1), fSU2(1 // 2)))
+    @testset "A positional product is not a factor" begin
+        @test_throws ArgumentError Sector(U1(0), Sector(U1(1), fZ2(1)))
+        @test_throws ArgumentError Sector(U1(1), fSU2(1 // 2))
+        @test_throws ArgumentError Sector((Sector(U1(1), SU2(0)), U1(2)))
+        # `sectorproduct` multiplies instead, giving a flat product whose traits infer.
+        s = @constinferred sectorproduct(U1(1), fSU2(1 // 2))
+        @test s ≡ Sector(U1(1), SU2(1 // 2), fZ2(1))
+        @test U1(1) × fSU2(1 // 2) ≡ s
+        c = TKS.Sector(s)
         @test (@constinferred TKS.FusionStyle(typeof(c))) isa TKS.SimpleFusion
         @test (@constinferred TKS.BraidingStyle(typeof(c))) isa TKS.Fermionic
     end
@@ -223,15 +221,6 @@ end
         # An empty container holds no type to name a symmetry with, so it stays a value.
         @test ×(()) === Sector(())
         @test ×((;)) === Sector((;))
-    end
-
-    @testset "Nested named products flatten" begin
-        s = @constinferred Sector((; A = U1(0), B = Sector((; C = U1(1), D = fZ2(1)))))
-        @test s ≡ Sector((; A = U1(0), C = U1(1), D = fZ2(1)))
-        @test s ≡ (; A = U1(0)) × (; C = U1(1), D = fZ2(1))
-        s = @constinferred Sector((; A = U1(0), B = SU2(0), C = Z{2}(0), D = fZ2(1)))
-        @test length(arguments(s)) == 4
-        @test_throws ArgumentError Sector((; A = U1(0), B = Sector((; A = U1(1)))))
     end
 
     @testset "Construct from keywords" begin
