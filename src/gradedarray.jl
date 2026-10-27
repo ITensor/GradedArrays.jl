@@ -588,13 +588,18 @@ end
 
 # ============================  fermionic twist  ============================
 # The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
-# `TensorMap` shares its buffer, so scaling its subblocks scales `a` in place. This loops over
-# `TK.subblocks` rather than calling `TK.twist!`, which indexes `t[f₁, f₂]` once per fusion tree
-# pair and so rebuilds the subblock structure of the whole space each time.
+# `TensorMap` shares its buffer, so twisting the `TensorMap` twists `a` in place.
 function TA.twist!(a::GradedArray, dims)
     TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic || return a
-    t = to_tensormap(a)
-    TK.has_shared_twist(t, dims) && return a
+    _twist!(to_tensormap(a), dims)
+    return a
+end
+
+# `TK.twist!` without its argument checks, and with the subblocks read by position: `TK.twist!`
+# indexes `t[f₁, f₂]` once per fusion tree pair, which rebuilds the subblock structure of the whole
+# space each time.
+function _twist!(t::TK.TensorMap, dims)
+    TK.has_shared_twist(t, dims) && return t
     N₁ = TK.numout(t)
     # By position: `StridedSubblocks` is in the order of `fusiontrees`. Iterating `TK.subblocks`
     # instead returns each element boxed, since its `iterate` is not inlined.
@@ -606,7 +611,7 @@ function TA.twist!(a::GradedArray, dims)
         )
         isone(θ) || TK.scale!(@inbounds(blocks[i]), θ)
     end
-    return a
+    return t
 end
 
 # ============================  TensorAlgebra primitive interface  ============================

@@ -542,6 +542,16 @@ end
         @test TensorKit.TensorMap(p) ≈
             TensorKit.permute(TensorKit.TensorMap(a3), ((2, 1), (3,)))
 
+        # The twist matches TensorKit's on any set of legs.
+        s = gradedrange([fSU2(0) => 2, fSU2(1 // 2) => 1])
+        for (x, y, z, w) in ((i, j, k, l), (s, dual(s), s, dual(s)))
+            a4 = randn((x, dual(y)), (z, dual(w)))
+            for dims in ((1,), (2,), (1, 3), (2, 4), (1, 2, 4))
+                @test TensorKit.TensorMap(TensorAlgebra.twist!(copy(a4), dims)) ==
+                    TensorKit.twist!(TensorKit.TensorMap(a4), dims)
+            end
+        end
+
         # The contraction twist: 2-leg matches TensorKit composition directly.
         m1 = randn((i,), (k,))
         m2 = randn((k,), (j,))
@@ -559,6 +569,16 @@ end
         @tensor ref[i, l] := ta[i, j, k] * tb[k, j, l]
         @test canonical(c1, lc1, [:i, :l]) ≈ ref
         @test canonical(c1, lc1, [:i, :l]) ≈ canonical(c2, lc2, [:i, :l])
+
+        # With the right factor the larger, the twist goes on the left factor's domain instead.
+        l′ = gradedrange([fP0 => 2, fP1 => 2])
+        b′ = randn((k,), (j, l′))
+        tb′ = TensorKit.TensorMap(b′)
+        c1′, lc1′ = contract(a, (:i, :j, :k), b′, (:k, :j, :l))
+        c2′, lc2′ = contract(b′, (:k, :j, :l), a, (:i, :j, :k))
+        @tensor ref′[i, l] := ta[i, j, k] * tb′[k, j, l]
+        @test canonical(c1′, lc1′, [:i, :l]) ≈ ref′
+        @test canonical(c1′, lc1′, [:i, :l]) ≈ canonical(c2′, lc2′, [:i, :l])
     end
 end
 

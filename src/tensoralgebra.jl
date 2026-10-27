@@ -276,15 +276,24 @@ end
 # ========================  contraction twist  ========================
 # The twist convention for the supertrace formalism of fermionic contractions: `⟨i| ⋅ |j⟩ = δᵢⱼ`
 # and `|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ`, where `θᵢⱼ = ±1` is the phase from a self-crossing, always `1` for a
-# bosonic symmetry and possibly `-1` for an odd fermion charge. Equivalent to
-# `TA.twist!(a, (i for i in 1:ndims_codomain if isdual(axes(a, i))))`, and a no-op unless
+# bosonic symmetry and possibly `-1` for an odd fermion charge. The twist goes on one side of each
+# contracted pair of legs: the dual legs of the right factor's codomain (`twist_codomain!`) or,
+# equivalently, since the two legs of a pair carry dual sectors with equal twists, the non-dual
+# legs of the left factor's domain (`twist_domain!`). Both are no-ops unless
 # `BraidingStyle(sectortype(a))` is `Fermionic`. The dense and `Diagonal` factors that a
 # factorization of an unsymmetric array produces carry no sector data, and reach `TA.twist!`'s
 # identity fallback.
-function contraction_twist!(a::AbstractArray, ndims_codomain::Int)
-    # A `Tuple`, not a generator: `twist!` reads the legs once per fusion tree, and each
-    # `isdual(axes(a, i))` rebuilds the axes.
+#
+# The legs are passed as a `Tuple`, not a generator: `twist!` reads them once per fusion tree, and
+# each `isdual(axes(a, i))` rebuilds the axes.
+function twist_codomain!(a::AbstractArray, ndims_codomain::Int)
     return TA.twist!(a, Tuple(i for i in 1:ndims_codomain if isdual(axes(a, i))))
+end
+function twist_domain!(a::AbstractArray, ndims_codomain::Int)
+    return TA.twist!(
+        a,
+        Tuple(i for i in (ndims_codomain + 1):ndims(a) if !isdual(axes(a, i)))
+    )
 end
 
 function needs_contraction_twist(a, perm_codomain)
@@ -292,21 +301,13 @@ function needs_contraction_twist(a, perm_codomain)
         any(i -> isdual(axes(a, i)), perm_codomain)
 end
 
-# The right factor's form: exactly `matricizeop`, aliasing included, when no twist is needed.
-function twisted_matricizeop(op, a::AbstractArray, perm_codomain, perm_domain)
-    needs_contraction_twist(a, perm_codomain) ||
-        return TensorAlgebra.matricizeop(op, a, perm_codomain, perm_domain)
-    return twisted_matricizeop(op, a, perm_codomain, perm_domain, :codomain)
-end
-
-# `matricizeop` with the contraction twist folded in, on the contracted legs of either factor:
-# the codomain of the right factor (`side = :codomain`, its dual legs) or the domain of the left
-# one (`side = :domain`, its non-dual legs). The two legs of a contracted pair carry dual sectors
-# with equal twists, so either side gives the same product. The twist is applied to a copy so `a`
-# is untouched: when the memory-sharing matricization exists there is nothing to permute, so the
-# copy is a plain `copy` twisted in place rather than a block-wise permute that would be the
-# identity.
+# `matricizeop` with the contraction twist folded in, on the contracted legs of the right factor
+# (`side = :codomain`) or the left one (`side = :domain`). The twist is applied to a copy so `a` is
+# untouched: when the memory-sharing matricization exists there is nothing to permute, so the copy
+# is a plain `copy` twisted in place rather than a block-wise permute that would be the identity.
 function twisted_matricizeop(op, a::AbstractArray, perm_codomain, perm_domain, side::Symbol)
+    side in (:codomain, :domain) ||
+        throw(ArgumentError("`side` must be `:codomain` or `:domain`, got `$(repr(side))`"))
     a_twisted =
     if TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
@@ -316,13 +317,6 @@ function twisted_matricizeop(op, a::AbstractArray, perm_codomain, perm_domain, s
         TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
     end
     n = length(perm_codomain)
-    if side === :codomain
-        contraction_twist!(a_twisted, n)
-    else
-        TA.twist!(
-            a_twisted,
-            Tuple(i for i in (n + 1):ndims(a_twisted) if !isdual(axes(a_twisted, i)))
-        )
-    end
+    side === :codomain ? twist_codomain!(a_twisted, n) : twist_domain!(a_twisted, n)
     return matricize(a_twisted)
 end

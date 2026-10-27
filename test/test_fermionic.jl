@@ -51,12 +51,14 @@ const fP1 = fZ2(true)   # odd parity
     @test_throws MethodError GradedArrays.fermionparity(Sector(TKS.FibonacciAnyon(:τ)))
 
     # `twist!` is total over array types: a non-graded array has no sectors, so no braiding and no
-    # twist. `contraction_twist!` accepts any array, and reaches dense and `Diagonal` factors.
+    # twist. `twist_codomain!` and `twist_domain!` accept any array, and reach dense and `Diagonal`
+    # factors.
     a = randn(2, 2)
     @test GradedArrays.twist!(copy(a), (1,)) == a
     d = Diagonal(randn(3))
     @test GradedArrays.twist!(copy(d), (1,)) == d
-    @test GradedArrays.contraction_twist!(copy(a), 1) == a
+    @test GradedArrays.twist_codomain!(copy(a), 1) == a
+    @test GradedArrays.twist_domain!(copy(a), 1) == a
 end
 
 function randn_blockdiagonal(elt::Type, axs::Tuple)
@@ -573,6 +575,21 @@ end
     end
 end
 
+# With exactly one factor needing a copy, the twist goes on that one even when it is the larger, so
+# it adds no copy. Pin it against the same contraction with neither factor copied, which twists the
+# smaller, right factor.
+@testset "twist on the only copied factor" begin
+    r = gradedrange([fP0 => 2, fP1 => 3])
+    s = gradedrange([fP1 => 1])
+    a1 = randn((r,), (dual(r),))
+    a2 = randn((dual(r),), (s,))
+    c_ref, = contract(a1, (1, -1), a2, (-1, 2))
+    a1p = permutedims(a1, (2, 1))
+    c, = contract(a1p, (-1, 1), a2, (-1, 2))
+    @test Array(c) ≈ Array(c_ref)
+    @test axes(c) == axes(c_ref)
+end
+
 # The right factor of a contraction takes a fast path when its bipermutation is the identity on
 # its stored split: the stored matrix directly when the contraction twist is a no-op, a plain
 # copy twisted in place when it is not. Pin both against the permuted spelling of the same
@@ -599,13 +616,15 @@ end
         @test TensorAlgebra.default_algorithm(
             TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
         ) === MatricizeContract()
-        # With a non-dual contracted (codomain) leg the twist is a no-op, so the fast path
-        # returns the stored matrix itself.
-        m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,))
+        # With a non-dual contracted (codomain) leg no twist is needed, so the kernel uses the
+        # stored matrix itself; with a dual one the twist goes on a copy.
+        @test GradedArrays.needs_contraction_twist(a2, (1,)) == isdual(rc)
         if isdual(rc)
+            m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,), :codomain)
             @test m !== matricize(a2)
-        else
-            @test m === matricize(a2)
         end
+        @test_throws ArgumentError GradedArrays.twisted_matricizeop(
+            identity, a2, (1,), (2,), :codmain
+        )
     end
 end
