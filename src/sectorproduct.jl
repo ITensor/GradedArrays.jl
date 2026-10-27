@@ -41,9 +41,34 @@ end
 # form takes two factors before its `Vararg` so it cannot compete with the arity-1 methods, which
 # leaves the container forms as the only way to write a product of one factor or none.
 Sector(s1, s2, srest...) = Sector((s1, s2, srest...))
-Sector(t::Tuple) = TupleSectorProduct(map(Sector, t))
-Sector(nt::NamedTuple) = NamedSectorProduct(map(Sector, nt))
+Sector(t::Tuple) = TupleSectorProduct(flatten_positional(t))
+Sector(nt::NamedTuple) = NamedSectorProduct(flatten_named(nt))
 Sector(; kws...) = Sector(values(kws))
+
+# A product given as a factor is spliced in, positional into positional and named into named, as
+# `×` absorbs them, so a product never holds another product as a factor. TensorKitSectors can't
+# infer the fusion and braiding styles of a nested `ProductSector`. Unlike `×`, `Trivial` factors
+# are kept, since the container spells out the factors.
+flatten_positional(::Tuple{}) = ()
+function flatten_positional(t::Tuple)
+    s = Sector(first(t))
+    head = s isa TupleSectorProduct ? arguments(s) : (s,)
+    return (head..., flatten_positional(Base.tail(t))...)
+end
+
+# Mapped rather than recursive, since inference gives up on recursion through `Sector` and `merge`
+# after a couple of named factors.
+flatten_named(nt::NamedTuple{()}) = nt
+function flatten_named(nt::NamedTuple{names}) where {names}
+    parts = map(named_factors, map(Val, names), map(Sector, values(nt)))
+    return foldl(parts) do a, b
+        isdisjoint(keys(a), keys(b)) ||
+            throw(ArgumentError("names of a SectorProduct must be distinct"))
+        return merge(a, b)
+    end
+end
+named_factors(::Val, s::NamedSectorProduct) = arguments(s)
+named_factors(::Val{name}, s::Sector) where {name} = NamedTuple{(name,)}((s,))
 
 # Fusion and the n-symbol work argument by argument, so a mixed call has to read its bare operand
 # as the one-factor positional product for the duration. `Sector` deliberately does not build
