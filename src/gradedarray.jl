@@ -49,6 +49,13 @@ axes_codomain(fa::GradedArray) = fa.axes_codomain
 axes_domain(fa::GradedArray) = fa.axes_domain
 
 Base.axes(fa::GradedArray) = Tuple(biaxes(fa))
+# Read one axis from the stored halves. Base's fallback builds the whole tuple and returns either
+# that axis or a trailing `OneTo(1)`, a union the contraction and permutation code, which read axes
+# one at a time, can't infer.
+function Base.axes(fa::GradedArray, d::Integer)
+    nc = ndims_codomain(fa)
+    return d ≤ nc ? axes_codomain(fa)[d] : conj(axes_domain(fa)[d - nc])
+end
 Base.size(fa::GradedArray) = map(length, axes(fa))
 
 # Build a codomain/domain `BiTuple` from the two halves in codomain-facing (un-dualized) form,
