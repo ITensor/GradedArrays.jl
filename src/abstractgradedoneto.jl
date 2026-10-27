@@ -42,8 +42,9 @@ function BlockArrays.findblock(g::AbstractGradedOneTo, i::Integer)
 end
 
 # blocklengths: total length of each block (length(sector) * multiplicity).
+# Lazy, since `length` sums it and `length` is hit by every hash and comparison of an index.
 function BlockArrays.blocklengths(g::AbstractGradedOneTo)
-    return [length(s) * m for (s, m) in zip(sectors(g), datalengths(g))]
+    return mappedarray((s, m) -> length(s) * m, sectors(g), datalengths(g))
 end
 
 # sectortype, FusionStyle
