@@ -17,8 +17,7 @@ end
 fuseaxes(::Type{S}, axs::Tuple{}) where {S <: Sector} = trivial_gradedrange(S)
 fuseaxes(::Type{<:Sector}, axs::Tuple{Any}) = tensor_product(only(axs))
 function fuseaxes(::Type{<:Sector}, axs::Tuple{Any, Any, Vararg{Any}})
-    V = TK.fuse(reduce(TK.:⊗, map(ElementarySpace ∘ fusesectors, axs)))
-    return FusedGradedOneTo(GradedOneTo(V))
+    return FusedGradedOneTo(TK.fuse(reduce(TK.:⊗, map(ElementarySpace ∘ fusesectors, axs))))
 end
 
 # ========================  unmerged_matricize_axes  ========================
