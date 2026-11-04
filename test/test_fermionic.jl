@@ -502,6 +502,21 @@ end
         Array(first(contract(b, lb, conj(a), la)))
     @test Array(first(contract(conjed(a), la, conjed(c), lb))) ==
         Array(first(contract(conj(a), la, conj(c), lb)))
+
+    # For a ket-like state (no dual legs), contracting with its conjugate gives the squared norm,
+    # for even and odd parity and either operand order. The odd state carries its charge on an
+    # extra one-dimensional odd leg.
+    r_odd = gradedrange([fP1 => 2])
+    q_odd = gradedrange([fP1 => 1])
+    for ψ in (
+            randn_blockdiagonal(elt, (r, r, r, r)),
+            randn_blockdiagonal(elt, (r_odd, r_odd, r_odd, q_odd)),
+        )
+        l = ntuple(identity, ndims(ψ))
+        n2 = sum(abs2, Array(ψ))
+        @test only(Array(contractalign((), conjed(ψ), l, ψ, l))) ≈ n2
+        @test only(Array(contractalign((), ψ, l, conjed(ψ), l))) ≈ n2
+    end
 end
 
 # The fused permuting `matricizeop` (folding the permute into the gather) must agree
