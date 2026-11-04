@@ -50,6 +50,7 @@ axes_codomain(a::AdjointFusedGradedArray) = axes_domain(parent(a))
 axes_domain(a::AdjointFusedGradedArray) = axes_codomain(parent(a))
 
 Base.dataids(a::AdjointFusedGradedArray) = Base.dataids(parent(a))
+buffer(a::AdjointFusedGradedArray) = buffer(parent(a))
 
 # Allocate through the parent over the adjoint's own (swapped) axes, so the result keeps whatever
 # structure the parent has: a diagonal's adjoint stays diagonal instead of densifying.

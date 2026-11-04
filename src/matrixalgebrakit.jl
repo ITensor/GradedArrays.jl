@@ -172,7 +172,7 @@ function similar_diagonal(
         ::Type{T},
         bond_dims::FusedGradedOneTo
     ) where {T}
-    return FusedGradedDiagonal{T}(undef, bond_dims)
+    return FusedGradedDiagonal(similar_fusedgradedvector(A.buffer, T, bond_dims))
 end
 
 # Singular value decomposition
@@ -206,7 +206,7 @@ function MAK.initialize_output(
     )
     V_S = FusedGradedOneTo(map(diaglength, sectordata(A)))
     Tr = real(eltype(A))
-    return similar(A, Vector{Tr}, V_S) # TODO: don't hardcode type
+    return similar_fusedgradedvector(A.buffer, Tr, V_S)
 end
 
 # Eigenvalue decomposition
@@ -227,7 +227,7 @@ function MAK.initialize_output(
         alg::FusedGradedMatrixAlgorithm
     )
     Tc = complex(eltype(A))
-    return similar(A, Vector{Tc}, axis_domain(A)) # TODO: don't hardcode type
+    return similar_fusedgradedvector(A.buffer, Tc, axis_domain(A))
 end
 
 function MAK.initialize_output(
@@ -246,7 +246,7 @@ function MAK.initialize_output(
         alg::FusedGradedMatrixAlgorithm
     )
     Tr = real(eltype(A))
-    return similar(A, Vector{Tr}, axis_domain(A)) # TODO: don't hardcode type
+    return similar_fusedgradedvector(A.buffer, Tr, axis_domain(A))
 end
 
 # The bond axis of a null space: per sector, the excess of `axis`'s multiplicity over `other`'s,
@@ -561,21 +561,18 @@ function MAK.truncate(
     sectors_kept = sectors_all[keep]
     bond_dims = [size(U_blocks_all[i], 2) for i in keep]
 
-    # U: rows = input codomain (full), cols = bond (shrunk). The sliced blocks are freshly allocated
-    # matrices, not buffer views, so let the block dictionary infer their type.
-    U_cod = axis_codomain(U)
-    U_dom = FusedGradedOneTo(sectors_kept, bond_dims)
-    Ũ = fusedgradedmatrix(Dictionary(sectors_kept, U_blocks_all[keep]), U_cod, U_dom)
+    bond = FusedGradedOneTo(sectors_kept, bond_dims)
+    Ũ = similar(U, axis_codomain(U), bond)
+    s̃v = similar(sv, bond)
+    Ṽᴴ = similar(Vᴴ, bond, axis_domain(Vᴴ))
+    for i in keep
+        s = sectors_all[i]
+        copyto!(sectordata(Ũ)[s], U_blocks_all[i])
+        copyto!(sectordata(s̃v)[s], sv_blocks_all[i])
+        copyto!(sectordata(Ṽᴴ)[s], Vᴴ_blocks_all[i])
+    end
 
-    # S: the diagonal factor over the shrunk bond.
-    S̃ = MAK.diagonal(fusedgradedvector(sectors_kept .=> sv_blocks_all[keep]))
-
-    # Vᴴ: rows = bond (shrunk), cols = input domain (full).
-    Vᴴ_cod = FusedGradedOneTo(sectors_kept, bond_dims)
-    Vᴴ_dom = axis_domain(Vᴴ)
-    Ṽᴴ = fusedgradedmatrix(Dictionary(sectors_kept, Vᴴ_blocks_all[keep]), Vᴴ_cod, Vᴴ_dom)
-
-    return (Ũ, S̃, Ṽᴴ), inds
+    return (Ũ, MAK.diagonal(s̃v), Ṽᴴ), inds
 end
 
 for f! in (:eigh_trunc!, :eig_trunc!)
@@ -596,17 +593,19 @@ for f! in (:eigh_trunc!, :eig_trunc!)
         sectors_kept = sectors_all[keep]
         bond_dims = [length(ev_blocks_all[i]) for i in keep]
 
-        D̃ = MAK.diagonal(fusedgradedvector(sectors_kept .=> ev_blocks_all[keep]))
+        bond = FusedGradedOneTo(sectors_kept, bond_dims)
 
         # V: rows = the input codomain (full), columns = the eigenvector bond (shrunk). A sector
         # whose eigenvalues are all truncated keeps a zero-width row block, so the row axis comes
         # from `V` rather than being derived from the surviving blocks — deriving it drops the
         # emptied sector, and the result then fails to fuse back to the input's coupled axes.
-        Ṽ = fusedgradedmatrix(
-            Dictionary(sectors_kept, V_blocks_all[keep]),
-            axis_codomain(V),
-            FusedGradedOneTo(sectors_kept, bond_dims)
-        )
-        return (D̃, Ṽ), inds
+        ẽv = similar(ev, bond)
+        Ṽ = similar(V, axis_codomain(V), bond)
+        for i in keep
+            s = sectors_all[i]
+            copyto!(sectordata(ẽv)[s], ev_blocks_all[i])
+            copyto!(sectordata(Ṽ)[s], V_blocks_all[i])
+        end
+        return (MAK.diagonal(ẽv), Ṽ), inds
     end
 end

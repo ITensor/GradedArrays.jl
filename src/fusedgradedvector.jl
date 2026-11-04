@@ -151,6 +151,12 @@ function FusedGradedVector{T}(::UndefInitializer, axis::AbstractGradedOneTo) whe
     return FusedGradedVector(Vector{T}(undef, sum(datalengths(axis); init = 0)), axis)
 end
 
+function similar_fusedgradedvector(
+        buffer::AbstractArray, ::Type{T}, axis::AbstractGradedOneTo
+    ) where {T}
+    return FusedGradedVector(similar(buffer, T, sum(datalengths(axis); init = 0)), axis)
+end
+
 # Build a `FusedGradedVector` from per-sector block data (`sector => data` pairs, any iterator of pairs,
 # or a `Dictionary` keyed by sector). The axis is derived from the blocks: `axis[sectors[i]]` is
 # `length(data[i])`. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be
@@ -191,6 +197,7 @@ axes_codomain(v::FusedGradedVector) = (v.axis,)
 axes_domain(v::FusedGradedVector) = ()
 
 Base.dataids(v::FusedGradedVector) = Base.dataids(v.buffer)
+buffer(v::FusedGradedVector) = v.buffer
 
 # Block-wise `mapreduce`: reduce each block locally (so GPU blocks stay on the device for
 # their reduction kernel) and combine per-block scalars on the CPU. Routes
@@ -246,7 +253,7 @@ function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
     return FusedGradedVector(similar(v.buffer, T), axis(v), v.datalayout)
 end
 function Base.similar(v::FusedGradedVector, axis::FusedGradedOneTo{S}) where {S}
-    return FusedGradedVector{eltype(v)}(undef, axis)
+    return similar_fusedgradedvector(v.buffer, eltype(v), axis)
 end
 function Base.similar(
         v::FusedGradedVector,
@@ -254,9 +261,9 @@ function Base.similar(
         axis::FusedGradedOneTo{S}
     ) where {T, S}
     if T <: Number
-        return FusedGradedVector{T}(undef, axis)
+        return similar_fusedgradedvector(v.buffer, T, axis)
     elseif T <: AbstractVector
-        return FusedGradedVector{eltype(T)}(undef, axis)
+        return similar_fusedgradedvector(v.buffer, eltype(T), axis)
     else
         throw(ArgumentError("invalid type $T"))
     end

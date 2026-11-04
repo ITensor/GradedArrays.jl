@@ -211,7 +211,7 @@ end
 # be inferred from the empty axes). Without this, `similar(fa, T, ())` falls through to Base and
 # returns a plain rank-0 `Array`.
 function Base.similar(a::GradedArray, ::Type{T}, ::Tuple{}) where {T}
-    return GradedArray{T, sectortype(a)}(undef, (), ())
+    return TensorAlgebra.similar_map(a, T, (), ())
 end
 
 # ============================  copyto!  ============================
@@ -395,26 +395,37 @@ function GradedArray{T, S}(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# A `GradedArray` source reproduces a `GradedArray`, routing straight to its `undef` constructor.
 function TensorAlgebra.similar_map(
-        ::GradedArray, ::Type{T},
+        fa::GradedArray, ::Type{T},
         axes_codomain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
         axes_domain::Tuple{Vararg{AbstractGradedOneTo}}
     ) where {T}
-    return GradedArray{T}(undef, axes_codomain, axes_domain)
+    return similar_gradedarray(fa, T, axes_codomain, axes_domain)
 end
 function TensorAlgebra.similar_map(
-        ::GradedArray, ::Type{T},
+        fa::GradedArray, ::Type{T},
         axes_codomain::Tuple{},
         axes_domain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
     ) where {T}
-    return GradedArray{T}(undef, axes_codomain, axes_domain)
+    return similar_gradedarray(fa, T, axes_codomain, axes_domain)
 end
 # Rank-0: the empty axes carry no sector type, so read it from the `GradedArray` prototype.
 function TensorAlgebra.similar_map(
         fa::GradedArray, ::Type{T}, axes_codomain::Tuple{}, axes_domain::Tuple{}
     ) where {T}
-    return GradedArray{T, sectortype(fa)}(undef, axes_codomain, axes_domain)
+    return similar_gradedarray(fa, T, axes_codomain, axes_domain)
+end
+function similar_gradedarray(
+        fa::GradedArray,
+        ::Type{T},
+        axes_codomain,
+        axes_domain
+    ) where {T}
+    S = sectortype(fa)
+    m = similar_fusedgradedmatrix(
+        buffer(matricize(fa)), T, fuseaxes(S, axes_codomain), fuseaxes(S, axes_domain)
+    )
+    return GradedArray(m, axes_codomain, axes_domain)
 end
 
 # Fill the reduced coupled-sector blocks in place, forwarding to the matricized `FusedGradedMatrix`
@@ -846,7 +857,9 @@ function allocate_graded(
     else
         fuseaxes(S, axes_domain)
     end
-    m = FusedGradedMatrix{T}(undef, coupled_codomain, coupled_domain)
+    m = similar_fusedgradedmatrix(
+        buffer(matricize(a1)), T, coupled_codomain, coupled_domain
+    )
     return GradedArray(m, axes_codomain, axes_domain)
 end
 

@@ -68,6 +68,7 @@ axes_codomain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 axes_domain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 
 Base.dataids(d::FusedGradedDiagonal) = Base.dataids(MAK.diagview(d))
+buffer(d::FusedGradedDiagonal) = buffer(MAK.diagview(d))
 
 function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(MAK.diagview(d), T))
@@ -136,7 +137,7 @@ function allocate_output(
         ::typeof(*), A::FusedGradedDiagonal, B::FusedGradedDiagonal
     )
     Tout = Base.promote_op(*, eltype(A), eltype(B))
-    return FusedGradedDiagonal{Tout}(undef, axis_codomain(A))
+    return FusedGradedDiagonal(similar_fusedgradedvector(buffer(A), Tout, axis_codomain(A)))
 end
 
 # ---- broadcasting ----
