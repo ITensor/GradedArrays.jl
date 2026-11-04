@@ -296,9 +296,9 @@ function twist_domain!(a::AbstractArray, ndims_codomain::Int)
     )
 end
 
-function needs_contraction_twist(a, perm_codomain)
+function needs_contraction_twist(op, a, perm_codomain)
     return TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic &&
-        any(i -> isdual(axes(a, i)), perm_codomain)
+        any(i -> isdual(op(axes(a, i))), perm_codomain)
 end
 
 # `matricizeop` with the contraction twist folded in, on the contracted legs of the right factor

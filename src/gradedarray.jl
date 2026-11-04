@@ -779,7 +779,7 @@ function TensorAlgebra.contractpermopadd!(
     # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
     # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
     twist1 = twist2 = false
-    if needs_contraction_twist(a2, biperm2_codomain)
+    if needs_contraction_twist(op2, a2, biperm2_codomain)
         copy1 =
             !TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeop, op1, a1, biperm1_codomain, biperm1_domain

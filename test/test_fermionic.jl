@@ -502,6 +502,14 @@ end
         Array(first(contract(b, lb, conj(a), la)))
     @test Array(first(contract(conjed(a), la, conjed(c), lb))) ==
         Array(first(contract(conj(a), la, conj(c), lb)))
+    # The contracted legs of the lazy operand are all non-dual while those of its conjugate are
+    # all dual, so whether the contraction twist applies depends on the `op`.
+    t = randn_blockdiagonal(elt, (r, r))
+    u = randn_blockdiagonal(elt, (r, r))
+    @test Array(first(contract(t, (1, 2), conjed(u), (1, 3)))) ==
+        Array(first(contract(t, (1, 2), conj(u), (1, 3))))
+    @test Array(first(contract(conjed(u), (1, 3), t, (1, 2)))) ==
+        Array(first(contract(conj(u), (1, 3), t, (1, 2))))
 
     # For a ket-like state (no dual legs), contracting with its conjugate gives the squared norm,
     # for even and odd parity and either operand order. The odd state carries its charge on an
@@ -649,7 +657,7 @@ end
         ) === MatricizeContract()
         # With a non-dual contracted (codomain) leg no twist is needed, so the kernel uses the
         # stored matrix itself; with a dual one the twist goes on a copy.
-        @test GradedArrays.needs_contraction_twist(a2, (1,)) == isdual(rc)
+        @test GradedArrays.needs_contraction_twist(identity, a2, (1,)) == isdual(rc)
         if isdual(rc)
             m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,), :codomain)
             @test m !== matricize(a2)
