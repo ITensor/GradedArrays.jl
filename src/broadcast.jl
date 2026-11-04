@@ -62,7 +62,7 @@ end
 
 # Allocate from the flattened linear expression's axes. Each `UniqueSectorArray` axis carries its
 # own sector, so `similar(arg, elt, axes)` fully determines the result. A `conj` operand lowers to a
-# `ConjArray` whose axes are already dualized, so the result axes — and the rejection of a
+# `ConjBroadcasted` whose axes are already dualized, so the result axes — and the rejection of a
 # half-conjugated broadcast like `conj.(s) .- t` — fall out of the standard machinery.
 function Base.similar(bc::BC.Broadcasted{<:UniqueSectorStyle}, elt::Type)
     bc′ = BC.flatten(bc)

@@ -205,7 +205,7 @@ end
 
 # Conjugate the data, flip the duality of every axis, and (for fermions) apply the fermionic phase
 # from reversing the leg order. Routed through the lazy conjugating broadcast so there is a single
-# implementation: `conj.` lowers to a `ConjArray` (dualizing the axes) and materializes via
+# implementation: `conj.` lowers to a `ConjBroadcasted` (dualizing the axes) and materializes via
 # `bipermutedimsopadd!` with `op = conj`, which carries the reversal phase that a bare data
 # conjugation drops. This also overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit,
 # so a real-eltype sector array still dualizes its axes.

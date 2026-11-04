@@ -5,9 +5,9 @@ using GradedArrays: GradedArray, Sector, U1, UniqueSectorArray, UniqueSectorDelt
     structureaxes, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, MatricizeContract, contract, contractalign, matricize,
-    matricizeop, permutedimsop, project, unmatricize, unmatricize!, unmatricizeadd!,
-    unproject
+using TensorAlgebra: TensorAlgebra, MatricizeContract, conjed, contract, contractalign,
+    matricize, matricizeop, permutedimsop, project, unmatricize, unmatricize!,
+    unmatricizeadd!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -486,6 +486,22 @@ end
     @test scalar(contractalign((), T1, (1, 2), t23, l23)) ≈ s
     t13, l13 = contract(T1, (1, 2), T3, (3, 1))
     @test scalar(contractalign((), t13, l13, T2, (2, 3))) ≈ s
+end
+
+# A lazy conjugate is folded into the contraction as `op = conj`, so it must reproduce the
+# contraction of the eager conjugate exactly, with the conjugated operand in either slot.
+@testset "lazy conj contracts like eager conj (eltype=$elt)" for elt in elts
+    r = gradedrange([fP0 => 1, fP1 => 2])
+    a = randn_blockdiagonal(elt, (r, dual(r), r, dual(r)))
+    b = randn_blockdiagonal(elt, (r, dual(r), r, dual(r)))
+    c = randn_blockdiagonal(elt, (dual(r), r, r, r))
+    la, lb = (1, 2, -1, -2), (1, 2, -3, -4)
+    @test Array(first(contract(conjed(a), la, b, lb))) ==
+        Array(first(contract(conj(a), la, b, lb)))
+    @test Array(first(contract(b, lb, conjed(a), la))) ==
+        Array(first(contract(b, lb, conj(a), la)))
+    @test Array(first(contract(conjed(a), la, conjed(c), lb))) ==
+        Array(first(contract(conj(a), la, conj(c), lb)))
 end
 
 # The fused permuting `matricizeop` (folding the permute into the gather) must agree

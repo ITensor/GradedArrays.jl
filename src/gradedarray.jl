@@ -771,10 +771,10 @@ function TensorAlgebra.contractpermopadd!(
     invperm_codomain, invperm_domain =
         TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
     check_input(
-        TensorAlgebra.contract!,
+        TensorAlgebra.contractpermopadd!,
         a_dest, invperm_codomain, invperm_domain,
-        a1, biperm1_codomain, biperm1_domain,
-        a2, biperm2_codomain, biperm2_domain
+        op1, a1, biperm1_codomain, biperm1_domain,
+        op2, a2, biperm2_codomain, biperm2_domain
     )
     # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
     # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
@@ -855,20 +855,22 @@ end
 # scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a strong-zero β) write
 # every block.
 function TensorAlgebra.allocate_output(
-        ::typeof(TensorAlgebra.contract),
+        ::typeof(TensorAlgebra.contractpermop),
         perm_dest_codomain, perm_dest_domain,
-        a1::GradedArray, perm1_codomain, perm1_domain,
-        a2::GradedArray, perm2_codomain, perm2_domain
+        op1, a1::GradedArray, perm1_codomain, perm1_domain,
+        op2, a2::GradedArray, perm2_codomain, perm2_domain
     )
     check_input(
-        TensorAlgebra.contract,
-        a1, perm1_codomain, perm1_domain, a2, perm2_codomain, perm2_domain
+        TensorAlgebra.contractpermop,
+        perm_dest_codomain, perm_dest_domain,
+        op1, a1, perm1_codomain, perm1_domain,
+        op2, a2, perm2_codomain, perm2_domain
     )
     axes_codomain, axes_domain = TensorAlgebra.output_axes(
-        TensorAlgebra.contract,
+        TensorAlgebra.contractpermop,
         perm_dest_codomain, perm_dest_domain,
-        a1, perm1_codomain, perm1_domain,
-        a2, perm2_codomain, perm2_domain
+        op1, a1, perm1_codomain, perm1_domain,
+        op2, a2, perm2_codomain, perm2_domain
     )
     T = Base.promote_op(LinearAlgebra.matprod, eltype(a1), eltype(a2))
     return allocate_graded(T, a1, a2, axes_codomain, axes_domain)
