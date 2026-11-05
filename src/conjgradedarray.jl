@@ -30,3 +30,10 @@ function Base.fill!(a::ConjGradedArray, value)
     fill!(parent(a), conj(value))
     return a
 end
+
+# The conjugate of a graded array is not elementwise (it dualizes the axes and, for fermions,
+# carries per-block signs), so compare against the eager conjugate.
+# TODO: Remove the temporary by rematricizing `b` to the parent's split, as `==` does, and comparing
+# subblocks directly with the per-block conj sign.
+Base.:(==)(a::ConjGradedArray, b::GradedArray) = conj(parent(a)) == b
+Base.:(==)(a::GradedArray, b::ConjGradedArray) = b == a
