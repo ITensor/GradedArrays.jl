@@ -37,3 +37,13 @@ end
 # subblocks directly with the per-block conj sign.
 Base.:(==)(a::ConjGradedArray, b::GradedArray) = conj(parent(a)) == b
 Base.:(==)(a::GradedArray, b::ConjGradedArray) = b == a
+
+# The parent's elements without the per-block signs are not the conjugate's, so pair against the
+# eager conjugate.
+# TODO: Remove the temporary, as for `==`.
+function LinearAlgebra.dot(a::ConjGradedArray, b::GradedArray)
+    return LinearAlgebra.dot(conj(parent(a)), b)
+end
+function LinearAlgebra.dot(a::GradedArray, b::ConjGradedArray)
+    return LinearAlgebra.dot(a, conj(parent(b)))
+end
