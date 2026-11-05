@@ -37,3 +37,11 @@ end
 # subblocks directly with the per-block conj sign.
 Base.:(==)(a::ConjGradedArray, b::GradedArray) = conj(parent(a)) == b
 Base.:(==)(a::GradedArray, b::ConjGradedArray) = b == a
+
+function Base.mapreduce(f, op, a::ConjGradedArray; kwargs...)
+    return throw(
+        ArgumentError(
+            "`mapreduce` over a lazily conjugated graded array is not supported, since an elementwise reduction of a graded array depends on the basis (fermion signs, non-abelian fusion)"
+        )
+    )
+end

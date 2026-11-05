@@ -1,7 +1,7 @@
 using GradedArrays: GradedArray, fZ2, gradedrange
 using LinearAlgebra: norm
 using TensorAlgebra: TensorAlgebra, ConjArray, conjed, qr_compact
-using Test: @test, @testset
+using Test: @test, @test_throws, @testset
 
 # A lazy conjugate of a graded array works through its parent, so it must agree with the eager
 # conjugate (fermion signs included) without ever indexing elements.
@@ -17,6 +17,7 @@ using Test: @test, @testset
     @test conj(a) == c
     @test c ≈ conj(a)
     @test norm(c) ≈ norm(a)
+    @test_throws ArgumentError sum(c)
     @test Array(c) == Array(conj(a))
     @test startswith(sprint(show, MIME"text/plain"(), c), "conjed of ")
 
