@@ -1,5 +1,5 @@
 using GradedArrays: GradedArray, fZ2, gradedrange
-using LinearAlgebra: norm
+using LinearAlgebra: dot, norm
 using TensorAlgebra: TensorAlgebra, ConjArray, conjed, qr_compact
 using Test: @test, @test_throws, @testset
 
@@ -17,6 +17,12 @@ using Test: @test, @test_throws, @testset
     @test conj(a) == c
     @test c ≈ conj(a)
     @test norm(c) ≈ norm(a)
+    @test !iszero(c)
+    @test iszero(conjed(zero(a)))
+    # `conj(b)` shares the axes of `c`, as `dot` requires.
+    @test dot(c, conj(b)) ≈ dot(conj(a), conj(b))
+    @test dot(conj(b), c) ≈ dot(conj(b), conj(a))
+    @test dot(c, conjed(b)) ≈ dot(conj(a), conj(b))
     @test_throws ErrorException sum(c)
     @test Array(c) == Array(conj(a))
     @test startswith(sprint(show, MIME"text/plain"(), c), "conjed of ")
