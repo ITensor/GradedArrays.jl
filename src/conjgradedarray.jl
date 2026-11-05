@@ -15,3 +15,18 @@ function Base.similar(
     ) where {T, S}
     return similar(parent(a), T, axes)
 end
+
+# The conjugate of a fermionic graded array carries per-block signs, so a nonzero fill writes the
+# conjugate of a filled array, which `copyto!` applies with the signs, instead of filling the parent
+# with `conj(value)`.
+# TODO: Remove the temporary. The sign of each block is that of reversing its legs,
+# `(-1)^(n_odd * (n_odd - 1) / 2)` for `n_odd` odd legs, so the parent could be filled with
+# `conj(value)` and then scaled in place, for example with a cached TensorKit tree transformer as
+# `TensorKit.twist!` uses.
+function Base.fill!(a::ConjGradedArray, value)
+    if TKS.BraidingStyle(sectortype(parent(a))) isa TKS.Fermionic && !iszero(value)
+        return copyto!(a, fill!(similar(a), value))
+    end
+    fill!(parent(a), conj(value))
+    return a
+end

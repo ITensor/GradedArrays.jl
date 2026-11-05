@@ -38,4 +38,7 @@ using Test: @test, @testset
     @test parent(d) ≈ b
     @test TensorAlgebra.zero!(d) === d
     @test iszero(norm(parent(d)))
+    v = elt(2)
+    @test fill!(d, v) === d
+    @test copy(d) == fill!(similar(conj(a)), v)
 end
