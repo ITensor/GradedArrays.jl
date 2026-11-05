@@ -17,7 +17,7 @@ using Test: @test, @test_throws, @testset
     @test conj(a) == c
     @test c ≈ conj(a)
     @test norm(c) ≈ norm(a)
-    @test_throws ArgumentError sum(c)
+    @test_throws ErrorException sum(c)
     @test Array(c) == Array(conj(a))
     @test startswith(sprint(show, MIME"text/plain"(), c), "conjed of ")
 

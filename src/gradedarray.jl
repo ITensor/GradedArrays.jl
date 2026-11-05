@@ -446,24 +446,20 @@ Base.fill!(fa::GradedArray, v) = (fill!(matricize(fa), v); fa)
 Base.iszero(fa::GradedArray) = iszero(matricize(fa))
 
 # ============================  reductions  ============================
-# `sum`/`maximum`/`minimum`/`extrema` are not defined on a `GradedArray`: the intended reduction is
-# ambiguous. The reduction over the dense array `Array(a)` and the reduction over the fused matrix
-# `matricize(a)` differ for non-abelian fusion (the Clebsch-Gordan recoupling mixes the dense entries),
-# so require the caller to pick one explicitly rather than silently committing to a split-dependent
-# densification. `FusedGradedMatrix` defines the fused-matrix reductions, and `Array` gives the dense
-# ones.
-@noinline function _reduction_error(op, ::GradedArray)
+# Elementwise reductions (`sum`, `maximum`, `minimum`, `extrema`, ...) are not defined on a
+# `GradedArray`: the intended reduction is ambiguous. The reduction over the dense array `Array(a)`
+# and the reduction over the fused matrix `matricize(a)` differ for non-abelian fusion (the
+# Clebsch-Gordan recoupling mixes the dense entries), so require the caller to pick one explicitly
+# rather than silently committing to a split-dependent densification. `FusedGradedMatrix` defines the
+# fused-matrix reductions, and `Array` gives the dense ones. A lazy conjugate
+# (`TensorAlgebra.ConjArray`) forwards its reductions to its parent, so it errors here too, which also
+# keeps its per-block fermion signs from being dropped.
+function Base.mapreduce(f, op, a::GradedArray; kwargs...)
     return error(
-        "`$op` is not defined for a `GradedArray`: reduce explicitly over `Array(a)` for the " *
-            "dense array, or over `matricize(a)` for the fused matrix (these differ for non-abelian " *
-            "fusion)."
+        "Elementwise reductions are not defined for a `GradedArray`: reduce explicitly over " *
+            "`Array(a)` for the dense array, or over `matricize(a)` for the fused matrix (these " *
+            "differ for non-abelian fusion)."
     )
-end
-for op in (:sum, :maximum, :minimum, :extrema)
-    @eval begin
-        Base.$op(a::GradedArray; kwargs...) = _reduction_error($op, a)
-        Base.$op(f, a::GradedArray; kwargs...) = _reduction_error($op, a)
-    end
 end
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
