@@ -1,7 +1,8 @@
 # The lazy conjugate of a `GradedArray`, from `TensorAlgebra.conjed`. Conjugation dualizes every axis
 # without swapping codomain and domain, so it cannot be a lazy wrapper of the fused storage, whose
 # arrow directions are canonical. Everything that goes through the parent generically is defined on
-# `TensorAlgebra.ConjArray`. These are the graded-specific pieces.
+# `TensorAlgebra.ConjArray`. These are the graded-specific pieces, including the elementwise methods
+# (`fill!`, `==`, `dot`, `mapreduce`) that `TensorAlgebra.ConjArray` only defines for a dense parent.
 const ConjGradedArray{T, S, N} = TensorAlgebra.ConjArray{T, N, <:GradedArray{T, S, N}}
 
 axes_codomain(a::ConjGradedArray) = map(conj, axes_codomain(parent(a)))
@@ -46,4 +47,9 @@ function LinearAlgebra.dot(a::ConjGradedArray, b::GradedArray)
 end
 function LinearAlgebra.dot(a::GradedArray, b::ConjGradedArray)
     return LinearAlgebra.dot(a, conj(parent(b)))
+end
+
+# Reductions over a `GradedArray` error, so give the same error for its lazy conjugate.
+function Base.mapreduce(f, op, a::ConjGradedArray; kwargs...)
+    return mapreduce(f ∘ conj, op, parent(a); kwargs...)
 end

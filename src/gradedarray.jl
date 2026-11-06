@@ -451,9 +451,7 @@ Base.iszero(fa::GradedArray) = iszero(matricize(fa))
 # and the reduction over the fused matrix `matricize(a)` differ for non-abelian fusion (the
 # Clebsch-Gordan recoupling mixes the dense entries), so require the caller to pick one explicitly
 # rather than silently committing to a split-dependent densification. `FusedGradedMatrix` defines the
-# fused-matrix reductions, and `Array` gives the dense ones. A lazy conjugate
-# (`TensorAlgebra.ConjArray`) forwards its reductions to its parent, so it errors here too, which also
-# keeps its per-block fermion signs from being dropped.
+# fused-matrix reductions, and `Array` gives the dense ones.
 function Base.mapreduce(f, op, a::GradedArray; kwargs...)
     return error(
         "Elementwise reductions are not defined for a `GradedArray`: reduce explicitly over " *
