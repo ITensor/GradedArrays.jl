@@ -29,7 +29,7 @@ using Test: @test, @test_throws, @testset
     @test Array(st) ≈ α .* Array(s) .+ β .* Array(t)
     @test axes(st) == axes(s)
 
-    # `conj.` lowers each operand to a `ConjArray` whose axes are dualized, so a
+    # `conj.` lowers each operand to a `ConjBroadcasted` whose axes are dualized, so a
     # fully-conjugated broadcast lines up and matches the eager result (bosonic here, so no
     # fermion sign).
     cst = conj.(s) .- conj.(t) ./ β

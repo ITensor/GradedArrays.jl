@@ -80,6 +80,7 @@ include("cat.jl")
 include("matrixalgebrakit.jl")
 
 include("gradedarray.jl")
+include("conjgradedarray.jl")
 # Shared graded-array interface + `VectorInterface` (both name `GradedArray`, so they come after it).
 include("gradedarrayinterface.jl")
 include("vectorinterface.jl")

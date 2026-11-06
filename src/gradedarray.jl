@@ -446,24 +446,18 @@ Base.fill!(fa::GradedArray, v) = (fill!(matricize(fa), v); fa)
 Base.iszero(fa::GradedArray) = iszero(matricize(fa))
 
 # ============================  reductions  ============================
-# `sum`/`maximum`/`minimum`/`extrema` are not defined on a `GradedArray`: the intended reduction is
-# ambiguous. The reduction over the dense array `Array(a)` and the reduction over the fused matrix
-# `matricize(a)` differ for non-abelian fusion (the Clebsch-Gordan recoupling mixes the dense entries),
-# so require the caller to pick one explicitly rather than silently committing to a split-dependent
-# densification. `FusedGradedMatrix` defines the fused-matrix reductions, and `Array` gives the dense
-# ones.
-@noinline function _reduction_error(op, ::GradedArray)
+# Elementwise reductions (`sum`, `maximum`, `minimum`, `extrema`, ...) are not defined on a
+# `GradedArray`: the intended reduction is ambiguous. The reduction over the dense array `Array(a)`
+# and the reduction over the fused matrix `matricize(a)` differ for non-abelian fusion (the
+# Clebsch-Gordan recoupling mixes the dense entries), so require the caller to pick one explicitly
+# rather than silently committing to a split-dependent densification. `FusedGradedMatrix` defines the
+# fused-matrix reductions, and `Array` gives the dense ones.
+function Base.mapreduce(f, op, a::GradedArray; kwargs...)
     return error(
-        "`$op` is not defined for a `GradedArray`: reduce explicitly over `Array(a)` for the " *
-            "dense array, or over `matricize(a)` for the fused matrix (these differ for non-abelian " *
-            "fusion)."
+        "Elementwise reductions are not defined for a `GradedArray`: reduce explicitly over " *
+            "`Array(a)` for the dense array, or over `matricize(a)` for the fused matrix (these " *
+            "differ for non-abelian fusion)."
     )
-end
-for op in (:sum, :maximum, :minimum, :extrema)
-    @eval begin
-        Base.$op(a::GradedArray; kwargs...) = _reduction_error($op, a)
-        Base.$op(f, a::GradedArray; kwargs...) = _reduction_error($op, a)
-    end
 end
 
 # Copy the matricized matrix and reuse the axes. Defined directly (rather than through `similar`)
@@ -771,15 +765,15 @@ function TensorAlgebra.contractpermopadd!(
     invperm_codomain, invperm_domain =
         TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
     check_input(
-        TensorAlgebra.contract!,
+        TensorAlgebra.contractpermopadd!,
         a_dest, invperm_codomain, invperm_domain,
-        a1, biperm1_codomain, biperm1_domain,
-        a2, biperm2_codomain, biperm2_domain
+        op1, a1, biperm1_codomain, biperm1_domain,
+        op2, a2, biperm2_codomain, biperm2_domain
     )
     # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
     # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
     twist1 = twist2 = false
-    if needs_contraction_twist(a2, biperm2_codomain)
+    if needs_contraction_twist(op2, a2, biperm2_codomain)
         copy1 =
             !TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeop, op1, a1, biperm1_codomain, biperm1_domain
@@ -855,20 +849,22 @@ end
 # scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a strong-zero β) write
 # every block.
 function TensorAlgebra.allocate_output(
-        ::typeof(TensorAlgebra.contract),
+        ::typeof(TensorAlgebra.contractpermop),
         perm_dest_codomain, perm_dest_domain,
-        a1::GradedArray, perm1_codomain, perm1_domain,
-        a2::GradedArray, perm2_codomain, perm2_domain
+        op1, a1::GradedArray, perm1_codomain, perm1_domain,
+        op2, a2::GradedArray, perm2_codomain, perm2_domain
     )
     check_input(
-        TensorAlgebra.contract,
-        a1, perm1_codomain, perm1_domain, a2, perm2_codomain, perm2_domain
+        TensorAlgebra.contractpermop,
+        perm_dest_codomain, perm_dest_domain,
+        op1, a1, perm1_codomain, perm1_domain,
+        op2, a2, perm2_codomain, perm2_domain
     )
     axes_codomain, axes_domain = TensorAlgebra.output_axes(
-        TensorAlgebra.contract,
+        TensorAlgebra.contractpermop,
         perm_dest_codomain, perm_dest_domain,
-        a1, perm1_codomain, perm1_domain,
-        a2, perm2_codomain, perm2_domain
+        op1, a1, perm1_codomain, perm1_domain,
+        op2, a2, perm2_codomain, perm2_domain
     )
     T = Base.promote_op(LinearAlgebra.matprod, eltype(a1), eltype(a2))
     return allocate_graded(T, a1, a2, axes_codomain, axes_domain)

@@ -5,9 +5,9 @@ using GradedArrays: GradedArray, Sector, U1, UniqueSectorArray, UniqueSectorDelt
     structureaxes, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, MatricizeContract, contract, contractalign, matricize,
-    matricizeop, permutedimsop, project, unmatricize, unmatricize!, unmatricizeadd!,
-    unproject
+using TensorAlgebra: TensorAlgebra, MatricizeContract, conjed, contract, contractalign,
+    matricize, matricizeop, permutedimsop, project, unmatricize, unmatricize!,
+    unmatricizeadd!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -488,6 +488,45 @@ end
     @test scalar(contractalign((), t13, l13, T2, (2, 3))) ≈ s
 end
 
+# A lazy conjugate is folded into the contraction as `op = conj`, so it must reproduce the
+# contraction of the eager conjugate exactly, with the conjugated operand in either slot.
+@testset "lazy conj contracts like eager conj (eltype=$elt)" for elt in elts
+    r = gradedrange([fP0 => 1, fP1 => 2])
+    a = randn_blockdiagonal(elt, (r, dual(r), r, dual(r)))
+    b = randn_blockdiagonal(elt, (r, dual(r), r, dual(r)))
+    c = randn_blockdiagonal(elt, (dual(r), r, r, r))
+    la, lb = (1, 2, -1, -2), (1, 2, -3, -4)
+    @test Array(first(contract(conjed(a), la, b, lb))) ==
+        Array(first(contract(conj(a), la, b, lb)))
+    @test Array(first(contract(b, lb, conjed(a), la))) ==
+        Array(first(contract(b, lb, conj(a), la)))
+    @test Array(first(contract(conjed(a), la, conjed(c), lb))) ==
+        Array(first(contract(conj(a), la, conj(c), lb)))
+    # The contracted legs of the lazy operand are all non-dual while those of its conjugate are
+    # all dual, so whether the contraction twist applies depends on the `op`.
+    t = randn_blockdiagonal(elt, (r, r))
+    u = randn_blockdiagonal(elt, (r, r))
+    @test Array(first(contract(t, (1, 2), conjed(u), (1, 3)))) ==
+        Array(first(contract(t, (1, 2), conj(u), (1, 3))))
+    @test Array(first(contract(conjed(u), (1, 3), t, (1, 2)))) ==
+        Array(first(contract(conj(u), (1, 3), t, (1, 2))))
+
+    # For a ket-like state (no dual legs), contracting with its conjugate gives the squared norm,
+    # for even and odd parity and either operand order. The odd state carries its charge on an
+    # extra one-dimensional odd leg.
+    r_odd = gradedrange([fP1 => 2])
+    q_odd = gradedrange([fP1 => 1])
+    for ψ in (
+            randn_blockdiagonal(elt, (r, r, r, r)),
+            randn_blockdiagonal(elt, (r_odd, r_odd, r_odd, q_odd)),
+        )
+        l = ntuple(identity, ndims(ψ))
+        n2 = sum(abs2, Array(ψ))
+        @test only(Array(contractalign((), conjed(ψ), l, ψ, l))) ≈ n2
+        @test only(Array(contractalign((), ψ, l, conjed(ψ), l))) ≈ n2
+    end
+end
+
 # The fused permuting `matricizeop` (folding the permute into the gather) must agree
 # block-by-block with the reference two-pass `permutedimsop` then `matricize`, including
 # the per-block fermion permutation sign. `U1` exercises the non-self-dual `op = conj`
@@ -618,7 +657,7 @@ end
         ) === MatricizeContract()
         # With a non-dual contracted (codomain) leg no twist is needed, so the kernel uses the
         # stored matrix itself; with a dual one the twist goes on a copy.
-        @test GradedArrays.needs_contraction_twist(a2, (1,)) == isdual(rc)
+        @test GradedArrays.needs_contraction_twist(identity, a2, (1,)) == isdual(rc)
         if isdual(rc)
             m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,), :codomain)
             @test m !== matricize(a2)
