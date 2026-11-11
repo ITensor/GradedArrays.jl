@@ -5,6 +5,7 @@ using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedG
     fSU2, fZ2, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, gradedrange,
     isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sectordata, structure,
     tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
+using JLArrays: JLArray
 using LinearAlgebra: Diagonal, diag, dot, lmul!, norm, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -385,6 +386,23 @@ end
         @test p isa GradedArray
         @test TensorKit.TensorMap(p) ≈
             TensorKit.permute(TensorKit.TensorMap(dense), ((1, 2), ()))
+    end
+
+    @testset "transpose of a FusedGradedDiagonal ($G)" for (G, g) in (
+            ("U1", gradedrange([U1(0) => 2, U1(1) => 3])),
+            ("fZ2", gradedrange([fZ2(false) => 2, fZ2(true) => 3])),
+        )
+        _, S, _ = MAK.svd_compact(matricize(randn((g,), (g,))))
+        p = bipermutedims(GradedArray(S, (g,), (g,)), (2,), (1,))
+        @test TensorKit.TensorMap(p) ≈
+            TensorKit.permute(TensorKit.TensorMap(GradedArray(S, (g,), (g,))), ((2,), (1,)))
+
+        # Without densifying first, TensorKit's GPU extension throws a MethodError from
+        # `add_transform_kernel!` for a GPU-array buffer.
+        Sj = FusedGradedDiagonal(JLArray(S.diag.buffer), GradedArrays.axis_codomain(S))
+        pj = bipermutedims(GradedArray(Sj, (g,), (g,)), (2,), (1,))
+        @test matricize(pj).buffer isa JLArray
+        @test Array(matricize(pj).buffer) ≈ matricize(p).buffer
     end
 
     @testset "fused matrix permute stays fused and rejects unrepresentable permutations" begin

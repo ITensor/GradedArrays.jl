@@ -604,6 +604,17 @@ function TensorAlgebra.bipermutedimsopadd!(
     return y
 end
 
+# TensorKit's GPU extension has no `add_transform_kernel!` for a `DiagonalTensorMap` source, so a
+# diagonal is densified, keeping its buffer type, before TensorKit permutes it into a dense `y`.
+function TensorAlgebra.bipermutedimsopadd!(
+        y::GradedArray{<:Any, <:Any, <:Any, <:Any, <:Any, <:FusedGradedMatrix}, op,
+        x::GradedArray{<:Any, <:Any, <:Any, <:Any, <:Any, <:FusedGradedDiagonal},
+        perm_codomain, perm_domain, α::Number, β::Number
+    )
+    x_dense = GradedArray(FusedGradedMatrix(matricize(x)), axes_codomain(x), axes_domain(x))
+    return TensorAlgebra.bipermutedimsopadd!(y, op, x_dense, perm_codomain, perm_domain, α, β)
+end
+
 # ============================  fermionic twist  ============================
 # The contraction twist scales blocks by a per-fusion-tree fermion phase. Wrapping `a` as a
 # `TensorMap` shares its buffer, so twisting the `TensorMap` twists `a` in place.
