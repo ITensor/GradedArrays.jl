@@ -458,10 +458,11 @@ end
 
 # TruncationByOrder (truncrank k): global top-k across all blocks
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder)
+    # `Array` copies a device block to the host, where its entries are read one by one.
     all_entries = [
         (strategy.by(val), i, j)
             for (i, b) in enumerate(sectordata(v))
-            for (j, val) in enumerate(b)
+            for (j, val) in enumerate(Array(b))
     ]
     sort!(all_entries; by = first, strategy.rev)
     axsectors = sectors(only(axes(v)))
@@ -489,10 +490,11 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     ϵᵖmax = max(strategy.atol^p, strategy.rtol^p * total_norm_p)
 
     # Sort all values ascending by abs (smallest first = most likely discarded)
+    # `Array` copies a device block to the host, where its entries are read one by one.
     all_entries = [
         (abs(val), i, j)
             for (i, b) in enumerate(sectordata(v))
-            for (j, val) in enumerate(b)
+            for (j, val) in enumerate(Array(b))
     ]
     sort!(all_entries; by = first, rev = true)
 
