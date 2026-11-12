@@ -395,31 +395,11 @@ function GradedArray{T, S}(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
+# The sector type is read from the prototype, since both axis tuples may be empty (rank 0).
 function TensorAlgebra.similar_map(
         fa::GradedArray, ::Type{T},
-        axes_codomain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+        axes_codomain::Tuple{Vararg{AbstractGradedOneTo}},
         axes_domain::Tuple{Vararg{AbstractGradedOneTo}}
-    ) where {T}
-    return similar_gradedarray(fa, T, axes_codomain, axes_domain)
-end
-function TensorAlgebra.similar_map(
-        fa::GradedArray, ::Type{T},
-        axes_codomain::Tuple{},
-        axes_domain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
-    ) where {T}
-    return similar_gradedarray(fa, T, axes_codomain, axes_domain)
-end
-# Rank-0: the empty axes carry no sector type, so read it from the `GradedArray` prototype.
-function TensorAlgebra.similar_map(
-        fa::GradedArray, ::Type{T}, axes_codomain::Tuple{}, axes_domain::Tuple{}
-    ) where {T}
-    return similar_gradedarray(fa, T, axes_codomain, axes_domain)
-end
-function similar_gradedarray(
-        fa::GradedArray,
-        ::Type{T},
-        axes_codomain,
-        axes_domain
     ) where {T}
     S = sectortype(fa)
     codomain = FusedGradedOneTo(fuseaxes(S, axes_codomain))
