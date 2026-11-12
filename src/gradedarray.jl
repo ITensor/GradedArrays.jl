@@ -612,7 +612,15 @@ function TensorAlgebra.bipermutedimsopadd!(
         perm_codomain, perm_domain, α::Number, β::Number
     )
     x_dense = GradedArray(FusedGradedMatrix(matricize(x)), axes_codomain(x), axes_domain(x))
-    return TensorAlgebra.bipermutedimsopadd!(y, op, x_dense, perm_codomain, perm_domain, α, β)
+    return TensorAlgebra.bipermutedimsopadd!(
+        y,
+        op,
+        x_dense,
+        perm_codomain,
+        perm_domain,
+        α,
+        β
+    )
 end
 
 # ============================  fermionic twist  ============================

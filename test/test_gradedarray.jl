@@ -395,7 +395,10 @@ end
         _, S, _ = MAK.svd_compact(matricize(randn((g,), (g,))))
         p = bipermutedims(GradedArray(S, (g,), (g,)), (2,), (1,))
         @test TensorKit.TensorMap(p) ≈
-            TensorKit.permute(TensorKit.TensorMap(GradedArray(S, (g,), (g,))), ((2,), (1,)))
+            TensorKit.permute(
+            TensorKit.TensorMap(GradedArray(S, (g,), (g,))),
+            ((2,), (1,))
+        )
 
         # Without densifying first, TensorKit's GPU extension throws a MethodError from
         # `add_transform_kernel!` for a GPU-array buffer.
