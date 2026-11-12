@@ -172,7 +172,7 @@ function similar_diagonal(
         ::Type{T},
         bond_dims::FusedGradedOneTo
     ) where {T}
-    return FusedGradedDiagonal(similar_fusedgradedvector(A.buffer, T, bond_dims))
+    return FusedGradedDiagonal(similar(A, T, bond_dims))
 end
 
 # Singular value decomposition
@@ -206,7 +206,7 @@ function MAK.initialize_output(
     )
     V_S = FusedGradedOneTo(map(diaglength, sectordata(A)))
     Tr = real(eltype(A))
-    return similar_fusedgradedvector(A.buffer, Tr, V_S)
+    return similar(A, Tr, V_S)
 end
 
 # Eigenvalue decomposition
@@ -227,7 +227,7 @@ function MAK.initialize_output(
         alg::FusedGradedMatrixAlgorithm
     )
     Tc = complex(eltype(A))
-    return similar_fusedgradedvector(A.buffer, Tc, axis_domain(A))
+    return similar(A, Tc, axis_domain(A))
 end
 
 function MAK.initialize_output(
@@ -246,7 +246,7 @@ function MAK.initialize_output(
         alg::FusedGradedMatrixAlgorithm
     )
     Tr = real(eltype(A))
-    return similar_fusedgradedvector(A.buffer, Tr, axis_domain(A))
+    return similar(A, Tr, axis_domain(A))
 end
 
 # The bond axis of a null space: per sector, the excess of `axis`'s multiplicity over `other`'s,

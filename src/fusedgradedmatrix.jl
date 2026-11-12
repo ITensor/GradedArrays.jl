@@ -91,18 +91,6 @@ function FusedGradedMatrix{T}(
     return FusedGradedMatrix(buffer, cod, dom, datalayout)
 end
 
-function similar_fusedgradedmatrix(
-        buffer::AbstractArray, ::Type{T}, codomain::AbstractGradedOneTo,
-        domain::AbstractGradedOneTo
-    ) where {T}
-    cod = FusedGradedOneTo(codomain)
-    dom = FusedGradedOneTo(domain)
-    datalayout = sectordatalayout(cod, dom)
-    return FusedGradedMatrix(
-        similar(buffer, T, bufferlength(datalayout)), cod, dom, datalayout
-    )
-end
-
 # Same as the `{T}` method but allocates the buffer as the given `V`, so a caller can forward its own
 # block backend (for example a GPU buffer) instead of defaulting to `Vector{T}`.
 function FusedGradedMatrix{T, S, V}(
@@ -188,7 +176,6 @@ axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 # Forwarding to the buffer is what lets `Base.mightalias` detect sharing between the matrix, its
 # buffer, and wrappers of either.
 Base.dataids(m::FusedGradedMatrix) = Base.dataids(m.buffer)
-buffer(m::FusedGradedMatrix) = m.buffer
 
 # ========================  setsectors  ========================
 
@@ -246,7 +233,7 @@ function Base.similar(
         codomain::FusedGradedOneTo{S},
         domain::FusedGradedOneTo{S}
     ) where {S}
-    return similar_fusedgradedmatrix(m.buffer, eltype(m), codomain, domain)
+    return similar(m, eltype(m), codomain, domain)
 end
 function Base.similar(
         m::FusedGradedMatrix,
@@ -254,11 +241,15 @@ function Base.similar(
         codomain::FusedGradedOneTo{S},
         domain::FusedGradedOneTo{S}
     ) where {T, S}
-    if T <: Number
-        return similar_fusedgradedmatrix(m.buffer, T, codomain, domain)
-    elseif T <: AbstractMatrix
-        return similar_fusedgradedmatrix(m.buffer, eltype(T), codomain, domain)
-    else
-        throw(ArgumentError("invalid type $T"))
-    end
+    datalayout = sectordatalayout(codomain, domain)
+    buffer = similar(m.buffer, T, bufferlength(datalayout))
+    return FusedGradedMatrix(buffer, codomain, domain, datalayout)
+end
+# A single axis gives a `FusedGradedVector`, as `similar(::Matrix, T, (n,))` gives a `Vector`.
+function Base.similar(
+        m::FusedGradedMatrix,
+        ::Type{T},
+        axis::FusedGradedOneTo{S}
+    ) where {T, S}
+    return FusedGradedVector(similar(m.buffer, T, sum(datalengths(axis); init = 0)), axis)
 end

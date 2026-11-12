@@ -422,9 +422,9 @@ function similar_gradedarray(
         axes_domain
     ) where {T}
     S = sectortype(fa)
-    m = similar_fusedgradedmatrix(
-        buffer(matricize(fa)), T, fuseaxes(S, axes_codomain), fuseaxes(S, axes_domain)
-    )
+    codomain = FusedGradedOneTo(fuseaxes(S, axes_codomain))
+    domain = FusedGradedOneTo(fuseaxes(S, axes_domain))
+    m = similar(matricize(fa), T, codomain, domain)
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
@@ -861,16 +861,14 @@ function allocate_graded(
     coupled_codomain = if ismultisetequal(axes_codomain, GA.axes_codomain(a1))
         axis_codomain(matricize(a1))
     else
-        fuseaxes(S, axes_codomain)
+        FusedGradedOneTo(fuseaxes(S, axes_codomain))
     end
     coupled_domain = if ismultisetequal(axes_domain, GA.axes_domain(a2))
         axis_domain(matricize(a2))
     else
-        fuseaxes(S, axes_domain)
+        FusedGradedOneTo(fuseaxes(S, axes_domain))
     end
-    m = similar_fusedgradedmatrix(
-        buffer(matricize(a1)), T, coupled_codomain, coupled_domain
-    )
+    m = similar(matricize(a1), T, coupled_codomain, coupled_domain)
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
