@@ -630,10 +630,8 @@ function allocate_output(
         A::AbstractFusedGradedMatrix,
         B::AbstractFusedGradedMatrix
     )
-    cod = axis_codomain(A)
-    dom = axis_domain(B)
     Tout = Base.promote_op(*, eltype(A), eltype(B))
-    return FusedGradedMatrix{Tout}(undef, cod, dom)
+    return similar(B, Tout, axis_codomain(A), axis_domain(B))
 end
 
 function Base.:(*)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)

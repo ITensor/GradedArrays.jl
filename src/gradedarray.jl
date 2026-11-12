@@ -211,7 +211,7 @@ end
 # be inferred from the empty axes). Without this, `similar(fa, T, ())` falls through to Base and
 # returns a plain rank-0 `Array`.
 function Base.similar(a::GradedArray, ::Type{T}, ::Tuple{}) where {T}
-    return GradedArray{T, sectortype(a)}(undef, (), ())
+    return TensorAlgebra.similar_map(a, T, (), ())
 end
 
 # ============================  copyto!  ============================
@@ -395,26 +395,17 @@ function GradedArray{T, S}(
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# A `GradedArray` source reproduces a `GradedArray`, routing straight to its `undef` constructor.
+# The sector type is read from the prototype, since both axis tuples may be empty (rank 0).
 function TensorAlgebra.similar_map(
-        ::GradedArray, ::Type{T},
-        axes_codomain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
+        fa::GradedArray, ::Type{T},
+        axes_codomain::Tuple{Vararg{AbstractGradedOneTo}},
         axes_domain::Tuple{Vararg{AbstractGradedOneTo}}
     ) where {T}
-    return GradedArray{T}(undef, axes_codomain, axes_domain)
-end
-function TensorAlgebra.similar_map(
-        ::GradedArray, ::Type{T},
-        axes_codomain::Tuple{},
-        axes_domain::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}
-    ) where {T}
-    return GradedArray{T}(undef, axes_codomain, axes_domain)
-end
-# Rank-0: the empty axes carry no sector type, so read it from the `GradedArray` prototype.
-function TensorAlgebra.similar_map(
-        fa::GradedArray, ::Type{T}, axes_codomain::Tuple{}, axes_domain::Tuple{}
-    ) where {T}
-    return GradedArray{T, sectortype(fa)}(undef, axes_codomain, axes_domain)
+    S = sectortype(fa)
+    codomain = FusedGradedOneTo(fuseaxes(S, axes_codomain))
+    domain = FusedGradedOneTo(fuseaxes(S, axes_domain))
+    m = similar(matricize(fa), T, codomain, domain)
+    return GradedArray(m, axes_codomain, axes_domain)
 end
 
 # Fill the reduced coupled-sector blocks in place, forwarding to the matricized `FusedGradedMatrix`
@@ -591,6 +582,25 @@ function TensorAlgebra.bipermutedimsopadd!(
         to_tensormap(y), op, to_tensormap(x), perm_codomain, perm_domain, α, β
     )
     return y
+end
+
+# TensorKit's GPU extension has no `add_transform_kernel!` for a `DiagonalTensorMap` source, so a
+# diagonal is densified, keeping its buffer type, before TensorKit permutes it into a dense `y`.
+function TensorAlgebra.bipermutedimsopadd!(
+        y::GradedArray{<:Any, <:Any, <:Any, <:Any, <:Any, <:FusedGradedMatrix}, op,
+        x::GradedArray{<:Any, <:Any, <:Any, <:Any, <:Any, <:FusedGradedDiagonal},
+        perm_codomain, perm_domain, α::Number, β::Number
+    )
+    x_dense = GradedArray(FusedGradedMatrix(matricize(x)), axes_codomain(x), axes_domain(x))
+    return TensorAlgebra.bipermutedimsopadd!(
+        y,
+        op,
+        x_dense,
+        perm_codomain,
+        perm_domain,
+        α,
+        β
+    )
 end
 
 # ============================  fermionic twist  ============================
@@ -839,14 +849,14 @@ function allocate_graded(
     coupled_codomain = if ismultisetequal(axes_codomain, GA.axes_codomain(a1))
         axis_codomain(matricize(a1))
     else
-        fuseaxes(S, axes_codomain)
+        FusedGradedOneTo(fuseaxes(S, axes_codomain))
     end
     coupled_domain = if ismultisetequal(axes_domain, GA.axes_domain(a2))
         axis_domain(matricize(a2))
     else
-        fuseaxes(S, axes_domain)
+        FusedGradedOneTo(fuseaxes(S, axes_domain))
     end
-    m = FusedGradedMatrix{T}(undef, coupled_codomain, coupled_domain)
+    m = similar(matricize(a1), T, coupled_codomain, coupled_domain)
     return GradedArray(m, axes_codomain, axes_domain)
 end
 

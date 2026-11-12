@@ -51,10 +51,16 @@ axes_domain(a::AdjointFusedGradedArray) = axes_codomain(parent(a))
 
 Base.dataids(a::AdjointFusedGradedArray) = Base.dataids(parent(a))
 
-# Allocate through the parent over the adjoint's own (swapped) axes, so the result keeps whatever
-# structure the parent has: a diagonal's adjoint stays diagonal instead of densifying.
+# Allocate through the parent over the adjoint's own (swapped) axes. A diagonal parent has its own
+# method in `fusedgradeddiagonal.jl`, since explicit axes would densify it.
 function Base.similar(a::AdjointFusedGradedArray, ::Type{T}) where {T}
     return similar(parent(a), T, axis_codomain(a), axis_domain(a))
+end
+function Base.similar(
+        a::AdjointFusedGradedMatrix, ::Type{T},
+        codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
+    ) where {T, S}
+    return similar(parent(a), T, codomain, domain)
 end
 
 # ---- show ----

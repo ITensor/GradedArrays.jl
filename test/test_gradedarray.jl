@@ -5,6 +5,7 @@ using GradedArrays: GradedArrays, FusedGradedDiagonal, FusedGradedMatrix, FusedG
     fSU2, fZ2, fusedgradeddiagonal, fusedgradedmatrix, fusedgradedvector, gradedrange,
     isblockdiag, isdual, issquare, ndims_codomain, ndims_domain, sectordata, structure,
     tensor_product, to_tensormap, with_block_indexing, with_scalar_indexing
+using JLArrays: JLArray
 using LinearAlgebra: Diagonal, diag, dot, lmul!, norm, rmul!
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
@@ -385,6 +386,67 @@ end
         @test p isa GradedArray
         @test TensorKit.TensorMap(p) ≈
             TensorKit.permute(TensorKit.TensorMap(dense), ((1, 2), ()))
+    end
+
+    @testset "transpose of a FusedGradedDiagonal ($G)" for (G, g) in (
+            ("U1", gradedrange([U1(0) => 2, U1(1) => 3])),
+            ("fZ2", gradedrange([fZ2(false) => 2, fZ2(true) => 3])),
+        )
+        _, S, _ = MAK.svd_compact(matricize(randn((g,), (g,))))
+        p = bipermutedims(GradedArray(S, (g,), (g,)), (2,), (1,))
+        @test TensorKit.TensorMap(p) ≈
+            TensorKit.permute(
+            TensorKit.TensorMap(GradedArray(S, (g,), (g,))),
+            ((2,), (1,))
+        )
+
+        # Without densifying first, TensorKit's GPU extension throws a MethodError from
+        # `add_transform_kernel!` for a GPU-array buffer.
+        Sj = FusedGradedDiagonal(JLArray(S.diag.buffer), GradedArrays.axis_codomain(S))
+        pj = bipermutedims(GradedArray(Sj, (g,), (g,)), (2,), (1,))
+        @test matricize(pj).buffer isa JLArray
+        @test Array(matricize(pj).buffer) ≈ matricize(p).buffer
+    end
+
+    @testset "allocations take the buffer type of an operand" begin
+        g = gradedrange([U1(0) => 2, U1(1) => 3])
+        h = gradedrange([U1(0) => 1, U1(1) => 2, U1(2) => 1])
+        function tojl(m::FusedGradedMatrix)
+            ax_cod, ax_dom = GradedArrays.axis_codomain(m), GradedArrays.axis_domain(m)
+            return FusedGradedMatrix(JLArray(m.buffer), ax_cod, ax_dom, m.datalayout)
+        end
+        function tojl(a::GradedArray)
+            return GradedArray(tojl(matricize(a)), a.axes_codomain, a.axes_domain)
+        end
+        isjl(m) = m.buffer isa JLArray
+
+        a, b = randn(ComplexF64, (g, h), (g,)), randn(Float64, (g,), (h,))
+        A, B = matricize(tojl(a)), matricize(tojl(b))
+        gf, hf = GradedArrays.axis_codomain(B), GradedArrays.axis_domain(B)
+        Sj = FusedGradedDiagonal(JLArray(randn(5)), gf)
+
+        @test isjl(similar(B, ComplexF32, gf, hf))
+        @test similar(B, Float32, hf) isa FusedGradedVector{Float32}
+        @test isjl(similar(B, Float32, hf))
+        @test isjl(similar(Sj, Float64, gf, gf))
+        @test isjl(similar(Sj', Float64).diag)
+        for (X, Y) in ((A, B), (B, B'), (Sj, B), (B', Sj), (Sj, Sj))
+            Z = GradedArrays.allocate_output(*, X, Y)
+            @test isjl(Z isa FusedGradedDiagonal ? Z.diag : Z)
+        end
+        @test isjl(matricize(TensorAlgebra.similar_map(tojl(a), Float32, (g,), (g, h))))
+
+        alg = MAK.default_algorithm(MAK.svd_compact!, matricize(b))
+        U, S̃, Vᴴ = MAK.initialize_output(MAK.svd_compact!, B, alg)
+        @test isjl(U) && isjl(S̃.diag) && isjl(Vᴴ)
+        @test isjl(MAK.initialize_output(MAK.svd_vals!, B, alg))
+
+        # Ranking values across sectors must not index a device buffer entry by entry.
+        vals = [3.0, 1.0, 4.0, 1.5, 9.0]
+        for trunc in (MAK.truncrank(2), MAK.truncerror(; rtol = 0.3))
+            @test MAK.findtruncated(FusedGradedVector(JLArray(vals), gf), trunc) ==
+                MAK.findtruncated(FusedGradedVector(vals, gf), trunc)
+        end
     end
 
     @testset "fused matrix permute stays fused and rejects unrepresentable permutations" begin
