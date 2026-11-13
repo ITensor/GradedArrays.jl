@@ -49,3 +49,26 @@ using Test: @test, @test_throws, @testset
     @test fill!(d, v) === d
     @test copy(d) == fill!(similar(conj(a)), v)
 end
+
+# A conjugated operand whose contracted legs are its stored codomain is matricized as the adjoint of
+# its stored matrix rather than a permuted copy, and must give the eager result (fermion signs
+# included).
+@testset "contraction with a lazy conjugate at the swapped split (eltype = $elt)" for elt in
+    (
+        Float64,
+        ComplexF64,
+    )
+    g = gradedrange([fZ2(false) => 1, fZ2(true) => 2])
+    a = randn(elt, (g, g), (g,))
+    b = randn(elt, (g, g), (g,))
+    @test TensorAlgebra.is_output_view(
+        TensorAlgebra.contract_matricizeop, conj, a, (3,), (1, 2)
+    )
+    @test !TensorAlgebra.is_output_view(
+        TensorAlgebra.contract_matricizeop, identity, a, (3,), (1, 2)
+    )
+    r, lr = TensorAlgebra.contract(conjed(a), (:i, :j, :k), b, (:i, :j, :l))
+    re, lre = TensorAlgebra.contract(conj(a), (:i, :j, :k), b, (:i, :j, :l))
+    @test lr == lre
+    @test r ≈ re
+end

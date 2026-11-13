@@ -67,6 +67,16 @@ function TensorAlgebra.is_output_view(
     )
     return op === identity && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
+# The structural factor has no lazy transpose or adjoint, so a contraction operand at the swapped
+# split is copied.
+function TensorAlgebra.is_output_view(
+        ::typeof(TensorAlgebra.contract_matricizeop), op, a::UniqueSectorArray, perm_codomain,
+        perm_domain
+    )
+    return TensorAlgebra.is_output_view(
+        TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
+    )
+end
 function TensorAlgebra.matricizeopview(
         op, a::UniqueSectorArray, perm_codomain, perm_domain
     )
