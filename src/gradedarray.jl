@@ -754,13 +754,16 @@ end
 # method a subtype of TensorAlgebra's own kernel in every slot, so it cannot tie with a method
 # that narrows a different slot.
 
+# `op1::Op1` and `op2::Op2` force specialization here and in `allocate_output` below: the
+# operations are mostly passed on, so Julia would otherwise compile these for `op::Function` and
+# dispatch the calls that take them at run time.
 function TensorAlgebra.contractpermopadd!(
         ::TensorAlgebra.MatricizeContract,
         a_dest::GradedArray, biperm_dest_codomain, biperm_dest_domain,
-        op1, a1::GradedArray, biperm1_codomain, biperm1_domain,
-        op2, a2::GradedArray, biperm2_codomain, biperm2_domain,
+        op1::Op1, a1::GradedArray, biperm1_codomain, biperm1_domain,
+        op2::Op2, a2::GradedArray, biperm2_codomain, biperm2_domain,
         α::Number, β::Number
-    )
+    ) where {Op1, Op2}
     biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
     invperm_codomain, invperm_domain =
         TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
@@ -851,9 +854,9 @@ end
 function TensorAlgebra.allocate_output(
         ::typeof(TensorAlgebra.contractpermop),
         perm_dest_codomain, perm_dest_domain,
-        op1, a1::GradedArray, perm1_codomain, perm1_domain,
-        op2, a2::GradedArray, perm2_codomain, perm2_domain
-    )
+        op1::Op1, a1::GradedArray, perm1_codomain, perm1_domain,
+        op2::Op2, a2::GradedArray, perm2_codomain, perm2_domain
+    ) where {Op1, Op2}
     check_input(
         TensorAlgebra.contractpermop,
         perm_dest_codomain, perm_dest_domain,
@@ -863,8 +866,8 @@ function TensorAlgebra.allocate_output(
     axes_codomain, axes_domain = TensorAlgebra.output_axes(
         TensorAlgebra.contractpermop,
         perm_dest_codomain, perm_dest_domain,
-        op1, a1, perm1_codomain, perm1_domain,
-        op2, a2, perm2_codomain, perm2_domain
+        op1, axes(a1), perm1_codomain, perm1_domain,
+        op2, axes(a2), perm2_codomain, perm2_domain
     )
     T = Base.promote_op(LinearAlgebra.matprod, eltype(a1), eltype(a2))
     return allocate_graded(T, a1, a2, axes_codomain, axes_domain)
