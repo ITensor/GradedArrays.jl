@@ -712,75 +712,64 @@ to_gradedarray(m::AbstractFusedGradedMatrix) = GradedArray(m)
 
 # ========================  graded contraction  ========================
 # Fermionic contractions need the contracted legs twisted before matricization, so the result does
-# not depend on contraction order. This kernel sends one factor through `twisted_matricizeop`,
-# which inserts the twist between the permute and the matricize, and matricizes the other as
-# usual. The twist is a no-op for bosonic sectors.
+# not depend on contraction order. TensorAlgebra's `MatricizeContract` kernel picks the storage
+# layout, as TensorKit's `contract!` does, and this overload of the per-layout body sends one
+# factor through `twisted_matricizeop`, which inserts the twist between the permute and the
+# matricize, and matricizes the other as usual. As in TensorKit's `blas_contract!`, the twist is
+# decided on the contracted legs of whichever operand is the right factor, which is what makes the
+# swapped product order correct with no special handling. The twist is a no-op for bosonic
+# sectors.
 #
 # A matrix-level fused operand is lifted to its `GradedArray` wrap first (see `to_gradedarray`).
-# Naming the types in all three slots rather than only in the one the twist is keyed on keeps this
-# method a subtype of TensorAlgebra's own kernel in every slot, so it cannot tie with a method
-# that narrows a different slot.
 
 # `op1::Op1` and `op2::Op2` force specialization here and in `allocate_output` below: the
 # operations are mostly passed on, so Julia would otherwise compile these for `op::Function` and
 # dispatch the calls that take them at run time.
-function TensorAlgebra.contractpermopadd!(
-        ::TensorAlgebra.MatricizeContract,
-        a_dest::GradedArray, biperm_dest_codomain, biperm_dest_domain,
-        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, biperm1_codomain,
-        biperm1_domain,
-        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, biperm2_codomain,
-        biperm2_domain,
+function TensorAlgebra.matricized_mul_add!(
+        a_dest::GradedArray, perm_dest_codomain, perm_dest_domain,
+        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, perm1_codomain,
+        perm1_domain,
+        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, perm2_codomain,
+        perm2_domain,
         α::Number, β::Number
     ) where {Op1, Op2}
     a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
-    biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
-    invperm_codomain, invperm_domain =
-        TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
-    check_input(
-        TensorAlgebra.contractpermopadd!,
-        a_dest, invperm_codomain, invperm_domain,
-        op1, a1, biperm1_codomain, biperm1_domain,
-        op2, a2, biperm2_codomain, biperm2_domain
-    )
     # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
     # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
     twist1 = twist2 = false
-    if needs_contraction_twist(op2, a2, biperm2_codomain)
+    if needs_contraction_twist(op2, a2, perm2_codomain)
         copy1 =
             !TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, op1, a1, biperm1_codomain,
-            biperm1_domain
+            TensorAlgebra.matricizeop, op1, a1, perm1_codomain, perm1_domain
         )
         copy2 =
             !TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, op2, a2, biperm2_codomain,
-            biperm2_domain
+            TensorAlgebra.matricizeop, op2, a2, perm2_codomain, perm2_domain
         )
         twist1 = copy1 ⊻ copy2 ? copy1 : length(a1) < length(a2)
         twist2 = !twist1
     end
     a1_mat = if twist1
-        twisted_matricizeop(op1, a1, biperm1_codomain, biperm1_domain, :domain)
+        twisted_matricizeop(op1, a1, perm1_codomain, perm1_domain, :domain)
     else
-        TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
+        TensorAlgebra.matricizeop(op1, a1, perm1_codomain, perm1_domain)
     end
     a2_mat = if twist2
-        twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain, :codomain)
+        twisted_matricizeop(op2, a2, perm2_codomain, perm2_domain, :codomain)
     else
-        TensorAlgebra.matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
+        TensorAlgebra.matricizeop(op2, a2, perm2_codomain, perm2_domain)
     end
     if TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, identity, a_dest, invperm_codomain, invperm_domain
+            TensorAlgebra.matricizeop, identity, a_dest, perm_dest_codomain, perm_dest_domain
         )
         a_dest_mat = TensorAlgebra.matricizeopview(
-            identity, a_dest, invperm_codomain, invperm_domain
+            identity, a_dest, perm_dest_codomain, perm_dest_domain
         )
         LinearAlgebra.mul!(a_dest_mat, a1_mat, a2_mat, α, β)
     else
         a_dest_mat = a1_mat * a2_mat
         TensorAlgebra.unmatricizeadd!(
-            a_dest, a_dest_mat, invperm_codomain, invperm_domain, α, β
+            a_dest, a_dest_mat, perm_dest_codomain, perm_dest_domain, α, β
         )
     end
     return a_dest
