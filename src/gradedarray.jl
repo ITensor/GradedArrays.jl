@@ -697,50 +697,12 @@ end
 
 # ============================  contraction  ============================
 
-# A matrix-level fused operand carries no external axes, so it cannot serve as the allocation
-# prototype (`similar_map` with explicit axes is undefined for it), and algorithm selection below
-# would not see a `GradedArray` right factor, skipping the fermionic contraction twist. Lift it to
-# its tensor-level `{1,1}` `GradedArray` wrap (sharing storage) at the bipermutation entry point,
-# before output allocation and algorithm selection, then recurse into the generic path.
-function TensorAlgebra.contractpermalign(
-        perm_dest_codomain, perm_dest_domain,
-        a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
-        a2::GradedArray, perm2_codomain, perm2_domain;
-        kwargs...
-    )
-    return TensorAlgebra.contractpermalign(
-        perm_dest_codomain, perm_dest_domain,
-        GradedArray(a1), perm1_codomain, perm1_domain,
-        a2, perm2_codomain, perm2_domain;
-        kwargs...
-    )
-end
-function TensorAlgebra.contractpermalign(
-        perm_dest_codomain, perm_dest_domain,
-        a1::GradedArray, perm1_codomain, perm1_domain,
-        a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
-        kwargs...
-    )
-    return TensorAlgebra.contractpermalign(
-        perm_dest_codomain, perm_dest_domain,
-        a1, perm1_codomain, perm1_domain,
-        GradedArray(a2), perm2_codomain, perm2_domain;
-        kwargs...
-    )
-end
-function TensorAlgebra.contractpermalign(
-        perm_dest_codomain, perm_dest_domain,
-        a1::AbstractFusedGradedMatrix, perm1_codomain, perm1_domain,
-        a2::AbstractFusedGradedMatrix, perm2_codomain, perm2_domain;
-        kwargs...
-    )
-    return TensorAlgebra.contractpermalign(
-        perm_dest_codomain, perm_dest_domain,
-        GradedArray(a1), perm1_codomain, perm1_domain,
-        GradedArray(a2), perm2_codomain, perm2_domain;
-        kwargs...
-    )
-end
+# A matrix-level fused operand (a factorization spectrum, or the adjoint of a matricized factor)
+# carries no external axes, so it cannot serve as the allocation prototype, and the fermionic twist
+# below is keyed on tensor-level operands. The contraction hooks lift it to its tensor-level `{1,1}`
+# `GradedArray` wrap, sharing storage.
+to_gradedarray(a::GradedArray) = a
+to_gradedarray(m::AbstractFusedGradedMatrix) = GradedArray(m)
 
 # ========================  graded contraction  ========================
 # Fermionic contractions need the contracted legs twisted before matricization, so the result does
@@ -748,19 +710,24 @@ end
 # which inserts the twist between the permute and the matricize, and matricizes the other as
 # usual. The twist is a no-op for bosonic sectors.
 #
-# Every operand reaching here is tensor-level, since `contractpermalign` above lifts a
-# matrix-level one to its `GradedArray` wrap, and the destination is allocated graded in turn.
-# Naming the type in all three slots rather than only in the one the twist is keyed on keeps this
+# A matrix-level fused operand is lifted to its `GradedArray` wrap first (see `to_gradedarray`).
+# Naming the types in all three slots rather than only in the one the twist is keyed on keeps this
 # method a subtype of TensorAlgebra's own kernel in every slot, so it cannot tie with a method
 # that narrows a different slot.
 
+# `op1::Op1` and `op2::Op2` force specialization here and in `allocate_output` below: the
+# operations are mostly passed on, so Julia would otherwise compile these for `op::Function` and
+# dispatch the calls that take them at run time.
 function TensorAlgebra.contractpermopadd!(
         ::TensorAlgebra.MatricizeContract,
         a_dest::GradedArray, biperm_dest_codomain, biperm_dest_domain,
-        op1, a1::GradedArray, biperm1_codomain, biperm1_domain,
-        op2, a2::GradedArray, biperm2_codomain, biperm2_domain,
+        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, biperm1_codomain,
+        biperm1_domain,
+        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, biperm2_codomain,
+        biperm2_domain,
         α::Number, β::Number
-    )
+    ) where {Op1, Op2}
+    a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
     biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
     invperm_codomain, invperm_domain =
         TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
@@ -851,9 +818,12 @@ end
 function TensorAlgebra.allocate_output(
         ::typeof(TensorAlgebra.contractpermop),
         perm_dest_codomain, perm_dest_domain,
-        op1, a1::GradedArray, perm1_codomain, perm1_domain,
-        op2, a2::GradedArray, perm2_codomain, perm2_domain
-    )
+        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, perm1_codomain,
+        perm1_domain,
+        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, perm2_codomain,
+        perm2_domain
+    ) where {Op1, Op2}
+    a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
     check_input(
         TensorAlgebra.contractpermop,
         perm_dest_codomain, perm_dest_domain,
@@ -863,8 +833,8 @@ function TensorAlgebra.allocate_output(
     axes_codomain, axes_domain = TensorAlgebra.output_axes(
         TensorAlgebra.contractpermop,
         perm_dest_codomain, perm_dest_domain,
-        op1, a1, perm1_codomain, perm1_domain,
-        op2, a2, perm2_codomain, perm2_domain
+        op1, axes(a1), perm1_codomain, perm1_domain,
+        op2, axes(a2), perm2_codomain, perm2_domain
     )
     T = Base.promote_op(LinearAlgebra.matprod, eltype(a1), eltype(a2))
     return allocate_graded(T, a1, a2, axes_codomain, axes_domain)
