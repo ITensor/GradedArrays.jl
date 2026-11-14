@@ -752,13 +752,23 @@ function TensorAlgebra.matricized_mul_add!(
     a1_mat = if twist1
         twisted_matricizeop(op1, a1, perm1_codomain, perm1_domain, :domain)
     else
-        TensorAlgebra.matricizeop(op1, a1, perm1_codomain, perm1_domain)
+        @noinline TensorAlgebra.matricizeop(op1, a1, perm1_codomain, perm1_domain)
     end
     a2_mat = if twist2
         twisted_matricizeop(op2, a2, perm2_codomain, perm2_domain, :codomain)
     else
-        TensorAlgebra.matricizeop(op2, a2, perm2_codomain, perm2_domain)
+        @noinline TensorAlgebra.matricizeop(op2, a2, perm2_codomain, perm2_domain)
     end
+    return mul_unmatricizeadd!(
+        a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
+    )
+end
+
+# A function barrier: it depends only on the matrix types and the destination, so the two operand
+# orders and every pair of operands with the same matricized types share one compiled instance.
+@noinline function mul_unmatricizeadd!(
+        a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
+    )
     if TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeop, identity, a_dest, perm_dest_codomain, perm_dest_domain
         )
