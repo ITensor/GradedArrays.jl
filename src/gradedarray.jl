@@ -48,7 +48,9 @@ GradedArray(m::AbstractFusedGradedMatrix) = GradedArray(m, axes_codomain(m), axe
 axes_codomain(fa::GradedArray) = fa.axes_codomain
 axes_domain(fa::GradedArray) = fa.axes_domain
 
-Base.axes(fa::GradedArray) = Tuple(biaxes(fa))
+# Kept out of line: the contraction's checks and allocation are compiled once per pair of operand
+# types, and inlining this into each of them recompiles it every time.
+@noinline Base.axes(fa::GradedArray) = Tuple(biaxes(fa))
 # Read one axis from the stored halves. Base's fallback builds the whole tuple and returns either
 # that axis or a trailing `OneTo(1)`, a union the contraction and permutation code, which read axes
 # one at a time, can't infer.
@@ -803,18 +805,25 @@ function allocate_graded(
         axes_codomain::Tuple, axes_domain::Tuple
     ) where {T}
     S = sectortype(a1)
-    coupled_codomain = if ismultisetequal(axes_codomain, GA.axes_codomain(a1))
-        axis_codomain(matricize(a1))
-    else
-        fuseaxes(S, axes_codomain)
-    end
-    coupled_domain = if ismultisetequal(axes_domain, GA.axes_domain(a2))
-        axis_domain(matricize(a2))
-    else
-        fuseaxes(S, axes_domain)
-    end
+    coupled_codomain = coupled_axis(
+        S, axes_codomain, GA.axes_codomain(a1), axis_codomain(matricize(a1))
+    )
+    coupled_domain = coupled_axis(
+        S, axes_domain, GA.axes_domain(a2), axis_domain(matricize(a2))
+    )
     m = FusedGradedMatrix{T}(undef, coupled_codomain, coupled_domain)
     return GradedArray(m, axes_codomain, axes_domain)
+end
+# A function barrier: it takes one side's axes rather than the operands, so it compiles once per
+# pair of leg counts instead of once per pair of operand types.
+@noinline function coupled_axis(
+        ::Type{S},
+        axs::Tuple,
+        axs_stored::Tuple,
+        coupled_stored
+    ) where {S}
+    ismultisetequal(axs, axs_stored) && return coupled_stored
+    return fuseaxes(S, axs)
 end
 
 # Unlike the generic body this skips the `zero!`: every consumer overwrites the destination in
