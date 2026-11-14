@@ -622,31 +622,21 @@ end
 
 # The memory-sharing matricization is the stored matrix (a field read), available exactly when the
 # legs stay in order, the split falls on the stored boundary and there is no operation to fold in.
-# Anything else permutes or bends a leg, which for a `GradedArray` is not a free reshape.
+# The swapped split is also memory-sharing as the adjoint of the stored matrix when the operation
+# is `conj`. Its transpose would reverse the arrows, so without `conj` it is not a view. Anything
+# else permutes or bends a leg, which for a `GradedArray` is not a free reshape.
 function TensorAlgebra.is_output_view(
         ::typeof(TensorAlgebra.matricizeop), op, a::GradedArray, perm_codomain, perm_domain
     )
     return op === identity && length(perm_codomain) == ndims_codomain(a) &&
-        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
+        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) ||
+        op === conj && length(perm_domain) == ndims_codomain(a) &&
+        TensorAlgebra.isidentitybiperm(perm_domain, perm_codomain)
 end
 function TensorAlgebra.matricizeopview(
         op, fa::GradedArray, perm_codomain, perm_domain
     )
-    return matricize(fa)
-end
-# As a contraction operand, the swapped split is also copy-free as the adjoint of the stored matrix,
-# when the operand is conjugated. Its transpose would reverse the arrows, so a plain operand at the
-# swapped split is still copied.
-function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.contract_matricizeop), op, a::GradedArray, perm_codomain,
-        perm_domain
-    )
-    return TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
-    ) ||
-        op === conj && TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, identity, a, perm_domain, perm_codomain
-    )
+    return op === conj ? adjoint(matricize(fa)) : matricize(fa)
 end
 # A permute or a leg bend: re-split with the array's own `permutedimsop`, then take the fresh
 # result's stored matrix. This is what lets a contraction over a subset of legs matricize a factor
@@ -757,12 +747,12 @@ function TensorAlgebra.contractpermopadd!(
     if needs_contraction_twist(op2, a2, biperm2_codomain)
         copy1 =
             !TensorAlgebra.is_output_view(
-            TensorAlgebra.contract_matricizeop, op1, a1, biperm1_codomain,
+            TensorAlgebra.matricizeop, op1, a1, biperm1_codomain,
             biperm1_domain
         )
         copy2 =
             !TensorAlgebra.is_output_view(
-            TensorAlgebra.contract_matricizeop, op2, a2, biperm2_codomain,
+            TensorAlgebra.matricizeop, op2, a2, biperm2_codomain,
             biperm2_domain
         )
         twist1 = copy1 ⊻ copy2 ? copy1 : length(a1) < length(a2)
@@ -771,12 +761,12 @@ function TensorAlgebra.contractpermopadd!(
     a1_mat = if twist1
         twisted_matricizeop(op1, a1, biperm1_codomain, biperm1_domain, :domain)
     else
-        TensorAlgebra.contract_matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
+        TensorAlgebra.matricizeop(op1, a1, biperm1_codomain, biperm1_domain)
     end
     a2_mat = if twist2
         twisted_matricizeop(op2, a2, biperm2_codomain, biperm2_domain, :codomain)
     else
-        TensorAlgebra.contract_matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
+        TensorAlgebra.matricizeop(op2, a2, biperm2_codomain, biperm2_domain)
     end
     if TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeop, identity, a_dest, invperm_codomain, invperm_domain

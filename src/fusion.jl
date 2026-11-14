@@ -61,21 +61,11 @@ end
 
 # The reduced data matricizes to a reshaped view, so the matricization shares `a`'s memory at
 # every split that leaves the legs in order; the structural factor stores no data and is rebuilt
-# as a `SectorIdentity`.
+# as a `SectorIdentity`. It has no lazy transpose or adjoint, so the swapped split is copied.
 function TensorAlgebra.is_output_view(
         ::typeof(TensorAlgebra.matricizeop), op, ::UniqueSectorArray, perm_codomain, perm_domain
     )
     return op === identity && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
-end
-# The structural factor has no lazy transpose or adjoint, so a contraction operand at the swapped
-# split is copied.
-function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.contract_matricizeop), op, a::UniqueSectorArray, perm_codomain,
-        perm_domain
-    )
-    return TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
-    )
 end
 function TensorAlgebra.matricizeopview(
         op, a::UniqueSectorArray, perm_codomain, perm_domain

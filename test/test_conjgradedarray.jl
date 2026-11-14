@@ -1,4 +1,4 @@
-using GradedArrays: GradedArray, fZ2, gradedrange
+using GradedArrays: GradedArray, dual, fZ2, gradedrange
 using LinearAlgebra: dot, norm
 using TensorAlgebra: TensorAlgebra, ConjArray, conjed, qr_compact
 using Test: @test, @test_throws, @testset
@@ -62,13 +62,22 @@ end
     a = randn(elt, (g, g), (g,))
     b = randn(elt, (g, g), (g,))
     @test TensorAlgebra.is_output_view(
-        TensorAlgebra.contract_matricizeop, conj, a, (3,), (1, 2)
+        TensorAlgebra.matricizeop, conj, a, (3,), (1, 2)
     )
     @test !TensorAlgebra.is_output_view(
-        TensorAlgebra.contract_matricizeop, identity, a, (3,), (1, 2)
+        TensorAlgebra.matricizeop, identity, a, (3,), (1, 2)
     )
     r, lr = TensorAlgebra.contract(conjed(a), (:i, :j, :k), b, (:i, :j, :l))
     re, lre = TensorAlgebra.contract(conj(a), (:i, :j, :k), b, (:i, :j, :l))
+    @test lr == lre
+    @test r ≈ re
+
+    # The fermionic twist lands on the smaller factor, here the lazy conjugate, whose view at the
+    # swapped split is an adjoint rather than its stored layout.
+    a = randn(elt, (dual(g), dual(g)), (g,))
+    b = randn(elt, (dual(g), dual(g)), (g, g))
+    r, lr = TensorAlgebra.contract(conjed(a), (:i, :j, :k), b, (:i, :j, :l, :m))
+    re, lre = TensorAlgebra.contract(conj(a), (:i, :j, :k), b, (:i, :j, :l, :m))
     @test lr == lre
     @test r ≈ re
 end
