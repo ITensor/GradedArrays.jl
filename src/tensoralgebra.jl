@@ -303,13 +303,16 @@ end
 
 # `matricizeop` with the contraction twist folded in, on the contracted legs of the right factor
 # (`side = :codomain`) or the left one (`side = :domain`). The twist is applied to a copy so `a` is
-# untouched: when the memory-sharing matricization exists there is nothing to permute, so the copy
-# is a plain `copy` twisted in place rather than a block-wise permute that would be the identity.
+# untouched: when the memory-sharing matricization is the stored layout there is nothing to
+# permute, so the copy is a plain `copy` twisted in place rather than a block-wise permute that
+# would be the identity. A lazy adjoint view at the swapped split is not the stored layout, so
+# that case permutes.
 function twisted_matricizeop(op, a::AbstractArray, perm_codomain, perm_domain, side::Symbol)
     side in (:codomain, :domain) ||
         throw(ArgumentError("`side` must be `:codomain` or `:domain`, got `$(repr(side))`"))
     a_twisted =
-    if TensorAlgebra.is_output_view(
+    if TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
+            TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
         )
         copy(a)
