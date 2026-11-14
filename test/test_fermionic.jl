@@ -6,8 +6,8 @@ using GradedArrays: GradedArray, Sector, U1, UniqueSectorArray, UniqueSectorDelt
 using LinearAlgebra: Diagonal
 using Random: randn!
 using TensorAlgebra: TensorAlgebra, MatricizeContract, conjed, contract, contractalign,
-    matricize, matricizeop, permutedimsop, project, unmatricize, unmatricize!,
-    unmatricizeadd!, unproject
+    contractpermopadd!, matricize, matricizeop, permutedimsop, project, unmatricize,
+    unmatricize!, unmatricizeadd!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -650,8 +650,7 @@ end
         @test axes(c_fast) == axes(c_ref)
         @test Array(a2) ≈ a2_dense_before
         # Graded operands stay on the generic algorithm: the twist comes from the graded
-        # `contractpermopadd!` kernel that the right factor's type selects, not from an
-        # algorithm of their own.
+        # `matricized_mul_add!` overload, not from an algorithm of their own.
         @test TensorAlgebra.default_algorithm(
             TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
         ) === MatricizeContract()
@@ -665,5 +664,57 @@ end
         @test_throws ArgumentError GradedArrays.twisted_matricizeop(
             identity, a2, (1,), (2,), :codmain
         )
+    end
+end
+
+# The contraction kernel lays out the product four ways (the contracted legs in either operand's
+# storage order, times `a1 * a2` or `a2 * a1`) and picks by which operands it can use in place, so
+# vary the stored leg orders and splits to reach each one. The reference permutes both operands
+# eagerly into the `a1 * a2` layout, which needs no further copy, then permutes the product into
+# the destination's storage. `U1` checks the plain fold and `fZ2` the contraction twist, which the
+# `a2 * a1` layouts place on the other factor.
+@testset "graded contraction in every storage layout (eltype=$elt)" for elt in
+    (
+        Float64,
+        ComplexF64,
+    )
+    for g in (
+                gradedrange([U1(0) => 1, U1(1) => 2, U1(-1) => 1]),
+                gradedrange([fP0 => 2, fP1 => 1]),
+            ),
+            (op1, op2) in ((identity, identity), (conj, identity), (conj, conj)),
+            # Arrows on the contracted legs `j` and `k`: all out, mixed, all in. Whether the twist
+            # applies is decided on one factor's contracted legs, so the uniform cases tell the two
+            # factors apart.
+            axs_a in ((g, g, g), (g, dual(g), g), (g, dual(g), dual(g)))
+
+        # `a[i, j, k] b[k, j, l] -> c[i, l]`.
+        axs_b = map(ax -> op2(dual(op1(ax))), (axs_a[3], axs_a[2]))
+        axs_b = (axs_b..., dual(g))
+        # Stored leg orders that put the contracted legs in either order on either side.
+        for pa in ((1, 2, 3), (1, 3, 2), (2, 3, 1), (3, 2, 1)),
+                pb in ((1, 2, 3), (2, 1, 3), (3, 2, 1), (3, 1, 2)),
+                nca in (1, 2), ncb in (1, 2)
+
+            stored_a, stored_b = map(i -> axs_a[i], pa), map(i -> axs_b[i], pb)
+            ap = randn(elt, stored_a[1:nca], map(dual, stored_a[(nca + 1):end]))
+            bp = randn(elt, stored_b[1:ncb], map(dual, stored_b[(ncb + 1):end]))
+            # Positions of `a`'s and `b`'s logical legs in the stored arrays.
+            ia, ib = invperm(pa), invperm(pb)
+            a_ref = permutedimsop(op1, ap, (ia[1],), (ia[2], ia[3]))
+            b_ref = permutedimsop(op2, bp, (ib[2], ib[1]), (ib[3],))
+            c_ref, = contract(a_ref, (1, 2, 3), b_ref, (2, 3, 4))
+            for pc in ((1, 2), (2, 1)), ncc in 0:2
+                c_expected = permutedimsop(identity, c_ref, pc[1:ncc], pc[(ncc + 1):end])
+                c = zero(c_expected)
+                contractpermopadd!(
+                    c, pc[1:ncc], pc[(ncc + 1):end],
+                    op1, ap, (ia[1],), (ia[2], ia[3]),
+                    op2, bp, (ib[2], ib[1]), (ib[3],),
+                    true, false
+                )
+                @test c ≈ c_expected
+            end
+        end
     end
 end
