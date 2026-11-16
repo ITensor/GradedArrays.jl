@@ -191,10 +191,10 @@ end
 # Primary overloads. The flat-perm permutedimsopadd! overloads forward here.
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractSectorArray, op, x::AbstractSectorArray,
+        y::AbstractSectorArray, op::Op, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
-    )
+    ) where {Op}
     check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
     sx = structure(x)
@@ -230,21 +230,21 @@ StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a
 # `add!(dest::AbstractArray, ::AbstractSectorArray, α, β)` (via the generic `permutedimsopadd!`)
 # work without a bespoke `add!` overload.
 function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractArray, op, x::AbstractSectorArray,
+        y::AbstractArray, op::Op, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
-    )
+    ) where {Op}
     require_unique_fusion(x)
     bipermutedimsopadd!(y, op, data(x), perm_codomain, perm_domain, α, β)
     return y
 end
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractFusedGradedArray{<:Any, <:Any, N}, op,
+        y::AbstractFusedGradedArray{<:Any, <:Any, N}, op::Op,
         x::AbstractFusedGradedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
         α::Number, β::Number
-    ) where {N}
+    ) where {Op, N}
     check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
     if Base.mightalias(y, x)
         # A self-aliased permute-add with the identity permutation and no conjugation is really a
@@ -307,7 +307,9 @@ end
 # permute, so the copy is a plain `copy` twisted in place rather than a block-wise permute that
 # would be the identity. A lazy adjoint view at the swapped split is not the stored layout, so
 # that case permutes.
-function twisted_matricizeop(op, a::AbstractArray, perm_codomain, perm_domain, side::Symbol)
+function twisted_matricizeop(
+        op::Op, a::AbstractArray, perm_codomain, perm_domain, side::Symbol
+    ) where {Op}
     side in (:codomain, :domain) ||
         throw(ArgumentError("`side` must be `:codomain` or `:domain`, got `$(repr(side))`"))
     a_twisted =

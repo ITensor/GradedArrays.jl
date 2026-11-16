@@ -117,8 +117,8 @@ end
 
 # Copying the diagonal keeps the structure, where `similar` on a diagonal would densify.
 function TensorAlgebra.matricizeopcopy(
-        op, d::FusedGradedDiagonal, perm_codomain, perm_domain
-    )
+        op::Op, d::FusedGradedDiagonal, perm_codomain, perm_domain
+    ) where {Op}
     length(perm_codomain) == 1 || throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"

@@ -47,8 +47,8 @@ end
 # the copy leaf. `op` applies to the axes, dualizing them for `conj`, the same convention
 # `allocate_output(permutedimsop, ...)` follows.
 function TensorAlgebra.matricizeopcopy(
-        op, a::UniqueSectorDelta, perm_codomain, perm_domain
-    )
+        op::Op, a::UniqueSectorDelta, perm_codomain, perm_domain
+    ) where {Op}
     ax_codomain = map(i -> op(axes(a, i)), perm_codomain)
     ax_codomain =
         isempty(ax_codomain) ? trivial(sectortype(a)) : tensor_product(ax_codomain...)
@@ -78,8 +78,8 @@ end
 # Permute into fresh storage, then read off that copy's view. At the identity bipermutation
 # `permutedimsop` is itself the copy, so this costs one pass either way.
 function TensorAlgebra.matricizeopcopy(
-        op, a::UniqueSectorArray, perm_codomain, perm_domain
-    )
+        op::Op, a::UniqueSectorArray, perm_codomain, perm_domain
+    ) where {Op}
     a_perm = TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
     return matricize(a_perm, Val(length(perm_codomain)))
 end

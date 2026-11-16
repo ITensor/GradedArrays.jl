@@ -573,9 +573,9 @@ end
 # identity copy or the adjoint. The copy keeps `src`'s axes; the adjoint exchanges them, which
 # differs from `src`'s own pair whenever the operand is not square.
 function TensorAlgebra.allocate_output(
-        ::typeof(TA.permutedimsop), op, src::AbstractFusedGradedMatrix, perm_codomain,
+        ::typeof(TA.permutedimsop), op::Op, src::AbstractFusedGradedMatrix, perm_codomain,
         perm_domain
-    )
+    ) where {Op}
     check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
     perm_codomain == (1,) && return similar(src)
     return similar(src')

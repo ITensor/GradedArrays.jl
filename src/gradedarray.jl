@@ -580,9 +580,9 @@ end
 # their buffers, so TensorKit writes the result into `y` in place.
 
 function TensorAlgebra.bipermutedimsopadd!(
-        y::GradedArray, op, x::GradedArray,
+        y::GradedArray, op::Op, x::GradedArray,
         perm_codomain, perm_domain, α::Number, β::Number
-    )
+    ) where {Op}
     TensorAlgebra.bipermutedimsopadd!(
         to_tensormap(y), op, to_tensormap(x), perm_codomain, perm_domain, α, β
     )
@@ -645,8 +645,8 @@ end
 # whose stored split differs. Overloads the copy rather than `allocate_output`/`matricizeop!`
 # because `permutedimsop` already returns owned storage whose stored matrix is the answer.
 function TensorAlgebra.matricizeopcopy(
-        op, fa::GradedArray, perm_codomain, perm_domain
-    )
+        op::Op, fa::GradedArray, perm_codomain, perm_domain
+    ) where {Op}
     fa_perm = TensorAlgebra.permutedimsop(op, fa, perm_codomain, perm_domain)
     return matricize(fa_perm)
 end
@@ -773,14 +773,14 @@ function TensorAlgebra.contractpermopadd!(
         (biperm1_domain_alt, biperm2_codomain_alt)
     end
     if i ≤ 2
-        graded_mul_add!(
+        _contractpermopadd_graded!(
             a_dest, invperm_codomain, invperm_domain,
             op1, a1, biperm1_codomain, biperm1_contracted,
             op2, a2, biperm2_contracted, biperm2_domain,
             α, β
         )
     else
-        graded_mul_add!(
+        _contractpermopadd_graded!(
             a_dest, invperm_domain, invperm_codomain,
             op2, a2, biperm2_domain, biperm2_contracted,
             op1, a1, biperm1_contracted, biperm1_codomain,
@@ -833,12 +833,12 @@ end
 end
 
 # One storage layout of the graded contraction, with `a1` and `a2` the left and right factor.
-function graded_mul_add!(
+function _contractpermopadd_graded!(
         a_dest, perm_dest_codomain, perm_dest_domain,
-        op1, a1, perm1_codomain, perm1_domain,
-        op2, a2, perm2_codomain, perm2_domain,
+        op1::Op1, a1, perm1_codomain, perm1_domain,
+        op2::Op2, a2, perm2_codomain, perm2_domain,
         α, β
-    )
+    ) where {Op1, Op2}
     # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
     # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
     twist1 = twist2 = false
@@ -864,14 +864,14 @@ function graded_mul_add!(
     else
         @noinline TensorAlgebra.matricizeop(op2, a2, perm2_codomain, perm2_domain)
     end
-    return mul_unmatricizeadd!(
+    return _unmatricizemuladd!(
         a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
     )
 end
 
 # A function barrier: it depends only on the matrix types and the destination, so the two operand
 # orders and every pair of operands with the same matricized types share one compiled instance.
-@noinline function mul_unmatricizeadd!(
+@noinline function _unmatricizemuladd!(
         a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
     )
     if TensorAlgebra.is_output_view(
@@ -960,9 +960,9 @@ function TensorAlgebra.allocate_output(
 end
 
 function TensorAlgebra.allocate_output(
-        ::typeof(TensorAlgebra.permutedimsop), op, src::GradedArray,
+        ::typeof(TensorAlgebra.permutedimsop), op::Op, src::GradedArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
-    )
+    ) where {Op}
     T = Base.promote_op(op, eltype(src))
     axes_codomain = map(i -> op(axes(src, i)), perm_codomain)
     axes_domain = map(i -> conj(op(axes(src, i))), perm_domain)
@@ -985,8 +985,8 @@ function TensorAlgebra.matricizeopview(
     return m
 end
 function TensorAlgebra.matricizeopcopy(
-        op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
-    )
+        op::Op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+    ) where {Op}
     length(perm_codomain) == 1 || throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"
