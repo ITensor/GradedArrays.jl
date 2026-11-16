@@ -650,7 +650,7 @@ end
         @test axes(c_fast) == axes(c_ref)
         @test Array(a2) ≈ a2_dense_before
         # Graded operands stay on the generic algorithm: the twist comes from the graded
-        # `matricized_mul_add!` overload, not from an algorithm of their own.
+        # overload of its kernel, not from an algorithm of their own.
         @test TensorAlgebra.default_algorithm(
             TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
         ) === MatricizeContract()

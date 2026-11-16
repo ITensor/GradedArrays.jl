@@ -32,6 +32,7 @@ using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, bipartition,
     matricize, ndims_codomain, ndims_domain, permutedimsadd!, scale!, twist!, unmatricize,
     zero!
 using TensorKitSectors: TensorKitSectors as TKS
+using TupleTools: TupleTools
 using VectorInterface: VectorInterface as VI
 
 # Self-alias for calling our own functions qualified where a local argument shadows the bare name

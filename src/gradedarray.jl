@@ -712,28 +712,133 @@ to_gradedarray(m::AbstractFusedGradedMatrix) = GradedArray(m)
 
 # ========================  graded contraction  ========================
 # Fermionic contractions need the contracted legs twisted before matricization, so the result does
-# not depend on contraction order. TensorAlgebra's `MatricizeContract` kernel picks the storage
-# layout, as TensorKit's `contract!` does, and this overload of the per-layout body sends one
-# factor through `twisted_matricizeop`, which inserts the twist between the permute and the
-# matricize, and matricizes the other as usual. As in TensorKit's `blas_contract!`, the twist is
+# not depend on contraction order. This kernel lays out the product the way TensorKit's `contract!`
+# does: the contracted legs in either operand's storage order, times `a1 * a2` or `a2 * a1` (the
+# transposed product, written into the destination's swapped split), scored by the number of
+# elements each layout copies to matricize the operands and the destination. The score ignores the
+# copy a twist can force. One factor then goes through `twisted_matricizeop`, which inserts the
+# twist between the permute and the matricize. As in TensorKit's `blas_contract!`, the twist is
 # decided on the contracted legs of whichever operand is the right factor, which is what makes the
 # swapped product order correct with no special handling. The twist is a no-op for bosonic
 # sectors.
 #
 # A matrix-level fused operand is lifted to its `GradedArray` wrap first (see `to_gradedarray`).
+# Naming the types in all three slots rather than only in the one the twist is keyed on keeps this
+# method a subtype of TensorAlgebra's own kernel in every slot, so it cannot tie with a method
+# that narrows a different slot.
 
 # `op1::Op1` and `op2::Op2` force specialization here and in `allocate_output` below: the
 # operations are mostly passed on, so Julia would otherwise compile these for `op::Function` and
 # dispatch the calls that take them at run time.
-function TensorAlgebra.matricized_mul_add!(
-        a_dest::GradedArray, perm_dest_codomain, perm_dest_domain,
-        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, perm1_codomain,
-        perm1_domain,
-        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, perm2_codomain,
-        perm2_domain,
+function TensorAlgebra.contractpermopadd!(
+        ::TensorAlgebra.MatricizeContract,
+        a_dest::GradedArray, biperm_dest_codomain, biperm_dest_domain,
+        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, biperm1_codomain,
+        biperm1_domain,
+        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, biperm2_codomain,
+        biperm2_domain,
         α::Number, β::Number
     ) where {Op1, Op2}
     a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
+    biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
+    invperm_codomain, invperm_domain =
+        TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
+    check_input(
+        TensorAlgebra.contractpermopadd!,
+        a_dest, invperm_codomain, invperm_domain,
+        op1, a1, biperm1_codomain, biperm1_domain,
+        op2, a2, biperm2_codomain, biperm2_domain
+    )
+    # The contracted legs reordered to `a2`'s storage order.
+    p = TupleTools.sortperm(biperm2_codomain)
+    biperm1_domain_alt = map(i -> biperm1_domain[i], p)
+    biperm2_codomain_alt = map(i -> biperm2_codomain[i], p)
+    l1 = matricize_copy_lengths(
+        op1, a1, biperm1_codomain, biperm1_domain, biperm1_domain_alt
+    )
+    l2 = matricize_copy_lengths(
+        op2, a2, biperm2_domain, biperm2_codomain, biperm2_codomain_alt
+    )
+    l_dest, l_dest_swapped = dest_copy_lengths(a_dest, invperm_codomain, invperm_domain)
+    costs = (
+        l_dest + l1[1] + l2[3],
+        l_dest + l1[2] + l2[4],
+        l_dest_swapped + l2[1] + l1[3],
+        l_dest_swapped + l2[2] + l1[4],
+    )
+    i = argmin(costs)
+    biperm1_contracted, biperm2_contracted = if isodd(i)
+        (biperm1_domain, biperm2_codomain)
+    else
+        (biperm1_domain_alt, biperm2_codomain_alt)
+    end
+    if i ≤ 2
+        graded_mul_add!(
+            a_dest, invperm_codomain, invperm_domain,
+            op1, a1, biperm1_codomain, biperm1_contracted,
+            op2, a2, biperm2_contracted, biperm2_domain,
+            α, β
+        )
+    else
+        graded_mul_add!(
+            a_dest, invperm_domain, invperm_codomain,
+            op2, a2, biperm2_domain, biperm2_contracted,
+            op1, a1, biperm1_contracted, biperm1_codomain,
+            α, β
+        )
+    end
+    return a_dest
+end
+
+# The scoring helpers below each see one array, and are not inlined, so they compile once per
+# array type rather than once per pair of operands.
+
+# The number of elements copied to matricize `op(a)` as the left factor `(open | contracted)` and
+# as the right factor `(contracted | open)`, for both orders of the contracted legs: none when the
+# matricization is a view.
+@noinline function matricize_copy_lengths(
+        op, a, perm_open, perm_contracted, perm_contracted_alt
+    )
+    n = length(a)
+    copy_length(perm_codomain, perm_domain) =
+    if TensorAlgebra.is_output_view(
+            TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
+        )
+        0
+    else
+        n
+    end
+    return (
+        copy_length(perm_open, perm_contracted),
+        copy_length(perm_open, perm_contracted_alt),
+        copy_length(perm_contracted, perm_open),
+        copy_length(perm_contracted_alt, perm_open),
+    )
+end
+
+# The number of elements copied to write the destination through its direct and its swapped
+# split. The destination is written in place only through its direct split, and the
+# transposed-product layout covers the swapped one.
+@noinline function dest_copy_lengths(a_dest, perm_codomain, perm_domain)
+    n = length(a_dest)
+    function copy_length(perm_codomain, perm_domain)
+        TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
+            TensorAlgebra.is_output_view(
+            TensorAlgebra.matricizeop, identity, a_dest, perm_codomain, perm_domain
+        ) &&
+            return 0
+        return n
+    end
+    return copy_length(perm_codomain, perm_domain), copy_length(perm_domain, perm_codomain)
+end
+
+# One storage layout of the graded contraction, with `a1` and `a2` the left and right factor.
+function graded_mul_add!(
+        a_dest, perm_dest_codomain, perm_dest_domain,
+        op1, a1, perm1_codomain, perm1_domain,
+        op2, a2, perm2_codomain, perm2_domain,
+        α, β
+    )
     # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
     # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
     twist1 = twist2 = false
