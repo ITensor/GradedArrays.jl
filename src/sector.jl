@@ -83,6 +83,17 @@ function Base.:(==)(a::AbstractOrientedSector, b::AbstractOrientedSector)
     return sector(a) == sector(b) && isdual(a) == isdual(b)
 end
 Base.isequal(a::AbstractOrientedSector, b::AbstractOrientedSector) = a == b
+# A sector is a label, so it never equals a range that is not a sector, even one with the same
+# elements. This keeps `==` consistent with `hash`. Each range supertype Base compares ranges at
+# needs its own method to avoid ambiguities.
+for R in (:AbstractRange, :OrdinalRange, :AbstractUnitRange)
+    @eval begin
+        Base.:(==)(::AbstractOrientedSector, ::$R) = false
+        Base.:(==)(::$R, ::AbstractOrientedSector) = false
+    end
+end
+Base.isequal(::AbstractOrientedSector, ::AbstractRange) = false
+Base.isequal(::AbstractRange, ::AbstractOrientedSector) = false
 # There is no meaningful order between a sector and a dual one.
 function Base.isless(a::AbstractOrientedSector, b::AbstractOrientedSector)
     isdual(a) == isdual(b) || throw(

@@ -6,6 +6,12 @@ sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
 Base.copy(A::AbstractSectorDelta) = A
 Base.size(A::AbstractSectorDelta) = map(length, axes(A))
 
+# Base's generic constructor checks that the destination's `OneTo` axes `==` the source's axes,
+# which are sectors and so never equal a plain range.
+function Base.Array{T, N}(A::AbstractSectorDelta{<:Any, <:Any, N}) where {T, N}
+    return copyto!(Array{T, N}(undef, size(A)), A)
+end
+
 # Base's array display scalar-indexes, which a delta only supports under unique fusion.
 Base.print_array(io::IO, A::AbstractSectorDelta) = Base.print_array(io, Array(A))
 Base.show(io::IO, A::AbstractSectorDelta) = show(io, Array(A))
