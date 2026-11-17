@@ -54,8 +54,6 @@ function sectorsortperm(g::AbstractGradedOneTo)
     return Block.(sortperm(sectors(g)))
 end
 
-invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
-
 # Map each block of `fine_ax` to its `Block[subrange]` in `merged_ax`, given the block permutation
 # `blockperm` that sorts `fine_ax` before merging.
 function invblockmergeperm(

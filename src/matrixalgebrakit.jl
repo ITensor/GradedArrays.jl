@@ -35,14 +35,6 @@ for f in [
     end
 end
 
-# Bare-matrix factorizations
-# ---------------------------
-const BARE_MATRIX_FACTORIZATIONS = (
-    :svd_compact, :svd_full, :svd_vals, :qr_compact, :qr_full, :lq_compact,
-    :lq_full, :eig_full, :eig_vals, :eigh_full, :eigh_vals, :left_polar,
-    :right_polar, :project_hermitian,
-)
-
 # Projections on a fused block (`FusedSectorMatrix`)
 # ---------------------------------------------
 # The block is `I ⊗ data(A)` and `project(I ⊗ M) = I ⊗ project(M)`, so the (anti)hermitian
