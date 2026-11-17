@@ -187,19 +187,19 @@ function tensor_product(r::SectorOneTo, s::TKS.Sector)
     return tensor_product(to_gradedrange(r), to_gradedrange(s))
 end
 
-# ========================  bipermutedimsopadd!  ========================
-# Primary overloads. The flat-perm permutedimsopadd! overloads forward here.
+# ========================  bipermutedimsconjadd!  ========================
+# Primary overloads. The flat-perm permutedimsconjadd! overloads forward here.
 
-function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractSectorArray, op::Op, x::AbstractSectorArray,
+function TensorAlgebra.bipermutedimsconjadd!(
+        y::AbstractSectorArray, isconj::Bool, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
-    ) where {Op}
-    check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
+    )
+    check_input(bipermutedimsconjadd!, y, isconj, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
     sx = structure(x)
     # Fermion signs go on the reduced data (the delta is `one(T)`). `fermion_permutation_phase`
-    # (op-aware) gives the braiding sign, plus the ket->bra leg reversal for `op === conj`. The two
+    # gives the braiding sign, plus the ket->bra leg reversal under `isconj`. The two
     # `fermion_bend_phase` factors reconcile the splits (unbend the source's domain legs, rebend the
     # destination's) and are `1` for all-codomain blocks.
     ndims_domain_src = ndims_domain(sx)
@@ -208,11 +208,11 @@ function TensorAlgebra.bipermutedimsopadd!(
     dest_domain_legs =
         ntuple(i -> perm[ndims(x) - ndims_domain_dest + i], ndims_domain_dest)
     phase =
-        fermion_permutation_phase(op, sx, invperm(perm)) *
+        fermion_permutation_phase(isconj, sx, invperm(perm)) *
         fermion_bend_phase(sx, src_domain_legs) *
         fermion_bend_phase(sx, dest_domain_legs)
-    bipermutedimsopadd!(
-        data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
+    bipermutedimsconjadd!(
+        data(y), isconj, data(x), perm_codomain, perm_domain, phase * α, β
     )
     return y
 end
@@ -227,32 +227,32 @@ StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a
 # data is the full dense array, so forward to the dense primitive on `data(x)` rather than letting the
 # generic fall back to scalar reads of the sector source. The `y::AbstractSectorArray` method above is
 # strictly more specific, so a sector→sector call still takes the block-wise path. This is what lets
-# `add!(dest::AbstractArray, ::AbstractSectorArray, α, β)` (via the generic `permutedimsopadd!`)
+# `add!(dest::AbstractArray, ::AbstractSectorArray, α, β)` (via the generic `permutedimsconjadd!`)
 # work without a bespoke `add!` overload.
-function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractArray, op::Op, x::AbstractSectorArray,
+function TensorAlgebra.bipermutedimsconjadd!(
+        y::AbstractArray, isconj::Bool, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
-    ) where {Op}
+    )
     require_unique_fusion(x)
-    bipermutedimsopadd!(y, op, data(x), perm_codomain, perm_domain, α, β)
+    bipermutedimsconjadd!(y, isconj, data(x), perm_codomain, perm_domain, α, β)
     return y
 end
 
-function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractFusedGradedArray{<:Any, <:Any, N}, op::Op,
+function TensorAlgebra.bipermutedimsconjadd!(
+        y::AbstractFusedGradedArray{<:Any, <:Any, N}, isconj::Bool,
         x::AbstractFusedGradedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
         α::Number, β::Number
-    ) where {Op, N}
-    check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
+    ) where {N}
+    check_input(bipermutedimsconjadd!, y, isconj, x, perm_codomain, perm_domain)
     if Base.mightalias(y, x)
         # A self-aliased permute-add with the identity permutation and no conjugation is really a
         # scale, `y = α*y + β*y = (α+β)*y`, so route it to the block-wise `scale!` (which handles
         # aliasing). This keeps `a .*= 2` working. Any other aliased permute-add can't run in
         # place: the `zero!`/`scale!` step below overwrites `y` before the block loop reads `x`, so
         # refuse it rather than silently corrupt the result, matching `TensorOperations`.
-        if y === x && op === identity &&
+        if y === x && !isconj &&
                 (perm_codomain..., perm_domain...) == ntuple(identity, Val(N))
             return scale!(y, α + β)
         end
@@ -268,7 +268,7 @@ function TensorAlgebra.bipermutedimsopadd!(
         b_dest = Block(ntuple(i -> b[(perm_codomain..., perm_domain...)[i]], N))
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
-        bipermutedimsopadd!(y_b, op, x_b, perm_codomain, perm_domain, α, one(β))
+        bipermutedimsconjadd!(y_b, isconj, x_b, perm_codomain, perm_domain, α, one(β))
     end
     return y
 end
@@ -296,30 +296,30 @@ function twist_domain!(a::AbstractArray, ndims_codomain::Int)
     )
 end
 
-function needs_contraction_twist(op, a, perm_codomain)
+function needs_contraction_twist(isconj::Bool, a, perm_codomain)
     return TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic &&
-        any(i -> isdual(op(axes(a, i))), perm_codomain)
+        any(i -> isdual(axes(a, i)) ⊻ isconj, perm_codomain)
 end
 
-# `matricizeop` with the contraction twist folded in, on the contracted legs of the right factor
+# `matricizeconj` with the contraction twist folded in, on the contracted legs of the right factor
 # (`side = :codomain`) or the left one (`side = :domain`). The twist is applied to a copy so `a` is
 # untouched: when the memory-sharing matricization is the stored layout there is nothing to
 # permute, so the copy is a plain `copy` twisted in place rather than a block-wise permute that
 # would be the identity. A lazy adjoint view at the swapped split is not the stored layout, so
 # that case permutes.
-function twisted_matricizeop(
-        op::Op, a::AbstractArray, perm_codomain, perm_domain, side::Symbol
-    ) where {Op}
+function twisted_matricizeconj(
+        isconj::Bool, a::AbstractArray, perm_codomain, perm_domain, side::Symbol
+    )
     side in (:codomain, :domain) ||
         throw(ArgumentError("`side` must be `:codomain` or `:domain`, got `$(repr(side))`"))
     a_twisted =
     if TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
             TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
+            TensorAlgebra.matricizeconj, isconj, a, perm_codomain, perm_domain
         )
         copy(a)
     else
-        TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
+        TensorAlgebra.permutedimsconj(isconj, a, perm_codomain, perm_domain)
     end
     n = length(perm_codomain)
     side === :codomain ? twist_codomain!(a_twisted, n) : twist_domain!(a_twisted, n)

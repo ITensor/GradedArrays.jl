@@ -265,9 +265,10 @@ end
 # A permute of a vector stays a vector; the generic fallback routes through `similar_map` to a
 # `GradedArray`.
 function TensorAlgebra.allocate_output(
-        ::typeof(TA.permutedimsop), op::Op, src::FusedGradedVector, perm_codomain, perm_domain
-    ) where {Op}
-    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+        ::typeof(TA.permutedimsconj), isconj::Bool, src::FusedGradedVector, perm_codomain,
+        perm_domain
+    )
+    check_input(TA.permutedimsconj, isconj, src, perm_codomain, perm_domain)
     return similar(src)
 end
 

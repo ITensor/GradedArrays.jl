@@ -576,14 +576,14 @@ end
 splitperms(a, k) = (ntuple(identity, k), ntuple(i -> k + i, ndims(a) - k))
 function is_split_view(a, k)
     return TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, identity, a, splitperms(a, k)...
+        TensorAlgebra.matricizeconj, false, a, splitperms(a, k)...
     )
 end
 function split_view(a, k)
-    return TensorAlgebra.matricizeopview(identity, a, splitperms(a, k)...)
+    return TensorAlgebra.matricizeconjview(false, a, splitperms(a, k)...)
 end
 function split_copy(a, k)
-    return TensorAlgebra.matricizeopcopy(identity, a, splitperms(a, k)...)
+    return TensorAlgebra.matricizeconjcopy(false, a, splitperms(a, k)...)
 end
 
 @testset "matricize hook coherence" begin

@@ -69,7 +69,7 @@ function UniqueSectorDelta{T, S, N}(sectors::NTuple{N, S}) where {T, S <: Sector
     return UniqueSectorDelta{T, S, N}(sectors, ntuple(Returns(false), Val(N)), (), ())
 end
 
-# Codomain/domain leg counts, used by the bend-phase bookkeeping in `bipermutedimsopadd!`.
+# Codomain/domain leg counts, used by the bend-phase bookkeeping in `bipermutedimsconjadd!`.
 TensorAlgebra.ndims_codomain(d::UniqueSectorDelta) = length(d.sectors_codomain)
 TensorAlgebra.ndims_domain(d::UniqueSectorDelta) = length(d.sectors_domain)
 TensorAlgebra.has_bipartition(::UniqueSectorDelta) = true

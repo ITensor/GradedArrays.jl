@@ -11,7 +11,7 @@ TensorAlgebra.ndims_codomain(::AbstractFusedGradedArray) = 1
 TensorAlgebra.has_bipartition(::AbstractFusedGradedArray) = true
 
 # The matrix form is already its own stored matricization, the same thing
-# `matricizeopview` returns for it.
+# `matricizeconjview` returns for it.
 TensorAlgebra.matricize(m::AbstractFusedGradedMatrix) = m
 
 using BlockArrays: mortar
@@ -512,7 +512,7 @@ end
 # ============================  similar_map  ============================
 # Undefined on purpose: allocating a `GradedArray` off a fused prototype would implicitly cross the
 # `FusedGradedMatrix` (internal) / `GradedArray` (external) boundary. A fused matrix permutes
-# through `permutedims` / `permutedimsop`, staying fused via the `allocate_output` below.
+# through `permutedims` / `permutedimsconj`, staying fused via the `allocate_output` below.
 function TensorAlgebra.similar_map(
         ::AbstractFusedGradedArray, ::Type, ::Tuple, ::Tuple
     )
@@ -551,18 +551,18 @@ function TensorAlgebra.check_input(
 end
 
 # A fused graded matrix permute-add keeps the first (codomain) axis non-dual only for an identity copy or
-# an adjoint; any other `(op, perm)` would bend or dualize it, which fused storage cannot represent.
+# an adjoint; any other `(isconj, perm)` would bend or dualize it, which fused storage cannot represent.
 function TensorAlgebra.check_input(
-        ::typeof(TA.permutedimsop), op,
+        ::typeof(TA.permutedimsconj), isconj::Bool,
         ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
-    is_copy = op === identity && perm_codomain == (1,) && perm_domain == (2,)
-    is_adjoint = op === conj && perm_codomain == (2,) && perm_domain == (1,)
+    is_copy = !isconj && perm_codomain == (1,) && perm_domain == (2,)
+    is_adjoint = isconj && perm_codomain == (2,) && perm_domain == (1,)
     (is_copy || is_adjoint) || throw(
         ArgumentError(
-            "a fused graded matrix permute-add allows only an identity copy (`op = identity`, " *
-                "`perm_codomain = (1,)`, `perm_domain = (2,)`) or an adjoint (`op = conj`, " *
-                "`perm_codomain = (2,)`, `perm_domain = (1,)`); got `op = $op`, " *
+            "a fused graded matrix permute-add allows only an identity copy (`isconj = false`, " *
+                "`perm_codomain = (1,)`, `perm_domain = (2,)`) or an adjoint (`isconj = true`, " *
+                "`perm_codomain = (2,)`, `perm_domain = (1,)`); got `isconj = $isconj`, " *
                 "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
         )
     )
@@ -573,10 +573,10 @@ end
 # identity copy or the adjoint. The copy keeps `src`'s axes; the adjoint exchanges them, which
 # differs from `src`'s own pair whenever the operand is not square.
 function TensorAlgebra.allocate_output(
-        ::typeof(TA.permutedimsop), op::Op, src::AbstractFusedGradedMatrix, perm_codomain,
-        perm_domain
-    ) where {Op}
-    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+        ::typeof(TA.permutedimsconj), isconj::Bool, src::AbstractFusedGradedMatrix,
+        perm_codomain, perm_domain
+    )
+    check_input(TA.permutedimsconj, isconj, src, perm_codomain, perm_domain)
     perm_codomain == (1,) && return similar(src)
     return similar(src')
 end
@@ -584,26 +584,26 @@ end
 # A fused graded vector has a single canonical non-dual axis, so only the identity copy is valid: `conj`
 # would dualize it, and there is no rank-preserving transpose.
 function TensorAlgebra.check_input(
-        ::typeof(TA.permutedimsop), op,
+        ::typeof(TA.permutedimsconj), isconj::Bool,
         ::AbstractFusedGradedVector, perm_codomain, perm_domain
     )
-    (op === identity && perm_codomain == (1,) && perm_domain == ()) || throw(
+    (!isconj && perm_codomain == (1,) && perm_domain == ()) || throw(
         ArgumentError(
-            "a fused graded vector permute-add allows only the identity copy (`op = identity`, " *
-                "`perm_codomain = (1,)`, `perm_domain = ()`); got `op = $op`, " *
+            "a fused graded vector permute-add allows only the identity copy (`isconj = false`, " *
+                "`perm_codomain = (1,)`, `perm_domain = ()`); got `isconj = $isconj`, " *
                 "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
         )
     )
     return nothing
 end
 
-# Route through `permutedimsop` so the permute allocates via `allocate_output` and validates via
+# Route through `permutedimsconj` so the permute allocates via `allocate_output` and validates via
 # `check_input`, instead of the generic path through `similar_map`.
 function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm)
-    return TA.permutedimsop(identity, a, perm, ())
+    return TA.permutedimsconj(false, a, perm, ())
 end
 function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm_codomain, perm_domain)
-    return TA.permutedimsop(identity, a, perm_codomain, perm_domain)
+    return TA.permutedimsconj(false, a, perm_codomain, perm_domain)
 end
 
 Base.permutedims(a::AbstractFusedGradedArray, perm) = TensorAlgebra.permutedims(a, perm)

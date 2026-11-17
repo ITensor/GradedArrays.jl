@@ -73,7 +73,7 @@ TensorAlgebra.ndims_domain(fa::GradedArray) = length(axes_domain(fa))
 TensorAlgebra.has_bipartition(::GradedArray) = true
 
 # One-argument `matricize` uses the array's own codomain/domain split, so it is the stored
-# matrix directly (see `matricizeopcopy` for re-splitting to another).
+# matrix directly (see `matricizeconjcopy` for re-splitting to another).
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
 Base.dataids(fa::GradedArray) = Base.dataids(matricize(fa))
@@ -256,7 +256,7 @@ function LinearAlgebra.normalize(a::GradedArray, p::Real = 2)
 end
 
 # ============================  permutedims  ============================
-# Route through `permutedimsopadd!` (which forwards to the `GradedArray` `bipermutedimsopadd!`), so
+# Route through `permutedimsconjadd!` (which forwards to the `GradedArray` `bipermutedimsconjadd!`), so
 # the fermion braiding/bend signs are applied by TensorKit. Without this, Base's generic
 # `permutedims` allocates via `similar` and scalar-permutes the data, dropping the sign.
 function Base.permutedims(a::GradedArray{<:Any, <:Any, N}, perm) where {N}
@@ -266,7 +266,7 @@ end
 function Base.permutedims!(
         y::GradedArray{<:Any, <:Any, N}, x::GradedArray{<:Any, <:Any, N}, perm
     ) where {N}
-    TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
+    TensorAlgebra.permutedimsconjadd!(y, false, x, perm, true, false)
     return y
 end
 
@@ -494,7 +494,7 @@ Base.:-(a::GradedArray, b::GradedArray) = a .- b
 
 # ============================  broadcasting  ============================
 # Opt in to the graded linear-broadcast machinery so linear combinations (`a + b`, `2a - b`, …)
-# materialize through `bipermutedimsopadd!`. The shared graded `copyto!` and the
+# materialize through `bipermutedimsconjadd!`. The shared graded `copyto!` and the
 # `LinearBroadcasted` fold do the work; only allocation is `GradedArray`-specific.
 
 struct GradedStyle{N} <: AbstractGradedStyle{N} end
@@ -550,7 +550,13 @@ end
 # `svd`/`eig` produce a `DiagonalTensorMap`). Both share storage, no copy.
 to_tensormap(a::GradedArray) = to_tensormap(matricize(a), axes_codomain(a), axes_domain(a))
 function to_tensormap(m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple)
-    return TK.TensorMap(m.buffer, tensormapspace(sectortype(m), axes_codomain, axes_domain))
+    # The inner constructor takes the buffer as raw data. The outer `TensorMap` constructors also
+    # accept a dense array, and inferring that branch costs several hundred ms of compile time.
+    V = tensormapspace(sectortype(m), axes_codomain, axes_domain)
+    TT = TK.tensormaptype(
+        TK.spacetype(V), length(axes_codomain), length(axes_domain), typeof(m.buffer)
+    )
+    return TT(m.buffer, V)
 end
 function to_tensormap(d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple)
     return TK.DiagonalTensorMap(
@@ -574,17 +580,18 @@ function to_gradedarray(t::TK.TensorMap)
     return GradedArray(m, axes_codomain, axes_domain)
 end
 
-# ============================  bipermutedimsopadd! (permute primitive)  ============================
-# `y = α * op.(permute(x, …)) + β * y`, delegated to the `AbstractTensorMap` `bipermutedimsopadd!`
+# ===========================  bipermutedimsconjadd! (permute primitive)  ===========================
+# `y = α * permute(x, …) + β * y`, conjugated under `isconj`, delegated to the `AbstractTensorMap`
+# `bipermutedimsconjadd!`
 # (fusion-tree recombination plus braiding/fermion signs). Wrapping `y`/`x` as `TensorMap`s shares
 # their buffers, so TensorKit writes the result into `y` in place.
 
-function TensorAlgebra.bipermutedimsopadd!(
-        y::GradedArray, op::Op, x::GradedArray,
+function TensorAlgebra.bipermutedimsconjadd!(
+        y::GradedArray, isconj::Bool, x::GradedArray,
         perm_codomain, perm_domain, α::Number, β::Number
-    ) where {Op}
-    TensorAlgebra.bipermutedimsopadd!(
-        to_tensormap(y), op, to_tensormap(x), perm_codomain, perm_domain, α, β
+    )
+    TensorAlgebra.bipermutedimsconjadd!(
+        to_tensormap(y), isconj, to_tensormap(x), perm_codomain, perm_domain, α, β
     )
     return y
 end
@@ -628,26 +635,27 @@ end
 # is `conj`. Its transpose would reverse the arrows, so without `conj` it is not a view. Anything
 # else permutes or bends a leg, which for a `GradedArray` is not a free reshape.
 function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.matricizeop), op, a::GradedArray, perm_codomain, perm_domain
+        ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::GradedArray,
+        perm_codomain, perm_domain
     )
-    return op === identity && length(perm_codomain) == ndims_codomain(a) &&
+    return !isconj && length(perm_codomain) == ndims_codomain(a) &&
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) ||
-        op === conj && length(perm_domain) == ndims_codomain(a) &&
+        isconj && length(perm_domain) == ndims_codomain(a) &&
         TensorAlgebra.isidentitybiperm(perm_domain, perm_codomain)
 end
-function TensorAlgebra.matricizeopview(
-        op, fa::GradedArray, perm_codomain, perm_domain
+function TensorAlgebra.matricizeconjview(
+        isconj::Bool, fa::GradedArray, perm_codomain, perm_domain
     )
-    return op === conj ? adjoint(matricize(fa)) : matricize(fa)
+    return isconj ? adjoint(matricize(fa)) : matricize(fa)
 end
-# A permute or a leg bend: re-split with the array's own `permutedimsop`, then take the fresh
+# A permute or a leg bend: re-split with the array's own `permutedimsconj`, then take the fresh
 # result's stored matrix. This is what lets a contraction over a subset of legs matricize a factor
-# whose stored split differs. Overloads the copy rather than `allocate_output`/`matricizeop!`
-# because `permutedimsop` already returns owned storage whose stored matrix is the answer.
-function TensorAlgebra.matricizeopcopy(
-        op::Op, fa::GradedArray, perm_codomain, perm_domain
-    ) where {Op}
-    fa_perm = TensorAlgebra.permutedimsop(op, fa, perm_codomain, perm_domain)
+# whose stored split differs. Overloads the copy rather than `allocate_output`/`matricizeconj!`
+# because `permutedimsconj` already returns owned storage whose stored matrix is the answer.
+function TensorAlgebra.matricizeconjcopy(
+        isconj::Bool, fa::GradedArray, perm_codomain, perm_domain
+    )
+    fa_perm = TensorAlgebra.permutedimsconj(isconj, fa, perm_codomain, perm_domain)
     return matricize(fa_perm)
 end
 
@@ -716,7 +724,7 @@ to_gradedarray(m::AbstractFusedGradedMatrix) = GradedArray(m)
 # does: the contracted legs in either operand's storage order, times `a1 * a2` or `a2 * a1` (the
 # transposed product, written into the destination's swapped split), scored by the number of
 # elements each layout copies to matricize the operands and the destination. The score ignores the
-# copy a twist can force. One factor then goes through `twisted_matricizeop`, which inserts the
+# copy a twist can force. One factor then goes through `twisted_matricizeconj`, which inserts the
 # twist between the permute and the matricize. As in TensorKit's `blas_contract!`, the twist is
 # decided on the contracted legs of whichever operand is the right factor, which is what makes the
 # swapped product order correct with no special handling. The twist is a no-op for bosonic
@@ -726,38 +734,34 @@ to_gradedarray(m::AbstractFusedGradedMatrix) = GradedArray(m)
 # Naming the types in all three slots rather than only in the one the twist is keyed on keeps this
 # method a subtype of TensorAlgebra's own kernel in every slot, so it cannot tie with a method
 # that narrows a different slot.
-
-# `op1::Op1` and `op2::Op2` force specialization here and in `allocate_output` below: the
-# operations are mostly passed on, so Julia would otherwise compile these for `op::Function` and
-# dispatch the calls that take them at run time.
-function TensorAlgebra.contractpermopadd!(
+function TensorAlgebra.contractpermconjadd!(
         ::TensorAlgebra.MatricizeContract,
         a_dest::GradedArray, biperm_dest_codomain, biperm_dest_domain,
-        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, biperm1_codomain,
+        isconj1::Bool, a1::Union{GradedArray, AbstractFusedGradedMatrix}, biperm1_codomain,
         biperm1_domain,
-        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, biperm2_codomain,
+        isconj2::Bool, a2::Union{GradedArray, AbstractFusedGradedMatrix}, biperm2_codomain,
         biperm2_domain,
         α::Number, β::Number
-    ) where {Op1, Op2}
+    )
     a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
     biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
     invperm_codomain, invperm_domain =
         TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
     check_input(
-        TensorAlgebra.contractpermopadd!,
+        TensorAlgebra.contractpermconjadd!,
         a_dest, invperm_codomain, invperm_domain,
-        op1, a1, biperm1_codomain, biperm1_domain,
-        op2, a2, biperm2_codomain, biperm2_domain
+        isconj1, a1, biperm1_codomain, biperm1_domain,
+        isconj2, a2, biperm2_codomain, biperm2_domain
     )
     # The contracted legs reordered to `a2`'s storage order.
     p = TupleTools.sortperm(biperm2_codomain)
     biperm1_domain_alt = map(i -> biperm1_domain[i], p)
     biperm2_codomain_alt = map(i -> biperm2_codomain[i], p)
     l1 = matricize_copy_lengths(
-        op1, a1, biperm1_codomain, biperm1_domain, biperm1_domain_alt
+        isconj1, a1, biperm1_codomain, biperm1_domain, biperm1_domain_alt
     )
     l2 = matricize_copy_lengths(
-        op2, a2, biperm2_domain, biperm2_codomain, biperm2_codomain_alt
+        isconj2, a2, biperm2_domain, biperm2_codomain, biperm2_codomain_alt
     )
     l_dest, l_dest_swapped = dest_copy_lengths(a_dest, invperm_codomain, invperm_domain)
     costs = (
@@ -773,17 +777,17 @@ function TensorAlgebra.contractpermopadd!(
         (biperm1_domain_alt, biperm2_codomain_alt)
     end
     if i ≤ 2
-        _contractpermopadd_graded!(
+        _contractpermconjadd_graded!(
             a_dest, invperm_codomain, invperm_domain,
-            op1, a1, biperm1_codomain, biperm1_contracted,
-            op2, a2, biperm2_contracted, biperm2_domain,
+            isconj1, a1, biperm1_codomain, biperm1_contracted,
+            isconj2, a2, biperm2_contracted, biperm2_domain,
             α, β
         )
     else
-        _contractpermopadd_graded!(
+        _contractpermconjadd_graded!(
             a_dest, invperm_domain, invperm_codomain,
-            op2, a2, biperm2_domain, biperm2_contracted,
-            op1, a1, biperm1_contracted, biperm1_codomain,
+            isconj2, a2, biperm2_domain, biperm2_contracted,
+            isconj1, a1, biperm1_contracted, biperm1_codomain,
             α, β
         )
     end
@@ -793,16 +797,16 @@ end
 # The scoring helpers below each see one array, and are not inlined, so they compile once per
 # array type rather than once per pair of operands.
 
-# The number of elements copied to matricize `op(a)` as the left factor `(open | contracted)` and
+# The number of elements copied to matricize `a` (conjugated under `isconj`) as the left factor `(open | contracted)` and
 # as the right factor `(contracted | open)`, for both orders of the contracted legs: none when the
 # matricization is a view.
 @noinline function matricize_copy_lengths(
-        op, a, perm_open, perm_contracted, perm_contracted_alt
+        isconj::Bool, a, perm_open, perm_contracted, perm_contracted_alt
     )
     n = length(a)
     copy_length(perm_codomain, perm_domain) =
     if TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
+            TensorAlgebra.matricizeconj, isconj, a, perm_codomain, perm_domain
         )
         0
     else
@@ -824,7 +828,7 @@ end
     function copy_length(perm_codomain, perm_domain)
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
             TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, identity, a_dest, perm_codomain, perm_domain
+            TensorAlgebra.matricizeconj, false, a_dest, perm_codomain, perm_domain
         ) &&
             return 0
         return n
@@ -833,38 +837,41 @@ end
 end
 
 # One storage layout of the graded contraction, with `a1` and `a2` the left and right factor.
-function _contractpermopadd_graded!(
+function _contractpermconjadd_graded!(
         a_dest, perm_dest_codomain, perm_dest_domain,
-        op1::Op1, a1, perm1_codomain, perm1_domain,
-        op2::Op2, a2, perm2_codomain, perm2_domain,
+        isconj1::Bool, a1, perm1_codomain, perm1_domain,
+        isconj2::Bool, a2, perm2_codomain, perm2_domain,
         α, β
-    ) where {Op1, Op2}
+    )
     # The twist goes on the factor TensorKit's `blas_contract!` would pick: the one that has to be
     # copied anyway if only one does, otherwise the smaller, so it never forces an extra copy.
     twist1 = twist2 = false
-    if needs_contraction_twist(op2, a2, perm2_codomain)
+    if needs_contraction_twist(isconj2, a2, perm2_codomain)
         copy1 =
             !TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, op1, a1, perm1_codomain, perm1_domain
+            TensorAlgebra.matricizeconj, isconj1, a1, perm1_codomain, perm1_domain
         )
         copy2 =
             !TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, op2, a2, perm2_codomain, perm2_domain
+            TensorAlgebra.matricizeconj, isconj2, a2, perm2_codomain, perm2_domain
         )
         twist1 = copy1 ⊻ copy2 ? copy1 : length(a1) < length(a2)
         twist2 = !twist1
     end
     a1_mat = if twist1
-        twisted_matricizeop(op1, a1, perm1_codomain, perm1_domain, :domain)
+        twisted_matricizeconj(isconj1, a1, perm1_codomain, perm1_domain, :domain)
     else
-        @noinline TensorAlgebra.matricizeop(op1, a1, perm1_codomain, perm1_domain)
+        @noinline TensorAlgebra.matricizeconj(isconj1, a1, perm1_codomain, perm1_domain)
     end
     a2_mat = if twist2
-        twisted_matricizeop(op2, a2, perm2_codomain, perm2_domain, :codomain)
+        twisted_matricizeconj(isconj2, a2, perm2_codomain, perm2_domain, :codomain)
     else
-        @noinline TensorAlgebra.matricizeop(op2, a2, perm2_codomain, perm2_domain)
+        @noinline TensorAlgebra.matricizeconj(isconj2, a2, perm2_codomain, perm2_domain)
     end
-    return _unmatricizemuladd!(
+    # Each matricization is the stored matrix or its adjoint depending on the run-time
+    # conjugation flags. Hiding the function from inference makes this a run-time dispatch, so
+    # only the matrix types that occur get compiled, not every stored/adjoint pair.
+    return Base.inferencebarrier(_unmatricizemuladd!)(
         a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
     )
 end
@@ -875,10 +882,10 @@ end
         a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
     )
     if TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, identity, a_dest, perm_dest_codomain, perm_dest_domain
+            TensorAlgebra.matricizeconj, false, a_dest, perm_dest_codomain, perm_dest_domain
         )
-        a_dest_mat = TensorAlgebra.matricizeopview(
-            identity, a_dest, perm_dest_codomain, perm_dest_domain
+        a_dest_mat = TensorAlgebra.matricizeconjview(
+            false, a_dest, perm_dest_codomain, perm_dest_domain
         )
         LinearAlgebra.mul!(a_dest_mat, a1_mat, a2_mat, α, β)
     else
@@ -935,68 +942,61 @@ end
 # scatter paths (`copyto!` of the whole buffer, `bipermutedims!` with a strong-zero β) write
 # every block.
 function TensorAlgebra.allocate_output(
-        ::typeof(TensorAlgebra.contractpermop),
+        ::typeof(TensorAlgebra.contractpermconj),
         perm_dest_codomain, perm_dest_domain,
-        op1::Op1, a1::Union{GradedArray, AbstractFusedGradedMatrix}, perm1_codomain,
+        isconj1::Bool, a1::Union{GradedArray, AbstractFusedGradedMatrix}, perm1_codomain,
         perm1_domain,
-        op2::Op2, a2::Union{GradedArray, AbstractFusedGradedMatrix}, perm2_codomain,
+        isconj2::Bool, a2::Union{GradedArray, AbstractFusedGradedMatrix}, perm2_codomain,
         perm2_domain
-    ) where {Op1, Op2}
-    a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
-    check_input(
-        TensorAlgebra.contractpermop,
-        perm_dest_codomain, perm_dest_domain,
-        op1, a1, perm1_codomain, perm1_domain,
-        op2, a2, perm2_codomain, perm2_domain
     )
+    a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
     axes_codomain, axes_domain = TensorAlgebra.output_axes(
-        TensorAlgebra.contractpermop,
+        TensorAlgebra.contractpermconj,
         perm_dest_codomain, perm_dest_domain,
-        op1, axes(a1), perm1_codomain, perm1_domain,
-        op2, axes(a2), perm2_codomain, perm2_domain
+        isconj1, axes(a1), perm1_codomain, perm1_domain,
+        isconj2, axes(a2), perm2_codomain, perm2_domain
     )
     T = Base.promote_op(LinearAlgebra.matprod, eltype(a1), eltype(a2))
     return allocate_graded(T, a1, a2, axes_codomain, axes_domain)
 end
 
 function TensorAlgebra.allocate_output(
-        ::typeof(TensorAlgebra.permutedimsop), op::Op, src::GradedArray,
+        ::typeof(TensorAlgebra.permutedimsconj), isconj::Bool, src::GradedArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
-    ) where {Op}
-    T = Base.promote_op(op, eltype(src))
-    axes_codomain = map(i -> op(axes(src, i)), perm_codomain)
-    axes_domain = map(i -> conj(op(axes(src, i))), perm_domain)
-    return allocate_graded(T, src, src, axes_codomain, axes_domain)
+    )
+    axes_codomain = map(i -> isconj ? conj(axes(src, i)) : axes(src, i), perm_codomain)
+    axes_domain = map(i -> isconj ? axes(src, i) : conj(axes(src, i)), perm_domain)
+    return allocate_graded(eltype(src), src, src, axes_codomain, axes_domain)
 end
 
 # A matrix-level fused array is already matricized at the `{1,1}` split, so the memory-sharing
 # matricization is the array itself. Any other codomain rank bends a leg, which matrix-level fused
 # storage cannot represent.
 function TensorAlgebra.is_output_view(
-        ::typeof(TensorAlgebra.matricizeop), op, a::AbstractFusedGradedMatrix, perm_codomain,
-        perm_domain
+        ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::AbstractFusedGradedMatrix,
+        perm_codomain, perm_domain
     )
-    return op === identity && length(perm_codomain) == ndims_codomain(a) &&
+    return !isconj && length(perm_codomain) == ndims_codomain(a) &&
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain)
 end
-function TensorAlgebra.matricizeopview(
-        op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+function TensorAlgebra.matricizeconjview(
+        isconj::Bool, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
     return m
 end
-function TensorAlgebra.matricizeopcopy(
-        op::Op, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
-    ) where {Op}
+function TensorAlgebra.matricizeconjcopy(
+        isconj::Bool, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+    )
     length(perm_codomain) == 1 || throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"
         )
     )
     # Already in the stored layout, so the owned form is a buffer copy. Going through
-    # `permutedimsop` would instead permute block-wise through a `TensorMap` wrapping.
-    op === identity && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
+    # `permutedimsconj` would instead permute block-wise through a `TensorMap` wrapping.
+    !isconj && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
         return copy(m)
-    return TensorAlgebra.permutedimsop(op, m, perm_codomain, perm_domain)
+    return TensorAlgebra.permutedimsconj(isconj, m, perm_codomain, perm_domain)
 end
 
 function TensorAlgebra.unmatricizeadd!(
@@ -1006,7 +1006,7 @@ function TensorAlgebra.unmatricizeadd!(
     ) where {N}
     # Identity bipermutation with matching split and coupled axes: the buffers share one layout
     # (it is determined by the coupled axes), so accumulate the buffer straight across instead of
-    # the block-wise `bipermutedimsopadd!` (which routes through `TensorMap` wrapping even for a
+    # the block-wise `bipermutedimsconjadd!` (which routes through `TensorMap` wrapping even for a
     # plain copy).
     md = matricize(a_dest)
     if m isa FusedGradedMatrix && md isa FusedGradedMatrix &&
@@ -1020,7 +1020,7 @@ function TensorAlgebra.unmatricizeadd!(
     # the codomain group straight from `axes(a_dest)` and conjugates the domain group, so a leg
     # moving from `a_dest`'s codomain into the matricized domain reads as dual. The permute back
     # follows `a_dest`'s own codomain/domain split, not the matricized one: the graded
-    # `bipermutedimsopadd!` requires the destination's split.
+    # `bipermutedimsconjadd!` requires the destination's split.
     axes_codomain_m, axes_domain_m = TensorAlgebra.bipartition_axes(
         axes(a_dest), invperm_codomain, invperm_domain
     )
@@ -1029,9 +1029,9 @@ function TensorAlgebra.unmatricizeadd!(
     ndims_cod_dest = ndims_codomain(a_dest)
     perm_codomain = ntuple(i -> perm_dest[i], Val(ndims_cod_dest))
     perm_domain = ntuple(i -> perm_dest[ndims_cod_dest + i], Val(N - ndims_cod_dest))
-    TensorAlgebra.bipermutedimsopadd!(
+    TensorAlgebra.bipermutedimsconjadd!(
         a_dest,
-        identity,
+        false,
         tmp,
         perm_codomain,
         perm_domain,

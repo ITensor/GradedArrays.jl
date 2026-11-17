@@ -656,13 +656,13 @@ end
         ) === MatricizeContract()
         # With a non-dual contracted (codomain) leg no twist is needed, so the kernel uses the
         # stored matrix itself; with a dual one the twist goes on a copy.
-        @test GradedArrays.needs_contraction_twist(identity, a2, (1,)) == isdual(rc)
+        @test GradedArrays.needs_contraction_twist(false, a2, (1,)) == isdual(rc)
         if isdual(rc)
-            m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,), :codomain)
+            m = GradedArrays.twisted_matricizeconj(false, a2, (1,), (2,), :codomain)
             @test m !== matricize(a2)
         end
-        @test_throws ArgumentError GradedArrays.twisted_matricizeop(
-            identity, a2, (1,), (2,), :codmain
+        @test_throws ArgumentError GradedArrays.twisted_matricizeconj(
+            false, a2, (1,), (2,), :codmain
         )
     end
 end

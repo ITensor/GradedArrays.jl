@@ -142,7 +142,7 @@ abstract type AbstractFusedGradedStyle{N} <: AbstractGradedStyle{N} end
 
 # `FusedGradedMatrix` and `FusedGradedVector` store their blocks keyed by coupled sector. Allocating
 # the result rebuilds the fused block structure from the linear expression's axes. Only linear
-# broadcasts are supported; the block arithmetic is the `bipermutedimsopadd!` overload in
+# broadcasts are supported; the block arithmetic is the `bipermutedimsconjadd!` overload in
 # `tensoralgebra.jl`.
 
 struct FusedGradedStyle{N} <: AbstractFusedGradedStyle{N} end

@@ -147,14 +147,14 @@ end
 
 # Permuting can mix codomain and domain legs, so the result is all-codomain. The permuted axes carry
 # both the new sector labels and the destination data shape; the fermion sign from the permutation is
-# applied to the reduced data by `permutedimsopadd!`, not to the structural factor (which is `one(T)`
+# applied to the reduced data by `permutedimsconjadd!`, not to the structural factor (which is `one(T)`
 # at its single allowed entry and cannot carry a sign).
 function Base.permutedims(x::UniqueSectorArray, perm)
     new_axes = ntuple(n -> axes(x, perm[n]), Val(ndims(x)))
     return permutedims!(similar(x, new_axes), x, perm)
 end
 function Base.permutedims!(y::UniqueSectorArray, x::UniqueSectorArray, perm)
-    TensorAlgebra.permutedimsopadd!(y, identity, x, perm, true, false)
+    TensorAlgebra.permutedimsconjadd!(y, false, x, perm, true, false)
     return y
 end
 
@@ -162,8 +162,8 @@ end
 
 # Conjugate while keeping the codomain/domain split, mirroring `conj(::GradedArray)` (the generic
 # `conj.(a)` broadcast collapses to all-codomain). A same-split destination with every leg's arrow
-# flipped is filled by a single `op = conj` permute-add over the identity biperm; the fermionic
-# leg-reversal sign rides `bipermutedimsopadd!` (folded in by `fermion_permutation_phase`), which a
+# flipped is filled by a single conjugating permute-add over the identity biperm; the fermionic
+# leg-reversal sign rides `bipermutedimsconjadd!` (folded in by `fermion_permutation_phase`), which a
 # bare data `conj` would drop.
 function Base.conj(a::UniqueSectorArray{T, S, N, NC, ND}) where {T, S, N, NC, ND}
     dest = UniqueSectorArray{T, S, N}(
@@ -171,8 +171,8 @@ function Base.conj(a::UniqueSectorArray{T, S, N, NC, ND}) where {T, S, N, NC, ND
         a.sectors_codomain, map(!, a.isduals_codomain),
         a.sectors_domain, map(!, a.isduals_domain)
     )
-    TensorAlgebra.bipermutedimsopadd!(
-        dest, conj, a, ntuple(identity, Val(NC)), ntuple(i -> NC + i, Val(ND)), true, false
+    TensorAlgebra.bipermutedimsconjadd!(
+        dest, true, a, ntuple(identity, Val(NC)), ntuple(i -> NC + i, Val(ND)), true, false
     )
     return dest
 end

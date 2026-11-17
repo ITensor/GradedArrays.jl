@@ -62,10 +62,10 @@ end
     a = randn(elt, (g, g), (g,))
     b = randn(elt, (g, g), (g,))
     @test TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, conj, a, (3,), (1, 2)
+        TensorAlgebra.matricizeconj, true, a, (3,), (1, 2)
     )
     @test !TensorAlgebra.is_output_view(
-        TensorAlgebra.matricizeop, identity, a, (3,), (1, 2)
+        TensorAlgebra.matricizeconj, false, a, (3,), (1, 2)
     )
     r, lr = TensorAlgebra.contract(conjed(a), (:i, :j, :k), b, (:i, :j, :l))
     re, lre = TensorAlgebra.contract(conj(a), (:i, :j, :k), b, (:i, :j, :l))
