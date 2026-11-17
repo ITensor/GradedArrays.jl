@@ -13,7 +13,8 @@ export FusedGradedMatrix, FusedGradedVector, GradedOneTo
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public TensorKitSector, with_scalar_indexing, with_block_indexing"
+            "public AbstractGradedOneTo, FusedGradedDiagonal, TensorKitSector, datalengths, \
+            with_scalar_indexing, with_block_indexing"
         )
     )
 end

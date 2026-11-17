@@ -1,8 +1,13 @@
-# Supertype for graded axes: a unit range split into sector blocks, each with a data length
-# (multiplicity), plus an `isdual` arrow for the whole range. A `GradedOneTo` may hold repeated or
-# unsorted sectors, while a `FusedGradedOneTo` holds each sector once, in sorted order.
-#
-# Subtypes provide `sectors`, `datalengths`, `isdual`, `dual` and `flip`.
+# A `GradedOneTo` may hold repeated or unsorted sectors, while a `FusedGradedOneTo` holds each
+# sector once, in sorted order. Subtypes provide `sectors`, `datalengths`, `isdual`, `dual` and
+# `flip`.
+"""
+    AbstractGradedOneTo{S <: Sector}
+
+Supertype of graded axes, such as [`GradedOneTo`](@ref): a unit range split into blocks, each
+labelled by a sector of type `S` with a multiplicity, plus an arrow for the whole range that
+`isdual` reports. Use [`sectors`](@ref) and [`datalengths`](@ref) to read the blocks.
+"""
 abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
 
 """
@@ -11,6 +16,30 @@ abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
 The sector of each block of a graded axis, in block order.
 """
 function sectors end
+
+"""
+    datalengths(g)
+
+The multiplicity of each block of a graded axis, in block order. A block's length is its
+multiplicity times the dimension of its sector.
+
+# Examples
+
+```jldoctest
+julia> using GradedArrays: SU2, datalengths, gradedrange
+
+julia> g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 3]);
+
+julia> datalengths(g)
+2-element Vector{Int64}:
+ 2
+ 3
+
+julia> length(g)
+8
+```
+"""
+function datalengths end
 
 # ========================  derived accessors  ========================
 

@@ -23,7 +23,9 @@ length(g), sectors(g)
 ```@docs; canonical=false
 gradedrange
 GradedOneTo
+AbstractGradedOneTo
 sectors
+datalengths
 ```
 
 ## Duality
@@ -96,6 +98,7 @@ When printing, by convention domain axes are implicitly dual.
 GradedArray
 FusedGradedMatrix
 FusedGradedVector
+FusedGradedDiagonal
 ```
 
 ## TensorKit compatibility

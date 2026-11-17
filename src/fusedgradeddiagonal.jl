@@ -5,9 +5,15 @@
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
-# Block-diagonal fused matrix whose blocks are `Diagonal`, such as the singular values of an SVD.
-# `I` is the TensorKitSectors sector type corresponding to
-# the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
+# `I` is the TensorKitSectors sector type corresponding to the `Sector`, used to aid conversion to
+# and from TensorKit. Subject to change.
+"""
+    FusedGradedDiagonal(v::FusedGradedVector)
+
+A block-diagonal matrix whose blocks are themselves diagonal, with the entries of `v` on its
+diagonal. Its codomain and domain are both the axis of `v`. For example, `svd_compact` of a
+graded array returns its singular values as a `FusedGradedDiagonal`.
+"""
 struct FusedGradedDiagonal{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedMatrix{T, S}
     diag::FusedGradedVector{T, S, V, I}

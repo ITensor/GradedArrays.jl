@@ -27,7 +27,17 @@ using Test: @test, @testset
     ]
     if VERSION >= v"1.11"
         # Marked `public` (not exported); `public` names appear in `names(...)` on Julia 1.11+.
-        append!(exports, [:TensorKitSector, :with_scalar_indexing, :with_block_indexing])
+        append!(
+            exports,
+            [
+                :AbstractGradedOneTo,
+                :FusedGradedDiagonal,
+                :TensorKitSector,
+                :datalengths,
+                :with_scalar_indexing,
+                :with_block_indexing,
+            ]
+        )
     end
     @test issetequal(names(GradedArrays), exports)
 end
