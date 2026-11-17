@@ -110,5 +110,6 @@ t = TensorMap(b)
 ```
 
 ```@example gradedarrays
+using GradedArrays: GradedArray
 GradedArray(t) == b
 ```
