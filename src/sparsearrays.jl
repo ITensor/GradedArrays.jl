@@ -1,16 +1,9 @@
-# Stored-entry interface functions owned by GradedArrays.
-#
-# GradedArrays implements a stored-entry interface on its block-container views. These names are
-# duplicated with SparseArraysBase by design: GradedArrays owns them here so it does not depend on
-# SparseArraysBase. They are internal (not exported); downstream reaches them by qualified import,
-# e.g. `using GradedArrays: storedlength`. If GradedArrays depends on SparseArraysBase again later,
-# these become overloads of the SparseArraysBase functions instead of owned functions.
+# Stored-entry interface functions owned by GradedArrays, so it does not depend on
+# SparseArraysBase.
 
 function storedlength end
 function isstored end
 
-# `AbstractArray` fallback matching SparseArraysBase: a plain array stores every in-bounds element,
-# with the bounds check elidable via `@inbounds`.
 function isstored(a::AbstractArray, I::Int...)
     @inline
     @boundscheck checkbounds(a, I...)
@@ -23,10 +16,6 @@ function setunstoredindex! end
 function eachstoredindex end
 function storedvalues end
 
-# Scalar sparse `getindex`/`setindex!`: a stored entry routes through `getstoredindex` /
-# `setstoredindex!`, an unstored one through `getunstoredindex` / `setunstoredindex!` (which error for
-# a symmetry-forbidden block). Block containers route their `Base.getindex` / `Base.setindex!` here,
-# the plain-`AbstractArray` replacement for the `AbstractSparseArray` generic.
 function getindex_sparse(a::AbstractArray, I::Int...)
     return isstored(a, I...) ? getstoredindex(a, I...) : getunstoredindex(a, I...)
 end
@@ -35,14 +24,9 @@ function setindex!_sparse(a::AbstractArray, value, I::Int...)
     return a
 end
 
-# Minimal stand-in for the sparse concatenation SparseArraysBase gets for free from the generic
-# `TensorAlgebra.concatenate!`. That generic path slices the destination (`@view(a[ranges...])`,
-# `a[ranges...] = x`), which our block containers do not implement; instead place each argument's whole
-# stored entries at their concatenation offsets, using only the stored-entry interface. Along a
-# concatenated dimension the offset accumulates across arguments; along a shared dimension it stays put.
-# Multi-dimension cat is block-diagonal, so the allowed-but-unwritten off-diagonal entries are zeroed
-# first. `dest`/`args` are block containers (their `size` counts blocks, their stored entries are block
-# views).
+# The generic `TensorAlgebra.concatenate!` slices the destination, which the block containers do
+# not support, so place the stored entries of each argument at their offsets instead. Concatenating
+# along several dimensions is block-diagonal, so the destination is zeroed first.
 function concatenate_sparse!(dest::AbstractArray, dims, args::AbstractArray...)
     catdims = TensorAlgebra.dims2cat(dims)
     iscatdim(d) = d <= length(catdims) && catdims[d]

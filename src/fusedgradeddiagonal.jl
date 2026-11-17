@@ -1,23 +1,19 @@
 # ===========================================================================
-#  FusedGradedDiagonal — block-diagonal fused matrix with `Diagonal` blocks
+#  FusedGradedDiagonal
 # ===========================================================================
 
 using LinearAlgebra: Diagonal
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 
-# Square block-diagonal fused matrix whose every coupled-sector block is a `Diagonal`, the diagonal
-# factor produced by a factorization (SVD singular values, eigenvalues). Analogous to TensorKit's
-# `DiagonalTensorMap`. Wraps a `FusedGradedVector` of the diagonals; the `Diagonal` blocks are
-# the lazy `sectordata(d)` view over that vector. `I` is the TensorKitSectors sector type corresponding to
+# Block-diagonal fused matrix whose blocks are `Diagonal`, such as the singular values of an SVD.
+# `I` is the TensorKitSectors sector type corresponding to
 # the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
 struct FusedGradedDiagonal{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <:
     AbstractFusedGradedMatrix{T, S}
     diag::FusedGradedVector{T, S, V, I}
 end
 
-# Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedDiagonal` with the given `axis`; the
-# `Diagonal` blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
-# form. To build from per-sector diagonal data instead, use `fusedgradeddiagonal`.
+# Wrap a contiguous `buffer` without copying.
 function FusedGradedDiagonal(buffer::DenseVector, axis::AbstractGradedOneTo)
     return FusedGradedDiagonal(FusedGradedVector(buffer, axis))
 end
@@ -26,34 +22,23 @@ function FusedGradedDiagonal{T}(::UndefInitializer, axis::AbstractGradedOneTo) w
     return FusedGradedDiagonal(FusedGradedVector{T}(undef, axis))
 end
 
-# Build a `FusedGradedDiagonal` from the per-sector diagonal data (`sector => data` pairs, any iterator
-# of pairs, or a `Dictionary` keyed by sector): the pair `sectors[i] => data[i]` gives the diagonal
-# entries of the block at `sectors[i]`. The axis is derived from the blocks, as for
-# `fusedgradedvector`. To wrap an existing contiguous buffer instead, use
-# `FusedGradedDiagonal`.
+# Build from `sector => diagonal` pairs, or a `Dictionary` keyed by sector.
 fusedgradeddiagonal(sectordata) = FusedGradedDiagonal(fusedgradedvector(sectordata))
 
-# Densify to a full `FusedGradedMatrix`, forwarding the diagonal's block backend `V` through the
-# `{T,S,V}` undef constructor so the result stays on the same device. Each `Diagonal` block becomes a
-# dense block and `copyto!` zeros the off-diagonal. Used where a diagonal result is not representable
-# as a `FusedGradedDiagonal` (a non-`{1,1}` matricize / bond-split unmatricize).
+# Forward `V` so the result stays on the same device.
 function FusedGradedMatrix(d::FusedGradedDiagonal{T, S, V}) where {T, S, V}
     m = FusedGradedMatrix{T, S, V}(undef, axis_codomain(d), axis_domain(d))
     return copyto!(m, d)
 end
 
-# `Iterators.map` is lazy here (see `sectordata(::AdjointFusedGradedArray)`). The closure (rather
-# than `Diagonal` itself) keeps the map's function type parameter concrete (`typeof(Diagonal)` is
-# a `UnionAll`), so the return type infers.
+# A closure rather than `Diagonal` itself, since `typeof(Diagonal)` is a `UnionAll` and the return
+# type would not infer.
 function sectordata(d::FusedGradedDiagonal)
     return Iterators.map(b -> Diagonal(b), sectordata(MAK.diagview(d)))
 end
 
-# Set the wrapped diagonal vector's axis to exactly `ss` (see
-# `setsectors(::FusedGradedVector, ss)`); the `Diagonal` blocks at the added sectors are 0×0.
 function setsectors(d::FusedGradedDiagonal, ss::AbstractVector)
     diag = setsectors(MAK.diagview(d), ss)
-    # An unchanged diagonal means the set is the identity; return `d` itself.
     diag === MAK.diagview(d) && return d
     return FusedGradedDiagonal(diag)
 end
@@ -80,7 +65,7 @@ end
 
 # ---- permutation ----
 
-# A transpose would dualize the codomain axis, which a `FusedGradedDiagonal` cannot represent.
+# A transpose would make the codomain axis dual, which a `FusedGradedDiagonal` cannot represent.
 function TensorAlgebra.permuteddims(d::FusedGradedDiagonal, perm)
     perm == (1, 2) || throw(
         ArgumentError(
@@ -92,17 +77,13 @@ end
 
 # ---- matricize ----
 
-# A `{1,1}` matricization of the diagonal is the identity (a diagonal is already a matrix), so
-# the memory-sharing matricization is `d` itself. Any other codomain rank bends a leg, which
-# matrix-level fused storage cannot represent.
+# A diagonal is already its own `{1,1}` matricization.
 function TensorAlgebra.matricizeconjview(
         isconj::Bool, d::FusedGradedDiagonal, perm_codomain, perm_domain
     )
     return d
 end
-# The explicit-axes `similar`, as `FusedGradedMatrix` has. A diagonal is square and carries no
-# axes beyond its own, so the only allocation it can serve is over that square pair (which is
-# what its adjoint asks for).
+# Only its own square axes can be served, which is what its adjoint asks for.
 function Base.similar(
         d::FusedGradedDiagonal, ::Type{T},
         codomain::FusedGradedOneTo{S}, domain::FusedGradedOneTo{S}
@@ -115,7 +96,6 @@ function Base.similar(
     return similar(d, T)
 end
 
-# Copying the diagonal keeps the structure, where `similar` on a diagonal would densify.
 function TensorAlgebra.matricizeconjcopy(
         isconj::Bool, d::FusedGradedDiagonal, perm_codomain, perm_domain
     )
@@ -129,9 +109,6 @@ function TensorAlgebra.matricizeconjcopy(
     return TensorAlgebra.permutedimsconj(isconj, d, perm_codomain, perm_domain)
 end
 
-# The product of two diagonal fused matrices over a single contracted leg is again diagonal, so
-# allocate a `FusedGradedDiagonal` (the block-wise `mul!` fills it via `Diagonal * Diagonal`). Mixed
-# diagonal/dense products fall through to the general `AbstractFusedGradedMatrix` method (dense).
 function allocate_output(
         ::typeof(*), A::FusedGradedDiagonal, B::FusedGradedDiagonal
     )
@@ -146,8 +123,7 @@ FusedGradedDiagonalStyle(::Val{2}) = FusedGradedDiagonalStyle()
 
 BC.BroadcastStyle(::Type{<:FusedGradedDiagonal}) = FusedGradedDiagonalStyle()
 
-# Mixed with a dense fused matrix, a diagonal promotes to dense. Only one operand order is needed:
-# Base's `result_join` retries the reversed order when the first returns `Unknown`.
+# Only one operand order is needed, since Base's `result_join` retries the reversed order.
 BC.BroadcastStyle(style::FusedGradedStyle{2}, ::FusedGradedDiagonalStyle) = style
 
 function Base.similar(bc::BC.Broadcasted{<:FusedGradedDiagonalStyle}, elt::Type)

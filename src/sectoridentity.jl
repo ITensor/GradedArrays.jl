@@ -1,7 +1,5 @@
-# Fused 2D structural factor for a single coupled sector. By Schur's lemma, the
-# structural part of each block in the fused (matricized) basis is the identity
-# matrix for the irrep. Carries no free data — completely determined by the sector.
-# The codomain axis is non-dual, the domain axis is dual.
+# The structural factor of a `FusedSectorMatrix`, which by Schur's lemma is the identity matrix
+# of the irrep. The codomain axis is non-dual and the domain axis is dual.
 struct SectorIdentity{T, S <: Sector} <: AbstractSectorDelta{T, S, 2}
     sector::S
 end
@@ -9,7 +7,6 @@ SectorIdentity{T}(s::S) where {T, S <: Sector} = SectorIdentity{T, S}(s)
 
 sector(a::SectorIdentity) = a.sector
 
-# The fused structural factor is always a coupled-sector matrix: one codomain, one domain leg.
 TensorAlgebra.ndims_codomain(::SectorIdentity) = 1
 TensorAlgebra.ndims_domain(::SectorIdentity) = 1
 TensorAlgebra.has_bipartition(::SectorIdentity) = true
@@ -26,29 +23,24 @@ function biaxes(A::SectorIdentity)
 end
 Base.axes(A::SectorIdentity) = Tuple(biaxes(A))
 
-# Structural inner product: the identity contracts to its dimension, the quantum dimension.
+# The quantum dimension.
 function LinearAlgebra.dot(a::SectorIdentity, b::SectorIdentity)
     axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
     return length(sector(a))
 end
 
-# `p`-norm: the identity has `length(sector)` unit entries (its diagonal), so `norm^p` counts them.
-# The single formula also covers `p == Inf` (`count^0 == 1`, the max entry).
+# `length(sector)` unit entries. Also correct for `p == Inf`.
 function LinearAlgebra.norm(a::SectorIdentity{T}, p::Real = 2) where {T}
     return convert(real(float(T)), length(sector(a))^(1 / p))
 end
 
-# The identity structural factor is a matrix, so its trace is defined (unlike the general structural
-# deltas): the sector's quantum dimension, the length of the diagonal.
 function LinearAlgebra.tr(a::SectorIdentity)
     return diaglength(a)
 end
 
-# The stored (nonzero) entries of the identity are its diagonal.
 storedlength(a::SectorIdentity) = diaglength(a)
 
-# Only the identity permutation is supported: a transposing `permutedims` would flip the first axis
-# to dual, which the fused storage types disallow.
+# A transpose would make the first axis dual, which the fused storage types disallow.
 function Base.permutedims(a::SectorIdentity, perm)
     perm == ntuple(identity, ndims(a)) || throw_flips_first_axis(permutedims, a)
     return a

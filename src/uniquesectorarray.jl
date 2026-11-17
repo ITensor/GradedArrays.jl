@@ -1,8 +1,5 @@
-# Unfused N-D data tensor for abelian symmetries. Stores a dense data array plus one sector and one
-# arrow per axis with a codomain/domain split (`NC` codomain legs, `ND` domain legs, `NC + ND == N`).
-# Implements the Wigner-Eckart decomposition: the full tensor is the Kronecker product of the
-# structural `UniqueSectorDelta` (`structure`) with the data array (reduced matrix elements).
-# The all-codomain case (`NC == N`) is the block a `GradedArray` yields (via `fa[Block]`).
+# A block of a graded array with abelian symmetry: a data array plus one sector and one arrow per
+# axis, split into `NC` codomain and `ND` domain legs.
 struct UniqueSectorArray{T, S <: Sector, N, NC, ND, A <: AbstractArray{T, N}} <:
     AbstractSectorArray{T, S, N}
     data::A
@@ -24,10 +21,7 @@ struct UniqueSectorArray{T, S <: Sector, N, NC, ND, A <: AbstractArray{T, N}} <:
 end
 
 # Constructors
-# `UniqueSectorArray` is a block type (the `fa[Block]` view), not meant to be built directly;
-# these are the forms used internally.
 
-# Primary: data plus the two sector/arrow tuple pairs, inferring the parameters. `N == NC + ND`.
 function UniqueSectorArray(
         data::AbstractArray{T, N},
         sectors_codomain::NTuple{NC, S}, isduals_codomain::NTuple{NC, Bool},
@@ -38,9 +32,7 @@ function UniqueSectorArray(
     )
 end
 
-# `S` explicit, `A`/`NC`/`ND` inferred: lets a construction that already knows `T`/`S`/`N` skip the
-# derivable parameters, and covers the rank-0 case (empty tuples carry no `S`) that the parameterless
-# primary cannot infer. Used by `conj`.
+# Covers rank 0, where the empty tuples carry no `S`.
 function UniqueSectorArray{T, S, N}(
         data::AbstractArray{T, N},
         sectors_codomain::NTuple{NC, S}, isduals_codomain::NTuple{NC, Bool},
@@ -51,7 +43,6 @@ function UniqueSectorArray{T, S, N}(
     )
 end
 
-# Leg-tuple forms: each leg given as a sector, bare or oriented, with the arrows split out here.
 function UniqueSectorArray(
         data::AbstractArray,
         sectors_codomain::Tuple{Vararg{AbstractOrientedSector}},
@@ -62,8 +53,6 @@ function UniqueSectorArray(
     )
 end
 
-# All-codomain shorthand from a flat sector tuple: what `fa[Block]` returns when there is no
-# domain leg. Flat always means all-codomain.
 function UniqueSectorArray(
         data::AbstractArray,
         sectors::Tuple{Vararg{AbstractOrientedSector}}
@@ -71,9 +60,7 @@ function UniqueSectorArray(
     return UniqueSectorArray(data, sectors, ())
 end
 
-# Inverse of the `structure`/`data` split, preserving the split; used by `sector_kron` and the per-op
-# forwards. The sector tuples are eltype-independent, so this also covers a delta whose eltype
-# differs from the data (e.g. `real`/`imag`).
+# The delta's eltype may differ from the data's, for example for `real`/`imag`.
 function UniqueSectorArray(
         data::AbstractArray{T}, delta::UniqueSectorDelta{<:Any, S, N, NC, ND}
     ) where {T, S, N, NC, ND}
@@ -83,8 +70,6 @@ function UniqueSectorArray(
     )
 end
 
-# `undef` for `similar`: all-codomain, from a flat tuple of SectorOneTo axes (`S` from the axes,
-# so at least one axis is required).
 function UniqueSectorArray{T}(
         ::UndefInitializer, axs::Tuple{SectorOneTo, Vararg{SectorOneTo}}
     ) where {T}
@@ -102,8 +87,6 @@ const UniqueSectorMatrix{T, S <: Sector, NC, ND, A <: AbstractMatrix{T}} =
 
 # Accessors
 
-# Kronecker factor decomposition: UniqueSectorArray = structure ⊗ data. `structure` wraps the stored
-# codomain/domain sector and arrow tuples in a delta, so `sector_kron(structure(a), data(a)) === a`.
 function structure(sa::UniqueSectorArray{T, S, N, NC, ND, A}) where {T, S, N, NC, ND, A}
     return UniqueSectorDelta{T, S, N, NC, ND}(
         sa.sectors_codomain, sa.isduals_codomain, sa.sectors_domain, sa.isduals_domain
@@ -116,17 +99,13 @@ function Base.copy(a::UniqueSectorArray)
     return UniqueSectorArray(copy(data(a)), structure(a))
 end
 
-# A range sub-view keeps the sector labels and shrinks the reduced data: the degeneracy dimensions
-# live in the data, while the sector factor is unchanged, so the sub-view is again a sector array
-# rather than a plain dense view.
+# A sub-view of the reduced data, keeping the sectors.
 function Base.view(
         a::UniqueSectorArray{<:Any, <:Any, N}, I::Vararg{AbstractUnitRange, N}
     ) where {N}
     return sector_kron(structure(a), view(data(a), I...))
 end
 
-# similar for UniqueSectorArray with SectorOneTo axes.
-# Delegates to similar on the data array for the data dimensions.
 function Base.similar(
         ::UniqueSectorArray,
         ::Type{T},
@@ -145,10 +124,7 @@ end
 
 # ========================  permutedims  ========================
 
-# Permuting can mix codomain and domain legs, so the result is all-codomain. The permuted axes carry
-# both the new sector labels and the destination data shape; the fermion sign from the permutation is
-# applied to the reduced data by `permutedimsconjadd!`, not to the structural factor (which is `one(T)`
-# at its single allowed entry and cannot carry a sign).
+# The result has all legs in the codomain.
 function Base.permutedims(x::UniqueSectorArray, perm)
     new_axes = ntuple(n -> axes(x, perm[n]), Val(ndims(x)))
     return permutedims!(similar(x, new_axes), x, perm)
@@ -160,11 +136,8 @@ end
 
 # ========================  conj  ========================
 
-# Conjugate while keeping the codomain/domain split, mirroring `conj(::GradedArray)` (the generic
-# `conj.(a)` broadcast collapses to all-codomain). A same-split destination with every leg's arrow
-# flipped is filled by a single conjugating permute-add over the identity biperm; the fermionic
-# leg-reversal sign rides `bipermutedimsconjadd!` (folded in by `fermion_permutation_phase`), which a
-# bare data `conj` would drop.
+# Keeps the codomain/domain split, unlike `conj.(a)`. The permute-add applies the fermionic leg
+# reversal sign, which a bare data `conj` would drop.
 function Base.conj(a::UniqueSectorArray{T, S, N, NC, ND}) where {T, S, N, NC, ND}
     dest = UniqueSectorArray{T, S, N}(
         similar(data(a)),

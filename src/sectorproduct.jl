@@ -1,32 +1,17 @@
-# This files defines a structure for Cartesian product of 2 or more fusion sectors
-# e.g. U(1)×U(1), U(1)×SU2(2)×SU(3)
-
 # =====================================  Definition  =======================================
 
-# The Cartesian product of two or more sectors, itself a `Sector`. Its arguments are
-# bare sectors, so like any other sector it carries no arrow of its own.
-#
-# Abstract, with `TupleSectorProduct` and `NamedSectorProduct` as its two concrete forms. Build
-# one by calling `Sector`, which picks the form matching what it is given, or `sectorproduct` to
-# multiply sectors you already hold.
+# The Cartesian product of sectors, itself a `Sector`. Its arguments are bare sectors.
 abstract type SectorProduct <: Sector end
 
-# A `SectorProduct` whose arguments are positional. A position identifies a factor only relative
-# to this product, so the arity is part of the sector's identity and there is no sense in which a
+# A `SectorProduct` with positional arguments. The arity is part of the sector's identity, so no
 # factor can be left out.
-#
-# Takes its arguments as given. Call `Sector` to build one from a specification that still needs
-# normalizing.
 struct TupleSectorProduct{Arguments <: Tuple} <: SectorProduct
     arguments::Arguments
 end
 
-# A `SectorProduct` whose arguments are named. A name identifies a symmetry across products, so a
-# symmetry this one does not name is that symmetry's trivial sector, which is what lets products
-# over different sets of symmetries be compared and fused.
-#
-# Sorts its arguments by name, an invariant the type relies on, but otherwise takes them as
-# given. Call `Sector` to build one from a specification that still needs normalizing.
+# A `SectorProduct` with named arguments, sorted by name. A symmetry it does not name is that
+# symmetry's trivial sector, so products over different sets of symmetries can be compared and
+# fused.
 struct NamedSectorProduct{Arguments <: NamedTuple} <: SectorProduct
     arguments::Arguments
     function NamedSectorProduct(nt::NamedTuple)
@@ -35,16 +20,9 @@ struct NamedSectorProduct{Arguments <: NamedTuple} <: SectorProduct
     end
 end
 
-# `Sector` is the single entry point for turning a specification into a sector, so these methods
-# are what define the spellings a product can be written as. Each maps `Sector` over its
-# arguments, which is what lets TensorKitSectors sectors appear inside a product. The positional
-# form takes two factors before its `Vararg` so it cannot compete with the arity-1 methods, which
-# leaves the container forms as the only way to write a product of one factor or none.
-#
-# `Sector` spells out the factors rather than multiplying them, so a positional product as a
-# factor would nest. That is never what is meant (`Sector(U1(0), fSU2(0))` for the flat
-# `U1(0) × fSU2(0)`), and TensorKitSectors can't infer the fusion and braiding styles of a nested
-# `ProductSector`, so it is rejected in favor of `sectorproduct`.
+# The positional form takes two factors before its `Vararg` so it does not compete with the
+# one-argument methods. A positional product as a factor would nest, which TensorKitSectors does
+# not support, so it is rejected in favor of `sectorproduct`.
 Sector(s1, s2, srest...) = Sector((s1, s2, srest...))
 function Sector(t::Tuple)
     args = map(Sector, t)
@@ -59,11 +37,7 @@ end
 Sector(nt::NamedTuple) = NamedSectorProduct(map(Sector, nt))
 Sector(; kws...) = Sector(values(kws))
 
-# Fusion and the n-symbol work argument by argument, so a mixed call has to read its bare operand
-# as the one-factor positional product for the duration. `Sector` deliberately does not build
-# one-factor products, so the wrapping is spelled out here instead. Positional always: a bare
-# sector names no symmetry, so there is nothing to match against a named product's keys, and the
-# promotion rejects the pairing.
+# Fusion works argument by argument, so a bare operand is read as a one-factor positional product.
 to_sectorproduct(s::SectorProduct) = s
 to_sectorproduct(s::Sector) = TupleSectorProduct((s,))
 
@@ -71,17 +45,12 @@ arguments(s::SectorProduct) = getfield(s, :arguments)
 arguments_type(::Type{<:TupleSectorProduct{T}}) where {T} = T
 arguments_type(::Type{<:NamedSectorProduct{T}}) where {T} = T
 
-# The TensorKitSectors counterparts, used for ordering and by anything that reaches for a
-# sector's TensorKitSectors form. Upstream draws the same positional/named distinction, so each
-# kind maps onto its own counterpart and both directions keep the arguments and their names.
-# Fusion still does not go through these, since neither upstream form can express the mismatched
-# argument sets `promote_sector` brings together.
+# Fusion does not go through these, since they cannot express the mismatched argument sets
+# `promote_sector` handles.
 TKS.Sector(s::TupleSectorProduct) = TKS.ProductSector(map(TKS.Sector, arguments(s)))
 TKS.Sector(s::NamedSectorProduct) = TKS.NamedSector(map(TKS.Sector, arguments(s)))
 
-# Coming back the other way, an upstream product is the upstream form of a product and returns
-# one rather than being wrapped. Without this a block label read back out of TensorKit does not
-# compare equal to the sector the axis was built from.
+# Otherwise a sector read back from TensorKit would not equal the one it was built from.
 Sector(c::TKS.ProductSector) = Sector(Tuple(c))
 Sector(c::TKS.NamedSector) = Sector(NamedTuple(c))
 
@@ -114,9 +83,7 @@ end
 
 Base.length(s::SectorProduct) = prod(length, arguments(s); init = 1)
 
-# Fermion parity and twist of a product are the xor and the product of its arguments'. Taking
-# them argument by argument also covers the empty product, which has no `ProductSector` form to
-# delegate to.
+# Argument by argument, which also covers the empty product.
 fermionparity(s::SectorProduct) = mapreduce(fermionparity, ⊻, arguments(s); init = false)
 twist(s::SectorProduct) = prod(twist, arguments(s); init = 1)
 
@@ -136,9 +103,7 @@ istrivial(s::SectorProduct) = all(istrivial, arguments(s))
 
 # ===============================  Fusion rule interface  ==================================
 
-# The fusion of two products is the product of its arguments' fusions, so it is built argument
-# by argument. A product with no arguments constrains no symmetry, so rather than promoting it, it
-# takes the other operand's shape by fusing that operand with its own trivial sector.
+# An empty product fuses as the trivial sector of the other operand.
 function fusion_rule(s1::SectorProduct, s2::SectorProduct)
     isempty(arguments(s1)) && isempty(arguments(s2)) && return s1
     isempty(arguments(s1)) && return fusion_rule(trivial(s2), s2)
@@ -151,14 +116,11 @@ function fusion_rule(s1::SectorProduct, s2::SectorProduct)
 end
 fusion_rule(s1::SectorProduct, s2::Sector) = fusion_rule(s1, TupleSectorProduct((s2,)))
 fusion_rule(s1::Sector, s2::SectorProduct) = fusion_rule(TupleSectorProduct((s1,)), s2)
-# `Trivial` has its own methods against any `Sector`, which the two above would otherwise be
-# ambiguous with. They fuse it the same way the branches above do, rather than reading it as a
-# product: it denotes no symmetry, so it has no arguments to promote.
+# Disambiguate against the `Trivial` methods.
 fusion_rule(s::SectorProduct, ::Trivial) = fusion_rule(s, trivial(s))
 fusion_rule(::Trivial, s::SectorProduct) = fusion_rule(trivial(s), s)
 
-# Every sector the fusion of `s1` and `s2` can produce, as the Cartesian product of its
-# arguments' fusion outcomes. Both arguments must already be canonicalized.
+# Every sector the fusion of `s1` and `s2` can produce. Both must already be promoted.
 function fusion_products(s1::SectorProduct, s2::SectorProduct)
     argument_sectors = map(arguments(s1), arguments(s2)) do a1, a2
         return sectors(to_gradedrange(fusion_rule(a1, a2)))
@@ -201,24 +163,15 @@ end
 
 # ===================================  Base interface  =====================================
 
-# Equality and hashing read one notion of content, so they cannot come apart. A positional
-# product's content is all of its arguments, because a position identifies a factor only within
-# that product and so the arity is part of the identity. A named product's content is its
-# non-trivial arguments, because a name identifies a symmetry across products and a symmetry a
-# product does not name is that symmetry's trivial sector. That asymmetry is exactly why named
-# products compare across different sets of symmetries and positional ones cannot.
-#
-# `promote_sector` is not used here: it throws on operands it cannot bring to a common argument
-# set, and `hash` takes one operand and so has nothing to promote against.
+# A positional product compares all of its arguments, while a named product compares only its
+# non-trivial ones. `promote_sector` is not used since it throws on incompatible operands.
 
-# Tuple `==` compares the arguments unrolled; iterating a `zip` of the heterogeneous argument tuples
-# boxes each argument.
+# Iterating over a `zip` of the heterogeneous argument tuples would box each argument.
 function Base.:(==)(a::TupleSectorProduct, b::TupleSectorProduct)
     return arguments(a) == arguments(b)
 end
 
-# With the same names on both sides, the rule below reduces to comparing the values in order.
-# Comparing the argument tuples does that unrolled, where looping over the names boxes each value.
+# Same names on both sides, so compare the values without boxing them.
 Base.:(==)(a::P, b::P) where {P <: NamedSectorProduct} = arguments(a) == arguments(b)
 
 function Base.:(==)(a::NamedSectorProduct, b::NamedSectorProduct)
@@ -235,23 +188,15 @@ function Base.:(==)(a::NamedSectorProduct, b::NamedSectorProduct)
     return true
 end
 
-# Everything a product is not equal to. It is not its own argument, since `Sector` builds no
-# one-factor product and there is nothing to round-trip. It is not a product of the other
-# indexing, since the two describe different objects. And it is not `Trivial`, which is
-# equal only to itself, the same way `U1(0)` is not it: asking whether a sector denotes no
-# symmetry is `istrivial`'s job, not equality's.
 Base.:(==)(::SectorProduct, ::Sector) = false
 Base.:(==)(::Sector, ::SectorProduct) = false
 Base.:(==)(::SectorProduct, ::SectorProduct) = false
 
-# `(SectorProduct, Trivial)` is ambiguous between `==(::SectorProduct, ::Sector)` above and
-# `==(::Sector, ::Trivial)`, which agree; these state that answer.
+# Disambiguate against `==(::Sector, ::Trivial)`.
 Base.:(==)(::SectorProduct, ::Trivial) = false
 Base.:(==)(::Trivial, ::SectorProduct) = false
 
-# `hash` has no second operand to promote against, so it hashes directly whatever content `==`
-# compares: every argument of a positional product, and only the non-trivially-valued name and
-# value pairs of a named one, in the sorted order they are stored in.
+# Hashes what `==` compares.
 function Base.hash(s::TupleSectorProduct, h::UInt)
     return hash(
         :TupleSectorProduct,
@@ -260,18 +205,15 @@ function Base.hash(s::TupleSectorProduct, h::UInt)
 end
 function Base.hash(s::NamedSectorProduct, h::UInt)
     args = arguments(s)
-    # Folded over the (name, value) pairs rather than looped over the names, so it is unrolled
-    # instead of boxing each value.
+    # Folded rather than looped over the names, which would box each value.
     h = foldl(map(tuple, keys(args), values(args)); init = h) do h, (k, v)
         return istrivial(v) ? h : hash(k, hash(v, h))
     end
     return hash(:NamedSectorProduct, h)
 end
 
-# Within one axis every sector shares a type, and there the order must match how TensorKit orders
-# the corresponding `GradedSpace`, so it delegates upstream. Products of different types never
-# share an axis and only need a deterministic order, for which the arity and then the type
-# itself serve.
+# Sectors of one type must be ordered as in TensorKit's `GradedSpace`. Products of different types
+# never share an axis, so they only need some deterministic order.
 function Base.isless(s1::P, s2::P) where {P <: SectorProduct}
     return isless(TKS.Sector(s1), TKS.Sector(s2))
 end
@@ -286,14 +228,11 @@ Base.isless(::Sector, ::SectorProduct) = true
 Base.isless(::Trivial, ::SectorProduct) = true
 Base.isless(::SectorProduct, ::Trivial) = false
 
-# Print the spelling that reconstructs the sector. Two or more positional factors get the infix
-# form, which round-trips through `×`; everything else gets the explicit `Sector` form, since
-# `×` cannot spell a named product, a one-factor product or an empty one.
+# Print the spelling that rebuilds the sector, using `×` when there are two or more factors.
 function Base.show(io::IO, s::TupleSectorProduct)
     args = arguments(s)
     if length(args) < 2
-        # The tuple is spelled out rather than passed as arguments: `Sector` reads a lone sector
-        # as itself, so a one-factor product has no other spelling.
+        # `Sector` reads a lone sector as itself, so the tuple is needed.
         print(io, "Sector((")
         isempty(args) || (show(io, only(args)); print(io, ","))
         return print(io, "))")
@@ -303,9 +242,8 @@ function Base.show(io::IO, s::TupleSectorProduct)
     return print(io, ")")
 end
 
-# The bare `NamedTuple` rather than a `Sector` call around it: it is what `Sector` and the graded
-# constructors take for a named product, so it still reads back in, and an axis display repeats
-# every sector it carries, where the call would be the longest thing on the line.
+# A bare `NamedTuple` rather than a `Sector` call, to keep axis displays short. It still reads
+# back in, since the graded constructors accept it.
 function Base.show(io::IO, s::NamedSectorProduct)
     args = arguments(s)
     isempty(args) && return print(io, "(;)")
@@ -320,16 +258,12 @@ function Base.show(io::IO, s::NamedSectorProduct)
     return print(io, ")")
 end
 
-# A product's type spelled as the product of its factors, which is a call that gives the type
-# back, rather than as the struct and its parameter tuple, which is the longest thing a graded
-# display's header would carry. An alias is the symmetry's own name and shorter still, so it wins.
+# Print a product type as the product of its factor types, or its alias if it has one.
 function show_sectorproduct_type(io::IO, P::Type{<:TupleSectorProduct})
     isnothing(Base.make_typealias(P)) || return show(io, P)
     args = map(A -> sprint(show, A; context = io), fieldtypes(arguments_type(P)))
     if length(args) == 1
-        # Infix needs two factors to read as a product, and `×` builds no one-factor product
-        # anyway, so one factor takes the container form the product multiplies. The empty
-        # product has no type-level spelling at all, so it keeps the default.
+        # The empty product has no type-level spelling, so it keeps the default.
         print(io, "×((", only(args), ",))")
     elseif isempty(args)
         show(io, P)
@@ -376,12 +310,8 @@ stay the empty products' values.
 function sectorproduct end
 const × = sectorproduct
 
-# A symmetry named at the type level: a sector type, or a container of them when the factors of
-# a product are named or when there is only one. `Sector` normalizes the values that specify a
-# sector and these containers are the same spellings one level up, so the trivial sector of the
-# symmetry each one names is what the product below multiplies. A container has to hold a type to
-# name anything, which is what keeps the empty one at the value level: `()` and `(;)` carry
-# nothing to tell the two levels apart, and they already spelled the empty products' values.
+# A symmetry named at the type level: a sector type, or a non-empty container of them. Empty
+# containers are excluded since they already specify the empty products as values.
 const SectorTypeSpec = Union{
     Type{<:Sector}, Tuple{Type, Vararg{Type}},
     NamedTuple{<:Any, <:Tuple{Type, Vararg{Type}}},
@@ -389,38 +319,28 @@ const SectorTypeSpec = Union{
 trivial(t::Tuple{Type, Vararg{Type}}) = Sector(map(trivial, t))
 trivial(nt::NamedTuple{<:Any, <:Tuple{Type, Vararg{Type}}}) = Sector(map(trivial, nt))
 
-# The type-level product, so a fused symmetry can be named as `const fU1 = U1 × fZ2`, or as
-# `const fU1 = (; charge = U1) × (; parity = fZ2)` when the factors carry names. Going
-# through the value-level product on each symmetry's trivial sector means the unit rule and the
-# flattening cannot drift from the value level, since they are the value level.
+# Through the value-level product of the trivial sectors, so the two levels agree.
 function sectorproduct(S1::SectorTypeSpec, Srest::SectorTypeSpec...)
     return typeof(sectorproduct(trivial(S1), map(trivial, Srest)...))
 end
 
-# The product over no sectors is the unit of the algebra. `Sector()` is a specification rather
-# than a product, so it gives the empty named product instead.
+# The unit. `Sector()` instead gives the empty named product.
 sectorproduct() = Trivial()
 
-# Arity 1 is normalization and nothing more: a lone sector is already the product over itself,
-# so no one-factor product is ever built.
+# No one-factor product is ever built.
 sectorproduct(s::Sector) = s
 sectorproduct(s) = Sector(s)
 
-# Anything not already a sector is normalized here, then the methods below take over. Those
-# stay specific, so an unhandled pair raises rather than recursing back through this one.
 sectorproduct(s1, s2) = sectorproduct(Sector(s1), Sector(s2))
 sectorproduct(s1, s2, s3, srest...) = foldl(sectorproduct, (s1, s2, s3, srest...))
 
-# Stripping the unit here rather than by dispatch keeps `Trivial` out of the methods
-# below, which would otherwise need a method per pairing to stay unambiguous with them. Both
-# branches are resolved at compile time, since the argument types are concrete.
+# Strip the unit here rather than by dispatch, which would need extra methods to avoid ambiguities.
 function sectorproduct(s1::Sector, s2::Sector)
     s1 isa Trivial && return s2
     s2 isa Trivial && return s1
     return _sectorproduct(s1, s2)
 end
 
-# A bare sector enters a product positionally, so these absorb into a `TupleSectorProduct`.
 _sectorproduct(s1::Sector, s2::Sector) = TupleSectorProduct((s1, s2))
 _sectorproduct(p::TupleSectorProduct, s::Sector) = TupleSectorProduct((arguments(p)..., s))
 _sectorproduct(s::Sector, p::TupleSectorProduct) = TupleSectorProduct((s, arguments(p)...))
@@ -428,15 +348,13 @@ function _sectorproduct(p1::TupleSectorProduct, p2::TupleSectorProduct)
     return TupleSectorProduct((arguments(p1)..., arguments(p2)...))
 end
 
-# A named product absorbs by name, and so only from another named product.
 function _sectorproduct(p1::NamedSectorProduct, p2::NamedSectorProduct)
     isdisjoint(keys(arguments(p1)), keys(arguments(p2))) ||
         throw(ArgumentError("names of a SectorProduct must be distinct"))
     return NamedSectorProduct(merge(arguments(p1), arguments(p2)))
 end
 
-# A named product multiplied by anything positional. The last two are each ambiguous between the
-# first two, and agree with them, so they state that answer.
+# The last two disambiguate the first two.
 function _sectorproduct(a::NamedSectorProduct, b::Sector)
     return throw(
         ArgumentError(
@@ -472,11 +390,8 @@ end
 
 # ===========================  Promotion  ==================================================
 
-# Bring two products onto a common argument set so they can be fused. Positional arguments are
-# already matched, by position, so there is nothing to fill in and all that is left is to reject
-# operands that are not elements of the same group. Named ones are brought onto the union of
-# their keys, filling a key one side lacks with that symmetry's trivial sector. Between the two
-# indexings there is no correspondence to bring about at all, which the fallback rejects.
+# Bring two products onto a common argument set so they can be fused. Named products are brought
+# onto the union of their names, filling a missing name with that symmetry's trivial sector.
 
 function promote_sector(s1::SectorProduct, s2::SectorProduct)
     return throw(

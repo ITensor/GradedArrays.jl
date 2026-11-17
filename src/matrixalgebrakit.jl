@@ -1,7 +1,6 @@
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using TensorAlgebra: MatrixAlgebra as MA
 
-# Length of the main diagonal of a matrix (e.g. the number of singular values a block produces).
 diaglength(a::AbstractArray) = minimum(size(a))
 
 struct FusedGradedMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
@@ -30,8 +29,7 @@ for f in [
         )
     end
 
-    # One buffer-level allocation and copy (the blocks tile the buffer). The `float` eltype rule
-    # matches `MAK.copy_input` for dense matrices, which is `float(eltype)` for all of these.
+    # `float` matches `MAK.copy_input` for dense matrices.
     @eval function MAK.copy_input(::typeof(MAK.$f), A::FusedGradedMatrix)
         return copyto!(similar(A, float(eltype(A))), A)
     end
@@ -39,12 +37,6 @@ end
 
 # Bare-matrix factorizations
 # ---------------------------
-# The plain matrix forms (`MAK.svd_compact(m)`, etc.) route through the matricizing `TensorAlgebra`
-# factorizations: matricize to a `FusedGradedMatrix`, run the block factorization, then unmatricize
-# back. The factors are returned as graded matrices. This list is shared with the `GradedArray`
-# entry points in `gradedarray.jl` (defined there because `GradedArray` is not yet defined here).
-# Dispatch must not catch `FusedGradedMatrix`: the matricizing forms produce one, which must
-# terminate at its own in-place block algorithm rather than route back here (that would recurse).
 const BARE_MATRIX_FACTORIZATIONS = (
     :svd_compact, :svd_full, :svd_vals, :qr_compact, :qr_full, :lq_compact,
     :lq_full, :eig_full, :eig_vals, :eigh_full, :eigh_vals, :left_polar,
@@ -53,11 +45,8 @@ const BARE_MATRIX_FACTORIZATIONS = (
 
 # Projections on a fused block (`FusedSectorMatrix`)
 # ---------------------------------------------
-# The hermitian (antihermitian) projection of a fused block reduces to the same projection of
-# its reduced data: by Schur's lemma the block is `I ⊗ data(A)`, with the structural factor
-# the identity, and `project(I ⊗ M) = I ⊗ project(M)`, so the projection passes straight to
-# the reduced data. This is why it is well defined in the non-abelian case, where the generic
-# `AbstractMatrix` path scalar-indexes the block and hits the unique-fusion guard.
+# The block is `I ⊗ data(A)` and `project(I ⊗ M) = I ⊗ project(M)`, so the (anti)hermitian
+# projection acts on the reduced data, also for non-abelian sectors.
 struct FusedSectorMatrixAlgorithm{A <: MAK.AbstractAlgorithm} <: MAK.AbstractAlgorithm
     alg::A
 end
@@ -85,7 +74,7 @@ end
 
 # Generic Implementations
 # -----------------------
-# in cases where the factorization/alg does not result in in-place, we try to force it by copying.
+# Copy when the factorization did not write in place.
 _ensure_inplace!(F, F′) = F === F′ || copy!(F, F′)
 
 for f! in (
@@ -99,15 +88,15 @@ for f! in (
         for i in 1:blocklength(axis_codomain(wA))
             Fi = map(w -> sectordata(w, i), wFs)
             Fi′ = MAK.$f!(sectordata(wA, i), Fi, alg.alg)
-            # `foreach`, not a `.`-broadcast: broadcast materialization over these small
-            # union-typed tuples costs more than the factorization of a small block.
+            # `foreach` rather than a broadcast, which over these small union-typed tuples costs
+            # more than factorizing a small block.
             foreach(_ensure_inplace!, Fi, Fi′)
         end
         return F
     end
 end
 
-# Handle these separately because single output instead of tuple
+# These have a single output rather than a tuple.
 for f! in (
         :qr_null!, :lq_null!,
         :svd_vals!, :eig_vals!, :eigh_vals!,
@@ -124,9 +113,6 @@ for f! in (
     end
 end
 
-# Hermitian/antihermitian projection of a fused matrix is the per-block projection of each
-# stored block, reusing the `FusedSectorMatrix` methods above. Both are pure in-place projections
-# with the same block structure as the input, so they iterate the stored blocks directly.
 for f! in (:project_hermitian!, :project_antihermitian!)
     @eval function MAK.$f!(A::FusedGradedMatrix, out, alg::FusedGradedMatrixAlgorithm)
         checksquare(A)
@@ -147,9 +133,7 @@ for f in [
     end
 end
 
-# `one!` (identity fill) is a matrix operation: defined on the matrix storage types by filling each
-# stored block, and guarded on the array types (`_matrix_op_error`) so it does not silently
-# scalar-index the generic `AbstractMatrix` fallback.
+# `one!` is a matrix operation, so it errors on the other types rather than scalar-indexing.
 function MAK.one!(A::FusedGradedMatrix)
     for bI in eachblockstoredindex(A)
         MAK.one!(view(A, bI))
@@ -165,8 +149,6 @@ MAK.one!(A::AbstractSectorDelta) = _matrix_op_error(MAK.one!, A)
 # since these might be present or missing
 # =====================================================================
 
-# helper: a fresh diagonal factor (SVD singular values, eigenvalues) over the given per-sector
-# reduced/bond dimensions. `Diagonal` blocks, backed by a contiguous buffer.
 function similar_diagonal(
         A::FusedGradedMatrix,
         ::Type{T},
@@ -249,9 +231,8 @@ function MAK.initialize_output(
     return similar(A, Vector{Tr}, axis_domain(A)) # TODO: don't hardcode type
 end
 
-# The bond axis of a null space: per sector, the excess of `axis`'s multiplicity over `other`'s,
-# omitting the sectors with no excess. A walk over `axis`'s sorted stored vectors, so the result
-# stays canonical.
+# The bond axis of a null space: per sector, the multiplicity of `axis` minus that of `other`,
+# omitting the sectors where it is not positive.
 function nullspace_axis(axis::FusedGradedOneTo, other::FusedGradedOneTo)
     ss = sectortype(axis)[]
     lens = Int[]
@@ -348,8 +329,8 @@ end
 
 # Projections
 # -----------
-# Same output conventions as the generic implementations: hermitian and
-# antihermitian project in place, isometric writes to a fresh output.
+# As for dense matrices, hermitian and antihermitian projections act in place and the isometric
+# projection writes to a fresh output.
 function MAK.initialize_output(
         ::typeof(MAK.project_hermitian!),
         A::FusedGradedMatrix,
@@ -381,24 +362,15 @@ function MAK.diagview(m::FusedGradedMatrix)
     )
 end
 
-# A `FusedGradedDiagonal` stores its diagonal as a `FusedGradedVector`, so `diagview` returns it
-# directly, sharing storage (writing the diagonal writes through to the factor).
 MAK.diagview(d::FusedGradedDiagonal) = d.diag
 
-# Inverse of `diagview`: wrap a `FusedGradedVector` as a block-diagonal `FusedGradedDiagonal`,
-# sharing storage. Keeps the structured form through
-# `pow_diag_safe(D) = MAK.diagonal(map(f, MAK.diagview(D)))`, so the next
-# `V * MAK.diagonal(...)` stays in the block-diagonal multiplication path instead of
-# falling through to LinearAlgebra's scalar-indexing `Diagonal*Matrix` impl.
+# Keeps the result block diagonal, so a following `V * MAK.diagonal(...)` does not fall back to
+# the scalar-indexing `Diagonal * Matrix` method.
 MAK.diagonal(v::FusedGradedVector) = FusedGradedDiagonal(v)
 
-# `pow_diag_safe!` for a graded matrix that is diagonal: a `FusedGradedDiagonal`, or a
-# `FusedGradedMatrix` that happens to be runtime-diagonal (the `isdiag` fast path in
-# `powh_safe` powers such a matrix directly, without an eigendecomposition).
-# Delegating per reduced block reuses the generic diagonal-only kernel, which is correct even
-# in the non-abelian case: a diagonal factor is `Diagonal(λ) ⊗ I` per sector, and `f(A ⊗ I) =
-# f(A) ⊗ I`, so the power passes straight to the reduced eigenvalues. This is why the diagonal
-# power is well defined here whereas a general element-wise `map!` on a graded array is not.
+# For a diagonal graded matrix, which may be a `FusedGradedMatrix` that is diagonal at run time.
+# Each block is `Diagonal(λ) ⊗ I` and `f(A ⊗ I) = f(A) ⊗ I`, so the power acts on the reduced data,
+# also for non-abelian sectors.
 function MA.pow_diag_safe!(
         Dp::AbstractFusedGradedMatrix, D::AbstractFusedGradedMatrix, p, tol
     )
@@ -409,13 +381,11 @@ function MA.pow_diag_safe!(
     return Dp
 end
 
-# Count how many elements are kept for a given index specification and block size
 _count_kept(::Colon, n) = n
 _count_kept(ind::AbstractVector{Bool}, _) = count(ind)
 _count_kept(ind::AbstractVector, _) = length(ind)
 
-# truncation_error! for FusedGradedVector
-# Zeroes out kept values (ind[i]) in each block; returns 2-norm of discarded values.
+# Zeroes out the kept values in each block and returns the 2-norm of the discarded ones.
 function MAK.truncation_error!(v::FusedGradedVector, ind::AbstractVector)
     foreach(MAK.truncation_error!, sectordata(v), ind)
     return LinearAlgebra.norm(v)
@@ -424,14 +394,12 @@ function MAK.truncation_error(v::FusedGradedVector, ind::AbstractVector)
     return MAK.truncation_error!(copy(v), ind)
 end
 
-# findtruncated / findtruncated_svd for FusedGradedVector
-# Both return a Vector where entry i gives the kept indices for block i.
+# `findtruncated` returns a `Vector` whose entry `i` is the kept indices of block `i`.
 
 function MAK.findtruncated(v::FusedGradedVector, ::MAK.NoTruncation)
     return [Colon() for _ in sectordata(v)]
 end
 
-# Default: findtruncated_svd falls back to findtruncated (overridden below for some strategies)
 function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationStrategy)
     return MAK.findtruncated(v, strategy)
 end
@@ -439,12 +407,11 @@ function MAK.findtruncated_svd(v::FusedGradedVector, ::MAK.NoTruncation)
     return [Colon() for _ in sectordata(v)]
 end
 
-# TruncationByFilter: apply independently per block
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByFilter)
     return [MAK.findtruncated(b, strategy) for b in sectordata(v)]
 end
 
-# TruncationByValue (trunctol): compute global norm for rtol, then apply per block
+# `rtol` is relative to the norm of all blocks together.
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByValue)
     atol = max(strategy.atol, strategy.rtol * LinearAlgebra.norm(v, strategy.p))
     per_block = MAK.trunctol(; atol, strategy.by, strategy.keep_below, strategy.p)
@@ -456,7 +423,7 @@ function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByV
     return [MAK.findtruncated_svd(b, per_block) for b in sectordata(v)]
 end
 
-# TruncationByOrder (truncrank k): global top-k across all blocks
+# The top `k` across all blocks.
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder)
     all_entries = [
         (strategy.by(val), i, j)
@@ -475,12 +442,12 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByOrder
     sort!.(kept)
     return kept
 end
-# SVD values are sorted descending within each block but we still need a cross-block comparison
+# Values are sorted within each block but still need to be compared across blocks.
 function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByOrder)
     return MAK.findtruncated(v, strategy)
 end
 
-# TruncationByError (truncerror): global cumulative error budget, discard smallest first
+# One error budget across all blocks, discarding the smallest values first.
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError)
     (isfinite(strategy.p) && strategy.p > 0) ||
         throw(ArgumentError(lazy"p-norm with p=$(strategy.p) not supported"))
@@ -488,7 +455,6 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     total_norm_p = LinearAlgebra.norm(v, strategy.p)^p
     ϵᵖmax = max(strategy.atol^p, strategy.rtol^p * total_norm_p)
 
-    # Sort all values ascending by abs (smallest first = most likely discarded)
     all_entries = [
         (abs(val), i, j)
             for (i, b) in enumerate(sectordata(v))
@@ -496,7 +462,6 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     ]
     sort!(all_entries; by = first, rev = true)
 
-    # Greedily keep until error budget is exhausted
     axsectors = sectors(only(axes(v)))
     kept = [Int[] for _ in sectordata(v)]
     total_err_p = total_norm_p
@@ -509,12 +474,11 @@ function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationByError
     return kept
 end
 
-# TruncationByError: disambiguate against MAK's findtruncated_svd(::AbstractVector, ::TruncationByError)
+# Disambiguate against `MAK.findtruncated_svd(::AbstractVector, ::TruncationByError)`.
 function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationByError)
     return MAK.findtruncated(v, strategy)
 end
 
-# TruncationIntersection: intersect per-block results from each component strategy
 function MAK.findtruncated(v::FusedGradedVector, strategy::MAK.TruncationIntersection)
     inds = map(s -> MAK.findtruncated(v, s), strategy.components)
     return [
@@ -530,13 +494,8 @@ function MAK.findtruncated_svd(v::FusedGradedVector, strategy::MAK.TruncationInt
     ]
 end
 
-# truncate for FusedGradedMatrix: build reduced-dimension output, dropping fully
-# truncated sectors from the bond side only. For U the row (codomain) axis is the
-# input codomain and must keep its full sector set, and only the column (domain)
-# axis shrinks. Analogously for Vᴴ. For S, both sides are the bond and shrink
-# together. Sectors whose singular values are all truncated to zero are dropped
-# entirely from the bond, matching the `truncate_space` convention used in
-# `TensorMap` factorizations.
+# Sectors whose singular values are all truncated are dropped from the bond, as TensorKit's
+# `truncate_space` does. The other axes of `U` and `Vᴴ` keep all of their sectors.
 function MAK.truncate(
         ::typeof(MAK.svd_trunc!),
         (U, S, Vᴴ)::Tuple{FusedGradedMatrix, FusedGradedDiagonal, FusedGradedMatrix},
@@ -547,9 +506,7 @@ function MAK.truncate(
     sdU, sdsv, sdVᴴ = sectordata(U), sectordata(sv), sectordata(Vᴴ)
     sectors_all = collect(keys(sdU))
 
-    # Slice every sector's blocks first. `inds[i]` may be `Colon()` (notrunc) or a
-    # `Vector{Int}` (rank/tol/error truncations), so check emptiness via the resulting
-    # column count rather than `isempty(inds[i])`.
+    # `inds[i]` may be `Colon()`, so check emptiness on the sliced blocks.
     U_blocks_all =
         [sdU[sectors_all[i]][:, inds[i]] for i in eachindex(inds)]
     sv_blocks_all =
@@ -561,16 +518,12 @@ function MAK.truncate(
     sectors_kept = sectors_all[keep]
     bond_dims = [size(U_blocks_all[i], 2) for i in keep]
 
-    # U: rows = input codomain (full), cols = bond (shrunk). The sliced blocks are freshly allocated
-    # matrices, not buffer views, so let the block dictionary infer their type.
     U_cod = axis_codomain(U)
     U_dom = FusedGradedOneTo(sectors_kept, bond_dims)
     Ũ = fusedgradedmatrix(Dictionary(sectors_kept, U_blocks_all[keep]), U_cod, U_dom)
 
-    # S: the diagonal factor over the shrunk bond.
     S̃ = MAK.diagonal(fusedgradedvector(sectors_kept .=> sv_blocks_all[keep]))
 
-    # Vᴴ: rows = bond (shrunk), cols = input domain (full).
     Vᴴ_cod = FusedGradedOneTo(sectors_kept, bond_dims)
     Vᴴ_dom = axis_domain(Vᴴ)
     Ṽᴴ = fusedgradedmatrix(Dictionary(sectors_kept, Vᴴ_blocks_all[keep]), Vᴴ_cod, Vᴴ_dom)
@@ -598,10 +551,8 @@ for f! in (:eigh_trunc!, :eig_trunc!)
 
         D̃ = MAK.diagonal(fusedgradedvector(sectors_kept .=> ev_blocks_all[keep]))
 
-        # V: rows = the input codomain (full), columns = the eigenvector bond (shrunk). A sector
-        # whose eigenvalues are all truncated keeps a zero-width row block, so the row axis comes
-        # from `V` rather than being derived from the surviving blocks — deriving it drops the
-        # emptied sector, and the result then fails to fuse back to the input's coupled axes.
+        # The row axis comes from `V`, since deriving it from the kept blocks would drop the
+        # sectors whose eigenvalues are all truncated.
         Ṽ = fusedgradedmatrix(
             Dictionary(sectors_kept, V_blocks_all[keep]),
             axis_codomain(V),

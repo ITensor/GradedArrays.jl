@@ -1,6 +1,5 @@
-# Block-data indexing type analogous to `BlockArrays.Block{N}`. Indexing a graded
-# array with `Data(i, j, ...)` accesses the raw data array for that block, without
-# sector metadata wrappers.
+# Like `BlockArrays.Block{N}`, but indexing a graded array with `Data(i, j, ...)` accesses the
+# raw data array of that block.
 struct Data{N}
     n::NTuple{N, Int}
 end

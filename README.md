@@ -8,8 +8,7 @@
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 A Julia package for arrays with graded (blocked) spaces, such as those invariant under group
-actions. Built on top of, and compatible with,
-[TensorKit.jl](https://github.com/QuantumKitHub/TensorKit.jl).
+actions.
 
 ## Support
 

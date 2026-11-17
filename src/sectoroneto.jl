@@ -1,9 +1,5 @@
-# One sector's index space: a sector, a data length (multiplicity), and an arrow. This is the
-# building block for `GradedOneTo`.
-#
-# The arrow is stored here rather than on the sector, matching `GradedOneTo`. An
-# `OrientedSector` is built on demand, by `structure`, for the places that want the
-# sector and its arrow as one value.
+# The index range of one block of a graded axis: a sector, a data length (multiplicity), and an
+# arrow.
 struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}
     sector::S
     datalength::Int
@@ -11,7 +7,6 @@ struct SectorOneTo{S <: Sector} <: AbstractUnitRange{Int}
 end
 
 SectorOneTo(s::Sector, datalength::Int = 1) = SectorOneTo(s, datalength, false)
-# An `OrientedSector` already carries the arrow, so it splits into the two stored fields.
 function SectorOneTo(s::OrientedSector, datalength::Int = 1)
     return SectorOneTo(sector(s), datalength, isdual(s))
 end
@@ -25,17 +20,14 @@ datalength(r::SectorOneTo) = r.datalength
 # Derived accessors
 sectorlength(r::SectorOneTo) = length(sector(r))
 
-# Kronecker factor decomposition:
-# SectorOneTo = tensor_product(OrientedSector (sector axis), OneTo (data axis))
+# Kronecker factors: the sector axis (`structure`) and the data axis (`data`).
 data(r::SectorOneTo) = Base.OneTo(datalength(r))
 structure(r::SectorOneTo) = OrientedSector(sector(r), isdual(r))
 dataaxes(r::SectorOneTo) = (data(r),)
 
-# Type-level data axis type (for promote_op in similar)
 dataaxistype(::Type{<:SectorOneTo}) = Base.OneTo{Int}
 
-# Duck-typed interface matching GradedOneTo: `sectors` reports the bare sector, which no
-# longer carries an arrow, while `eachstructureaxis` pairs it with this range's arrow.
+# Matches the `GradedOneTo` interface.
 sectors(r::SectorOneTo) = [sector(r)]
 datalengths(r::SectorOneTo) = [datalength(r)]
 BlockArrays.blocklength(::SectorOneTo) = 1
@@ -101,8 +93,7 @@ end
 
 # ========================  Show  ========================
 
-# Factor the `dual` to the outside — `dual(SectorOneTo(sector, n))` — rather
-# than decorating the inner sector, mirroring the `GradedOneTo` convention.
+# Print `dual(SectorOneTo(sector, n))`, as for `GradedOneTo`.
 function Base.show(io::IO, r::SectorOneTo)
     isdual(r) && print(io, "dual(")
     print(io, "SectorOneTo(")

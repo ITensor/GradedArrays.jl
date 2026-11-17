@@ -6,8 +6,8 @@ export Sector, Trivial, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
 export sectorproduct, ×
 export GradedArray, gradedrange, sectors
 export dual, isdual
-# The array and axis types are exported rather than `public` because they name themselves in
-# every graded display, where `show` spells a name out in full unless the reader has it in scope.
+# Exported rather than `public` because graded displays print these type names, and `show`
+# qualifies a name that is not in scope.
 export FusedGradedMatrix, FusedGradedVector, GradedOneTo
 
 if VERSION >= v"1.11.0-DEV.469"
@@ -64,8 +64,7 @@ include("abstractfusedgradedarray.jl")
 include("sectordata.jl")
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
-# The graded broadcast-style lattice is defined here, before `FusedGradedDiagonal` (which adds its
-# own `FusedGradedDiagonalStyle` under the lattice) and `GradedArray` (which adds `GradedStyle`).
+# Before `FusedGradedDiagonal` and `GradedArray`, which add their own broadcast styles to it.
 include("broadcast.jl")
 include("adjointfusedgradedarray.jl")
 include("fusedgradedblocks.jl")
@@ -82,7 +81,7 @@ include("matrixalgebrakit.jl")
 
 include("gradedarray.jl")
 include("conjgradedarray.jl")
-# Shared graded-array interface + `VectorInterface` (both name `GradedArray`, so they come after it).
+# These name `GradedArray`, so they come after it.
 include("gradedarrayinterface.jl")
 include("vectorinterface.jl")
 include("gradedconstructors.jl")
