@@ -729,30 +729,64 @@ function _contractpermconjadd_graded!(
     else
         @noinline TensorAlgebra.matricizeconj(isconj2, a2, perm2_codomain, perm2_domain)
     end
-    # Dispatched at run time, since each matricization is the stored matrix or its adjoint
-    # depending on the run-time conjugation flags.
-    return Base.inferencebarrier(_unmatricizemuladd!)(
-        a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
-    )
-end
-
-@noinline function _unmatricizemuladd!(
-        a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
-    )
+    m1, t1 = unwrap_adjortrans(a1_mat)
+    m2, t2 = unwrap_adjortrans(a2_mat)
     if TensorAlgebra.is_output_view(
             TensorAlgebra.matricizeconj, false, a_dest, perm_dest_codomain, perm_dest_domain
         )
         a_dest_mat = TensorAlgebra.matricizeconjview(
             false, a_dest, perm_dest_codomain, perm_dest_domain
         )
-        LinearAlgebra.mul!(a_dest_mat, a1_mat, a2_mat, α, β)
+        muladjortransadd!(a_dest_mat, t1, m1, t2, m2, α, β)
     else
-        a_dest_mat = a1_mat * a2_mat
         TensorAlgebra.unmatricizeadd!(
-            a_dest, a_dest_mat, perm_dest_codomain, perm_dest_domain, α, β
+            a_dest, muladjortrans(t1, m1, t2, m2), perm_dest_codomain, perm_dest_domain, α,
+            β
         )
     end
     return a_dest
+end
+
+# A graded matricization is a fused matrix or its lazy adjoint, depending on the run-time
+# conjugation flag. Split it into the fused matrix and a flag instead, 'N' as is or 'C' adjoint
+# (the BLAS convention), so the product below is compiled for one pair of types.
+unwrap_adjortrans(m::AdjointFusedGradedMatrix) = (parent(m), 'C')
+unwrap_adjortrans(m) = (m, 'N')
+
+wrap_adjortrans(t::Char, m) = t == 'N' ? m : adjoint(m)
+
+# `c = β * c + α * op1(m1) * op2(m2)` block by block, with `op1` and `op2` given by the flags.
+function muladjortransadd!(
+        c::FusedGradedMatrix{T}, t1::Char, m1::FusedGradedMatrix{T},
+        t2::Char, m2::FusedGradedMatrix{T}, α::Number, β::Number
+    ) where {T <: LinearAlgebra.BlasFloat}
+    check_input(mul!, c, wrap_adjortrans(t1, m1), wrap_adjortrans(t2, m2))
+    d1, d2 = sectordata(m1), sectordata(m2)
+    for (s, b) in pairs(sectordata(c))
+        if haskey(d1, s) && haskey(d2, s)
+            LinearAlgebra.BLAS.gemm!(t1, t2, convert(T, α), d1[s], d2[s], convert(T, β), b)
+        else
+            iszero(β) ? fill!(b, β) : scale!(b, β)
+        end
+    end
+    return c
+end
+function muladjortransadd!(c, t1::Char, m1, t2::Char, m2, α::Number, β::Number)
+    mul!(c, wrap_adjortrans(t1, m1), wrap_adjortrans(t2, m2), α, β)
+    return c
+end
+
+# `op1(m1) * op2(m2)`, with `op1` and `op2` given by the flags.
+function muladjortrans(
+        t1::Char, m1::FusedGradedMatrix{T}, t2::Char, m2::FusedGradedMatrix{T}
+    ) where {T <: LinearAlgebra.BlasFloat}
+    codomain = t1 == 'N' ? axis_codomain(m1) : axis_domain(m1)
+    domain = t2 == 'N' ? axis_domain(m2) : axis_codomain(m2)
+    c = FusedGradedMatrix{T}(undef, codomain, domain)
+    return muladjortransadd!(c, t1, m1, t2, m2, true, false)
+end
+function muladjortrans(t1::Char, m1, t2::Char, m2)
+    return wrap_adjortrans(t1, m1) * wrap_adjortrans(t2, m2)
 end
 
 # Whether the two axis groups hold the same axes with the same repeats, in any order. Reordering
