@@ -12,9 +12,9 @@ path = ".."
 
 [compat]
 Documenter = "1"
-GradedArrays = "0.17"
+GradedArrays = "0.18"
 ITensorFormatter = "0.2.27"
 Literate = "2"
-TensorAlgebra = "0.23"
+TensorAlgebra = "0.24"
 TensorKit = "0.17.2"
 TensorKitSectors = "0.3.8"
