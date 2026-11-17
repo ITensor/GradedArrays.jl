@@ -138,7 +138,11 @@ end
 # Construct a non-dual `FusedGradedOneTo` from `sector => multiplicity` pairs. The sectors must
 # already be sorted and unique.
 function fusedgradedrange(xs::AbstractVector{<:Pair})
-    return FusedGradedOneTo(map(p -> Sector(first(p)), xs), Int[last(p) for p in xs], false)
+    return FusedGradedOneTo(
+        map(p -> to_sector(first(p)), xs),
+        Int[last(p) for p in xs],
+        false
+    )
 end
 
 # ========================  conversions between graded-axis types  ========================

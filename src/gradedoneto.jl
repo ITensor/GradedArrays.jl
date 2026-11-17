@@ -201,18 +201,20 @@ end
     gradedrange(xs::AbstractVector{<:Pair})
 
 Construct a non-dual graded range from `sector => multiplicity` pairs, keyed by anything
-[`Sector`](@ref) accepts, `NamedTuple` keys for sector products included. Wrap the result in
-`dual` for a dual axis.
+[`Sector`](@ref) accepts. A `Tuple` or `NamedTuple` key is read as the product of its factors,
+as with [`sectorproduct`](@ref), so nested products are flattened and `Trivial` factors drop
+out. Wrap the result in `dual` for a dual axis.
 
 # Examples
 
 ```julia
 gradedrange([U1(0) => 2, U1(1) => 3])          # non-dual
 dual(gradedrange([U1(0) => 2, U1(1) => 3]))    # dual
+gradedrange([(fU1(1), U1(1)) => 2])            # keyed by fU1(1) × U1(1)
 ```
 """
 function gradedrange(xs::AbstractVector{<:Pair})
-    return GradedOneTo(map(p -> Sector(first(p)), xs), Int[last(p) for p in xs], false)
+    return GradedOneTo(map(p -> to_sector(first(p)), xs), Int[last(p) for p in xs], false)
 end
 
 # One method per key type, since a `Union` inside `Pair{<:...}` is slow to subtype and causes

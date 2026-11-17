@@ -132,7 +132,7 @@ end
 # and unique.
 function fusedgradedvector(sectordata)
     ps = collect(sectordata)
-    sectors = [Sector(first(p)) for p in ps]
+    sectors = [to_sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))

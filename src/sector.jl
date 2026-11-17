@@ -15,9 +15,10 @@ so `length` is the sector's dimension.
     Sector(nt::NamedTuple)
     Sector(; kws...)
 
-Two or more sectors give the product over them, positional or named. Anything `Sector`
-accepts can be used to specify a sector elsewhere, for example in `gradedrange` and the array
-constructors.
+Two or more sectors give the product over them, positional or named. `Sector()` with no
+arguments is [`Trivial()`](@ref Trivial), while `Sector((;))` is the empty named product. Anything
+`Sector` accepts can be used to specify a sector elsewhere, for example in `gradedrange` and the
+array constructors.
 """
 abstract type Sector <: AbstractOrientedSector end
 

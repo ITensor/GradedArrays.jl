@@ -35,7 +35,14 @@ function Sector(t::Tuple)
     return TupleSectorProduct(args)
 end
 Sector(nt::NamedTuple) = NamedSectorProduct(map(Sector, nt))
-Sector(; kws...) = Sector(values(kws))
+# No arguments specifies no symmetry, which is not the empty named product `(;)`.
+Sector(; kws...) = isempty(kws) ? Trivial() : Sector(values(kws))
+
+# Normalizes a sector specification the way `sectorproduct` does: a tuple multiplies its factors,
+# flattening nested products and dropping `Trivial`, where `Sector` builds exactly what it is given.
+to_sector(x) = Sector(x)
+to_sector(t::Tuple) = sectorproduct(map(to_sector, t)...)
+to_sector(nt::NamedTuple) = Sector(map(to_sector, nt))
 
 # Fusion works argument by argument, so a bare operand is read as a one-factor positional product.
 to_sectorproduct(s::SectorProduct) = s
@@ -324,7 +331,6 @@ function sectorproduct(S1::SectorTypeSpec, Srest::SectorTypeSpec...)
     return typeof(sectorproduct(trivial(S1), map(trivial, Srest)...))
 end
 
-# The unit. `Sector()` instead gives the empty named product.
 sectorproduct() = Trivial()
 
 # No one-factor product is ever built.
