@@ -53,6 +53,7 @@ axes_codomain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 axes_domain(d::FusedGradedDiagonal) = (axis(MAK.diagview(d)),)
 
 Base.dataids(d::FusedGradedDiagonal) = Base.dataids(MAK.diagview(d))
+Base.parent(d::FusedGradedDiagonal) = MAK.diagview(d)
 
 function Base.similar(d::FusedGradedDiagonal, ::Type{T}) where {T}
     return FusedGradedDiagonal(similar(MAK.diagview(d), T))

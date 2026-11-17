@@ -64,6 +64,8 @@ TensorAlgebra.has_bipartition(::GradedArray) = true
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
 Base.dataids(fa::GradedArray) = Base.dataids(matricize(fa))
+# Unwrapping `parent` repeatedly reaches the flat storage buffer, which `TensorAlgebra.data` uses.
+Base.parent(fa::GradedArray) = matricize(fa)
 
 # ============================  block indexing (unique fusion)  ============================
 # Unique fusion only: for a non-abelian symmetry the leg sectors of a `Block` don't determine the

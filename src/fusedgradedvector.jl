@@ -161,6 +161,7 @@ axes_codomain(v::FusedGradedVector) = (v.axis,)
 axes_domain(v::FusedGradedVector) = ()
 
 Base.dataids(v::FusedGradedVector) = Base.dataids(v.buffer)
+Base.parent(v::FusedGradedVector) = v.buffer
 
 # Reduce each block on its own device, then combine the results. `init` is passed only to the
 # outer fold, since applying it per block would be wrong for `sum(v; init = 10)`.

@@ -145,6 +145,7 @@ axes_domain(m::FusedGradedMatrix) = (m.axis_domain,)
 
 # Lets `Base.mightalias` detect sharing with the buffer and its wrappers.
 Base.dataids(m::FusedGradedMatrix) = Base.dataids(m.buffer)
+Base.parent(m::FusedGradedMatrix) = m.buffer
 
 # ========================  setsectors  ========================
 
