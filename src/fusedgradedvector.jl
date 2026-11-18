@@ -225,10 +225,10 @@ end
 
 # The generic fallback would allocate a `GradedArray` through `similar_map`.
 function TensorAlgebra.allocate_output(
-        ::typeof(TA.permutedimsconj), isconj::Bool, src::FusedGradedVector, perm_codomain,
+        ::typeof(TA.bipermutedimsconj), isconj::Bool, src::FusedGradedVector, perm_codomain,
         perm_domain
     )
-    check_input(TA.permutedimsconj, isconj, src, perm_codomain, perm_domain)
+    check_input(TA.bipermutedimsconj, isconj, src, perm_codomain, perm_domain)
     return similar(src)
 end
 

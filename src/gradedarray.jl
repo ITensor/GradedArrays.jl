@@ -818,7 +818,7 @@ function TensorAlgebra.allocate_output(
 end
 
 function TensorAlgebra.allocate_output(
-        ::typeof(TensorAlgebra.permutedimsconj), isconj::Bool, src::GradedArray,
+        ::typeof(TensorAlgebra.bipermutedimsconj), isconj::Bool, src::GradedArray,
         perm_codomain::Tuple{Vararg{Int}}, perm_domain::Tuple{Vararg{Int}}
     )
     axes_codomain = map(i -> isconj ? conj(axes(src, i)) : axes(src, i), perm_codomain)

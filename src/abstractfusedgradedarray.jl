@@ -468,7 +468,7 @@ end
 
 # Only an identity copy or an adjoint keeps the first axis non-dual, which fused storage requires.
 function TensorAlgebra.check_input(
-        ::typeof(TA.permutedimsconj), isconj::Bool,
+        ::typeof(TA.bipermutedimsconj), isconj::Bool,
         ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
     is_copy = !isconj && perm_codomain == (1,) && perm_domain == (2,)
@@ -485,17 +485,17 @@ function TensorAlgebra.check_input(
 end
 
 function TensorAlgebra.allocate_output(
-        ::typeof(TA.permutedimsconj), isconj::Bool, src::AbstractFusedGradedMatrix,
+        ::typeof(TA.bipermutedimsconj), isconj::Bool, src::AbstractFusedGradedMatrix,
         perm_codomain, perm_domain
     )
-    check_input(TA.permutedimsconj, isconj, src, perm_codomain, perm_domain)
+    check_input(TA.bipermutedimsconj, isconj, src, perm_codomain, perm_domain)
     perm_codomain == (1,) && return similar(src)
     return similar(src')
 end
 
 # Only the identity copy is valid: `conj` would dualize the axis.
 function TensorAlgebra.check_input(
-        ::typeof(TA.permutedimsconj), isconj::Bool,
+        ::typeof(TA.bipermutedimsconj), isconj::Bool,
         ::AbstractFusedGradedVector, perm_codomain, perm_domain
     )
     (!isconj && perm_codomain == (1,) && perm_domain == ()) || throw(
@@ -506,14 +506,6 @@ function TensorAlgebra.check_input(
         )
     )
     return nothing
-end
-
-# Avoid the generic path, which allocates through `similar_map`.
-function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm)
-    return TA.permutedimsconj(false, a, perm, ())
-end
-function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm_codomain, perm_domain)
-    return TA.permutedimsconj(false, a, perm_codomain, perm_domain)
 end
 
 Base.permutedims(a::AbstractFusedGradedArray, perm) = TensorAlgebra.permutedims(a, perm)
