@@ -103,19 +103,6 @@ function Base.similar(
     return similar(d, T)
 end
 
-function TensorAlgebra.matricizeconjcopy(
-        isconj::Bool, d::FusedGradedDiagonal, perm_codomain, perm_domain
-    )
-    length(perm_codomain) == 1 || throw(
-        ArgumentError(
-            "a matrix-level fused array matricizes only with a single codomain leg"
-        )
-    )
-    !isconj && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
-        return FusedGradedDiagonal(copy(MAK.diagview(d)))
-    return TensorAlgebra.permutedimsconj(isconj, d, perm_codomain, perm_domain)
-end
-
 function allocate_output(
         ::typeof(*), A::FusedGradedDiagonal, B::FusedGradedDiagonal
     )

@@ -35,14 +35,21 @@ end
 
 # ========================  UniqueSectorDelta matricize  ========================
 
-function TensorAlgebra.matricizeconjcopy(
-        isconj::Bool, a::UniqueSectorDelta, perm_codomain, perm_domain
+# A delta holds no data, so the matricization is complete once it is allocated.
+function TensorAlgebra.allocate_output(
+        ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::UniqueSectorDelta,
+        perm_codomain, perm_domain
     )
     ax_codomain = map(i -> isconj ? conj(axes(a, i)) : axes(a, i), perm_codomain)
     ax_codomain =
         isempty(ax_codomain) ? trivial(sectortype(a)) : tensor_product(ax_codomain...)
     # A one-leg group fuses to its own `flip_dual`, which still carries an arrow.
     return SectorIdentity{eltype(a)}(sector(ax_codomain))
+end
+function TensorAlgebra.matricizeconj!(
+        dest::SectorIdentity, isconj::Bool, a::UniqueSectorDelta, perm_codomain, perm_domain
+    )
+    return dest
 end
 
 # ========================  UniqueSectorArray matricize  ========================
@@ -61,17 +68,43 @@ function TensorAlgebra.matricizeconjview(
     adata_reshaped = matricize(data(a), ndims_codomain)
     return sector_kron(asectors_reshaped, adata_reshaped)
 end
-function TensorAlgebra.matricizeconjcopy(
-        isconj::Bool, a::UniqueSectorArray, perm_codomain, perm_domain
+# The matrix shares its storage with the permuted array, which `matricizeconj!` writes through.
+function TensorAlgebra.allocate_output(
+        ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::UniqueSectorArray,
+        perm_codomain, perm_domain
     )
-    a_perm = TensorAlgebra.permutedimsconj(isconj, a, perm_codomain, perm_domain)
+    a_perm = TensorAlgebra.allocate_output(
+        TensorAlgebra.bipermutedimsconj, isconj, a, perm_codomain, perm_domain
+    )
     return matricize(a_perm, Val(length(perm_codomain)))
+end
+function TensorAlgebra.matricizeconj!(
+        dest::AbstractSectorArray{<:Any, <:Any, 2}, isconj::Bool, a::UniqueSectorArray,
+        perm_codomain, perm_domain
+    )
+    axes_perm = map(
+        i -> isconj ? conj(axes(a, i)) : axes(a, i), (perm_codomain..., perm_domain...)
+    )
+    axes_codomain, axes_domain =
+        TensorAlgebra.bipartition_axes(axes_perm, Val(length(perm_codomain)))
+    bipermutedimsconjadd!(
+        TensorAlgebra.unmatricizeview(dest, axes_codomain, axes_domain), isconj, a,
+        perm_codomain, perm_domain, true, false
+    )
+    return dest
 end
 
 # ========================  sector array unmatricize  ========================
 
 # `unmatricize` receives the domain axes un-dualized.
-function TensorAlgebra.unmatricize(
+function TensorAlgebra.isoutputview(
+        ::typeof(unmatricize),
+        m::Union{AbstractSectorDelta{<:Any, <:Any, 2}, AbstractSectorArray{<:Any, <:Any, 2}},
+        codomain_axes, domain_axes
+    )
+    return true
+end
+function TensorAlgebra.unmatricizeview(
         m::AbstractSectorDelta{<:Any, <:Any, 2},
         codomain_axes::Tuple{Vararg{OrientedSector}},
         domain_axes::Tuple{Vararg{OrientedSector}}
@@ -79,33 +112,22 @@ function TensorAlgebra.unmatricize(
     return UniqueSectorDelta{eltype(m)}((codomain_axes..., conj.(domain_axes)...))
 end
 
-function TensorAlgebra.unmatricize(
+function TensorAlgebra.unmatricizeview(
         m::AbstractSectorArray{<:Any, <:Any, 2},
         codomain_axes::Tuple{Vararg{SectorOneTo}},
         domain_axes::Tuple{Vararg{SectorOneTo}}
     )
-    msectors = unmatricize(
+    msectors = TensorAlgebra.unmatricizeview(
         structure(m),
         structure.(codomain_axes),
         structure.(domain_axes)
     )
-    mdata = unmatricize(
+    mdata = TensorAlgebra.unmatricizeview(
         data(m),
         data.(codomain_axes),
         data.(domain_axes)
     )
     return UniqueSectorArray(mdata, msectors)
-end
-
-# ========================  adjoint fused graded unmatricize  ========================
-
-# A lazy adjoint has no contiguous buffer to reshape.
-function TensorAlgebra.unmatricize(
-        m::AdjointFusedGradedMatrix,
-        codomain_axes::Tuple{Vararg{AbstractGradedOneTo}},
-        domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
-    )
-    return TensorAlgebra.unmatricize(copy(m), codomain_axes, domain_axes)
 end
 
 # ========================  Allowed block keys  ========================
