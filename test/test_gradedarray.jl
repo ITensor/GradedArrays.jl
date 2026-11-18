@@ -734,6 +734,17 @@ end
     @test Array(rsplit) ≈ reshape(Array(D), length(g), length(g), length(bond))
 end
 
+@testset "unmatricize copies a lazy adjoint" begin
+    g = gradedrange([U1(0) => 1, U1(1) => 2])
+    a = randn((g, g), (g,))
+    ma = matricize(a)'
+    @test !TensorAlgebra.isoutputview(unmatricize, ma, (g,), (g, g))
+    r = unmatricize(ma, (g,), (g, g))
+    @test r isa GradedArray
+    @test matricize(r) == copy(ma)
+    @test !Base.mightalias(r, a)
+end
+
 @testset "dense converters route around scalar indexing" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = randn((g,), (g,))

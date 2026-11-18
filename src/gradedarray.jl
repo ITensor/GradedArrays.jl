@@ -543,11 +543,32 @@ function TensorAlgebra.matricizeconjview(
     )
     return isconj ? adjoint(matricize(fa)) : matricize(fa)
 end
-function TensorAlgebra.matricizeconjcopy(
-        isconj::Bool, fa::GradedArray, perm_codomain, perm_domain
+# The matrix is the storage of the permuted array, which `matricizeconj!` rewraps to write through.
+function TensorAlgebra.allocate_output(
+        ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::GradedArray,
+        perm_codomain, perm_domain
     )
-    fa_perm = TensorAlgebra.permutedimsconj(isconj, fa, perm_codomain, perm_domain)
-    return matricize(fa_perm)
+    return matricize(
+        TensorAlgebra.allocate_output(
+            TensorAlgebra.bipermutedimsconj, isconj, a, perm_codomain, perm_domain
+        )
+    )
+end
+# Only the size of `dest` is checked, since re-fusing the axes with
+# `check_input(unmatricize, ...)` measurably slows small contractions.
+function TensorAlgebra.matricizeconj!(
+        dest::FusedGradedMatrix, isconj::Bool, a::GradedArray, perm_codomain, perm_domain
+    )
+    axes_codomain = map(i -> isconj ? conj(axes(a, i)) : axes(a, i), perm_codomain)
+    axes_domain = map(i -> isconj ? axes(a, i) : conj(axes(a, i)), perm_domain)
+    size(dest) ==
+        (prod(length, axes_codomain; init = 1), prod(length, axes_domain; init = 1)) ||
+        throw(DimensionMismatch("destination size does not match the matricized array"))
+    bipermutedimsconjadd!(
+        GradedArray(dest, axes_codomain, axes_domain), isconj, a,
+        perm_codomain, perm_domain, true, false
+    )
+    return dest
 end
 
 function TensorAlgebra.check_input(
@@ -561,7 +582,12 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-function TensorAlgebra.unmatricize(
+function TensorAlgebra.isoutputview(
+        ::typeof(unmatricize), m::FusedGradedMatrix, axes_codomain, axes_domain
+    )
+    return true
+end
+function TensorAlgebra.unmatricizeview(
         m::FusedGradedMatrix, axes_codomain::Tuple, axes_domain::Tuple
     )
     check_input(unmatricize, m, axes_codomain, axes_domain)
@@ -581,7 +607,13 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-function TensorAlgebra.unmatricize(
+function TensorAlgebra.isoutputview(
+        ::typeof(unmatricize), d::FusedGradedDiagonal,
+        axes_codomain::Tuple{<:AbstractGradedOneTo}, axes_domain::Tuple{<:AbstractGradedOneTo}
+    )
+    return true
+end
+function TensorAlgebra.unmatricizeview(
         d::FusedGradedDiagonal,
         axes_codomain::Tuple{<:AbstractGradedOneTo}, axes_domain::Tuple{<:AbstractGradedOneTo}
     )
@@ -589,11 +621,14 @@ function TensorAlgebra.unmatricize(
     return GradedArray(d, axes_codomain, axes_domain)
 end
 
-# Any other split is not representable as a `FusedGradedDiagonal`.
-function TensorAlgebra.unmatricize(
-        d::FusedGradedDiagonal, axes_codomain::Tuple, axes_domain::Tuple
+# Any other split of a diagonal, and any lazy adjoint, is copied into a `FusedGradedMatrix`.
+function TensorAlgebra.allocate_output(
+        ::typeof(unmatricize), m::AbstractFusedGradedMatrix, axes_codomain::Tuple,
+        axes_domain::Tuple
     )
-    return unmatricize(FusedGradedMatrix(d), axes_codomain, axes_domain)
+    dest = FusedGradedMatrix{eltype(m)}(undef, axis_codomain(m), axis_domain(m))
+    check_input(unmatricize, dest, axes_codomain, axes_domain)
+    return GradedArray(dest, axes_codomain, axes_domain)
 end
 
 # ============================  contraction  ============================
@@ -845,17 +880,26 @@ function TensorAlgebra.matricizeconjview(
     )
     return m
 end
-function TensorAlgebra.matricizeconjcopy(
-        isconj::Bool, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+function TensorAlgebra.allocate_output(
+        ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, m::AbstractFusedGradedMatrix,
+        perm_codomain, perm_domain
     )
     length(perm_codomain) == 1 || throw(
         ArgumentError(
             "a matrix-level fused array matricizes only with a single codomain leg"
         )
     )
+    return TensorAlgebra.allocate_output(
+        TensorAlgebra.bipermutedimsconj, isconj, m, perm_codomain, perm_domain
+    )
+end
+# The identity is a plain copy, which skips the zeroing pass of the permute-add.
+function TensorAlgebra.matricizeconj!(
+        dest, isconj::Bool, m::AbstractFusedGradedMatrix, perm_codomain, perm_domain
+    )
     !isconj && TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
-        return copy(m)
-    return TensorAlgebra.permutedimsconj(isconj, m, perm_codomain, perm_domain)
+        return copyto!(dest, m)
+    return bipermutedimsconjadd!(dest, isconj, m, perm_codomain, perm_domain, true, false)
 end
 
 function TensorAlgebra.unmatricizeadd!(
@@ -863,13 +907,18 @@ function TensorAlgebra.unmatricizeadd!(
         invperm_codomain::Tuple{Vararg{Int}}, invperm_domain::Tuple{Vararg{Int}},
         α::Number, β::Number
     ) where {N}
-    # With the identity permutation and equal coupled axes the buffers have the same layout.
+    # With the identity permutation and equal coupled axes the matrices have the same blocks,
+    # and two `FusedGradedMatrix`s the same buffer layout.
     md = matricize(a_dest)
-    if m isa FusedGradedMatrix && md isa FusedGradedMatrix &&
+    if md isa FusedGradedMatrix &&
             ndims_codomain(a_dest) == length(invperm_codomain) &&
             (invperm_codomain..., invperm_domain...) == ntuple(identity, Val(N)) &&
             axis_codomain(m) == axis_codomain(md) && axis_domain(m) == axis_domain(md)
-        TensorAlgebra.scaleadd!(md.buffer, m.buffer, α, β)
+        if m isa FusedGradedMatrix
+            TensorAlgebra.scaleadd!(md.buffer, m.buffer, α, β)
+        else
+            TensorAlgebra.scaleadd!(md, m, α, β)
+        end
         return a_dest
     end
     # The permutation back follows the codomain/domain split of `a_dest`, which the graded
