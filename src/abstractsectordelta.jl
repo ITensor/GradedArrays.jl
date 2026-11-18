@@ -1,8 +1,4 @@
-# Abstract supertype for structural (Kronecker/identity) tensors associated to sector labels.
-# Concrete subtypes:
-#
-#   - `UniqueSectorDelta`: unfused N-D abelian structural tensor (product of Kronecker deltas)
-#   - `SectorIdentity`: fused 2D structural factor (identity matrix per coupled sector)
+# Supertype for the structural factors of sector arrays, determined by the sector labels.
 abstract type AbstractSectorDelta{T, S, N} <: AbstractArray{T, N} end
 
 sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
@@ -10,18 +6,19 @@ sectortype(::Type{<:AbstractSectorDelta{T, S}}) where {T, S} = S
 Base.copy(A::AbstractSectorDelta) = A
 Base.size(A::AbstractSectorDelta) = map(length, axes(A))
 
-# Display through the dense form. Base's array-display machinery scalar-indexes, which a delta only
-# supports under unique fusion; it is a small structural factor, so densifying it for display is fine.
+# Base's generic constructor checks that the destination's `OneTo` axes `==` the source's axes,
+# which are sectors and so never equal a plain range.
+function Base.Array{T, N}(A::AbstractSectorDelta{<:Any, <:Any, N}) where {T, N}
+    return copyto!(Array{T, N}(undef, size(A)), A)
+end
+
+# Base's array display scalar-indexes, which a delta only supports under unique fusion.
 Base.print_array(io::IO, A::AbstractSectorDelta) = Base.print_array(io, Array(A))
 Base.show(io::IO, A::AbstractSectorDelta) = show(io, Array(A))
 
-# Matrix/linear-algebra operations (`*`, `adjoint`, `transpose`, `tr`, `one!`, factorizations,
-# matrix functions) are defined only on the matrix storage types (`FusedGradedMatrix` /
-# `FusedSectorMatrix`) and, among the structural deltas, only on the identity factor
-# `SectorIdentity`. On the array and general-delta types they would fall through to the generic
-# `AbstractArray` methods, which scalar-index into a dense, non-graded result. Error instead; the
-# specific methods (the matrix-storage types, `SectorIdentity`) are more specific, so they still
-# win. This helper is the shared fallback for every level (defined here, the earliest sector file).
+# Matrix operations are defined only on the matrix storage types and `SectorIdentity`. Elsewhere
+# they would fall through to the generic `AbstractArray` methods, which scalar-index into a dense
+# result, so they error instead.
 @noinline function _matrix_op_error(op, A)
     return error(
         "`$op` is a matrix operation and is not defined on `$(nameof(typeof(A)))`; matrix \
@@ -40,10 +37,8 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval Base.$f(A::AbstractSectorDelta) = _matrix_op_error($f, A)
 end
 
-# `conj` and a transposing `permutedims` would flip the first axis to dual. The fused storage types
-# (the matrix trio `FusedGradedMatrix` / `FusedSectorMatrix` / `SectorIdentity` and the vector trio
-# `FusedGradedVector` / `FusedSectorVector` / `SectorOnesVector`) always carry a non-dual first axis,
-# so both are blocked on them. Conjugate or transpose the `GradedArray` (or matricize) instead.
+# For `conj` and a transposing `permutedims`, which would flip the first axis to dual. The fused
+# storage types always carry a non-dual first axis.
 @noinline function throw_flips_first_axis(op, A)
     return error(
         "`$op` is not supported on `$(nameof(typeof(A)))` because it would flip the first axis to \
@@ -73,21 +68,19 @@ function fermion_permutation_phase(
     BS = TKS.BraidingStyle(sectortype(x))
     BS isa TKS.Bosonic && return true
     @assert BS isa TKS.Fermionic "Only symmetric braiding is supported"
-    # Each leg contributes its fermion parity to the swap sign; this is fusion-independent, so it
-    # holds for non-abelian symmetric-fermionic sectors as well as abelian ones.
+    # The swap sign depends only on the parity of each leg, so this holds for non-abelian fermionic
+    # sectors too.
     mask = map(fermionparity, axes(x))
     return masked_inversion_parity(mask, perm)
 end
 
-# Fermionic phase for permuting `x` by `perm` under the conjugation flag `op`. `op === conj`
-# is the ket->bra involution, which reverses leg order, so it contributes the sign of that
-# reversal on top of the permutation's own sign. `op === identity` leaves only the
-# permutation sign.
+# Conjugation (ket to bra) reverses the leg order, so it contributes the sign of that reversal on
+# top of the permutation's own sign.
 function fermion_permutation_phase(
-        op, x::AbstractSectorDelta{<:Any, <:Any, N}, perm::NTuple{N, Int}
+        isconj::Bool, x::AbstractSectorDelta{<:Any, <:Any, N}, perm::NTuple{N, Int}
     ) where {N}
     phase = fermion_permutation_phase(x, perm)
-    op === conj || return phase
+    isconj || return phase
     return phase * fermion_permutation_phase(x, reverse(ntuple(identity, Val(N))))
 end
 

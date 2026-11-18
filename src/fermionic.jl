@@ -1,7 +1,3 @@
-# Fermionic symmetries: a charge together with the parity that charge forces. TensorKitSectors
-# has the same two as `FermionNumber` and `FermionSpin`, which it also aliases `fU₁` and `fSU₂`;
-# these are those aliases in ASCII, over GradedArrays' own sector types.
-
 """
     const fU1 = U1 × fZ2
     fU1(n::Integer) -> fU1
@@ -28,8 +24,8 @@ const fSU2 = SU2 × fZ2
 fSU2(j::Real) = (s = SU2(j); Sector(s, fZ2(isodd(twice(s.j)))))
 sectortype_repr(::Type{fSU2}) = "fSU2"
 
-# An alias shows under its own name only for a value it actually produces. Any other product of
-# the same two symmetries is not a fermionic sector, and shows as its components.
+# Other products of the same two symmetries, whose parity does not follow from the charge, show as
+# their components.
 function Base.show(io::IO, s::fU1)
     n = only(sector_labels(first(arguments(s))))
     isinteger(n) && fU1(Int(n)) == s || return @invoke show(io::IO, s::TupleSectorProduct)

@@ -1,20 +1,15 @@
-# Supertype for graded axes — a unit range carved into sectors (its blocks), each with a data length
-# (multiplicity), plus a range-level `isdual` arrow. Concrete subtypes differ only in storage
-# and invariants:
-#
-#   - `GradedOneTo` stores parallel `sectors`/`datalengths` vectors and may hold
-#     repeated or unsorted sectors (the intermediate state of a not-yet-merged fusion), plus a
-#     cached fused form of itself.
-#   - `FusedGradedOneTo` stores sorted parallel label/length vectors and is always
-#     fused and sorted (each sector once, in sorted order).
-#
-# Subtypes must provide the primitive accessors `sectors`, `datalengths`, and `isdual`, plus
-# `dual` and `flip` (which return the same concrete type). Everything below is derived from
-# those.
+# A `GradedOneTo` may hold repeated or unsorted sectors, while a `FusedGradedOneTo` holds each
+# sector once, in sorted order. Subtypes provide `sectors`, `datalengths`, `isdual`, `dual` and
+# `flip`.
+"""
+    AbstractGradedOneTo{S <: Sector}
+
+Supertype of graded axes, such as [`GradedOneTo`](@ref): a unit range split into blocks, each
+labelled by a sector of type `S` with a multiplicity, plus an arrow for the whole range that
+`isdual` reports. Use [`sectors`](@ref) and [`datalengths`](@ref) to read the blocks.
+"""
 abstract type AbstractGradedOneTo{S <: Sector} <: AbstractUnitRange{Int} end
 
-# A `SectorOneTo` gives the one sector it carries. A `GradedOneTo` may repeat a sector or leave
-# them unsorted, where a `FusedGradedOneTo` holds each once and in order.
 """
     sectors(g)
 
@@ -22,15 +17,37 @@ The sector of each block of a graded axis, in block order.
 """
 function sectors end
 
+"""
+    datalengths(g)
+
+The multiplicity of each block of a graded axis, in block order. A block's length is its
+multiplicity times the dimension of its sector.
+
+# Examples
+
+```jldoctest
+julia> using GradedArrays: SU2, datalengths, gradedrange
+
+julia> g = gradedrange([SU2(0) => 2, SU2(1 // 2) => 3]);
+
+julia> datalengths(g)
+2-element Vector{Int64}:
+ 2
+ 3
+
+julia> length(g)
+8
+```
+"""
+function datalengths end
+
 # ========================  derived accessors  ========================
 
 sectorlengths(g::AbstractGradedOneTo) = length.(sectors(g))
 Base.first(::AbstractGradedOneTo) = 1
 Base.length(g::AbstractGradedOneTo) = sum(blocklengths(g))
 Base.last(g::AbstractGradedOneTo) = length(g)
-# An `AbstractGradedOneTo` is 1-based and acts as its own axis, like `Base.OneTo`. Without
-# this, `axes` falls back to the generic default, which returns a plain `OneTo` and drops the
-# sectors.
+# Like `Base.OneTo`, a graded axis is its own axis. The generic `axes` would drop the sectors.
 Base.axes(g::AbstractGradedOneTo) = (g,)
 BlockArrays.blocklasts(g::AbstractGradedOneTo) = cumsum(blocklengths(g))
 BlockArrays.blocklength(g::AbstractGradedOneTo) = length(sectors(g))
@@ -41,7 +58,6 @@ function BlockArrays.findblock(g::AbstractGradedOneTo, i::Integer)
     return Block(searchsortedfirst(blocklasts(g), i))
 end
 
-# blocklengths: total length of each block (length(sector) * multiplicity).
 # Lazy, since `length` sums it and `length` is hit by every hash and comparison of an index.
 function BlockArrays.blocklengths(g::AbstractGradedOneTo)
     return mappedarray((s, m) -> length(s) * m, sectors(g), datalengths(g))
@@ -63,18 +79,13 @@ eachdataaxis(g::AbstractGradedOneTo) = data.(eachblockaxis(g))
 eachstructureaxis(g::AbstractGradedOneTo) = structure.(eachblockaxis(g))
 
 # ========================  conj, flip_dual  ========================
-# `dual` and `flip` are concrete-type-specific (they return the same concrete type); `conj`
-# and `flip_dual` derive from them.
 Base.conj(g::AbstractGradedOneTo) = dual(g)
 flip_dual(g::AbstractGradedOneTo) = isdual(g) ? flip(g) : g
 
-# Bounds checking (needed for AbstractArray scalar indexing).
 Base.checkindex(::Type{Bool}, g::AbstractGradedOneTo, i::Int) = 1 <= i <= length(g)
 
 # ========================  equality, hashing  ========================
-# Compared by content (sectors, data lengths, arrow), so equal-content axes compare equal
-# across the concrete subtypes. `sectors` holds the non-dual sectors, so `isdual` carries the
-# arrow and is compared and hashed alongside them.
+# Compared by content, so equal axes compare equal across the concrete subtypes.
 function Base.isequal(a::AbstractGradedOneTo, b::AbstractGradedOneTo)
     return isequal(sectors(a), sectors(b)) &&
         isequal(datalengths(a), datalengths(b)) &&
@@ -89,8 +100,7 @@ function Base.hash(g::AbstractGradedOneTo, h::UInt)
 end
 
 # ========================  show  ========================
-# `showarg` rather than `summary`, so Base still supplies the element count and the `with indices`
-# tail and only the type name is ours.
+# `showarg` rather than `summary`, so Base still prints the element count and the indices.
 function Base.showarg(io::IO, g::AbstractGradedOneTo, toplevel::Bool)
     toplevel || print(io, "::")
     print(io, summary_typename(io, typeof(g)))

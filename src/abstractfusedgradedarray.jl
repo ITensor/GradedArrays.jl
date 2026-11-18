@@ -1,25 +1,17 @@
-# Supertype of the fused (coupled-sector-block) graded arrays, `FusedGradedMatrix` and
-# `FusedGradedVector`. Holds the code shared between the two.
+# Supertype of the fused graded arrays, `FusedGradedMatrix` and `FusedGradedVector`.
 abstract type AbstractFusedGradedArray{T, S, N} <: AbstractArray{T, N} end
 const AbstractFusedGradedMatrix{T, S} = AbstractFusedGradedArray{T, S, 2}
 const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}
 
-# The fused form couples every codomain leg into one and every domain leg into one, so the stored
-# split is always a single codomain leg. `ndims_domain` falls out as the remaining rank: one for
-# the matrix form, none for the vector form.
 TensorAlgebra.ndims_codomain(::AbstractFusedGradedArray) = 1
-TensorAlgebra.has_bipartition(::AbstractFusedGradedArray) = true
+TensorAlgebra.hasbipartition(::AbstractFusedGradedArray) = true
 
-# The matrix form is already its own stored matricization, the same thing
-# `matricizeopview` returns for it.
 TensorAlgebra.matricize(m::AbstractFusedGradedMatrix) = m
 
 using BlockArrays: mortar
 using FillArrays: Zeros
 
-# `datatype` (the per-sector block-data array type) is the primitive each concrete fused array
-# defines; `blocktype` wraps it in the sector-block wrapper (`FusedSectorMatrix` for a matrix,
-# `FusedSectorVector` for a vector), uniform across the family.
+# `datatype` is the per-sector block-data array type, defined by each concrete fused array.
 datatype(a::AbstractFusedGradedArray) = datatype(typeof(a))
 sectortype(::Type{<:AbstractFusedGradedArray{T, S}}) where {T, S} = S
 
@@ -31,15 +23,12 @@ function blocktype(::Type{A}) where {A <: AbstractFusedGradedVector}
 end
 blocktype(a::AbstractFusedGradedArray) = blocktype(typeof(a))
 
-# The one storage accessor each variant overloads: the sector → block-data map. The shared matrix
-# algebra reads through it instead of raw fields, so a lazy adjoint or diagonal factor needs no faked
-# fields. Everything axis-related derives from `biaxes` (the per-variant core), below.
+# The sector → block-data map, overloaded by each concrete fused array. Shared code reads storage
+# through it rather than through fields, so lazy wrappers like the adjoint work too.
 function sectordata end
 
-# The sorted union of the arguments' axis supports (analogous to `eachindex(A...)`): ordered
-# random access for a positional walk over each argument's support-set form (see `setsectors`),
-# and a valid `setsectors` target for every argument by construction (it covers each axis). The
-# sectors carry no arrow, so one union covers axes of either arrow.
+# The sorted union of the sectors of every axis of the arguments, analogous to `eachindex(A...)`.
+# Sectors carry no arrow, so one union covers dual and non-dual axes alike.
 function tensorkit_sectorsupport(
         a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...
     )
@@ -56,10 +45,7 @@ function sectorsupport(a::AbstractFusedGradedArray, as::AbstractFusedGradedArray
 end
 
 # Bring the arguments onto the union of their axis supports, so that one position indexes the
-# same sector in every one of them. Each result shares its argument's buffer, and an argument
-# that already spans the union comes back itself. The union is built and stored in the sectors'
-# TensorKitSectors form, the form the axes hold, so one vector is shared by every axis of every
-# result.
+# same sector in every one of them. Each result shares its argument's buffer.
 function promote_sectorsupport(
         a::AbstractFusedGradedArray, as::AbstractFusedGradedArray...
     )
@@ -67,8 +53,7 @@ function promote_sectorsupport(
     return map(x -> setsectors(x, cs), (a, as...))
 end
 
-# Union of two sorted, unique vectors, returned in sorted order. Sorted inputs make the union a
-# merge.
+# Union of two sorted, unique vectors, in sorted order.
 function mergesortedunique(a::AbstractVector{S}, b::AbstractVector{S}) where {S}
     out = S[]
     i = j = 1
@@ -90,25 +75,16 @@ function mergesortedunique(a::AbstractVector{S}, b::AbstractVector{S}) where {S}
     return out
 end
 
-# `setsectors(a, ss)` (one method per concrete fused array) sets every axis's sector support to
-# exactly `ss`, keeping the stored per-sector lengths and giving the added sectors length zero.
-# The result shares `a`'s buffer: a zero-length sector contributes no data, so the layout carves
-# the stored blocks at their existing offsets. `ss` must be sorted (`Sector` order) and
-# cover every axis's support; setting arrays that will be co-iterated from one shared `ss` (the
-# axis-support union `sectorsupport(a, bs...)`) makes a single position index them all. An
-# unchanged support returns `a` itself.
+# `setsectors(a, ss)` sets the sectors of every axis to exactly `ss`, keeping the stored lengths
+# and giving the added sectors length zero, so the result can share `a`'s buffer. `ss` must be
+# sorted and cover the sectors of every axis.
 setsectors(a::AbstractFusedGradedArray) = setsectors(a, sectorsupport(a))
 
 sectordata(a::AbstractFusedGradedArray, c) = sectordata(a)[c]
 
-# Positional form: the block of the i-th stored sector (the tokens of the sorted storage are
-# positions). Unambiguous with the keyed form because sector keys are `Sector`s, never `Int`s.
+# The block of the `i`-th stored sector. Sector keys are never `Int`s, so this does not clash with
+# the keyed form.
 sectordata(a::AbstractFusedGradedArray, i::Int) = gettokenvalue(sectordata(a), i)
-
-# Each concrete type implements the bipartite-axes primitives `axes_codomain`/`axes_domain` (its
-# codomain and domain axis groups, un-dualized). The derived `biaxes`/`axis_codomain`/`axis_domain`
-# generics live in `tensoralgebra.jl` (overloaded on `AbstractArray`, since `GradedArray` shares them
-# but is not an `AbstractFusedGradedArray`).
 
 function isblockdiag(A::AbstractFusedGradedMatrix)
     for bI in eachblockstoredindex(A)
@@ -118,8 +94,7 @@ function isblockdiag(A::AbstractFusedGradedMatrix)
     return true
 end
 
-# Diagonal when block-diagonal and every stored (diagonal) block is itself diagonal. Checking blocks
-# avoids densifying a block-sparse matrix through the generic dense-slicing fallback.
+# Checking blocks avoids densifying through the generic fallback.
 function LinearAlgebra.isdiag(A::AbstractFusedGradedMatrix)
     for bI in eachblockstoredindex(A)
         row, col = Tuple(bI)
@@ -128,14 +103,11 @@ function LinearAlgebra.isdiag(A::AbstractFusedGradedMatrix)
     return true
 end
 
-# Square in the graded sense: equal codomain and domain axes, so every coupled block is square and sits
-# on the block diagonal. Stronger than equal overall dimensions, since a graded matrix can be
-# dimension-square with rectangular blocks. This is the meaningful "square" for a graded operator (its
-# main diagonal, an eigendecomposition, an endomorphism).
+# Equal codomain and domain axes, so every coupled block is square. Stronger than equal overall
+# dimensions, since a graded matrix can be square with rectangular blocks.
 issquare(A::AbstractFusedGradedMatrix) = axis_codomain(A) == axis_domain(A)
 
-# Throwing form of `issquare`, for use as a precondition guard. Our own (not `LinearAlgebra.checksquare`,
-# whose contract returns the matrix size); this one just checks and returns nothing.
+# Not `LinearAlgebra.checksquare`, which returns the matrix size.
 function checksquare(A::AbstractFusedGradedMatrix)
     issquare(A) || throw(
         DimensionMismatch(
@@ -146,19 +118,14 @@ function checksquare(A::AbstractFusedGradedMatrix)
 end
 
 # ---------------------------------------------------------------------------
-#  axes / size — derived from the per-variant `biaxes` core
+#  axes / size
 # ---------------------------------------------------------------------------
 
 Base.axes(a::AbstractFusedGradedArray) = Tuple(biaxes(a))
 Base.size(a::AbstractFusedGradedArray) = map(length, axes(a))
 
 # ---------------------------------------------------------------------------
-#  Block indexing — one stored block per coupled sector (block-diagonal)
-#
-#  A fused graded matrix is block-diagonal in sector space: block (i, j) is stored only when the
-#  codomain sector at `i` equals the domain sector at `j`. Both the block view and the stored-index
-#  set read through the `sectordata` / `axis_codomain` / `axis_domain` accessors, so every matrix
-#  variant (dense, diagonal, lazy adjoint) is covered by these.
+#  Block indexing
 # ---------------------------------------------------------------------------
 
 function Base.view(m::AbstractFusedGradedMatrix, I::Block{2})
@@ -185,20 +152,14 @@ end
 
 # ---------------------------------------------------------------------------
 #  Block-diagonal reductions and predicates
-#
-#  Fold over the stored blocks (each a `FusedSectorMatrix` that already carries its coupled sector's
-#  quantum-dimension weight and within-block structural zeros). The remaining structural zeros are the
-#  off-sector (symmetry-forbidden) positions.
 # ---------------------------------------------------------------------------
 
-# Sum the per-block stored counts; the rest of `length` are structural zeros. Without this the
-# `AbstractArray` fallback reports `length` (i.e. fully dense).
 function storedlength(A::AbstractFusedGradedMatrix)
     return sum(B -> storedlength(view(A, B)), eachblockstoredindex(A); init = 0)
 end
 
-# `sum` restricts to zero-preserving `f` (the forbidden positions would each add `f(0)`);
-# `maximum`/`minimum` fold a single `f(0)` when any forbidden position is present.
+# `sum` requires a zero-preserving `f`, since each forbidden position would add `f(0)`.
+# `maximum`/`minimum` fold in a single `f(0)` when any forbidden position is present.
 Base.sum(A::AbstractFusedGradedMatrix) = sum(identity, A)
 function Base.sum(f, A::AbstractFusedGradedMatrix)
     z = f(zero(eltype(A)))
@@ -223,8 +184,6 @@ end
 Base.extrema(A::AbstractFusedGradedMatrix) = extrema(identity, A)
 Base.extrema(f, A::AbstractFusedGradedMatrix) = (minimum(f, A), maximum(f, A))
 
-# The full-matrix trace is the sum of the per-coupled-sector block traces (each `FusedSectorMatrix`
-# trace carries the sector's quantum-dimension weight), matching `tr(Array(A))` without scalar-indexing.
 function LinearAlgebra.tr(A::AbstractFusedGradedMatrix)
     return sum(
         bI -> LinearAlgebra.tr(view(A, bI)), eachblockstoredindex(A);
@@ -232,7 +191,6 @@ function LinearAlgebra.tr(A::AbstractFusedGradedMatrix)
     )
 end
 
-# Block-wise predicates over the stored (block-diagonal) blocks.
 function LinearAlgebra.istriu(A::AbstractFusedGradedMatrix)
     return all(LinearAlgebra.istriu, sectordata(A))
 end
@@ -245,12 +203,9 @@ end
 Base.iszero(A::AbstractFusedGradedMatrix) = all(iszero, sectordata(A))
 
 # ---------------------------------------------------------------------------
-#  copy / copyto! — block-wise (the generic AbstractArray fallbacks scalar-index)
+#  copy / copyto!
 # ---------------------------------------------------------------------------
 
-# Block-wise `copyto!`: copy each stored block's data across. It conservatively requires equal axes,
-# so it is self-guarding on a direct call; Base's generic `copy!(::AbstractArray, ::AbstractArray)`
-# also checks axes before delegating here, so `copy!` is available for free with the same contract.
 function Base.copyto!(dest::AbstractFusedGradedArray, src::AbstractFusedGradedArray)
     axes(dest) == axes(src) || throw(DimensionMismatch("`copyto!` requires matching axes"))
     dsd, ssd = sectordata(dest), sectordata(src)
@@ -263,7 +218,7 @@ end
 Base.copy(a::AbstractFusedGradedArray) = copyto!(similar(a), a)
 
 # ---------------------------------------------------------------------------
-#  Matrix display — `N×M` block grid with the stored coupled sectors listed
+#  Matrix display
 # ---------------------------------------------------------------------------
 
 function Base.summary(io::IO, m::AbstractFusedGradedMatrix)
@@ -297,19 +252,11 @@ function Base.show(io::IO, m::AbstractFusedGradedMatrix)
 end
 
 # ---------------------------------------------------------------------------
-#  Matrix functions — block-diagonal, so `f(A) = blkdiag(f(blk_i))`
-#
-#  Any matrix function applies block-wise (`sqrt`, `exp`, `log`, …), routing around the generic
-#  `LinearAlgebra` impls that scalar-index for triangular / Hermitian detection. Returns a
-#  materialized `FusedGradedMatrix`. Per-block result eltypes may differ (e.g. `sqrt(::Matrix{Float64})`
-#  returns `Matrix{ComplexF64}` via Schur even when each block is real-PSD), so unify to the
-#  `promote_type` of all returned blocks before reconstructing.
+#  Matrix functions
 # ---------------------------------------------------------------------------
 
-# `T` must arrive as a type parameter so the `convert` target is concrete. Splicing a runtime `T`
-# straight into the `convert` (inlining this into the loop body below) makes Julia 1.10 widen the
-# block container to an abstract `AbstractArray` and reconstruction throws a `TypeError` (#175), so
-# this stays a separate `::Type{T}` method.
+# A separate `::Type{T}` method so the `convert` target is concrete. Inlined into the loop below,
+# Julia 1.10 widens the block container to `AbstractArray` and reconstruction throws (#175).
 function convert_eltypes(::Type{T}, arrays) where {T}
     return map(array -> convert(AbstractArray{T}, array), arrays)
 end
@@ -317,6 +264,7 @@ end
 for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval function Base.$f(A::AbstractFusedGradedMatrix)
         raw = map(Base.$f, sectordata(A))
+        # Block eltypes can differ, for example `sqrt` of a real block can be complex.
         T = mapreduce(eltype, promote_type, raw; init = eltype(A))
         return fusedgradedmatrix(
             convert_eltypes(T, raw), axis_codomain(A), axis_domain(A)
@@ -325,7 +273,7 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
 end
 
 # ---------------------------------------------------------------------------
-#  fill! / zero! / scale! — block-wise over the stored blocks
+#  fill! / zero! / scale!
 #
 #  These only touch stored (symmetry-allowed) blocks, so a nonzero `fill!`
 #  value leaves the forbidden positions at zero.
@@ -338,8 +286,6 @@ function TensorAlgebra.scale!(a::AbstractFusedGradedArray, β::Number)
     return a
 end
 
-# The `LinearAlgebra` spelling of blockwise scaling (the generic fallback
-# scalar-indexes).
 LinearAlgebra.rmul!(a::AbstractFusedGradedArray, β::Number) = TensorAlgebra.scale!(a, β)
 LinearAlgebra.lmul!(β::Number, a::AbstractFusedGradedArray) = TensorAlgebra.scale!(a, β)
 
@@ -357,8 +303,6 @@ function Base.fill!(a::AbstractFusedGradedArray, v)
     return a
 end
 
-# Linear-combination arithmetic, as `.`-broadcasts over the stored blocks. `GradedArray` defines its
-# own split-preserving versions in `gradedarray.jl`.
 Base.:+(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .+ b
 Base.:-(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray) = a .- b
 Base.:*(a::AbstractFusedGradedArray, x::Number) = a .* x
@@ -366,17 +310,11 @@ Base.:*(x::Number, a::AbstractFusedGradedArray) = x .* a
 Base.:/(a::AbstractFusedGradedArray, x::Number) = a ./ x
 
 # ---------------------------------------------------------------------------
-#  Display — render through a BlockArrays block array. BlockArrays draws the
-#  block grid; unstored blocks become `Zeros`, which print as `⋅`.
+#  Display
 # ---------------------------------------------------------------------------
 
-# Compact type name for the summary line: the type's own parameters, with the trailing
-# TensorKitSectors sector type shown as `…`. That parameter only aids conversion to and from
-# TensorKit, so eliding it keeps the header short, and eliding rather than dropping it keeps the
-# spelling from reading as the whole concrete type. The name and the parameters all go through
-# `show` against the caller's context, so whether each prints qualified follows what the reader
-# has in scope. The name comes from the parameterless `wrapper` rather than `nameof`, which
-# would strip the module unconditionally.
+# Type name for the summary line, with the trailing TensorKitSectors sector type parameter shown as
+# `…`. Uses `wrapper` rather than `nameof`, which would always drop the module qualification.
 function summary_typename(
         io::IO, type::Type{<:Union{AbstractFusedGradedArray, AbstractGradedOneTo}}
     )
@@ -397,7 +335,7 @@ end
 function _to_blockarray(a::AbstractFusedGradedArray{T, <:Any, N}) where {T, N}
     blens = map(blocklengths, axes(a))
     blockmat = Array{AbstractArray{T, N}, N}(undef, map(length, blens)...)
-    # Unstored blocks render as `Zeros` (printed as `⋅`); stored blocks carry their data.
+    # Unstored blocks are `Zeros`, which print as `⋅`.
     for I in CartesianIndices(blockmat)
         b = Tuple(I)
         blockmat[I] = Zeros{T}(ntuple(d -> blens[d][b[d]], N)...)
@@ -414,17 +352,12 @@ function Base.print_array(io::IO, a::AbstractFusedGradedArray)
     return Base.print_array(io, _to_blockarray(a))
 end
 
-# Materialize into a dense `Array` (the generic fallback copies elementwise, which scalar-indexes).
-# `_to_blockarray` reintroduces each block's structural factor (`reduced ⊗ I`), the identity for
-# abelian sectors but a repeat over the irrep's quantum dimension for non-abelian ones.
 function Base.Array{T, N}(a::AbstractFusedGradedArray{<:Any, <:Any, N}) where {T, N}
     return Array{T, N}(_to_blockarray(a))
 end
 
-# Block-diagonal inner product: sum the inner products of the stored blocks, each a sector array
-# whose own `dot` carries the quantum-dimension weight of its coupled sector (unit weight for
-# abelian sectors). Matching axes mean matching allocated blocks (every allowed block is stored),
-# so iterating one operand's stored indices lines up one-to-one with the other's.
+# Each block's own `dot` carries the quantum-dimension weight of its sector. Equal axes mean equal
+# stored blocks, so iterating one operand's stored indices covers both.
 function LinearAlgebra.dot(a::AbstractFusedGradedArray, b::AbstractFusedGradedArray)
     axes(a) == axes(b) ||
         throw(DimensionMismatch("dot axes mismatch: a $(axes(a)), b $(axes(b))"))
@@ -434,10 +367,8 @@ function LinearAlgebra.dot(a::AbstractFusedGradedArray, b::AbstractFusedGradedAr
     end
 end
 
-# Block-diagonal `p`-norm: the stored blocks have disjoint support, so the `p`-th powers add (a
-# `max` at `p == Inf`), and each block is a sector array carrying its own quantum-dimension weight.
-# This is the `BlockSparseArrays` block reduction, with the `Inf` case handled correctly (unlike the
-# `p`-sum formula, which collapses to `1` there).
+# The stored blocks have disjoint support, so the `p`-th powers add, with `p == Inf` handled
+# separately since the sum formula collapses to `1` there.
 function LinearAlgebra.norm(a::AbstractFusedGradedArray, p::Real = 2)
     p > 0 || throw(ArgumentError("norm with non-positive p ($p) is not defined"))
     init = zero(float(real(eltype(a))))
@@ -450,20 +381,16 @@ function LinearAlgebra.norm(a::AbstractFusedGradedArray, p::Real = 2)
     return s^inv(p)
 end
 
-# `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`, which scalar-indexes
-# opaque block storage; route through the graded `/` instead.
+# `LinearAlgebra.normalize` scalar-indexes to infer its result eltype.
 function LinearAlgebra.normalize(a::AbstractFusedGradedArray, p::Real = 2)
     return a / LinearAlgebra.norm(a, p)
 end
 
-# `conj` would dualize the sectors and axes, flipping the first axis to dual, which the fused storage
-# types disallow. Conjugate the `GradedArray` (or matricize) instead.
+# `conj` would make the first axis dual, which the fused storage types disallow.
 Base.conj(a::AbstractFusedGradedArray) = throw_flips_first_axis(conj, a)
 
-# `real`/`imag` act on the reduced data of each stored block, leaving the (real) structural sector
-# factor untouched (`f(I ⊗ A) = I ⊗ f(A)`). Unlike `conj` they are not semilinear, so they cannot go
-# through the linear-broadcast fold; each block delegates to the block-level `AbstractSectorArray`
-# method.
+# Unlike `conj`, `real`/`imag` are not semilinear, so they cannot go through the linear-broadcast
+# fold.
 function Base.real(a::AbstractFusedGradedArray)
     eltype(a) <: Real && return a
     r = similar(a, real(eltype(a)))
@@ -480,9 +407,7 @@ function Base.imag(a::AbstractFusedGradedArray)
     return r
 end
 
-# Block-aware random fills: dispatch to each stored block's `rand!`/`randn!`, bypassing the generic
-# `AbstractArray` fallbacks that go through (disallowed) scalar indexing. The 3-arg
-# `rand!(rng, a, sp)` form is what Random's `rand!` entry points ultimately call.
+# The 3-arg `rand!(rng, a, sp)` form is what Random's `rand!` entry points ultimately call.
 function Random.rand!(rng::AbstractRNG, a::AbstractFusedGradedArray, sp::Random.Sampler)
     for I in eachblockstoredindex(a)
         Random.rand!(rng, view(a, I), sp)
@@ -497,10 +422,8 @@ function Random.randn!(rng::AbstractRNG, a::AbstractFusedGradedArray)
 end
 
 # ============================  matrix operations (guarded)  ============================
-# Matrix / linear-algebra operations live on the matrix storage type `FusedGradedMatrix`. On a fused
-# vector they would otherwise fall through to the generic `AbstractArray` methods, which scalar-index
-# into a dense, non-graded result. Error instead. `transpose` is guarded on the whole
-# `AbstractFusedGradedArray` because, unlike `adjoint`, it is unavailable on the matrix too.
+# On a fused vector these would fall through to the generic `AbstractArray` methods, which
+# scalar-index into a dense result. `transpose` is unavailable on the matrix too.
 Base.transpose(A::AbstractFusedGradedArray) = _matrix_op_error(transpose, A)
 Base.adjoint(A::AbstractFusedGradedVector) = _matrix_op_error(adjoint, A)
 Base.:*(A::AbstractFusedGradedVector, B::AbstractFusedGradedVector) = _matrix_op_error(*, A)
@@ -510,9 +433,7 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
 end
 
 # ============================  similar_map  ============================
-# Undefined on purpose: allocating a `GradedArray` off a fused prototype would implicitly cross the
-# `FusedGradedMatrix` (internal) / `GradedArray` (external) boundary. A fused matrix permutes
-# through `permutedims` / `permutedimsop`, staying fused via the `allocate_output` below.
+# Undefined on purpose, so that a fused prototype never implicitly allocates a `GradedArray`.
 function TensorAlgebra.similar_map(
         ::AbstractFusedGradedArray, ::Type, ::Tuple, ::Tuple
     )
@@ -524,11 +445,6 @@ function TensorAlgebra.similar_map(
 end
 
 # ============================  matrix algebra  ============================
-# Block-wise matrix operations on the abstract fused graded matrix. They read the storage through the
-# `sectordata` / `axis_codomain` / `axis_domain` accessors (which every storage variant provides), so
-# a lazy adjoint or a diagonal factor works as an operand without materializing. The mutated operand
-# may be any fused graded matrix; an incompatible one (e.g. a diagonal destination for a non-diagonal
-# product) fails at the block level.
 
 function TensorAlgebra.check_input(
         ::typeof(*),
@@ -550,60 +466,46 @@ function TensorAlgebra.check_input(
     return nothing
 end
 
-# A fused graded matrix permute-add keeps the first (codomain) axis non-dual only for an identity copy or
-# an adjoint; any other `(op, perm)` would bend or dualize it, which fused storage cannot represent.
+# Only an identity copy or an adjoint keeps the first axis non-dual, which fused storage requires.
 function TensorAlgebra.check_input(
-        ::typeof(TA.permutedimsop), op,
+        ::typeof(TA.bipermutedimsconj), isconj::Bool,
         ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
-    is_copy = op === identity && perm_codomain == (1,) && perm_domain == (2,)
-    is_adjoint = op === conj && perm_codomain == (2,) && perm_domain == (1,)
-    (is_copy || is_adjoint) || throw(
+    iscopy = !isconj && perm_codomain == (1,) && perm_domain == (2,)
+    isadjoint = isconj && perm_codomain == (2,) && perm_domain == (1,)
+    (iscopy || isadjoint) || throw(
         ArgumentError(
-            "a fused graded matrix permute-add allows only an identity copy (`op = identity`, " *
-                "`perm_codomain = (1,)`, `perm_domain = (2,)`) or an adjoint (`op = conj`, " *
-                "`perm_codomain = (2,)`, `perm_domain = (1,)`); got `op = $op`, " *
+            "a fused graded matrix permute-add allows only an identity copy (`isconj = false`, " *
+                "`perm_codomain = (1,)`, `perm_domain = (2,)`) or an adjoint (`isconj = true`, " *
+                "`perm_codomain = (2,)`, `perm_domain = (1,)`); got `isconj = $isconj`, " *
                 "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
         )
     )
     return nothing
 end
 
-# A fused graded matrix permute stays fused with the same eltype, and `check_input` leaves only the
-# identity copy or the adjoint. The copy keeps `src`'s axes; the adjoint exchanges them, which
-# differs from `src`'s own pair whenever the operand is not square.
 function TensorAlgebra.allocate_output(
-        ::typeof(TA.permutedimsop), op, src::AbstractFusedGradedMatrix, perm_codomain,
-        perm_domain
+        ::typeof(TA.bipermutedimsconj), isconj::Bool, src::AbstractFusedGradedMatrix,
+        perm_codomain, perm_domain
     )
-    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+    check_input(TA.bipermutedimsconj, isconj, src, perm_codomain, perm_domain)
     perm_codomain == (1,) && return similar(src)
     return similar(src')
 end
 
-# A fused graded vector has a single canonical non-dual axis, so only the identity copy is valid: `conj`
-# would dualize it, and there is no rank-preserving transpose.
+# Only the identity copy is valid: `conj` would dualize the axis.
 function TensorAlgebra.check_input(
-        ::typeof(TA.permutedimsop), op,
+        ::typeof(TA.bipermutedimsconj), isconj::Bool,
         ::AbstractFusedGradedVector, perm_codomain, perm_domain
     )
-    (op === identity && perm_codomain == (1,) && perm_domain == ()) || throw(
+    (!isconj && perm_codomain == (1,) && perm_domain == ()) || throw(
         ArgumentError(
-            "a fused graded vector permute-add allows only the identity copy (`op = identity`, " *
-                "`perm_codomain = (1,)`, `perm_domain = ()`); got `op = $op`, " *
+            "a fused graded vector permute-add allows only the identity copy (`isconj = false`, " *
+                "`perm_codomain = (1,)`, `perm_domain = ()`); got `isconj = $isconj`, " *
                 "`perm_codomain = $perm_codomain`, `perm_domain = $perm_domain`"
         )
     )
     return nothing
-end
-
-# Route through `permutedimsop` so the permute allocates via `allocate_output` and validates via
-# `check_input`, instead of the generic path through `similar_map`.
-function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm)
-    return TA.permutedimsop(identity, a, perm, ())
-end
-function TensorAlgebra.permutedims(a::AbstractFusedGradedArray, perm_codomain, perm_domain)
-    return TA.permutedimsop(identity, a, perm_codomain, perm_domain)
 end
 
 Base.permutedims(a::AbstractFusedGradedArray, perm) = TensorAlgebra.permutedims(a, perm)
@@ -642,14 +544,8 @@ function Base.:(*)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     return mul!(C, A, B)
 end
 
-# MatrixAlgebraKit's SVD-based `left_orth!` / `right_orth!` fold the singular values into the
-# orthogonal factor in place with `lmul!(S, C)` / `rmul!(C, S)`, where `S` is the (diagonal)
-# singular-value matrix. The scalar-argument `lmul!` / `rmul!` above do not cover this two-matrix
-# form, so define it block-wise: each stored sector block delegates to the `LinearAlgebra` method for
-# that block pair, an in-place row / column scaling for the diagonal `S` blocks the factorizations
-# feed in. The `check_input(mul!, ...)` call validates the contracted axes and that the product fits
-# the mutated operand (the operand plays the role of the `mul!` destination `C`: `B` for `lmul!`, `A`
-# for `rmul!`), so the block sectors line up by construction.
+# Used by MatrixAlgebraKit's SVD-based `left_orth!` / `right_orth!`, which scale the orthogonal
+# factor in place by the singular values with `lmul!(S, C)` / `rmul!(C, S)`.
 function LinearAlgebra.lmul!(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     check_input(mul!, B, A, B)
     dA = sectordata(A)
@@ -667,9 +563,7 @@ function LinearAlgebra.rmul!(A::AbstractFusedGradedMatrix, B::AbstractFusedGrade
     return A
 end
 
-# Compare coupled-sector blocks directly instead of falling back to element-wise iteration (which
-# would index forbidden blocks). Equal axes guarantee the same stored (allowed) sectors. Broad enough
-# to compare a lazy adjoint or diagonal factor (whose blocks are lazy views).
+# Equal axes guarantee the same stored sectors.
 function Base.:(==)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     axes(A) == axes(B) || return false
     dA, dB = sectordata(A), sectordata(B)

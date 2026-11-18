@@ -1,6 +1,6 @@
 using BlockArrays: blocklengths
 using GradedArrays: SU2, Sector, SectorOneTo, SectorProduct, Trivial, U1, Z, arguments,
-    dual, fSU2, fU1, fZ2, flip, gradedrange, istrivial, sectorproduct, sectortype,
+    dual, fSU2, fU1, fZ2, flip, gradedrange, istrivial, sectorproduct, sectors, sectortype,
     tensor_product, trivial, ×
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -238,8 +238,10 @@ end
         @test arguments(s)[:C] == Z{2}(1)
         @test (@constinferred length(s)) == 2
 
-        # No keywords is the same specification as an explicit `(;)`.
-        @test Sector() ≡ Sector((;))
+        # No arguments specifies no symmetry, while an explicit `(;)` is the empty named product.
+        @test (@constinferred Sector()) ≡ Trivial()
+        @test Sector((;)) isa SectorProduct
+        @test Sector() != Sector((;))
     end
 
     @testset "Comparisons with unspecified labels" begin
@@ -527,4 +529,23 @@ end
     @test hash(Sector((;))) == hash(Sector(; A = U1(0)))
     @test Sector((;)) != Sector(; A = U1(1))
     @test Sector(()) != Sector((U1(0),))
+end
+
+@testset "Pair keys multiply like ×" begin
+    # `Sector` builds exactly what it is given, while a pair key is normalized like `×`.
+    @test_throws ArgumentError Sector((fU1(1), U1(1)))
+    g = gradedrange([(fU1(1), U1(1)) => 2])
+    @test only(sectors(g)) ≡ fU1(1) × U1(1)
+    @test only(sectors(g)) == Sector(U1(1), fZ2(1), U1(1))
+
+    @test only(sectors(gradedrange([(U1(1), Trivial()) => 1]))) ≡ U1(1)
+    @test only(sectors(gradedrange([(Trivial(), U1(1)) => 1]))) ≡ U1(1)
+    @test only(sectors(gradedrange([(U1(1),) => 1]))) ≡ U1(1)
+    @test only(sectors(gradedrange([((U1(1), SU2(0)), (Trivial(), fZ2(1))) => 1]))) ≡
+        Sector(U1(1), SU2(0), fZ2(1))
+    @test only(sectors(gradedrange([(; A = (U1(1), Trivial())) => 1]))) ≡
+        Sector(; A = U1(1))
+    @test only(sectors(gradedrange([Sector((U1(1),)) => 1]))) ≡ Sector((U1(1),))
+    @test gradedrange([(U1(0), SU2(1 // 2)) => 1, (U1(1), SU2(0)) => 2]) ==
+        gradedrange([U1(0) × SU2(1 // 2) => 1, U1(1) × SU2(0) => 2])
 end

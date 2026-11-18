@@ -1,10 +1,5 @@
-# `VectorInterface` methods so graded and sector arrays can drive iterative solvers such as
-# `KrylovKit.linsolve`, which push their Krylov vectors through `VectorInterface`. The generic
-# `AbstractArray` fallbacks broadcast a function over the elements, which the graded/sector broadcast
-# styles reject, so the in-place methods forward to the block-wise `TensorAlgebra` methods instead.
-# The definitions are identical for the graded arrays and the structural sector blocks, so they
-# share one `@eval` loop over the graded types (`GradedArray`, `AbstractFusedGradedArray`) and the sector
-# blocks (`AbstractSectorArray`).
+# For iterative solvers such as `KrylovKit.linsolve`. The generic `AbstractArray` methods broadcast
+# a function over the elements, which the graded broadcast styles reject.
 for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
     @eval begin
         function VI.zerovector(a::$AT, ::Type{S}) where {S <: Number}
@@ -12,12 +7,8 @@ for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
         end
         VI.zerovector!(a::$AT) = zero!(a)
         VI.zerovector!!(a::$AT) = VI.zerovector!(a)
-        # `VectorInterface` derives the rest: `zerovector(a)` defaults `S` to `scalartype(a)`, and
-        # `zerovector!!(a, S)` recycles via `zerovector!!(a)` or widens via `zerovector(a, S)`.
 
-        # Out-of-place `scale`/`add` allocate a destination of the promoted scalar type (via the
-        # public `Base.promote_op`, since `VectorInterface`'s `promote_scale`/`promote_add` are
-        # internal), so scaling a real array by a complex coefficient widens to a complex result.
+        # `Base.promote_op` since `VectorInterface.promote_scale`/`promote_add` are internal.
         function VI.scale(a::$AT, α::Number)
             T = Base.promote_op(VI.scale, VI.scalartype(a), typeof(α))
             return VI.scale!(similar(a, T), a, α)
@@ -26,8 +17,6 @@ for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
         function VI.scale!(b::$AT, a::$AT, α::Number)
             return TensorAlgebra.scaleadd!(b, a, α, false)
         end
-        # The `!!` methods fall back to out-of-place allocation when the destination can't hold the
-        # result.
         function VI.scale!!(a::$AT, α::Number)
             T = Base.promote_op(VI.scale, VI.scalartype(a), typeof(α))
             T <: VI.scalartype(a) || return VI.scale(a, α)
@@ -63,8 +52,6 @@ for AT in (:GradedArray, :AbstractFusedGradedArray, :AbstractSectorArray)
             T <: VI.scalartype(a) || return VI.add(a, b, α, β)
             return VI.add!(a, b, α, β)
         end
-        # `VectorInterface` derives the two- and three-argument `add`/`add!`/`add!!` from these,
-        # defaulting the omitted coefficients to `One()`.
 
         VI.inner(a::$AT, b::$AT) = dot(a, b)
     end

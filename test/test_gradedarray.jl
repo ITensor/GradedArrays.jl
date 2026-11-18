@@ -1012,3 +1012,22 @@ end
         @test v′.datalayout === v.datalayout
     end
 end
+
+@testset "parent reaches the flat storage" begin
+    g = gradedrange([U1(0) => 2, U1(1) => 3])
+    a = randn(Float32, (g, dual(g)), ())
+    m = matricize(a)
+    @test parent(a) === m
+    @test parent(m) === m.buffer
+    @test TensorAlgebra.data(a) === m.buffer
+    @test TensorAlgebra.datatype(a) === Vector{Float32}
+    @test TensorAlgebra.datatype(m) === Vector{Float32}
+    @test TensorAlgebra.datatype(m') === Vector{Float32}
+    v = fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)])
+    @test parent(v) === v.buffer
+    d = FusedGradedDiagonal(v)
+    @test parent(d) === v
+    @test TensorAlgebra.datatype(d) === Vector{Float64}
+    gs = gradedrange([SU2(0) => 2, SU2(1 // 2) => 1])
+    @test TensorAlgebra.datatype(randn(ComplexF64, (gs,), (gs,))) === Vector{ComplexF64}
+end

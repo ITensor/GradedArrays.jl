@@ -1,23 +1,16 @@
 using StridedViews: StridedViews, StridedView, isstrided
 
 # ========================  bipartite-axes interface  ========================
-# The shared codomain/domain axis interface for `GradedArray` and the fused graded arrays. A type
-# implements the two primitives
-# `axes_codomain`/`axes_domain` — its codomain and domain axis groups in un-dualized (codomain-facing)
-# form — and these derived helpers follow. `biaxes` wraps the halves into the `bispace`/`BiTuple` form
-# (dualizing the domain), so an implementer never constructs a `BiTuple`; `axis_codomain`/`axis_domain`
-# are the single-axis form for a matrix-like array (one axis per side), and `axis` the single axis of a
-# one-dimensional array. Overloaded on `AbstractArray` because `GradedArray` shares the interface but is
-# not an `AbstractFusedGradedArray`.
+# A type defines `axes_codomain`/`axes_domain`, returning its codomain and domain axes un-dualized,
+# and these follow.
 
 biaxes(a::AbstractArray) = bispace(axes_codomain(a), axes_domain(a))
 axis_codomain(a::AbstractArray) = only(axes_codomain(a))
 axis_domain(a::AbstractArray) = only(axes_domain(a))
 axis(a::AbstractArray) = only(axes(a))
 
-# Expression nodes share the same interface: `axes_codomain`/`axes_domain` are the primitives and
-# `biaxes` derives from them (as for arrays above). Scaling keeps the operand's split, conjugation
-# dualizes both halves, and a sum (always ≥2 addends) or a `PermutedDims` view goes all-codomain.
+# Scaling keeps the codomain/domain split of the operand, while a sum or a `PermutedDims` puts all
+# axes in the codomain.
 biaxes(a::TA.LinearBroadcasted) = bispace(axes_codomain(a), axes_domain(a))
 biaxes(a::TA.PermutedDims) = bispace(axes_codomain(a), axes_domain(a))
 axes_codomain(a::TA.ScaledBroadcasted) = axes_codomain(TA.unscaled(a))
@@ -41,7 +34,6 @@ function unmerged_tensor_product(a1, a2, a3, as...)
     return unmerged_tensor_product(unmerged_tensor_product(a1, a2), a3, as...)
 end
 
-# default to tensor_product
 unmerged_tensor_product(a1, a2) = tensor_product(a1, a2)
 
 function unmerged_tensor_product(a1::AbstractGradedOneTo, a2::AbstractGradedOneTo)
@@ -57,19 +49,13 @@ end
 
 # ========================  sorting utilities  ========================
 
-# convention: sort dual GradedOneTo according to nondual blocks
-# Sort by sector to use the custom isless ordering
+# A dual axis is sorted by its non-dual sectors.
 function sectorsortperm(g::AbstractGradedOneTo)
     return Block.(sortperm(sectors(g)))
 end
 
-# Used by `TensorAlgebra.unmatricize` in `GradedArraysTensorAlgebraExt`.
-invblockperm(a::Vector{<:Block{1}}) = Block.(invperm(Int.(a)))
-
-# Returns a Vector{BlockIndexRange{1}} mapping each block of fine_ax (in original order)
-# to its position (block + subrange) within the merged axis merged_ax, given the block
-# permutation blockperm used to sort and merge fine_ax into merged_ax.
-# Requires that blocks of fine_ax subdivide blocks of merged_ax.
+# Map each block of `fine_ax` to its `Block[subrange]` in `merged_ax`, given the block permutation
+# `blockperm` that sorts `fine_ax` before merging.
 function invblockmergeperm(
         fine_ax::AbstractGradedOneTo,
         blockperm,
@@ -98,23 +84,18 @@ function invblockmergeperm(
     return J
 end
 
-# The result is fused-sorted (each sector once, in order) by construction, so return the type that
-# encodes that invariant rather than a plain `GradedOneTo`. `GradedOneTo` and `FusedGradedOneTo`
-# have constant-time fast paths (the cached fused form and the identity).
 function fusesectors(g::AbstractGradedOneTo)
     return sortmergesectors(sectors(g), datalengths(g), isdual(g))
 end
 
-# Always returns a non-dual fused-sorted axis. Conjugation is a sector bijection, so flipping
-# the merged form equals merging the flipped axis.
+# Always non-dual. Flipping commutes with merging, so the merged form is flipped.
 function tensor_product(g::AbstractGradedOneTo)
     f = fusesectors(g)
     return isdual(f) ? flip(f) : f
 end
 
-# `reduce` over a one-element collection hands back the element through `reduce_first`
-# without calling the operation, which would skip the arrow normalization that the
-# one-argument `tensor_product` performs.
+# `reduce` over one element would otherwise skip the one-argument `tensor_product`, which
+# normalizes the arrow.
 function Base.reduce_first(
         ::typeof(tensor_product),
         x::Union{AbstractOrientedSector, SectorOneTo, AbstractGradedOneTo}
@@ -127,8 +108,6 @@ function tensor_product(g1::AbstractGradedOneTo, g2::AbstractGradedOneTo)
 end
 
 # ========================  mixed-type tensor_product  ========================
-# Convert to a common type via `to_gradedrange` and dispatch to
-# tensor_product(::GradedOneTo, ::GradedOneTo).
 
 # SectorOneTo ↔ GradedOneTo
 function tensor_product(s::SectorOneTo, g::AbstractGradedOneTo)
@@ -187,105 +166,84 @@ function tensor_product(r::SectorOneTo, s::TKS.Sector)
     return tensor_product(to_gradedrange(r), to_gradedrange(s))
 end
 
-# ========================  bipermutedimsopadd!  ========================
-# Primary overloads. The flat-perm permutedimsopadd! overloads forward here.
+# ========================  bipermutedimsconjadd!  ========================
 
-function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractSectorArray, op, x::AbstractSectorArray,
+function TensorAlgebra.bipermutedimsconjadd!(
+        y::AbstractSectorArray, isconj::Bool, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
     )
-    check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
+    check_input(bipermutedimsconjadd!, y, isconj, x, perm_codomain, perm_domain)
     perm = (perm_codomain..., perm_domain...)
     sx = structure(x)
-    # Fermion signs go on the reduced data (the delta is `one(T)`). `fermion_permutation_phase`
-    # (op-aware) gives the braiding sign, plus the ket->bra leg reversal for `op === conj`. The two
-    # `fermion_bend_phase` factors reconcile the splits (unbend the source's domain legs, rebend the
-    # destination's) and are `1` for all-codomain blocks.
+    # The fermion sign goes on the reduced data. `fermion_permutation_phase` includes the leg
+    # reversal under `isconj`, and the bend phases unbend the domain legs of the source and rebend
+    # those of the destination.
     ndims_domain_src = ndims_domain(sx)
     ndims_domain_dest = ndims_domain(structure(y))
     src_domain_legs = ntuple(i -> ndims_codomain(sx) + i, ndims_domain_src)
     dest_domain_legs =
         ntuple(i -> perm[ndims(x) - ndims_domain_dest + i], ndims_domain_dest)
     phase =
-        fermion_permutation_phase(op, sx, invperm(perm)) *
+        fermion_permutation_phase(isconj, sx, invperm(perm)) *
         fermion_bend_phase(sx, src_domain_legs) *
         fermion_bend_phase(sx, dest_domain_legs)
-    bipermutedimsopadd!(
-        data(y), op, data(x), perm_codomain, perm_domain, phase * α, β
+    bipermutedimsconjadd!(
+        data(y), isconj, data(x), perm_codomain, perm_domain, phase * α, β
     )
     return y
 end
 
-# An abelian sector array's dense form is its data block (each abelian sector is
-# one-dimensional, so the structural sector-delta factor is an identity selection).
-# Wrapping it as a `StridedView` of its data lets it flow through the generic strided
-# permute-add path when the other operand is a plain dense array.
+# For abelian sectors the data is the dense array.
 StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a))
 
-# Permute-add a sector source into a plain (non-sector) destination. Under unique fusion the reduced
-# data is the full dense array, so forward to the dense primitive on `data(x)` rather than letting the
-# generic fall back to scalar reads of the sector source. The `y::AbstractSectorArray` method above is
-# strictly more specific, so a sector→sector call still takes the block-wise path. This is what lets
-# `add!(dest::AbstractArray, ::AbstractSectorArray, α, β)` (via the generic `permutedimsopadd!`)
-# work without a bespoke `add!` overload.
-function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractArray, op, x::AbstractSectorArray,
+# Under unique fusion the reduced data is the dense array.
+function TensorAlgebra.bipermutedimsconjadd!(
+        y::AbstractArray, isconj::Bool, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
     )
     require_unique_fusion(x)
-    bipermutedimsopadd!(y, op, data(x), perm_codomain, perm_domain, α, β)
+    bipermutedimsconjadd!(y, isconj, data(x), perm_codomain, perm_domain, α, β)
     return y
 end
 
-function TensorAlgebra.bipermutedimsopadd!(
-        y::AbstractFusedGradedArray{<:Any, <:Any, N}, op,
+function TensorAlgebra.bipermutedimsconjadd!(
+        y::AbstractFusedGradedArray{<:Any, <:Any, N}, isconj::Bool,
         x::AbstractFusedGradedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
         α::Number, β::Number
     ) where {N}
-    check_input(bipermutedimsopadd!, y, op, x, perm_codomain, perm_domain)
+    check_input(bipermutedimsconjadd!, y, isconj, x, perm_codomain, perm_domain)
     if Base.mightalias(y, x)
-        # A self-aliased permute-add with the identity permutation and no conjugation is really a
-        # scale, `y = α*y + β*y = (α+β)*y`, so route it to the block-wise `scale!` (which handles
-        # aliasing). This keeps `a .*= 2` working. Any other aliased permute-add can't run in
-        # place: the `zero!`/`scale!` step below overwrites `y` before the block loop reads `x`, so
-        # refuse it rather than silently corrupt the result, matching `TensorOperations`.
-        if y === x && op === identity &&
+        # With the identity permutation this is a scale, which keeps `a .*= 2` working. Any other
+        # aliased permute-add would overwrite `y` before reading `x`.
+        if y === x && !isconj &&
                 (perm_codomain..., perm_domain...) == ntuple(identity, Val(N))
             return scale!(y, α + β)
         end
         throw(ArgumentError("output array must not be aliased with the input array"))
     end
-    # `scale!(y, 0)` does not reliably zero `y`: a block holding `NaN`/`Inf` from an `undef`
-    # allocation stays poisoned, since `NaN * 0 == NaN`, and the loop below leaves any block it
-    # does not visit as it is. Allocating broadcasts like `3 * a` reach this with β == 0 on a
-    # fresh `similar`, so zero explicitly instead.
+    # `scale!(y, 0)` leaves `NaN` from an `undef` allocation, since `NaN * 0 == NaN`.
     iszero(β) ? zero!(y) : scale!(y, β)
     for bI in eachblockstoredindex(x)
         b = Tuple(bI)
         b_dest = Block(ntuple(i -> b[(perm_codomain..., perm_domain...)[i]], N))
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
-        bipermutedimsopadd!(y_b, op, x_b, perm_codomain, perm_domain, α, one(β))
+        bipermutedimsconjadd!(y_b, isconj, x_b, perm_codomain, perm_domain, α, one(β))
     end
     return y
 end
 
 # ========================  contraction twist  ========================
-# The twist convention for the supertrace formalism of fermionic contractions: `⟨i| ⋅ |j⟩ = δᵢⱼ`
-# and `|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ`, where `θᵢⱼ = ±1` is the phase from a self-crossing, always `1` for a
-# bosonic symmetry and possibly `-1` for an odd fermion charge. The twist goes on one side of each
-# contracted pair of legs: the dual legs of the right factor's codomain (`twist_codomain!`) or,
-# equivalently, since the two legs of a pair carry dual sectors with equal twists, the non-dual
-# legs of the left factor's domain (`twist_domain!`). Both are no-ops unless
-# `BraidingStyle(sectortype(a))` is `Fermionic`. The dense and `Diagonal` factors that a
-# factorization of an unsymmetric array produces carry no sector data, and reach `TA.twist!`'s
-# identity fallback.
+# The supertrace convention for fermionic contractions: `⟨i| ⋅ |j⟩ = δᵢⱼ` and
+# `|i⟩ ⋅ ⟨j| = θᵢⱼ δᵢⱼ`, where `θᵢⱼ = ±1` is the self-crossing phase, `-1` only for an odd
+# fermion charge. The twist goes on one leg of each contracted pair: the dual legs of the right
+# factor's codomain, or equivalently the non-dual legs of the left factor's domain, since the two
+# legs of a pair have equal twists.
 #
-# The legs are passed as a `Tuple`, not a generator: `twist!` reads them once per fusion tree, and
-# each `isdual(axes(a, i))` rebuilds the axes.
+# The legs are a `Tuple` rather than a generator since `twist!` reads them once per fusion tree.
 function twist_codomain!(a::AbstractArray, ndims_codomain::Int)
     return TA.twist!(a, Tuple(i for i in 1:ndims_codomain if isdual(axes(a, i))))
 end
@@ -296,25 +254,26 @@ function twist_domain!(a::AbstractArray, ndims_codomain::Int)
     )
 end
 
-function needs_contraction_twist(a, perm_codomain)
+function needs_contraction_twist(isconj::Bool, a, perm_codomain)
     return TKS.BraidingStyle(sectortype(a)) isa TKS.Fermionic &&
-        any(i -> isdual(axes(a, i)), perm_codomain)
+        any(i -> isdual(axes(a, i)) ⊻ isconj, perm_codomain)
 end
 
-# `matricizeop` with the contraction twist folded in, on the contracted legs of the right factor
-# (`side = :codomain`) or the left one (`side = :domain`). The twist is applied to a copy so `a` is
-# untouched: when the memory-sharing matricization exists there is nothing to permute, so the copy
-# is a plain `copy` twisted in place rather than a block-wise permute that would be the identity.
-function twisted_matricizeop(op, a::AbstractArray, perm_codomain, perm_domain, side::Symbol)
+# `matricizeconj` with the fermionic contraction twist applied to the contracted legs of the right
+# factor (`side = :codomain`) or the left one (`side = :domain`), on a copy so `a` is untouched.
+function twisted_matricizeconj(
+        isconj::Bool, a::AbstractArray, perm_codomain, perm_domain, side::Symbol
+    )
     side in (:codomain, :domain) ||
         throw(ArgumentError("`side` must be `:codomain` or `:domain`, got `$(repr(side))`"))
     a_twisted =
-    if TensorAlgebra.is_output_view(
-            TensorAlgebra.matricizeop, op, a, perm_codomain, perm_domain
+    if TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
+            TensorAlgebra.isoutputview(
+            TensorAlgebra.matricizeconj, isconj, a, perm_codomain, perm_domain
         )
         copy(a)
     else
-        TensorAlgebra.permutedimsop(op, a, perm_codomain, perm_domain)
+        TensorAlgebra.permutedimsconj(isconj, a, perm_codomain, perm_domain)
     end
     n = length(perm_codomain)
     side === :codomain ? twist_codomain!(a_twisted, n) : twist_domain!(a_twisted, n)

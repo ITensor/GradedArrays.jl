@@ -1,13 +1,11 @@
 # ===========================================================================
-#  SortedArrayIndices / SortedArrayDictionary — read-only sorted-array dictionaries
+#  SortedArrayIndices / SortedArrayDictionary
 # ===========================================================================
 
 using Dictionaries: Dictionaries, AbstractDictionary, AbstractIndices, gettoken
 
-# Self-keyed index set over a sorted, unique keys vector, in the naming family of Dictionaries'
-# `ArrayIndices` plus the sorted invariant: a lookup binary-searches the keys, and the token of a
-# key is its position. Read-only; the sorted+unique invariant is the caller's (e.g. a
-# `FusedGradedOneTo`'s stored labels), and callers must not mutate the vectors they wrap.
+# Like Dictionaries' `ArrayIndices` over sorted, unique keys, so lookup is a binary search and a
+# token is a position. Callers must not mutate the wrapped vector.
 struct SortedArrayIndices{K, KS <: AbstractVector{K}} <: AbstractIndices{K}
     keys::KS
 end
@@ -28,10 +26,8 @@ function Dictionaries.iteratetoken_reverse(inds::SortedArrayIndices, t)
     t < firstindex(inds.keys) && return nothing
     return (t, t)
 end
-# The lookup needs no more of the key than `isless` to place it and `isequal` to confirm it, so
-# it asks for exactly that and lets a key that answers neither raise a `MethodError`. Testing the
-# key's type instead would report a key that is `isequal` to a stored one, but spelled as another
-# type, as absent.
+# Not restricted by key type, so a key that is `isequal` to a stored one but of another type is
+# found.
 function Dictionaries.gettoken(inds::SortedArrayIndices, i)
     t = searchsortedfirst(inds.keys, i)
     t <= length(inds.keys) && isequal(inds.keys[t], i) || return (false, 0)
@@ -40,8 +36,7 @@ end
 Dictionaries.gettokenvalue(inds::SortedArrayIndices, t::Int) = inds.keys[t]
 Dictionaries.istokenassigned(::SortedArrayIndices, ::Int) = true
 
-# Dictionary over parallel sorted-keys / values vectors (`ArrayDictionary` plus the sorted
-# invariant); its key set is the matching `SortedArrayIndices`, whose positional tokens it shares.
+# Like Dictionaries' `ArrayDictionary` over sorted, unique keys.
 struct SortedArrayDictionary{K, V, KS <: AbstractVector{K}, VS <: AbstractVector{V}} <:
     AbstractDictionary{K, V}
     keys::KS

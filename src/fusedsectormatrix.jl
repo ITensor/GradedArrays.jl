@@ -1,9 +1,7 @@
-# Fused 2D block for a single coupled sector. One block of a `FusedGradedMatrix`.
-# In the representation-theoretic sense it is an element of Hom_G(V_c, W_c) for coupled sector c:
-# `data` holds the reduced matrix elements, the part left free once Schur's lemma has factored out
-# the structural part (`SectorIdentity`).
+# One block of a `FusedGradedMatrix`, for a single coupled sector. By Schur's lemma its structural
+# factor is the identity (`SectorIdentity`), and `data` holds the reduced matrix elements.
 #
-# The codomain (row) axis is non-dual; the domain (column) axis is dual.
+# The codomain (row) axis is non-dual and the domain (column) axis is dual.
 struct FusedSectorMatrix{T, S <: Sector, D <: AbstractMatrix{T}} <:
     AbstractSectorArray{T, S, 2}
     data::D
@@ -12,21 +10,18 @@ end
 
 # ---- undef constructors ----
 
-# Innermost: fully parameterized, takes AbstractUnitRange axes.
 function FusedSectorMatrix{T, S, D}(
         ::UndefInitializer, sector::S, r1::AbstractUnitRange, r2::AbstractUnitRange
     ) where {T, S <: Sector, D <: AbstractMatrix{T}}
     return FusedSectorMatrix{T, S, D}(similar(D, (r1, r2)), sector)
 end
 
-# Convenience: default D = Matrix{T}.
 function FusedSectorMatrix{T}(
         ::UndefInitializer, sector::S, r1::AbstractUnitRange, r2::AbstractUnitRange
     ) where {T, S <: Sector}
     return FusedSectorMatrix{T, S, Matrix{T}}(undef, sector, r1, r2)
 end
 
-# Int convenience: maps to Base.OneTo.
 function FusedSectorMatrix{T}(
         ::UndefInitializer, sector::Sector, m::Int, n::Int
     ) where {T}
@@ -35,9 +30,6 @@ end
 
 # ---- accessors ----
 
-# The two Kronecker factors: structure(sm) is the data-free structural factor (a SectorIdentity),
-# data(sm) the reduced matrix elements. structureaxes, dataaxes, and axes are derived generically on
-# AbstractSectorArray from those two.
 structure(sm::FusedSectorMatrix) = SectorIdentity{eltype(sm)}(sector(sm))
 sector(sm::FusedSectorMatrix) = sm.sector
 
@@ -65,27 +57,20 @@ end
 
 # ---- matrix operations ----
 
-# A block is the tensor product of its structural factor `structure(a)` (a `SectorIdentity`) and its
-# reduced data `data(a)`, so the trace factorizes: the sector's quantum dimension (the structural
-# trace) times the trace of the reduced data.
+# `tr(I ⊗ A) = tr(I) * tr(A)`, where `tr(I)` is the quantum dimension.
 function LinearAlgebra.tr(a::FusedSectorMatrix)
     return LinearAlgebra.tr(structure(a)) * LinearAlgebra.tr(data(a))
 end
 
 Base.conj(a::FusedSectorMatrix) = throw_flips_first_axis(conj, a)
 
-# The stored element count factorizes the same way: the structural factor contributes its quantum
-# dimension (the length of its diagonal), the reduced data its full size. Abelian sectors have quantum
-# dimension 1, so this is just `length(data(a))`.
 function storedlength(a::FusedSectorMatrix)
     return storedlength(structure(a)) * length(data(a))
 end
 
 # ---- reductions ----
 
-# `sum` over a graded matrix is restricted to zero-preserving `f` (`f(0) == 0`) for now, so the
-# structural zeros contribute nothing and need not be counted. Shared by the `FusedSectorMatrix` and
-# `FusedGradedMatrix` `sum` methods.
+# Restricting `sum` to zero-preserving `f` means the structural zeros need not be counted.
 @noinline function throw_not_zero_preserving_sum(z)
     return error(
         "`sum` over a graded matrix supports only zero-preserving `f` (`f(0) == 0`) for now; \
@@ -93,10 +78,9 @@ end
     )
 end
 
-# The dense block is `data(a) ⊗ structure(a)`: the quantum dimension `d` copies of the reduced data on the
-# diagonal, with `length - storedlength` structural zeros off it. `sum` (zero-preserving `f` only for
-# now) weights the reduced sum by `d` and drops the structural zeros; `maximum`/`minimum` are unchanged
-# by the duplication and fold in a single `f(0)` when the block has structural zeros (`d > 1`).
+# The dense block holds `d` copies of the reduced data, for quantum dimension `d`, plus structural
+# zeros when `d > 1`. So `sum` weights by `d`, and `maximum`/`minimum` fold in `f(0)` when there are
+# structural zeros.
 Base.sum(a::FusedSectorMatrix) = sum(identity, a)
 function Base.sum(f, a::FusedSectorMatrix)
     z = f(zero(eltype(a)))

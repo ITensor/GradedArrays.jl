@@ -6,14 +6,15 @@ export Sector, Trivial, U1, SU2, SU, CU1, Z, Z2, fZ2, fU1, fSU2
 export sectorproduct, ×
 export GradedArray, gradedrange, sectors
 export dual, isdual
-# The array and axis types are exported rather than `public` because they name themselves in
-# every graded display, where `show` spells a name out in full unless the reader has it in scope.
+# Exported rather than `public` because graded displays print these type names, and `show`
+# qualifies a name that is not in scope.
 export FusedGradedMatrix, FusedGradedVector, GradedOneTo
 
 if VERSION >= v"1.11.0-DEV.469"
     eval(
         Meta.parse(
-            "public TensorKitSector, with_scalar_indexing, with_block_indexing"
+            "public AbstractGradedOneTo, FusedGradedDiagonal, TensorKitSector, datalengths, \
+            with_scalar_indexing, with_block_indexing"
         )
     )
 end
@@ -28,10 +29,11 @@ using HalfIntegers: HalfInt, twice
 using LinearAlgebra: LinearAlgebra, Adjoint, Diagonal, dot, kron, mul!
 using Random: Random, AbstractRNG, rand!, randn!
 using TensorAlgebra: TensorAlgebra, TensorAlgebra as TA, BiTuple, bipartition,
-    bipermutedims!, bipermutedimsopadd!, check_input, dual, flattenlinear, isdual,
+    bipermutedims!, bipermutedimsconjadd!, check_input, dual, flattenlinear, isdual,
     matricize, ndims_codomain, ndims_domain, permutedimsadd!, scale!, twist!, unmatricize,
     zero!
 using TensorKitSectors: TensorKitSectors as TKS
+using TupleTools: TupleTools
 using VectorInterface: VectorInterface as VI
 
 # Self-alias for calling our own functions qualified where a local argument shadows the bare name
@@ -63,8 +65,7 @@ include("abstractfusedgradedarray.jl")
 include("sectordata.jl")
 include("fusedgradedmatrix.jl")
 include("fusedgradedvector.jl")
-# The graded broadcast-style lattice is defined here, before `FusedGradedDiagonal` (which adds its
-# own `FusedGradedDiagonalStyle` under the lattice) and `GradedArray` (which adds `GradedStyle`).
+# Before `FusedGradedDiagonal` and `GradedArray`, which add their own broadcast styles to it.
 include("broadcast.jl")
 include("adjointfusedgradedarray.jl")
 include("fusedgradedblocks.jl")
@@ -80,7 +81,8 @@ include("cat.jl")
 include("matrixalgebrakit.jl")
 
 include("gradedarray.jl")
-# Shared graded-array interface + `VectorInterface` (both name `GradedArray`, so they come after it).
+include("conjgradedarray.jl")
+# These name `GradedArray`, so they come after it.
 include("gradedarrayinterface.jl")
 include("vectorinterface.jl")
 include("gradedconstructors.jl")

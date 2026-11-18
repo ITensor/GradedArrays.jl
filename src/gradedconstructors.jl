@@ -1,23 +1,16 @@
 # ===========================================================================
-#  Graded-array construction and projection surface
+#  Graded-array construction and projection
 # ===========================================================================
-# The public `rand`/`randn`/`zeros`/`ones`/`fill` constructors over graded axes, and the projection
-# hooks (`unchecked_project`/`infer_aux_space`), all build the concrete graded array (`GradedArray`).
-# Kept type-agnostic (dispatched on the axes, not on the array type) so the construction API is
-# independent of the concrete array.
 
-# An axis is a `GradedOneTo` or a vector of `sector => multiplicity` pairs (keyed by a
-# GradedArrays `Sector` or a bare `TensorKitSectors.Sector`), normalized to a `GradedOneTo` by
-# `TA.to_range`. Each of `rand`/`randn`/`zeros`/`ones`/`fill` supports three shapes:
-#     f(axs...) / f((axs...,))         codomain-only, allocated directly
-#     f((cod...), (dom...))            tensor map, `dom` axes stored dual
+# Each of `rand`/`randn`/`zeros`/`ones`/`fill` supports three forms:
+#     f(axs...) / f((axs...,))         codomain only
+#     f((cod...), (dom...))            codomain and domain
 #     f(flux, (cod...)[, (dom...)])    appends a multiplicity-1 leg carrying `flux`
-# A leading graded axis on every tuple/vararg form keeps these from pirating Base's
-# zero-argument and `Integer`/`Dims` calls.
+# Requiring a leading graded axis keeps these from pirating Base's zero-argument and
+# `Integer`/`Dims` methods.
 
-# Two anchored `*_map` entries — codomain-led and empty-codomain domain-led — each building the
-# `GradedArray` directly, mirroring the `unchecked_project` / `allocate_project` split below. A
-# fully empty `((), ())` matches neither.
+# One method requires a codomain axis and the other a domain axis, so a fully empty `((), ())`
+# matches neither.
 for f in (:rand, :randn)
     fmap, fbang = Symbol(f, :_map), Symbol(f, :!)
     @eval begin
@@ -70,12 +63,9 @@ function TA.fill_map(
     return fill!(GradedArray{typeof(value)}(undef, cod, dom), value)
 end
 
-# Public `Base` constructors: normalize pairs-vector axes with `to_range` and route to `*_map`.
-# Pairs-vector axes are keyed by a GradedArrays `Sector`, and only by that: keying by a bare
-# `TensorKitSectors.Sector` would make these `Base` constructors type piracy, and the tuple and
-# named-tuple keys that `to_range` also accepts are left out on cost. The axis type is a
-# multiplier over both loops here, so admitting those two would double the generated methods to
-# buy a spelling the caller can reach with one `Sector` or `gradedrange` call.
+# Pairs-vector axes must be keyed by a GradedArrays `Sector`, since a bare `TensorKitSectors.Sector`
+# key would be type piracy. Other keys `to_range` accepts are left out to limit the number of
+# generated methods.
 for axis_type in (
         :AbstractGradedOneTo,
         :(AbstractVector{<:Pair{<:Sector, <:Integer}}),
@@ -205,12 +195,9 @@ for axis_type in (
     end
 end
 
-# Flux `f(flux, (cod...)[, (dom...)])`: append a multiplicity-1 leg carrying `flux` to the
-# dualized domain, so the physical axes fuse to that total charge. The flux may be a GradedArrays
-# `Sector` or a bare `TensorKitSectors.Sector`: these forms always carry a physical axis
-# (`GradedOneTo` or a `Sector`-keyed pairs vector), so the signature contains a GradedArrays-owned
-# type and accepting a bare sector is not type piracy. The axis-less flux-only forms below stay
-# `Sector`-only, where a bare-sector method would be piracy.
+# `f(flux, (cod...)[, (dom...)])` appends a multiplicity-1 domain leg carrying `flux`. A bare
+# `TensorKitSectors.Sector` flux is not type piracy here, since these forms always take a graded
+# axis. The flux-only forms below take only a `Sector`, since a bare sector would be piracy.
 for axis_type in (
         :AbstractGradedOneTo,
         :(AbstractVector{<:Pair{<:Sector, <:Integer}}),
@@ -395,11 +382,8 @@ for axis_type in (
         end
     end
 end
-# Flux-only forms: no physical axes, just the flux leg. Independent of `axis_type`, so defined
-# outside the `axis_type` loop. `f(flux, ())` and `f(flux)` are shorthands for `f(flux, (), ())`,
-# mirroring how the codomain-only and empty-domain forms collapse. These dispatch on `Sector`
-# and so take precedence over `Base.rand`/`zeros`/`fill` on a plain range, returning a graded
-# array carrying the flux rather than a plain array over that range.
+# Flux-only forms, with only the flux leg. `f(flux, ())` and `f(flux)` are shorthands for
+# `f(flux, (), ())`.
 for f in (:rand, :randn)
     fmap = Symbol(f, :_map)
     @eval begin
@@ -476,9 +460,9 @@ end
 
 Construct a `GradedArray` over the given graded axes with every symmetry-allowed (zero-flux)
 block allocated and filled with zeros. Each axis may be a graded range or a vector of
-`sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map,
-storing the domain axes dual; a leading `flux` sector appends a multiplicity-1 leg carrying it,
-so the physical axes fuse to that total charge.
+`sector => multiplicity` pairs. Passing a `(codomain, domain)` split builds a tensor map whose
+domain axes are dual. A leading `flux` sector appends a multiplicity-1 leg carrying it, so the
+other axes fuse to that total charge.
 """
 Base.zeros(::Type{T}, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}) where {T}
 
@@ -501,12 +485,8 @@ Like [`zeros`](@ref), but filling every symmetry-allowed block with `v`
 """
 Base.fill(::Any, ::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}})
 
-# Block-aware diagonal check: block-diagonal (no off-diagonal stored blocks), and each
-
-# Throw unless `sz1` and `sz2` are equal ignoring trailing length-1 axes (an axis beyond one
-# size's rank counts as length 1, mirroring `Base.size(A, d)` for `d > ndims(A)`), guarding a
-# `reshape` against silently reinterpreting same-length data of a genuinely different shape.
-# Vendored from TensorAlgebra rather than reused because it is not part of its public API.
+# Throw unless `sz1` and `sz2` are equal up to trailing length-1 axes. Vendored from
+# TensorAlgebra, where it is not public.
 function check_project_size(sz1::Dims, sz2::Dims)
     all(i -> get(sz1, i, 1) == get(sz2, i, 1), 1:max(length(sz1), length(sz2))) || throw(
         DimensionMismatch("sizes $sz1 and $sz2 differ beyond trailing length-1 axes")
@@ -526,16 +506,12 @@ function TA.unchecked_project(
     )
     return unchecked_project_graded(raw, codomain_axes, domain_axes)
 end
-# Project a dense array into the symmetry-allowed subspace as a `GradedArray`, delegating the
-# projection to TensorKit over the equivalent `ElementarySpace`s and wrapping the resulting
-# `TensorMap`. Unfused / unsorted external axes are first reordered per leg into sorted order (a
-# whole-block permutation, so equal sectors become contiguous and the array type is preserved) to
-# match the fused-sorted `GradedSpace` TensorKit needs, then wrapped carrying the original axes.
+# Projects through TensorKit. Axes with unsorted or repeated sectors are first block-permuted into
+# sorted order, as a TensorKit `GradedSpace` requires.
 function unchecked_project_graded(raw, codomain_axes, domain_axes)
-    # `TA.unchecked_project` always allocates a fresh result, so both branches wrap it as a zero-copy
-    # `to_gradedarray` view rather than copying it again.
+    # `TA.unchecked_project` allocates a fresh result, so it can be wrapped without copying.
     all_axes = (codomain_axes..., domain_axes...)
-    if ndims(raw) == length(all_axes) && !all(is_fused_sorted, all_axes)
+    if ndims(raw) == length(all_axes) && !all(isfusedsorted, all_axes)
         N = length(all_axes)
         storedlengths = map(g -> Vector(blocklengths(g)), all_axes)
         perms = ntuple(d -> sectorsortperm(all_axes[d]), Val(N))
@@ -553,11 +529,6 @@ function unchecked_project_graded(raw, codomain_axes, domain_axes)
     return to_gradedarray(t)
 end
 
-# `infer_aux_space` is the only projection hook a graded backend adds beyond `similar_map`:
-# `project_aux` derives the auxiliary axis through it, then projects into the full axes. Plain
-# `project` needs no graded `allocate_project` override, since the generic strict allocation routes
-# through the graded `similar_map`. Both the codomain-led and the (empty-codomain) domain-led cases
-# route to `infer_aux_space_graded`.
 function TA.infer_aux_space(
         raw, codomain_axes::Tuple{AbstractGradedOneTo, Vararg{AbstractGradedOneTo}},
         domain_axes::Tuple{Vararg{AbstractGradedOneTo}}
@@ -571,10 +542,9 @@ function TA.infer_aux_space(
     return infer_aux_space_graded(raw, codomain_axes, domain_axes)
 end
 
-# Abelian sectors derive one charge per slice, preserving slice order (a direct-sum aux, e.g.
-# `[S⁺, Sᶻ, S⁻]` gives `[U1(2), U1(0), U1(-2)]`). A non-abelian multiplet is a single irrep
-# spanning the whole slice axis, which the per-slice reading cannot express, so it is derived
-# through the `TensorMap` path over the equivalent `ElementarySpace`s and converted back.
+# For abelian sectors each slice gets its own charge, in slice order, for example `[S⁺, Sᶻ, S⁻]`
+# gives `[U1(2), U1(0), U1(-2)]`. A non-abelian multiplet spans several slices, so it goes through
+# TensorKit.
 function infer_aux_space_graded(raw, codomain_axes, domain_axes)
     if TKS.FusionStyle(first((codomain_axes..., domain_axes...))) isa TKS.UniqueFusion
         return infer_aux_space_abelian(raw, codomain_axes, domain_axes)
@@ -585,10 +555,8 @@ function infer_aux_space_graded(raw, codomain_axes, domain_axes)
     return GradedOneTo(aux)
 end
 
-# Abelian sectors are one-dimensional, so each length-1 slice along the aux axis carries a single
-# charge (`projected_charge`); contiguous equal charges merge into one sector of that multiplicity
-# (matching the `TensorMap` backend), while non-contiguous repeats stay separate to preserve slice
-# order.
+# Contiguous equal charges merge into one sector, as TensorKit does, while non-contiguous repeats
+# stay separate to preserve the slice order.
 function infer_aux_space_abelian(src::AbstractArray, codomain_axes, domain_axes)
     aux_dim = length(codomain_axes) + length(domain_axes) + 1
     qs = map(eachslice(src; dims = aux_dim)) do slice
@@ -605,12 +573,7 @@ function infer_aux_space_abelian(src::AbstractArray, codomain_axes, domain_axes)
     return gradedrange(ps)
 end
 
-# Net charge of a dense operator, read from its dominant-magnitude entry: find the block
-# holding that entry over the stored axes (domain dualized to match `zeros_map`/`similar_map`)
-# and fuse that block's per-axis sectors, each with its axis's arrow applied (the same fusion
-# `allowedblocks` is built on, so the charge lines up with which blocks `project` keeps). This is
-# the abelian per-slice primitive `infer_aux_space_abelian` builds the aux space from; the
-# non-abelian derivation lives in the `TensorMap` backend.
+# Net charge of a dense operator, read from the block holding its largest-magnitude entry.
 function projected_charge(src::AbstractArray, codomain_axes, domain_axes)
     stored = (codomain_axes..., conj.(domain_axes)...)
     src = reshape(src, length.(stored))
@@ -626,9 +589,8 @@ end
 
 Construct a `GradedArray` by projecting the dense data of `a` onto the symmetry-allowed blocks
 of the graded axes `(ax1, axs...)`, which errors if `a` has weight outside the allowed blocks.
-`a` is reshaped to `length.((ax1, axs...))` first, so a
-trailing size-1 bond can be supplied implicitly. Each axis carries its own arrow,
-so index with `dual`/`conj` axes to set duality.
+`a` is reshaped to `length.((ax1, axs...))` first, so a trailing size-1 bond can be supplied
+implicitly. Index with `dual` axes to get dual axes in the result.
 """
 function Base.getindex(
         a::AbstractArray,
@@ -636,15 +598,11 @@ function Base.getindex(
         axs::AbstractGradedOneTo...
     )
     dest_axes = (ax1, axs...)
-    # Match `a` to the requested axes up to trailing length-1 axes: indexing selects exactly these
-    # axes, so the surplus-axis derivation branch of `project` must not trigger, and a genuine
-    # shape mismatch errors rather than reinterpreting the data.
+    # So that `project` does not derive an extra axis, and a shape mismatch errors.
     check_project_size(size(a), length.(dest_axes))
     return TA.project(reshape(a, length.(dest_axes)), dest_axes)
 end
-# Disambiguate the single-axis case for a concrete `Array`: `Base.getindex(::Array,
-# ::AbstractUnitRange{<:Integer})` and the projection method above are otherwise equally
-# specific, so `dense[graded_axis]` (e.g. building a one-leg graded tensor) is ambiguous.
+# Disambiguate against `Base.getindex(::Array, ::AbstractUnitRange{<:Integer})`.
 function Base.getindex(a::Array, ax1::AbstractGradedOneTo)
     return invoke(
         getindex, Tuple{AbstractArray, AbstractGradedOneTo, Vararg{AbstractGradedOneTo}}, a,

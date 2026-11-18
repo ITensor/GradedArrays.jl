@@ -23,7 +23,9 @@ length(g), sectors(g)
 ```@docs; canonical=false
 gradedrange
 GradedOneTo
+AbstractGradedOneTo
 sectors
+datalengths
 ```
 
 ## Duality
@@ -90,11 +92,27 @@ b = randn((g,), (g,))
 axes(b) == axes(a)
 ```
 
-When printing, by convention domain axes are implicitly dual. The format and conventions are
-compatible with those of [TensorKit.jl](https://github.com/QuantumKitHub/TensorKit.jl).
+When printing, by convention domain axes are implicitly dual.
 
 ```@docs; canonical=false
 GradedArray
 FusedGradedMatrix
 FusedGradedVector
+FusedGradedDiagonal
+```
+
+## TensorKit compatibility
+
+GradedArrays uses [TensorKit.jl](https://github.com/QuantumKitHub/TensorKit.jl) for permutations
+and fusion tree manipulations, and its codomain/domain and duality conventions are TensorKit's.
+A `GradedArray` converts to a TensorKit `TensorMap`, and `GradedArray` converts one back.
+
+```@example gradedarrays
+using TensorKit: TensorMap
+t = TensorMap(b)
+```
+
+```@example gradedarrays
+using GradedArrays: GradedArray
+GradedArray(t) == b
 ```

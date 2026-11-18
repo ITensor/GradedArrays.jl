@@ -1,8 +1,5 @@
-# Fused 1-D structural factor for a single coupled sector: the all-ones vector whose length is the
-# sector's quantum dimension. It is the diagonal of the `SectorIdentity` that a
-# `FusedGradedVector` picks out as the diagonal of a `FusedGradedMatrix`, so each reduced value is
-# repeated once per state of the irrep. Carries no free data — completely determined by the sector.
-# The axis is non-dual.
+# The structural factor of a `FusedSectorVector`: the all-ones vector whose length is the quantum
+# dimension, which is the diagonal of a `SectorIdentity`. The axis is non-dual.
 struct SectorOnesVector{T, S <: Sector} <: AbstractSectorDelta{T, S, 1}
     sector::S
 end
@@ -10,33 +7,29 @@ SectorOnesVector{T}(s::S) where {T, S <: Sector} = SectorOnesVector{T, S}(s)
 
 sector(a::SectorOnesVector) = a.sector
 
-# A single non-dual leg: all codomain, no domain.
 TensorAlgebra.ndims_codomain(::SectorOnesVector) = 1
 TensorAlgebra.ndims_domain(::SectorOnesVector) = 0
-TensorAlgebra.has_bipartition(::SectorOnesVector) = true
+TensorAlgebra.hasbipartition(::SectorOnesVector) = true
 
 Base.@propagate_inbounds function Base.getindex(A::SectorOnesVector{T}, i::Int) where {T}
     @boundscheck checkbounds(A, i)
     return one(T)
 end
 
-# All codomain, no domain, so the `biaxes` domain half is empty.
 biaxes(A::SectorOnesVector) = bispace((OrientedSector(sector(A)),), ())
 Base.axes(A::SectorOnesVector) = Tuple(biaxes(A))
 
-# Structural inner product: the all-ones vector contracts to its length, the quantum dimension.
+# The quantum dimension.
 function LinearAlgebra.dot(a::SectorOnesVector, b::SectorOnesVector)
     axes(a) == axes(b) || throw(DimensionMismatch("sector mismatch in dot"))
     return length(sector(a))
 end
 
-# `p`-norm: the all-ones vector has `length(sector)` unit entries, so `norm^p` counts them.
-# The single formula also covers `p == Inf` (`count^0 == 1`, the max entry).
+# `length(sector)` unit entries. Also correct for `p == Inf`.
 function LinearAlgebra.norm(a::SectorOnesVector{T}, p::Real = 2) where {T}
     return convert(real(float(T)), length(sector(a))^(1 / p))
 end
 
-# A single index has only the identity permutation.
 Base.permutedims(a::SectorOnesVector, perm) = a
 
 Base.conj(a::SectorOnesVector) = throw_flips_first_axis(conj, a)

@@ -5,9 +5,9 @@ using GradedArrays: GradedArray, Sector, U1, UniqueSectorArray, UniqueSectorDelt
     structureaxes, with_block_indexing, with_scalar_indexing
 using LinearAlgebra: Diagonal
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, MatricizeContract, contract, contractalign, matricize,
-    matricizeop, permutedimsop, project, unmatricize, unmatricize!, unmatricizeadd!,
-    unproject
+using TensorAlgebra: TensorAlgebra, MatricizeContract, conjed, contract, contractalign,
+    contractpermopadd!, matricize, matricizeop, permutedimsop, project, unmatricize,
+    unmatricize!, unmatricizeadd!, unproject
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
 
@@ -488,6 +488,45 @@ end
     @test scalar(contractalign((), t13, l13, T2, (2, 3))) ≈ s
 end
 
+# A lazy conjugate is folded into the contraction as `op = conj`, so it must reproduce the
+# contraction of the eager conjugate exactly, with the conjugated operand in either slot.
+@testset "lazy conj contracts like eager conj (eltype=$elt)" for elt in elts
+    r = gradedrange([fP0 => 1, fP1 => 2])
+    a = randn_blockdiagonal(elt, (r, dual(r), r, dual(r)))
+    b = randn_blockdiagonal(elt, (r, dual(r), r, dual(r)))
+    c = randn_blockdiagonal(elt, (dual(r), r, r, r))
+    la, lb = (1, 2, -1, -2), (1, 2, -3, -4)
+    @test Array(first(contract(conjed(a), la, b, lb))) ==
+        Array(first(contract(conj(a), la, b, lb)))
+    @test Array(first(contract(b, lb, conjed(a), la))) ==
+        Array(first(contract(b, lb, conj(a), la)))
+    @test Array(first(contract(conjed(a), la, conjed(c), lb))) ==
+        Array(first(contract(conj(a), la, conj(c), lb)))
+    # The contracted legs of the lazy operand are all non-dual while those of its conjugate are
+    # all dual, so whether the contraction twist applies depends on the `op`.
+    t = randn_blockdiagonal(elt, (r, r))
+    u = randn_blockdiagonal(elt, (r, r))
+    @test Array(first(contract(t, (1, 2), conjed(u), (1, 3)))) ==
+        Array(first(contract(t, (1, 2), conj(u), (1, 3))))
+    @test Array(first(contract(conjed(u), (1, 3), t, (1, 2)))) ==
+        Array(first(contract(conj(u), (1, 3), t, (1, 2))))
+
+    # For a ket-like state (no dual legs), contracting with its conjugate gives the squared norm,
+    # for even and odd parity and either operand order. The odd state carries its charge on an
+    # extra one-dimensional odd leg.
+    r_odd = gradedrange([fP1 => 2])
+    q_odd = gradedrange([fP1 => 1])
+    for ψ in (
+            randn_blockdiagonal(elt, (r, r, r, r)),
+            randn_blockdiagonal(elt, (r_odd, r_odd, r_odd, q_odd)),
+        )
+        l = ntuple(identity, ndims(ψ))
+        n2 = sum(abs2, Array(ψ))
+        @test only(Array(contractalign((), conjed(ψ), l, ψ, l))) ≈ n2
+        @test only(Array(contractalign((), ψ, l, conjed(ψ), l))) ≈ n2
+    end
+end
+
 # The fused permuting `matricizeop` (folding the permute into the gather) must agree
 # block-by-block with the reference two-pass `permutedimsop` then `matricize`, including
 # the per-block fermion permutation sign. `U1` exercises the non-self-dual `op = conj`
@@ -611,20 +650,71 @@ end
         @test axes(c_fast) == axes(c_ref)
         @test Array(a2) ≈ a2_dense_before
         # Graded operands stay on the generic algorithm: the twist comes from the graded
-        # `contractpermopadd!` kernel that the right factor's type selects, not from an
-        # algorithm of their own.
+        # overload of its kernel, not from an algorithm of their own.
         @test TensorAlgebra.default_algorithm(
             TensorAlgebra.contract!, Tuple{typeof(a1), typeof(a1), typeof(a2)}
         ) === MatricizeContract()
         # With a non-dual contracted (codomain) leg no twist is needed, so the kernel uses the
         # stored matrix itself; with a dual one the twist goes on a copy.
-        @test GradedArrays.needs_contraction_twist(a2, (1,)) == isdual(rc)
+        @test GradedArrays.needs_contraction_twist(false, a2, (1,)) == isdual(rc)
         if isdual(rc)
-            m = GradedArrays.twisted_matricizeop(identity, a2, (1,), (2,), :codomain)
+            m = GradedArrays.twisted_matricizeconj(false, a2, (1,), (2,), :codomain)
             @test m !== matricize(a2)
         end
-        @test_throws ArgumentError GradedArrays.twisted_matricizeop(
-            identity, a2, (1,), (2,), :codmain
+        @test_throws ArgumentError GradedArrays.twisted_matricizeconj(
+            false, a2, (1,), (2,), :codmain
         )
+    end
+end
+
+# The contraction kernel lays out the product four ways (the contracted legs in either operand's
+# storage order, times `a1 * a2` or `a2 * a1`) and picks by which operands it can use in place, so
+# vary the stored leg orders and splits to reach each one. The reference permutes both operands
+# eagerly into the `a1 * a2` layout, which needs no further copy, then permutes the product into
+# the destination's storage. `U1` checks the plain fold and `fZ2` the contraction twist, which the
+# `a2 * a1` layouts place on the other factor.
+@testset "graded contraction in every storage layout (eltype=$elt)" for elt in
+    (
+        Float64,
+        ComplexF64,
+    )
+    for g in (
+                gradedrange([U1(0) => 1, U1(1) => 2, U1(-1) => 1]),
+                gradedrange([fP0 => 2, fP1 => 1]),
+            ),
+            (op1, op2) in ((identity, identity), (conj, identity), (conj, conj)),
+            # Arrows on the contracted legs `j` and `k`: all out, mixed, all in. Whether the twist
+            # applies is decided on one factor's contracted legs, so the uniform cases tell the two
+            # factors apart.
+            axs_a in ((g, g, g), (g, dual(g), g), (g, dual(g), dual(g)))
+
+        # `a[i, j, k] b[k, j, l] -> c[i, l]`.
+        axs_b = map(ax -> op2(dual(op1(ax))), (axs_a[3], axs_a[2]))
+        axs_b = (axs_b..., dual(g))
+        # Stored leg orders that put the contracted legs in either order on either side.
+        for pa in ((1, 2, 3), (1, 3, 2), (2, 3, 1), (3, 2, 1)),
+                pb in ((1, 2, 3), (2, 1, 3), (3, 2, 1), (3, 1, 2)),
+                nca in (1, 2), ncb in (1, 2)
+
+            stored_a, stored_b = map(i -> axs_a[i], pa), map(i -> axs_b[i], pb)
+            ap = randn(elt, stored_a[1:nca], map(dual, stored_a[(nca + 1):end]))
+            bp = randn(elt, stored_b[1:ncb], map(dual, stored_b[(ncb + 1):end]))
+            # Positions of `a`'s and `b`'s logical legs in the stored arrays.
+            ia, ib = invperm(pa), invperm(pb)
+            a_ref = permutedimsop(op1, ap, (ia[1],), (ia[2], ia[3]))
+            b_ref = permutedimsop(op2, bp, (ib[2], ib[1]), (ib[3],))
+            c_ref, = contract(a_ref, (1, 2, 3), b_ref, (2, 3, 4))
+            for pc in ((1, 2), (2, 1)), ncc in 0:2
+                c_expected = permutedimsop(identity, c_ref, pc[1:ncc], pc[(ncc + 1):end])
+                c = zero(c_expected)
+                contractpermopadd!(
+                    c, pc[1:ncc], pc[(ncc + 1):end],
+                    op1, ap, (ia[1],), (ia[2], ia[3]),
+                    op2, bp, (ib[2], ib[1]), (ib[3],),
+                    true, false
+                )
+                @test c ≈ c_expected
+            end
+        end
     end
 end

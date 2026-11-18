@@ -1,5 +1,5 @@
 using GradedArrays: CU1, SU, SU2, Sector, TensorKitSector, Trivial, U1, Z, dual, flip,
-    istrivial, modulus, sector_labels, sectortype, trivial
+    gradedrange, istrivial, modulus, sector_labels, sectortype, trivial
 using SUNRepresentations: SUNRepresentations
 using TensorKitSectors: TensorKitSectors as TKS
 using Test: @test, @test_throws, @testset
@@ -247,5 +247,20 @@ fundamental(::Type{<:SU{N}}) where {N} = SU{N}(1, zeros(Int, N - 2)...)
         @test (@constinferred length(ψ)) == 1.0
 
         @test ı < σ < ψ
+    end
+
+    @testset "Sectors never equal non-sector ranges" begin
+        for s in (U1(5), Trivial(), SU2(0), Sector(U1(1), SU2(0)), dual(U1(1)))
+            for r in (1:1, Base.OneTo(1), 1:1:1, 1.0:1.0, gradedrange([U1(1) => 1]))
+                @test s != r
+                @test r != s
+                @test !isequal(s, r)
+                @test !isequal(r, s)
+            end
+        end
+        @test U1(5) == U1(5)
+        @test isequal(U1(5), U1(5))
+        @test isequal(dual(U1(1)), dual(U1(1)))
+        @test U1(5) != U1(4)
     end
 end

@@ -1,33 +1,19 @@
-# Abstract supertype for a symmetric block that factorizes into a data-free structural factor
-# (`structure`, fixed by the symmetry) and the reduced matrix elements (`data`). Its `size` is the
-# full Kronecker extent of the two, so a subtype is the whole block rather than just the data it
-# stores.
-# Concrete subtypes:
-#
-#   - `UniqueSectorArray`: unfused N-D abelian block (one sector per axis)
-#   - `FusedSectorMatrix`: fused 2D block (one coupled sector label)
-#   - `FusedSectorVector`: fused 1-D block (the diagonal of a `FusedSectorMatrix`)
+# A symmetric block that factorizes as the Kronecker product of a structural factor fixed by the
+# symmetry (`structure`) and the reduced matrix elements (`data`). Its `size` is the full extent of
+# the product, not of the stored data.
 abstract type AbstractSectorArray{T, S, N} <: AbstractArray{T, N} end
 
 sectortype(::Type{<:AbstractSectorArray{T, S}}) where {T, S} = S
 
-# Return the raw data array underlying the sector array.
 data(sa::AbstractSectorArray) = sa.data
 
-# Return the structural (Schur) factor of a single-sector graded object: the data-free part that the
-# symmetry fixes, carrying no free parameters. It is the Kronecker cofactor of the raw data, so
-# `x == structure(x) ⊗ data(x)`; for an `AbstractSectorArray` it is the
-# `AbstractSectorDelta` with `sector_kron(structure(a), data(a)) === a`, and for a
-# `SectorOneTo` it is the `OrientedSector` of the rank-1 factorization.
+# The structural factor of a single-sector object, the part fixed by the symmetry, so that
+# `x == structure(x) ⊗ data(x)`.
 function structure end
 
-# Reconstruct a sector array from its structural sector factor and raw data
-# (the inverse of the `structure` / `data` split). Each concrete subtype defines a method.
+# Inverse of the `structure` / `data` split.
 function sector_kron end
 
-# The axes decompose into the structural sector factor and the reduced data, derived here from the
-# `structure`/`data` primitives every subtype provides. `biaxes` carries the codomain/domain split,
-# taking it from the sector factor and bipartitioning the reduced-data axes at the same boundary.
 structureaxes(x) = axes(structure(x))
 structureaxes(x, d::Int) = structureaxes(x)[d]
 dataaxes(sa::AbstractSectorArray) = axes(data(sa))
@@ -42,10 +28,8 @@ Base.size(sa::AbstractSectorArray) = map(length, axes(sa))
 
 Base.similar(a::AbstractSectorArray, ::Type{T}) where {T} = similar(a, T, axes(a))
 
-# Scalar indexing reads/writes the reduced data directly, which only coincides with the full array
-# for unique (abelian) fusion, where the structural factor is trivial and `size == size(data)`. For
-# non-abelian fusion the full extent exceeds the reduced data, so scalar indexing would run past it;
-# require unique fusion rather than silently reading/writing out of bounds.
+# Scalar indexing reads the reduced data, which equals the full array only for unique (abelian)
+# fusion. Otherwise it would read out of bounds.
 Base.@propagate_inbounds function Base.getindex(
         A::AbstractSectorArray{T, <:Any, N},
         I::Vararg{Int, N}
@@ -67,14 +51,10 @@ Base.@propagate_inbounds function Base.setindex!(
     return A
 end
 
-# `copy_sector!` is the sector-aware block copy used by block assignment and the concatenation
-# scatter. It dispatches on whether each side is a sector array or a plain array. Keeping it a
-# GradedArrays function, rather than overloading `Base.copyto!`/`copy!` against `AbstractArray`, keeps
-# it out of those crowded method tables and so adds no ambiguities with stdlib array types.
+# A function of our own rather than `Base.copyto!` methods against `AbstractArray`, to avoid
+# method ambiguities with other array types.
 
-# sector <- sector: the reduced data carries the block, so the axes (sector labels and lengths) must
-# match. The flat axes carry no codomain/domain split, so a `(2, 0)` block still copies into a
-# `(1, 1)` one.
+# The flat axes carry no codomain/domain split, so a `(2, 0)` block can copy into a `(1, 1)` one.
 function copy_sector!(dest::AbstractSectorArray, src::AbstractSectorArray)
     axes(dest) == axes(src) || throw(
         DimensionMismatch("sector axes mismatch in copy: $(axes(dest)) vs $(axes(src))")
@@ -82,30 +62,23 @@ function copy_sector!(dest::AbstractSectorArray, src::AbstractSectorArray)
     copyto!(data(dest), data(src))
     return dest
 end
-# sector <- plain: a plain array is the full array, which equals the reduced data only under unique
-# (abelian) fusion; require it. Lets `a[Block] = dense` fill a block.
+# A plain array is the full array, which equals the reduced data only under unique fusion.
 function copy_sector!(dest::AbstractSectorArray, src::AbstractArray)
     require_unique_fusion(dest)
     copyto!(data(dest), src)
     return dest
 end
 
-# `copy!`/`copyto!` between two sector arrays route through `copy_sector!` (which does the full-axis
-# check Base's `copy!` requires) so generic array code keeps working.
 Base.copyto!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
 Base.copy!(dest::AbstractSectorArray, src::AbstractSectorArray) = copy_sector!(dest, src)
 
-# A sector matrix is the Kronecker product of its structural factor with the reduced data. The factor
-# is diagonal (identity-like) for any fusion, so the matrix is diagonal iff the reduced data is. Lets
-# `isdiag` on a graded matrix test its blocks without unwrapping to `data`.
+# The structural factor is diagonal for any fusion, so the matrix is diagonal iff the reduced
+# data is.
 function LinearAlgebra.isdiag(A::AbstractSectorArray{<:Any, <:Any, 2})
     return LinearAlgebra.isdiag(data(A))
 end
 
-# `all`/`any` over a sector array: for unique (abelian) fusion the full array equals its reduced
-# data element-wise, so forward the predicate to `data` (avoiding the scalar-indexing `AbstractArray`
-# fallback). Non-abelian fusion has structural multiplicity beyond the reduced data, so require
-# unique fusion rather than iterating past it.
+# The full array equals the reduced data only under unique fusion.
 function Base.all(f::Function, A::AbstractSectorArray)
     require_unique_fusion(A)
     return all(f, data(A))
@@ -117,9 +90,9 @@ end
 
 # ========================  Shared utilities  ========================
 
-is_unique_fusion(A) = TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion()
+isuniquefusion(A) = TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion()
 function require_unique_fusion(A)
-    return is_unique_fusion(A) || error("not implemented for non-abelian tensors")
+    return isuniquefusion(A) || error("not implemented for non-abelian tensors")
 end
 
 # ========================  scale! / zero!  ========================
@@ -134,10 +107,8 @@ function TensorAlgebra.zero!(a::AbstractSectorArray)
     return a
 end
 
-# `fill!` sets the symmetry-allowed (reduced) data, leaving the structural sector factor unchanged;
-# it is a shorthand for setting the allowed values, like `rand!`/`randn!`, not a fill of the dense
-# array (which the structural factor would scale for a non-abelian sector). A zero fill routes
-# through `zero!`, which storage backends can implement more efficiently than a general fill.
+# Fills the reduced data, like `rand!`/`randn!`, not the dense array. A zero fill uses `zero!`,
+# which storage backends can implement more efficiently.
 function Base.fill!(a::AbstractSectorArray, v)
     iszero(v) && return zero!(a)
     fill!(data(a), v)
@@ -145,10 +116,8 @@ function Base.fill!(a::AbstractSectorArray, v)
 end
 
 # ========================  matrix operations live on the matrix storage types  ========================
-# Matrix/linear-algebra operations are defined only on the matrix storage type `FusedSectorMatrix`,
-# never on the array types. On an array they would otherwise fall through to the generic
-# `AbstractArray` methods, which scalar-index into a dense, non-graded result. Error instead (via the
-# shared `_matrix_op_error`); `FusedSectorMatrix` is a more specific subtype, so it still wins.
+# Otherwise these fall through to the generic `AbstractArray` methods, which scalar-index into a
+# dense result. `FusedSectorMatrix` defines its own, more specific methods.
 Base.adjoint(a::AbstractSectorArray) = _matrix_op_error(adjoint, a)
 Base.transpose(a::AbstractSectorArray) = _matrix_op_error(transpose, a)
 Base.:*(a::AbstractSectorArray, b::AbstractSectorArray) = _matrix_op_error(*, a)
@@ -159,39 +128,29 @@ for f in TensorAlgebra.MATRIX_FUNCTIONS
     @eval Base.$f(a::AbstractSectorArray) = _matrix_op_error($f, a)
 end
 
-# The inner product factorizes the same way: the structural factors contract to their inner product
-# (the squared Frobenius norm of the delta, a quantum-dimension weight) times the reduced-data inner
-# product. Matches `dot(Array(a), Array(b))` (the `kron`/`dot` mixed-product identity) and the
-# quantum-dimension weighting a fused graded array applies to each block.
+# `dot(A ⊗ B, C ⊗ D) = dot(A, C) * dot(B, D)`, so the structural factor contributes a
+# quantum-dimension weight.
 function LinearAlgebra.dot(a::AbstractSectorArray, b::AbstractSectorArray)
     return LinearAlgebra.dot(structure(a), structure(b)) *
         LinearAlgebra.dot(data(a), data(b))
 end
 
-# The `p`-norm factorizes through the Kronecker structure the same way: the product of the
-# structural-factor norm and the reduced-data norm (the `norm(A ⊗ B, p) = norm(A, p) * norm(B, p)`
-# identity that `KroneckerArrays` uses). Correct for every `p`, `Inf` included, with no special case.
+# `norm(A ⊗ B, p) = norm(A, p) * norm(B, p)` for every `p`, including `Inf`.
 function LinearAlgebra.norm(a::AbstractSectorArray, p::Real = 2)
     return LinearAlgebra.norm(structure(a), p) * LinearAlgebra.norm(data(a), p)
 end
 
 # ========================  densification  ========================
 
-# Materialize the block densely as `data(a) ⊗ structure(a)` (`reduced ⊗ I` for the identity/ones
-# structural factor), repeating each reduced value over the irrep's quantum dimension. The reduced
-# data is the outer (slower) index, matching TensorKit's dense block layout, so this agrees with the
-# `to_tensormap` conversion (`Array(::FusedGradedMatrix)` and `Array(::GradedArray)` coincide). The generic
-# `AbstractArray` fallback can't be used: `size` is the full (structural × reduced) extent while
-# `data` is only the reduced block, so copying elementwise scalar-indexes past it into garbage.
+# `data(a) ⊗ structure(a)`, with the reduced data as the outer (slower) index to match TensorKit's
+# dense block layout.
 function Base.Array{T, N}(a::AbstractSectorArray{<:Any, <:Any, N}) where {T, N}
     return kron_nd(Array{T, N}(data(a)), Array{T, N}(structure(a)))
 end
 
 # ========================  random fills  ========================
 
-# Fill the reduced data block, bypassing the generic `AbstractArray` fallbacks that go through
-# (disallowed) scalar indexing. The 3-arg `rand!(rng, a, sp)` form is what Random's `rand!` entry
-# points ultimately call.
+# The 3-arg `rand!(rng, a, sp)` form is what Random's `rand!` entry points ultimately call.
 function Random.rand!(rng::AbstractRNG, a::AbstractSectorArray, sp::Random.Sampler)
     Random.rand!(rng, data(a), sp)
     return a
@@ -203,20 +162,13 @@ end
 
 # ========================  conj  ========================
 
-# Conjugate the data, flip the duality of every axis, and (for fermions) apply the fermionic phase
-# from reversing the leg order. Routed through the lazy conjugating broadcast so there is a single
-# implementation: `conj.` lowers to a `ConjArray` (dualizing the axes) and materializes via
-# `bipermutedimsopadd!` with `op = conj`, which carries the reversal phase that a bare data
-# conjugation drops. This also overrides Base's `conj(::AbstractArray{<:Real}) = A` short-circuit,
-# so a real-eltype sector array still dualizes its axes.
+# Through the broadcast so that the fermionic phase from reversing the leg order is applied, which
+# a bare data `conj` drops. Overrides Base's `conj` for real eltypes, which would not dualize the axes.
 Base.conj(a::AbstractSectorArray) = conj.(a)
 
 # ========================  real / imag  ========================
 
-# `real`/`imag` act on the reduced data, leaving the structural sector factor unchanged
-# (`f(I ⊗ A) = I ⊗ f(A)` for the real identity/ones structural factor). Defined directly on the
-# data rather than through the conjugating broadcast because, unlike `conj`, they are not semilinear
-# and cannot go through the linear-broadcast fold.
+# `f(I ⊗ A) = I ⊗ f(A)` since the structural factor is real.
 Base.real(a::AbstractSectorArray) = sector_kron(structure(a), real(data(a)))
 Base.imag(a::AbstractSectorArray) = sector_kron(structure(a), imag(data(a)))
 

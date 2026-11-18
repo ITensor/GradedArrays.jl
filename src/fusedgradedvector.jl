@@ -3,13 +3,11 @@
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-#  FusedSectorVector — single-sector tagged vector (one block of a FusedGradedVector)
+#  FusedSectorVector
 # ---------------------------------------------------------------------------
 
-# A single sector with a data vector. Analogous to `FusedSectorMatrix` but for 1-D data
-# (eigenvalues, singular values, etc.). Its structural factor is a `SectorOnesVector`, the
-# diagonal of the matrix case's `SectorIdentity`, so each reduced value is repeated once per
-# state of the irrep and `length` is the block's full graded length.
+# One block of a `FusedGradedVector`. Its structural factor is a `SectorOnesVector`, so each
+# reduced value is repeated once per state of the irrep.
 struct FusedSectorVector{T, S <: Sector, D <: AbstractVector{T}} <:
     AbstractSectorArray{T, S, 1}
     data::D
@@ -18,32 +16,24 @@ end
 
 # ---- undef constructors ----
 
-# Innermost: fully parameterized, takes an AbstractUnitRange data axis.
 function FusedSectorVector{T, S, D}(
         ::UndefInitializer, sector::S, r::AbstractUnitRange
     ) where {T, S <: Sector, D <: AbstractVector{T}}
     return FusedSectorVector{T, S, D}(similar(D, (r,)), sector)
 end
 
-# Convenience: default D = Vector{T}.
 function FusedSectorVector{T}(
         ::UndefInitializer, sector::S, r::AbstractUnitRange
     ) where {T, S <: Sector}
     return FusedSectorVector{T, S, Vector{T}}(undef, sector, r)
 end
 
-# Int convenience: maps to Base.OneTo.
 function FusedSectorVector{T}(::UndefInitializer, sector::Sector, n::Int) where {T}
     return FusedSectorVector{T}(undef, sector, Base.OneTo(n))
 end
 
 # ---- accessors ----
 
-# The structural factor is a `SectorOnesVector`, the diagonal of the block's `SectorIdentity`,
-# mirroring `structure(::FusedSectorMatrix)`. structureaxes, dataaxes, and axes are derived generically
-# on AbstractSectorArray from structure and data; a `FusedSectorVector`'s single axis is thus a
-# `SectorOneTo` carrying the sector (its `size` is the block's full graded length, not the reduced
-# data length), matching the matrix blocks.
 structure(sv::FusedSectorVector) = SectorOnesVector{eltype(sv)}(sector(sv))
 sector(sv::FusedSectorVector) = sv.sector
 
@@ -81,11 +71,10 @@ function Base.show(io::IO, ::MIME"text/plain", sv::FusedSectorVector)
 end
 
 # ---------------------------------------------------------------------------
-#  FusedGradedVector — block-structured 1-D graded array for per-sector scalars
+#  FusedGradedVector
 # ---------------------------------------------------------------------------
 
-# Stores a contiguous `buffer` plus the fused axis; the per-sector blocks are the lazy
-# `sectordata(v)` view carved from the buffer on demand. `I` is the TensorKitSectors sector type corresponding to
+# The blocks are views into a contiguous `buffer`. `I` is the TensorKitSectors sector type corresponding to
 # the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
 """
     FusedGradedVector
@@ -97,14 +86,9 @@ struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <
     AbstractFusedGradedVector{T, S}
     buffer::V
     axis::FusedGradedOneTo{S, I}
-    # The per-sector offset/size layout into the buffer (see `sectordatalayout`).
     datalayout::SectorDataLayout{S, 1}
 
-    # Primitive constructor: wrap a contiguous buffer (shared, not copied); the per-sector blocks are
-    # the lazy `sectordata` view over it. The stored axis is non-dual. `datalayout` must be the
-    # per-sector layout of the given axis: the fusing constructor below computes it, and constructors
-    # deriving from an existing vector with the same axis pass its layout through, sharing it (like
-    # the axis itself).
+    # `datalayout` must be the layout of the given axis, which is not checked.
     function FusedGradedVector{T, S, V}(
             buffer::V, axis::FusedGradedOneTo{S, I}, datalayout
         ) where {T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector}
@@ -122,8 +106,6 @@ struct FusedGradedVector{T, S <: Sector, V <: DenseVector{T}, I <: TKS.Sector} <
     end
 end
 
-# The single place the axis is fused into canonical `FusedGradedOneTo` form (and its per-sector
-# layout computed); every axis-only construction routes through here.
 function FusedGradedVector{T, S, V}(
         buffer::V, axis::AbstractGradedOneTo
     ) where {T, S <: Sector, V <: DenseVector{T}}
@@ -131,81 +113,63 @@ function FusedGradedVector{T, S, V}(
     return FusedGradedVector{T, S, V}(buffer, ax, sectordatalayout(ax))
 end
 
-# Wrap a contiguous `buffer` (shared, not copied) as a `FusedGradedVector` with the given `axis`; the
-# per-sector blocks are the lazy `sectordata` view over the buffer. The `axis` is fused into canonical
-# form. To build from per-sector block data instead, use `fusedgradedvector`.
+# Wrap a contiguous `buffer` without copying.
 function FusedGradedVector(buffer::DenseVector, axis::AbstractGradedOneTo{S}) where {S}
     return FusedGradedVector{eltype(buffer), S, typeof(buffer)}(buffer, axis)
 end
 
-# Sharing form: wrap a buffer with the axis and per-sector layout of an existing vector.
 function FusedGradedVector(
         buffer::DenseVector, axis::FusedGradedOneTo{S}, datalayout::AbstractDictionary{S}
     ) where {S}
     return FusedGradedVector{eltype(buffer), S, typeof(buffer)}(buffer, axis, datalayout)
 end
 
-# Allocate an uninitialized buffer for `axis` and wrap it. The block total is the sum of the
-# per-sector data lengths, invariant under fusion, so it reads off the given axis directly.
 function FusedGradedVector{T}(::UndefInitializer, axis::AbstractGradedOneTo) where {T}
     return FusedGradedVector(Vector{T}(undef, sum(datalengths(axis); init = 0)), axis)
 end
 
-# Build a `FusedGradedVector` from per-sector block data (`sector => data` pairs, any iterator of pairs,
-# or a `Dictionary` keyed by sector). The axis is derived from the blocks: `axis[sectors[i]]` is
-# `length(data[i])`. Bare `TKS.Sector`s are accepted alongside `Sector`s; the sectors must be
-# sorted and unique. To wrap an existing contiguous buffer instead, use `FusedGradedVector`.
+# Build from `sector => data` pairs, or a `Dictionary` keyed by sector. The sectors must be sorted
+# and unique.
 function fusedgradedvector(sectordata)
     ps = collect(sectordata)
-    # Accept bare `TKS.Sector`s alongside our own, as `gradedrange` does; `Sector` converts the
-    # former and is the identity on the latter.
-    sectors = [Sector(first(p)) for p in ps]
+    sectors = [to_sector(first(p)) for p in ps]
     data = [last(p) for p in ps]
     allunique(sectors) || throw(ArgumentError("sectors must be unique"))
     issorted(sectors) || throw(ArgumentError("sectors must be sorted"))
     axis = FusedGradedOneTo(sectors, [length(b) for b in data])
     v = FusedGradedVector{eltype(eltype(data))}(undef, axis)
-    # `sectordata` names the argument here; reach the accessor via the module alias.
+    # The argument shadows the `sectordata` function.
     dest = GA.sectordata(v)
     for (s, b) in zip(sectors, data)
         copyto!(dest[s], b)
     end
     return v
 end
-# A `Dictionary` iterates over its values, not pairs, so route it through `pairs`.
+# A `Dictionary` iterates over its values, not pairs.
 fusedgradedvector(sectordata::Dictionary) = fusedgradedvector(pairs(sectordata))
 
 # ========================  Accessors  ========================
 
-# Each block is a 1-D `view` into the buffer (see `_dataview`); infer that type.
+# Each block is a `view` into the buffer.
 function datatype(::Type{<:FusedGradedVector{T, S, V}}) where {T, S, V}
     return Base.promote_op(view, V, UnitRange{Int})
 end
 
 sectordata(v::FusedGradedVector) = SectorData(v, v.datalayout)
 
-# The stored axis is the fused codomain range; a vector has an empty domain. `axes_codomain` is the
-# core axis accessor (the one place `v.axis` is read directly); `biaxes`, `axes`, `size`, and the
-# single-axis `axis(v)` all derive from it generically, and every other site reads `axis(v)`.
 axes_codomain(v::FusedGradedVector) = (v.axis,)
 axes_domain(v::FusedGradedVector) = ()
 
 Base.dataids(v::FusedGradedVector) = Base.dataids(v.buffer)
+Base.parent(v::FusedGradedVector) = v.buffer
 
-# Block-wise `mapreduce`: reduce each block locally (so GPU blocks stay on the device for
-# their reduction kernel) and combine per-block scalars on the CPU. Routes
-# `maximum(abs, v; init=…)`, `sum`, `LinearAlgebra.norm`, etc. without ever falling
-# through to `getindex(v, ::Int)`. `init` (and any other kwargs) flow only to the outer
-# cross-block fold; double-applying `init` per block would be wrong for non-idempotent
-# reductions (e.g. `sum(v; init=10)`).
+# Reduce each block on its own device, then combine the results. `init` is passed only to the
+# outer fold, since applying it per block would be wrong for `sum(v; init = 10)`.
 function Base.mapreduce(f, op, v::FusedGradedVector; kwargs...)
     return mapfoldl(b -> mapreduce(f, op, b), op, sectordata(v); kwargs...)
 end
 
-# Block-wise `map`: returns a `FusedGradedVector` with the same axis and `f` applied to
-# each stored block, instead of falling through to `collect_similar` which would
-# scalar-setindex! into a fresh array. Each per-block `map`
-# dispatches to the storage backend's `map` (e.g. GPU kernel for `CuVector` blocks).
+# The generic `map` would scalar-index into a fresh array.
 function Base.map(f, v::FusedGradedVector)
     blockdata = dictionary(s => map(f, b) for (s, b) in pairs(sectordata(v)))
     return fusedgradedvector(blockdata)
@@ -213,11 +177,8 @@ end
 
 # ========================  setsectors  ========================
 
-# Set the axis to exactly `ss` and wrap the same buffer as `v`, with the added blocks zero-size
-# views (see `setsectors(::FusedGradedMatrix, ss)`).
 function setsectors(v::FusedGradedVector, ss::AbstractVector)
     ax = setsectors(axis(v), ss)
-    # An unchanged axis means the set is the identity; return `v` itself.
     ax === axis(v) && return v
     return FusedGradedVector(v.buffer, ax, sectordatalayout(ax))
 end
@@ -262,12 +223,12 @@ function Base.similar(
     end
 end
 
-# A permute of a vector stays a vector; the generic fallback routes through `similar_map` to a
-# `GradedArray`.
+# The generic fallback would allocate a `GradedArray` through `similar_map`.
 function TensorAlgebra.allocate_output(
-        ::typeof(TA.permutedimsop), op, src::FusedGradedVector, perm_codomain, perm_domain
+        ::typeof(TA.bipermutedimsconj), isconj::Bool, src::FusedGradedVector, perm_codomain,
+        perm_domain
     )
-    check_input(TA.permutedimsop, op, src, perm_codomain, perm_domain)
+    check_input(TA.bipermutedimsconj, isconj, src, perm_codomain, perm_domain)
     return similar(src)
 end
 
@@ -285,8 +246,7 @@ function Base.summary(io::IO, v::FusedGradedVector)
     return nothing
 end
 
-# No trailing newline, matching `Base.print_array` for a dense array: the caller owns what comes
-# after the last row.
+# No trailing newline, matching `Base.print_array` for a dense array.
 function Base.print_array(io::IO, v::FusedGradedVector)
     for (i, (s, b)) in enumerate(pairs(sectordata(v)))
         i > 1 && println(io)
@@ -316,6 +276,4 @@ end
 
 # ========================  FusedGradedVecOrMat  ========================
 
-# Union of the two fused block-structured graded array types, following the
-# `Base.AbstractVecOrMat` naming convention.
 const FusedGradedVecOrMat = Union{FusedGradedMatrix, FusedGradedVector}

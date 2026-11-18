@@ -1,10 +1,12 @@
-# Stores `Sector` values in `sectors`, sector lengths, and a single `isdual` flag. The sectors
-# carry no arrow of their own, so the flag is the axis's entire duality; it is applied per block
-# by `eachblockaxis` (and hence `eachstructureaxis`). The fused (merged-sorted) form of the axis is
-# computed once at construction and cached in `fused`, so `fusesectors` is a field read, and the
-# `FusedGradedOneTo` conversion compares the stored sectors against that cache and throws for
-# a non-canonical axis. `I` is the TensorKitSectors sector type corresponding to
+# The sorted and merged form of the axis is computed at construction and cached in `fused`. `I` is
+# the TensorKitSectors sector type corresponding to
 # the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
+# The data is held behind one reference for the same reason as `FusedGradedOneToData`.
+mutable struct GradedOneToData{S <: Sector, I <: TKS.Sector}
+    const sectors::Vector{S}
+    const datalengths::Vector{Int}
+    const fused::FusedGradedOneToData{I}
+end
 """
     GradedOneTo
 
@@ -12,36 +14,31 @@ A graded axis: a range carrying a sector for each of its blocks, as returned by
 [`gradedrange`](@ref). Wrap it in `dual` for a dual axis.
 """
 struct GradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
-    sectors::Vector{S}
-    datalengths::Vector{Int}
+    data::GradedOneToData{S, I}
     isdual::Bool
-    fused::FusedGradedOneTo{S, I}
-    function GradedOneTo(
-            sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
-        ) where {S <: Sector}
-        length(sectors) == length(datalengths) ||
-            throw(ArgumentError("sectors and datalengths must have the same length"))
-        # One axis is graded by one symmetry, so the sectors need a single concrete type. Checked
-        # here rather than in a signature because this is the only chokepoint every path goes
-        # through, and a mixed vector still satisfies `Vector{S} where {S <: Sector}`.
-        isconcretetype(S) || throw(
-            ArgumentError(
-                "a graded axis is graded by one symmetry, so its sectors need one concrete \
-                type, got $(S) from $(sectors)"
-            )
-        )
-        fused = sortmergesectors(sectors, datalengths, isdual)
-        return new{S, tensorkit_sectortype(S)}(sectors, datalengths, isdual, fused)
-    end
-    # `fused` must equal the fused form of the other fields; unchecked.
+    # `data.fused` must equal the fused form of `data`; unchecked.
     global function unchecked_gradedoneto(
-            sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool,
-            fused::FusedGradedOneTo{S, I}
+            data::GradedOneToData{S, I}, isdual::Bool
         ) where {S <: Sector, I <: TKS.Sector}
-        return new{S, I}(sectors, datalengths, isdual, fused)
+        return new{S, I}(data, isdual)
     end
 end
-# Any sector vector, materialized for storage; the arrow defaults to non-dual.
+function GradedOneTo(
+        sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
+    ) where {S <: Sector}
+    length(sectors) == length(datalengths) ||
+        throw(ArgumentError("sectors and datalengths must have the same length"))
+    # Checked here rather than in the signature, since a vector of mixed sectors still
+    # satisfies `Vector{S} where {S <: Sector}`.
+    isconcretetype(S) || throw(
+        ArgumentError(
+            "a graded axis is graded by one symmetry, so its sectors need one concrete \
+            type, got $(S) from $(sectors)"
+        )
+    )
+    fused = sortmergesectors(sectors, datalengths, isdual)
+    return unchecked_gradedoneto(GradedOneToData(sectors, datalengths, fused.data), isdual)
+end
 function GradedOneTo(
         sectors::AbstractVector{S}, datalengths::AbstractVector{<:Integer},
         isdual::Bool = false
@@ -49,14 +46,10 @@ function GradedOneTo(
     return GradedOneTo(collect(S, sectors), collect(Int, datalengths), isdual)
 end
 
-# Primitive accessors. The derived range-interface methods (`sectorlengths`, `first`, `axes`,
-# `blocklength(s)`, `sectortype`, `FusionStyle`, `eachblockaxis`, ...) are shared via
-# `AbstractGradedOneTo`.
-datalengths(g::GradedOneTo) = g.datalengths
+datalengths(g::GradedOneTo) = g.data.datalengths
 TensorAlgebra.isdual(g::GradedOneTo) = g.isdual
-sectors(g::GradedOneTo) = g.sectors
-# The fused (merged-sorted) form is precomputed at construction, so this is a field read.
-fusesectors(g::GradedOneTo) = g.fused
+sectors(g::GradedOneTo) = g.data.sectors
+fusesectors(g::GradedOneTo) = unchecked_fusedgradedoneto(g.data.fused, isdual(g))
 
 # ========================  conversions between graded-axis types  ========================
 
@@ -66,7 +59,9 @@ function GradedOneTo(g::AbstractGradedOneTo)
 end
 # An already-fused axis is its own fused form, so pass it through as the cache.
 function GradedOneTo(g::FusedGradedOneTo)
-    return unchecked_gradedoneto(collect(sectors(g)), datalengths(g), isdual(g), g)
+    return unchecked_gradedoneto(
+        GradedOneToData(collect(sectors(g)), datalengths(g), g.data), isdual(g)
+    )
 end
 Base.convert(::Type{GradedOneTo}, g::AbstractGradedOneTo) = GradedOneTo(g)
 
@@ -92,8 +87,6 @@ function TensorAlgebra.trivialrange(::Type{<:GradedOneTo{S}}, n::Integer) where 
     return gradedrange([trivial(S) => n])
 end
 
-# The ungraded extent of a graded range is the plain range over its total dimension, dropping
-# sectors and the arrow so a range and its `dual` share an ungraded value.
 TensorAlgebra.ungrade(g::GradedOneTo) = Base.OneTo(length(g))
 
 # ========================  BlockSparseArrays interface  ========================
@@ -107,19 +100,14 @@ function mortar_axis(axs::AbstractVector{SectorOneTo{S}}) where {S}
     return GradedOneTo(ss, ms, isdual(first(axs)))
 end
 
-# Non-abelian fusion: flatten GradedOneTo elements into a single GradedOneTo
 function mortar_axis(axs::AbstractVector{GradedOneTo{S, I}}) where {S, I}
     isempty(axs) && return GradedOneTo(S[], Int[])
     return mortar_axis(mapreduce(eachblockaxis, vcat, axs))
 end
 
-# dual, flip, flip_dual, adjoint
-# `dual` reuses the parent's fused form with the arrow flipped (the merge is arrow-independent),
-# so no re-fusion happens on the hot `conj`/`biaxes` path.
+# Reuse the fused form, so `dual` does not fuse again.
 function TensorAlgebra.dual(g::GradedOneTo)
-    return unchecked_gradedoneto(
-        g.sectors, datalengths(g), !isdual(g), dual(fusesectors(g))
-    )
+    return unchecked_gradedoneto(g.data, !isdual(g))
 end
 function flip(g::GradedOneTo)
     return GradedOneTo(map(dual_sector, sectors(g)), datalengths(g), !isdual(g))
@@ -128,8 +116,7 @@ to_gradedrange(g::GradedOneTo) = g
 
 # ========================  Block indexing on GradedOneTo  ========================
 
-# Merge groups of blocks into single blocks.
-# Each block of `I` groups source blocks that merge into one destination block.
+# Each block of `I` is a group of blocks to merge into one.
 function Base.getindex(
         g::GradedOneTo, I::AbstractBlockVector{<:Block{1}}
     )
@@ -142,8 +129,7 @@ function Base.getindex(
     return mortar_axis(collect(dest))
 end
 
-# Splitting: each BlockIndexRange{1} selects a sub-range within a source block.
-# Produces one dest block per entry.
+# Each `BlockIndexRange{1}` selects a sub-range of a block.
 function Base.getindex(
         g::GradedOneTo, I::AbstractVector{<:BlockIndexRange{1}}
     )
@@ -152,26 +138,19 @@ function Base.getindex(
         b = Int(bir.block)
         r_range = only(bir.indices)
         src = ea[b]
-        # multiplicity of the sub-range: sub-range length / sector length
         sub_mult = div(length(r_range), length(sector(src)))
         return SectorOneTo(structure(src), sub_mult)
     end
     return mortar_axis(collect(dest))
 end
 
-# Combining graded axes in a broadcast: graded arrays never mix mismatched blocking or
-# sectors, so the only valid combination is of equal axes, and the result is that axis.
-# This preserves the `GradedOneTo` type, which the generic `BlockArrays.combine_blockaxes`
-# would degrade to a plain blocked range (dropping the sectors and duality). Equality and
-# hashing are shared via `AbstractGradedOneTo`.
+# The generic method would return a plain blocked range, dropping the sectors.
 function BlockArrays.combine_blockaxes(a::GradedOneTo, b::GradedOneTo)
     a == b || throw(DimensionMismatch("cannot combine unequal graded axes: $a and $b"))
     return a
 end
 
-# Show. Factor the `dual` to the outside — `dual(gradedrange([...]))` — rather
-# than decorating each sector, so the printed form is compact and round-trips
-# through the constructor.
+# Print `dual(gradedrange([...]))` so the output round-trips through the constructor.
 function Base.show(io::IO, g::GradedOneTo)
     isdual(g) && print(io, "dual(")
     print(io, "gradedrange(")
@@ -181,20 +160,14 @@ function Base.show(io::IO, g::GradedOneTo)
     return nothing
 end
 
-# The `[sector => length, ...]` pair list that the round-tripping `show` above wraps in
-# `gradedrange(...)`.
 function show_sector_pairs(io::IO, g::GradedOneTo)
     print(io, "[")
-    join(io, (s => m for (s, m) in zip(g.sectors, datalengths(g))), ", ")
+    join(io, (s => m for (s, m) in zip(sectors(g), datalengths(g))), ", ")
     print(io, "]")
     return nothing
 end
 
-# The codomain/domain axis lines of a graded array's display, with the axes aligned under each
-# other. The axes shown are the stored halves, so a domain line reads as the axis the constructor
-# takes rather than the dualized one `axes` derives, which is what lets a nested matricized form
-# agree with the array holding it. One line per axis rather than per group, since a group can be
-# empty. No trailing newline, so the caller owns what follows.
+# The domain axes are shown un-dualized, as the constructor takes them. No trailing newline.
 function show_biaxes(io::IO, a::AbstractArray)
     lines = [
         "$(name) Dim $(d):" => g
@@ -211,16 +184,13 @@ function show_biaxes(io::IO, a::AbstractArray)
     return nothing
 end
 
-# Show a "sectors: ..." line between the default AbstractArray summary and the
-# block-separated element listing inherited from AbstractBlockedUnitRange. For
-# dual axes the sectors are shown as `dual.([...])`.
 function Base.show(io::IO, ::MIME"text/plain", g::GradedOneTo)
     summary(io, g)
     isempty(g) && return nothing
     print(io, ":\n  sectors: ")
     isdual(g) && print(io, "dual.(")
     print(io, "[")
-    join(io, g.sectors, ", ")
+    join(io, sectors(g), ", ")
     print(io, "]")
     isdual(g) && print(io, ")")
     println(io)
@@ -234,26 +204,25 @@ end
     gradedrange(xs::AbstractVector{<:Pair})
 
 Construct a non-dual graded range from `sector => multiplicity` pairs, keyed by anything
-[`Sector`](@ref) accepts, `NamedTuple` keys for sector products included. Wrap the result in
-`dual` for a dual axis.
+[`Sector`](@ref) accepts. A `Tuple` or `NamedTuple` key is read as the product of its factors,
+as with [`sectorproduct`](@ref), so nested products are flattened and `Trivial` factors drop
+out. Wrap the result in `dual` for a dual axis.
 
 # Examples
 
 ```julia
 gradedrange([U1(0) => 2, U1(1) => 3])          # non-dual
 dual(gradedrange([U1(0) => 2, U1(1) => 3]))    # dual
+gradedrange([(fU1(1), U1(1)) => 2])            # keyed by fU1(1) × U1(1)
 ```
 """
 function gradedrange(xs::AbstractVector{<:Pair})
-    return GradedOneTo(map(p -> Sector(first(p)), xs), Int[last(p) for p in xs], false)
+    return GradedOneTo(map(p -> to_sector(first(p)), xs), Int[last(p) for p in xs], false)
 end
 
-# Route every key type `Sector` accepts to `gradedrange`. One method per key type rather than one
-# over a `Union` of them, which inside `Pair{<:...}` is slow to subtype and a ready source of
-# ambiguities. A container key must be
-# non-empty, since an empty `Tuple` satisfies `Tuple{Vararg{E}}` for every `E` and would make the
-# two element types' methods overlap. The bare `TKS.Sector` key is type piracy, allowlisted in
-# the Aqua piracy test and tracked as a follow-up.
+# One method per key type, since a `Union` inside `Pair{<:...}` is slow to subtype and causes
+# ambiguities. Container keys must be non-empty, since an empty `Tuple` would match both element
+# types. The bare `TKS.Sector` key is type piracy, allowed in the Aqua test.
 for element in (:Sector, :(TKS.Sector))
     for key in (
             element,
