@@ -799,7 +799,7 @@ end
 # Unlike the generic method this skips the `zero!`, since every consumer overwrites the
 # destination in full.
 function TensorAlgebra.allocate_output(
-        ::typeof(TensorAlgebra.contractpermconj),
+        ::typeof(TensorAlgebra.contractpermconjalign),
         perm_dest_codomain, perm_dest_domain,
         isconj1::Bool, a1::Union{GradedArray, AbstractFusedGradedMatrix}, perm1_codomain,
         perm1_domain,
@@ -808,7 +808,7 @@ function TensorAlgebra.allocate_output(
     )
     a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
     axes_codomain, axes_domain = TensorAlgebra.output_axes(
-        TensorAlgebra.contractpermconj,
+        TensorAlgebra.contractpermconjalign,
         perm_dest_codomain, perm_dest_domain,
         isconj1, axes(a1), perm1_codomain, perm1_domain,
         isconj2, axes(a2), perm2_codomain, perm2_domain
