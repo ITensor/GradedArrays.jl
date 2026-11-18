@@ -169,6 +169,7 @@ end
 # ========================  bipermutedimsconjadd!  ========================
 
 function TensorAlgebra.bipermutedimsconjadd!(
+        algorithm::TA.PermuteAlgorithm,
         y::AbstractSectorArray, isconj::Bool, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
@@ -189,7 +190,7 @@ function TensorAlgebra.bipermutedimsconjadd!(
         fermion_bend_phase(sx, src_domain_legs) *
         fermion_bend_phase(sx, dest_domain_legs)
     bipermutedimsconjadd!(
-        data(y), isconj, data(x), perm_codomain, perm_domain, phase * α, β
+        algorithm, data(y), isconj, data(x), perm_codomain, perm_domain, phase * α, β
     )
     return y
 end
@@ -199,16 +200,18 @@ StridedViews.StridedView(a::UniqueSectorArray) = StridedViews.StridedView(data(a
 
 # Under unique fusion the reduced data is the dense array.
 function TensorAlgebra.bipermutedimsconjadd!(
+        algorithm::TA.PermuteAlgorithm,
         y::AbstractArray, isconj::Bool, x::AbstractSectorArray,
         perm_codomain, perm_domain,
         α::Number, β::Number
     )
     require_unique_fusion(x)
-    bipermutedimsconjadd!(y, isconj, data(x), perm_codomain, perm_domain, α, β)
+    bipermutedimsconjadd!(algorithm, y, isconj, data(x), perm_codomain, perm_domain, α, β)
     return y
 end
 
 function TensorAlgebra.bipermutedimsconjadd!(
+        algorithm::TA.PermuteAlgorithm,
         y::AbstractFusedGradedArray{<:Any, <:Any, N}, isconj::Bool,
         x::AbstractFusedGradedArray{<:Any, <:Any, N},
         perm_codomain, perm_domain,
@@ -231,7 +234,9 @@ function TensorAlgebra.bipermutedimsconjadd!(
         b_dest = Block(ntuple(i -> b[(perm_codomain..., perm_domain...)[i]], N))
         y_b = view(y, Tuple(b_dest)...)
         x_b = x[bI]
-        bipermutedimsconjadd!(y_b, isconj, x_b, perm_codomain, perm_domain, α, one(β))
+        bipermutedimsconjadd!(
+            algorithm, y_b, isconj, x_b, perm_codomain, perm_domain, α, one(β)
+        )
     end
     return y
 end
@@ -262,7 +267,7 @@ end
 # `matricizeconj` with the fermionic contraction twist applied to the contracted legs of the right
 # factor (`side = :codomain`) or the left one (`side = :domain`), on a copy so `a` is untouched.
 function twisted_matricizeconj(
-        isconj::Bool, a::AbstractArray, perm_codomain, perm_domain, side::Symbol
+        isconj::Bool, a::AbstractArray, perm_codomain, perm_domain, side::Symbol; kwargs...
     )
     side in (:codomain, :domain) ||
         throw(ArgumentError("`side` must be `:codomain` or `:domain`, got `$(repr(side))`"))
@@ -273,7 +278,7 @@ function twisted_matricizeconj(
         )
         copy(a)
     else
-        TensorAlgebra.permutedimsconj(isconj, a, perm_codomain, perm_domain)
+        TensorAlgebra.permutedimsconj(isconj, a, perm_codomain, perm_domain; kwargs...)
     end
     n = length(perm_codomain)
     side === :codomain ? twist_codomain!(a_twisted, n) : twist_domain!(a_twisted, n)

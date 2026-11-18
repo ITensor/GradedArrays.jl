@@ -103,11 +103,17 @@ function Base.similar(
     return similar(d, T)
 end
 
-function allocate_output(
-        ::typeof(*), A::FusedGradedDiagonal, B::FusedGradedDiagonal
+function TensorAlgebra.allocate_output(
+        ::typeof(*), A::FusedGradedDiagonal, B::FusedGradedDiagonal;
+        allocator = TA.DefaultAllocator()
     )
     Tout = Base.promote_op(*, eltype(A), eltype(B))
-    return FusedGradedDiagonal{Tout}(undef, axis_codomain(A))
+    axis = axis_codomain(A)
+    buffer = TA.similar_map(
+        allocator, storage_prototype(B), Tout,
+        (Base.OneTo(sum(datalengths(axis); init = 0)),), ()
+    )
+    return FusedGradedDiagonal(buffer, axis)
 end
 
 # ---- broadcasting ----
