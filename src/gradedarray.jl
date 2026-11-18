@@ -491,7 +491,9 @@ function TensorAlgebra.bipermutedimsconjadd!(
         y::GradedArray, isconj::Bool, x::GradedArray,
         perm_codomain, perm_domain, α::Number, β::Number
     )
-    TensorAlgebra.bipermutedimsconjadd!(
+    # Dispatched at run time, so TensorKit's permutation only compiles when a call actually
+    # permutes, and not for every caller that has a permuting branch.
+    Base.inferencebarrier(TensorAlgebra.bipermutedimsconjadd!)(
         to_tensormap(y), isconj, to_tensormap(x), perm_codomain, perm_domain, α, β
     )
     return y
@@ -614,8 +616,11 @@ function TensorAlgebra.contractpermconjadd!(
     )
     a1, a2 = to_gradedarray(a1), to_gradedarray(a2)
     biperm_dest = (biperm_dest_codomain..., biperm_dest_domain...)
-    invperm_codomain, invperm_domain =
-        TensorAlgebra.bipartition(invperm(biperm_dest), Val(length(biperm1_codomain)))
+    TupleTools.isperm(biperm_dest) ||
+        throw(ArgumentError("destination permutation is not a permutation"))
+    invperm_codomain, invperm_domain = TensorAlgebra.bipartition(
+        TupleTools.invperm(biperm_dest), Val(length(biperm1_codomain))
+    )
     check_input(
         TensorAlgebra.contractpermconjadd!,
         a_dest, invperm_codomain, invperm_domain,
@@ -872,7 +877,7 @@ function TensorAlgebra.unmatricizeadd!(
         axes(a_dest), invperm_codomain, invperm_domain
     )
     tmp = GradedArray(m, axes_codomain_m, axes_domain_m)
-    perm_dest = invperm((invperm_codomain..., invperm_domain...))
+    perm_dest = TupleTools.invperm((invperm_codomain..., invperm_domain...))
     ndims_cod_dest = ndims_codomain(a_dest)
     perm_codomain = ntuple(i -> perm_dest[i], Val(ndims_cod_dest))
     perm_domain = ntuple(i -> perm_dest[ndims_cod_dest + i], Val(N - ndims_cod_dest))
