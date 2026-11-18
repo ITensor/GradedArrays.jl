@@ -6,22 +6,35 @@ using MappedArrays: mappedarray
 # The sectors are stored in their TensorKitSectors form so that a `GradedSpace` can be built from
 # the stored vectors without copying. `I` is the TensorKitSectors sector type corresponding to
 # the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
+#
+# The vectors are held behind one reference, so a tuple of axes stays small. Tuple code over
+# inline multi-field axes is much slower to compile.
+mutable struct FusedGradedOneToData{I <: TKS.Sector}
+    const tensorkit_sectors::Vector{I}
+    const datalengths::Vector{Int}
+end
 struct FusedGradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
-    tensorkit_sectors::Vector{I}
-    datalengths::Vector{Int}
+    data::FusedGradedOneToData{I}
     isdual::Bool
-    function FusedGradedOneTo(
-            tensorkit_sectors::Vector{I}, datalengths::Vector{Int}, isdual::Bool
+    global function unchecked_fusedgradedoneto(
+            data::FusedGradedOneToData{I}, isdual::Bool
         ) where {I <: TKS.Sector}
-        length(tensorkit_sectors) == length(datalengths) ||
-            throw(ArgumentError("sectors and datalengths must have the same length"))
-        issortedunique(tensorkit_sectors) || throw(
-            ArgumentError(
-                "FusedGradedOneTo sectors must be sorted and unique: $(tensorkit_sectors)"
-            )
-        )
-        return new{gradedarrays_sectortype(I), I}(tensorkit_sectors, datalengths, isdual)
+        return new{gradedarrays_sectortype(I), I}(data, isdual)
     end
+end
+function FusedGradedOneTo(
+        tensorkit_sectors::Vector{I}, datalengths::Vector{Int}, isdual::Bool
+    ) where {I <: TKS.Sector}
+    length(tensorkit_sectors) == length(datalengths) ||
+        throw(ArgumentError("sectors and datalengths must have the same length"))
+    issortedunique(tensorkit_sectors) || throw(
+        ArgumentError(
+            "FusedGradedOneTo sectors must be sorted and unique: $(tensorkit_sectors)"
+        )
+    )
+    return unchecked_fusedgradedoneto(
+        FusedGradedOneToData(tensorkit_sectors, datalengths), isdual
+    )
 end
 
 issortedunique(v) = all(((a, b),) -> isless(a, b), zip(v, Iterators.drop(v, 1)))
@@ -50,11 +63,11 @@ end
 # Callers must not mutate the stored vectors, since a `GradedSpace` built from this axis aliases
 # them.
 TensorAlgebra.isdual(g::FusedGradedOneTo) = g.isdual
-tensorkit_sectors(g::FusedGradedOneTo) = g.tensorkit_sectors
+tensorkit_sectors(g::FusedGradedOneTo) = g.data.tensorkit_sectors
 # Wrapped in a closure because `mappedarray` reads a bare type argument as the element type of
 # the result rather than as the function producing it, and `Sector` is abstract.
 sectors(g::FusedGradedOneTo) = mappedarray(c -> Sector(c), tensorkit_sectors(g))
-datalengths(g::FusedGradedOneTo) = g.datalengths
+datalengths(g::FusedGradedOneTo) = g.data.datalengths
 sectordatalengths(g::FusedGradedOneTo) = SortedArrayDictionary(sectors(g), datalengths(g))
 
 # Length 0 for a sector the axis does not carry.
@@ -97,7 +110,7 @@ end
 # ========================  dual, flip  ========================
 
 function TensorAlgebra.dual(g::FusedGradedOneTo)
-    return FusedGradedOneTo(tensorkit_sectors(g), datalengths(g), !isdual(g))
+    return unchecked_fusedgradedoneto(g.data, !isdual(g))
 end
 
 # Conjugating the sectors can reorder them, so they are re-sorted.
