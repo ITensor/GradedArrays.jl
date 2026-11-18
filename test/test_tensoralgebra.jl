@@ -214,6 +214,12 @@ end
     @test data(fsm[Block(1, 1)]) ≈ ones(1, 1)
     @test data(fsm[Block(2, 2)]) ≈ zeros(2, 2)
     @test data(fsm[Block(3, 3)]) ≈ 2 * ones(1, 1)
+
+    # A destination of the wrong size is rejected.
+    wrong = matricize(a, (1,), (2, 3, 4))
+    @test_throws DimensionMismatch TensorAlgebra.matricizeconj!(
+        wrong, false, a, (1, 2), (3, 4)
+    )
 end
 
 @testset "tr of a matricized graded array" begin

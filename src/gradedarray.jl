@@ -554,13 +554,16 @@ function TensorAlgebra.allocate_output(
         )
     )
 end
-# `dest` is rewrapped without `check_input(unmatricize, ...)`, since re-fusing the axes to check
-# them measurably slows small contractions.
+# Only the size of `dest` is checked, since re-fusing the axes with
+# `check_input(unmatricize, ...)` measurably slows small contractions.
 function TensorAlgebra.matricizeconj!(
         dest::FusedGradedMatrix, isconj::Bool, a::GradedArray, perm_codomain, perm_domain
     )
     axes_codomain = map(i -> isconj ? conj(axes(a, i)) : axes(a, i), perm_codomain)
     axes_domain = map(i -> isconj ? axes(a, i) : conj(axes(a, i)), perm_domain)
+    size(dest) ==
+        (prod(length, axes_codomain; init = 1), prod(length, axes_domain; init = 1)) ||
+        throw(DimensionMismatch("destination size does not match the matricized array"))
     bipermutedimsconjadd!(
         GradedArray(dest, axes_codomain, axes_domain), isconj, a,
         perm_codomain, perm_domain, true, false
