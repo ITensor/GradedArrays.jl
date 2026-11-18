@@ -1,6 +1,12 @@
 # The sorted and merged form of the axis is computed at construction and cached in `fused`. `I` is
 # the TensorKitSectors sector type corresponding to
 # the `Sector`, used to aid conversion to and from TensorKit. Subject to change.
+# The data is held behind one reference for the same reason as `FusedGradedOneToData`.
+mutable struct GradedOneToData{S <: Sector, I <: TKS.Sector}
+    const sectors::Vector{S}
+    const datalengths::Vector{Int}
+    const fused::FusedGradedOneToData{I}
+end
 """
     GradedOneTo
 
@@ -8,33 +14,30 @@ A graded axis: a range carrying a sector for each of its blocks, as returned by
 [`gradedrange`](@ref). Wrap it in `dual` for a dual axis.
 """
 struct GradedOneTo{S <: Sector, I <: TKS.Sector} <: AbstractGradedOneTo{S}
-    sectors::Vector{S}
-    datalengths::Vector{Int}
+    data::GradedOneToData{S, I}
     isdual::Bool
-    fused::FusedGradedOneTo{S, I}
-    function GradedOneTo(
-            sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
-        ) where {S <: Sector}
-        length(sectors) == length(datalengths) ||
-            throw(ArgumentError("sectors and datalengths must have the same length"))
-        # Checked here rather than in the signature, since a vector of mixed sectors still
-        # satisfies `Vector{S} where {S <: Sector}`.
-        isconcretetype(S) || throw(
-            ArgumentError(
-                "a graded axis is graded by one symmetry, so its sectors need one concrete \
-                type, got $(S) from $(sectors)"
-            )
-        )
-        fused = sortmergesectors(sectors, datalengths, isdual)
-        return new{S, tensorkit_sectortype(S)}(sectors, datalengths, isdual, fused)
-    end
-    # `fused` must equal the fused form of the other fields; unchecked.
+    # `data.fused` must equal the fused form of `data`; unchecked.
     global function unchecked_gradedoneto(
-            sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool,
-            fused::FusedGradedOneTo{S, I}
+            data::GradedOneToData{S, I}, isdual::Bool
         ) where {S <: Sector, I <: TKS.Sector}
-        return new{S, I}(sectors, datalengths, isdual, fused)
+        return new{S, I}(data, isdual)
     end
+end
+function GradedOneTo(
+        sectors::Vector{S}, datalengths::Vector{Int}, isdual::Bool
+    ) where {S <: Sector}
+    length(sectors) == length(datalengths) ||
+        throw(ArgumentError("sectors and datalengths must have the same length"))
+    # Checked here rather than in the signature, since a vector of mixed sectors still
+    # satisfies `Vector{S} where {S <: Sector}`.
+    isconcretetype(S) || throw(
+        ArgumentError(
+            "a graded axis is graded by one symmetry, so its sectors need one concrete \
+            type, got $(S) from $(sectors)"
+        )
+    )
+    fused = sortmergesectors(sectors, datalengths, isdual)
+    return unchecked_gradedoneto(GradedOneToData(sectors, datalengths, fused.data), isdual)
 end
 function GradedOneTo(
         sectors::AbstractVector{S}, datalengths::AbstractVector{<:Integer},
@@ -43,10 +46,10 @@ function GradedOneTo(
     return GradedOneTo(collect(S, sectors), collect(Int, datalengths), isdual)
 end
 
-datalengths(g::GradedOneTo) = g.datalengths
+datalengths(g::GradedOneTo) = g.data.datalengths
 TensorAlgebra.isdual(g::GradedOneTo) = g.isdual
-sectors(g::GradedOneTo) = g.sectors
-fusesectors(g::GradedOneTo) = g.fused
+sectors(g::GradedOneTo) = g.data.sectors
+fusesectors(g::GradedOneTo) = unchecked_fusedgradedoneto(g.data.fused, isdual(g))
 
 # ========================  conversions between graded-axis types  ========================
 
@@ -56,7 +59,9 @@ function GradedOneTo(g::AbstractGradedOneTo)
 end
 # An already-fused axis is its own fused form, so pass it through as the cache.
 function GradedOneTo(g::FusedGradedOneTo)
-    return unchecked_gradedoneto(collect(sectors(g)), datalengths(g), isdual(g), g)
+    return unchecked_gradedoneto(
+        GradedOneToData(collect(sectors(g)), datalengths(g), g.data), isdual(g)
+    )
 end
 Base.convert(::Type{GradedOneTo}, g::AbstractGradedOneTo) = GradedOneTo(g)
 
@@ -102,9 +107,7 @@ end
 
 # Reuse the fused form, so `dual` does not fuse again.
 function TensorAlgebra.dual(g::GradedOneTo)
-    return unchecked_gradedoneto(
-        g.sectors, datalengths(g), !isdual(g), dual(fusesectors(g))
-    )
+    return unchecked_gradedoneto(g.data, !isdual(g))
 end
 function flip(g::GradedOneTo)
     return GradedOneTo(map(dual_sector, sectors(g)), datalengths(g), !isdual(g))
@@ -159,7 +162,7 @@ end
 
 function show_sector_pairs(io::IO, g::GradedOneTo)
     print(io, "[")
-    join(io, (s => m for (s, m) in zip(g.sectors, datalengths(g))), ", ")
+    join(io, (s => m for (s, m) in zip(sectors(g), datalengths(g))), ", ")
     print(io, "]")
     return nothing
 end
@@ -187,7 +190,7 @@ function Base.show(io::IO, ::MIME"text/plain", g::GradedOneTo)
     print(io, ":\n  sectors: ")
     isdual(g) && print(io, "dual.(")
     print(io, "[")
-    join(io, g.sectors, ", ")
+    join(io, sectors(g), ", ")
     print(io, "]")
     isdual(g) && print(io, ")")
     println(io)
