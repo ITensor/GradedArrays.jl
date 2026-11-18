@@ -75,6 +75,25 @@ function FusedGradedMatrix{T}(
     return FusedGradedMatrix(buffer, cod, dom, datalayout)
 end
 
+# A `FusedGradedMatrix` over the given axes, with its buffer from `allocator` and of the type of
+# the buffer of `prototype`.
+function similar_fusedgradedmatrix(
+        allocator, prototype, ::Type{T}, codomain::AbstractGradedOneTo,
+        domain::AbstractGradedOneTo
+    ) where {T}
+    cod = FusedGradedOneTo(codomain)
+    dom = FusedGradedOneTo(domain)
+    datalayout = sectordatalayout(cod, dom)
+    buffer = TA.similar_map(
+        allocator, storage_prototype(prototype), T,
+        (Base.OneTo(bufferlength(datalayout)),), ()
+    )
+    return FusedGradedMatrix(buffer, cod, dom, datalayout)
+end
+# The dense vector holding the data of a graded array.
+storage_prototype(buffer::DenseVector) = buffer
+storage_prototype(a::AbstractFusedGradedArray) = storage_prototype(parent(a))
+
 # Lets a caller forward its own buffer type, for example a GPU array.
 function FusedGradedMatrix{T, S, V}(
         ::UndefInitializer, codomain::AbstractGradedOneTo, domain::AbstractGradedOneTo

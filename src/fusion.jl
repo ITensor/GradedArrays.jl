@@ -38,7 +38,7 @@ end
 # A delta holds no data, so the matricization is complete once it is allocated.
 function TensorAlgebra.allocate_output(
         ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::UniqueSectorDelta,
-        perm_codomain, perm_domain
+        perm_codomain, perm_domain; kwargs...
     )
     ax_codomain = map(i -> isconj ? conj(axes(a, i)) : axes(a, i), perm_codomain)
     ax_codomain =
@@ -47,7 +47,8 @@ function TensorAlgebra.allocate_output(
     return SectorIdentity{eltype(a)}(sector(ax_codomain))
 end
 function TensorAlgebra.matricizeconj!(
-        dest::SectorIdentity, isconj::Bool, a::UniqueSectorDelta, perm_codomain, perm_domain
+        dest::SectorIdentity, isconj::Bool, a::UniqueSectorDelta, perm_codomain, perm_domain;
+        kwargs...
     )
     return dest
 end
@@ -71,16 +72,17 @@ end
 # The matrix shares its storage with the permuted array, which `matricizeconj!` writes through.
 function TensorAlgebra.allocate_output(
         ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::UniqueSectorArray,
-        perm_codomain, perm_domain
+        perm_codomain, perm_domain; kwargs...
     )
     a_perm = TensorAlgebra.allocate_output(
-        TensorAlgebra.bipermutedimsconj, isconj, a, perm_codomain, perm_domain
+        TensorAlgebra.bipermutedimsconj, isconj, a, perm_codomain, perm_domain;
+        kwargs...
     )
     return matricize(a_perm, Val(length(perm_codomain)))
 end
 function TensorAlgebra.matricizeconj!(
         dest::AbstractSectorArray{<:Any, <:Any, 2}, isconj::Bool, a::UniqueSectorArray,
-        perm_codomain, perm_domain
+        perm_codomain, perm_domain; kwargs...
     )
     axes_perm = map(
         i -> isconj ? conj(axes(a, i)) : axes(a, i), (perm_codomain..., perm_domain...)
@@ -89,7 +91,7 @@ function TensorAlgebra.matricizeconj!(
         TensorAlgebra.bipartition_axes(axes_perm, Val(length(perm_codomain)))
     bipermutedimsconjadd!(
         TensorAlgebra.unmatricizeview(dest, axes_codomain, axes_domain), isconj, a,
-        perm_codomain, perm_domain, true, false
+        perm_codomain, perm_domain, true, false; kwargs...
     )
     return dest
 end

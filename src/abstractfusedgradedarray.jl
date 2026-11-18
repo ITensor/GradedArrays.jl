@@ -486,7 +486,7 @@ end
 
 function TensorAlgebra.allocate_output(
         ::typeof(TA.bipermutedimsconj), isconj::Bool, src::AbstractFusedGradedMatrix,
-        perm_codomain, perm_domain
+        perm_codomain, perm_domain; allocator = TA.DefaultAllocator()
     )
     check_input(TA.bipermutedimsconj, isconj, src, perm_codomain, perm_domain)
     perm_codomain == (1,) && return similar(src)
@@ -527,20 +527,17 @@ function LinearAlgebra.mul!(
     return C
 end
 
-function allocate_output(
-        ::typeof(*),
-        A::AbstractFusedGradedMatrix,
-        B::AbstractFusedGradedMatrix
+function TensorAlgebra.allocate_output(
+        ::typeof(*), A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix;
+        allocator = TA.DefaultAllocator()
     )
-    cod = axis_codomain(A)
-    dom = axis_domain(B)
     Tout = Base.promote_op(*, eltype(A), eltype(B))
-    return FusedGradedMatrix{Tout}(undef, cod, dom)
+    return similar_fusedgradedmatrix(allocator, B, Tout, axis_codomain(A), axis_domain(B))
 end
 
 function Base.:(*)(A::AbstractFusedGradedMatrix, B::AbstractFusedGradedMatrix)
     check_input(*, A, B)
-    C = allocate_output(*, A, B)
+    C = TensorAlgebra.allocate_output(*, A, B)
     return mul!(C, A, B)
 end
 
