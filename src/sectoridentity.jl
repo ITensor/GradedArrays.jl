@@ -9,7 +9,7 @@ sector(a::SectorIdentity) = a.sector
 
 TensorAlgebra.ndims_codomain(::SectorIdentity) = 1
 TensorAlgebra.ndims_domain(::SectorIdentity) = 1
-TensorAlgebra.has_bipartition(::SectorIdentity) = true
+TensorAlgebra.hasbipartition(::SectorIdentity) = true
 
 Base.@propagate_inbounds function Base.getindex(
         A::SectorIdentity{T}, i::Int, j::Int

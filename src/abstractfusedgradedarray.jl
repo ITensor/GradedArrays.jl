@@ -4,7 +4,7 @@ const AbstractFusedGradedMatrix{T, S} = AbstractFusedGradedArray{T, S, 2}
 const AbstractFusedGradedVector{T, S} = AbstractFusedGradedArray{T, S, 1}
 
 TensorAlgebra.ndims_codomain(::AbstractFusedGradedArray) = 1
-TensorAlgebra.has_bipartition(::AbstractFusedGradedArray) = true
+TensorAlgebra.hasbipartition(::AbstractFusedGradedArray) = true
 
 TensorAlgebra.matricize(m::AbstractFusedGradedMatrix) = m
 
@@ -471,9 +471,9 @@ function TensorAlgebra.check_input(
         ::typeof(TA.bipermutedimsconj), isconj::Bool,
         ::AbstractFusedGradedMatrix, perm_codomain, perm_domain
     )
-    is_copy = !isconj && perm_codomain == (1,) && perm_domain == (2,)
-    is_adjoint = isconj && perm_codomain == (2,) && perm_domain == (1,)
-    (is_copy || is_adjoint) || throw(
+    iscopy = !isconj && perm_codomain == (1,) && perm_domain == (2,)
+    isadjoint = isconj && perm_codomain == (2,) && perm_domain == (1,)
+    (iscopy || isadjoint) || throw(
         ArgumentError(
             "a fused graded matrix permute-add allows only an identity copy (`isconj = false`, " *
                 "`perm_codomain = (1,)`, `perm_domain = (2,)`) or an adjoint (`isconj = true`, " *

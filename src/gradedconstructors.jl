@@ -511,7 +511,7 @@ end
 function unchecked_project_graded(raw, codomain_axes, domain_axes)
     # `TA.unchecked_project` allocates a fresh result, so it can be wrapped without copying.
     all_axes = (codomain_axes..., domain_axes...)
-    if ndims(raw) == length(all_axes) && !all(is_fused_sorted, all_axes)
+    if ndims(raw) == length(all_axes) && !all(isfusedsorted, all_axes)
         N = length(all_axes)
         storedlengths = map(g -> Vector(blocklengths(g)), all_axes)
         perms = ntuple(d -> sectorsortperm(all_axes[d]), Val(N))

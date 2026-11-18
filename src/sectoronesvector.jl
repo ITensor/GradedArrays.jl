@@ -9,7 +9,7 @@ sector(a::SectorOnesVector) = a.sector
 
 TensorAlgebra.ndims_codomain(::SectorOnesVector) = 1
 TensorAlgebra.ndims_domain(::SectorOnesVector) = 0
-TensorAlgebra.has_bipartition(::SectorOnesVector) = true
+TensorAlgebra.hasbipartition(::SectorOnesVector) = true
 
 Base.@propagate_inbounds function Base.getindex(A::SectorOnesVector{T}, i::Int) where {T}
     @boundscheck checkbounds(A, i)

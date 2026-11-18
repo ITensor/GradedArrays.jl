@@ -61,10 +61,10 @@ end
     g = gradedrange([fZ2(false) => 1, fZ2(true) => 2])
     a = randn(elt, (g, g), (g,))
     b = randn(elt, (g, g), (g,))
-    @test TensorAlgebra.is_output_view(
+    @test TensorAlgebra.isoutputview(
         TensorAlgebra.matricizeconj, true, a, (3,), (1, 2)
     )
-    @test !TensorAlgebra.is_output_view(
+    @test !TensorAlgebra.isoutputview(
         TensorAlgebra.matricizeconj, false, a, (3,), (1, 2)
     )
     r, lr = TensorAlgebra.contract(conjed(a), (:i, :j, :k), b, (:i, :j, :l))

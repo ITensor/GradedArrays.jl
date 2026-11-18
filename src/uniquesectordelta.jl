@@ -57,7 +57,7 @@ end
 
 TensorAlgebra.ndims_codomain(d::UniqueSectorDelta) = length(d.sectors_codomain)
 TensorAlgebra.ndims_domain(d::UniqueSectorDelta) = length(d.sectors_domain)
-TensorAlgebra.has_bipartition(::UniqueSectorDelta) = true
+TensorAlgebra.hasbipartition(::UniqueSectorDelta) = true
 
 # ========================  AbstractArray interface  ========================
 

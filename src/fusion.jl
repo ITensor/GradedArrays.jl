@@ -47,7 +47,7 @@ end
 
 # ========================  UniqueSectorArray matricize  ========================
 
-function TensorAlgebra.is_output_view(
+function TensorAlgebra.isoutputview(
         ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, ::UniqueSectorArray,
         perm_codomain, perm_domain
     )

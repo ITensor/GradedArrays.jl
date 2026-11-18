@@ -1,12 +1,12 @@
 using TensorKit: TensorKit as TK, ElementarySpace, Vect
 
 # A TensorKit `GradedSpace` holds each sector once, in sorted order.
-is_fused_sorted(g::AbstractGradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
+isfusedsorted(g::AbstractGradedOneTo) = (s = sectors(g); allunique(s) && issorted(s))
 # Allocation-free using the cached fused form.
-is_fused_sorted(g::GradedOneTo) = sectors(g) == sectors(fusesectors(g))
+isfusedsorted(g::GradedOneTo) = sectors(g) == sectors(fusesectors(g))
 
 function check_fused_sorted(g::AbstractGradedOneTo)
-    is_fused_sorted(g) || throw(ArgumentError("axis sectors must be fused and sorted"))
+    isfusedsorted(g) || throw(ArgumentError("axis sectors must be fused and sorted"))
     return g
 end
 

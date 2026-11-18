@@ -59,7 +59,7 @@ domain(bt::BiTuple) = map(conj, bt.t2)
 
 TensorAlgebra.ndims_codomain(fa::GradedArray) = length(axes_codomain(fa))
 TensorAlgebra.ndims_domain(fa::GradedArray) = length(axes_domain(fa))
-TensorAlgebra.has_bipartition(::GradedArray) = true
+TensorAlgebra.hasbipartition(::GradedArray) = true
 
 TensorAlgebra.matricize(fa::GradedArray) = fa.matricized
 
@@ -86,7 +86,7 @@ function viewblock(
     blockdata = to_tensormap(a)[map(r -> TKS.Sector(flip_dual(r)), sects)]
     # An axis with a repeated sector stores its blocks for that sector merged into one, so slice
     # each leg to this block's subrange of the merged block.
-    all(is_fused_sorted, axes(a)) && return UniqueSectorArray(blockdata, cod, dom)
+    all(isfusedsorted, axes(a)) && return UniqueSectorArray(blockdata, cod, dom)
     ranges = ntuple(Val(N)) do d
         g = axes(a, d)
         return only(
@@ -529,7 +529,7 @@ end
 
 # The view is the stored matrix at the stored split, or its adjoint at the swapped split when
 # conjugating. A transpose would reverse the arrows, so it is not a view.
-function TensorAlgebra.is_output_view(
+function TensorAlgebra.isoutputview(
         ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::GradedArray,
         perm_codomain, perm_domain
     )
@@ -675,7 +675,7 @@ end
     )
     n = length(a)
     copy_length(perm_codomain, perm_domain) =
-    if TensorAlgebra.is_output_view(
+    if TensorAlgebra.isoutputview(
             TensorAlgebra.matricizeconj, isconj, a, perm_codomain, perm_domain
         )
         0
@@ -695,7 +695,7 @@ end
     n = length(a_dest)
     function copy_length(perm_codomain, perm_domain)
         TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
-            TensorAlgebra.is_output_view(
+            TensorAlgebra.isoutputview(
             TensorAlgebra.matricizeconj, false, a_dest, perm_codomain, perm_domain
         ) &&
             return 0
@@ -716,11 +716,11 @@ function _contractpermconjadd_graded!(
     twist1 = twist2 = false
     if needs_contraction_twist(isconj2, a2, perm2_codomain)
         copy1 =
-            !TensorAlgebra.is_output_view(
+            !TensorAlgebra.isoutputview(
             TensorAlgebra.matricizeconj, isconj1, a1, perm1_codomain, perm1_domain
         )
         copy2 =
-            !TensorAlgebra.is_output_view(
+            !TensorAlgebra.isoutputview(
             TensorAlgebra.matricizeconj, isconj2, a2, perm2_codomain, perm2_domain
         )
         twist1 = copy1 ⊻ copy2 ? copy1 : length(a1) < length(a2)
@@ -746,7 +746,7 @@ end
 @noinline function _unmatricizemuladd!(
         a_dest, perm_dest_codomain, perm_dest_domain, a1_mat, a2_mat, α, β
     )
-    if TensorAlgebra.is_output_view(
+    if TensorAlgebra.isoutputview(
             TensorAlgebra.matricizeconj, false, a_dest, perm_dest_codomain, perm_dest_domain
         )
         a_dest_mat = TensorAlgebra.matricizeconjview(
@@ -832,7 +832,7 @@ function TensorAlgebra.allocate_output(
 end
 
 # A fused matrix is already its own `{1,1}` matricization.
-function TensorAlgebra.is_output_view(
+function TensorAlgebra.isoutputview(
         ::typeof(TensorAlgebra.matricizeconj), isconj::Bool, a::AbstractFusedGradedMatrix,
         perm_codomain, perm_domain
     )
@@ -916,7 +916,7 @@ end
 # type, so convert back to `T` afterwards. This throws for an integer `T` with a non-abelian sector.
 function Base.Array{T, N}(fa::GradedArray{<:Any, <:Any, N}) where {T, N}
     dense = convert(Array{T, N}, convert(Array, to_tensormap(fa)))
-    all(is_fused_sorted, axes(fa)) && return dense
+    all(isfusedsorted, axes(fa)) && return dense
     sortedlengths = map(g -> Vector(blocklengths(g))[sortperm(sectors(g))], axes(fa))
     invperms = ntuple(d -> Block.(invperm(sortperm(sectors(axes(fa)[d])))), Val(N))
     return parent(BlockedArray(dense, sortedlengths...)[invperms...])

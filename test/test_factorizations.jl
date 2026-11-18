@@ -17,7 +17,7 @@ using Test: @test, @test_throws, @testset
 precision(::Type{T}) where {T <: Number} = sqrt(eps(real(T)))
 precision(::Type{T}) where {T} = precision(eltype(T))
 
-function has_positive_diagonal(A)
+function haspositivediagonal(A)
     T = eltype(A)
     return if T <: Real
         all(≥(zero(T)), diagview(A))

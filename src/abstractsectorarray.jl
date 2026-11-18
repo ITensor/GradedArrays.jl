@@ -90,9 +90,9 @@ end
 
 # ========================  Shared utilities  ========================
 
-is_unique_fusion(A) = TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion()
+isuniquefusion(A) = TKS.FusionStyle(sectortype(A)) === TKS.UniqueFusion()
 function require_unique_fusion(A)
-    return is_unique_fusion(A) || error("not implemented for non-abelian tensors")
+    return isuniquefusion(A) || error("not implemented for non-abelian tensors")
 end
 
 # ========================  scale! / zero!  ========================

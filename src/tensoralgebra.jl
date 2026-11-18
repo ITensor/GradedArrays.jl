@@ -268,7 +268,7 @@ function twisted_matricizeconj(
         throw(ArgumentError("`side` must be `:codomain` or `:domain`, got `$(repr(side))`"))
     a_twisted =
     if TensorAlgebra.isidentitybiperm(perm_codomain, perm_domain) &&
-            TensorAlgebra.is_output_view(
+            TensorAlgebra.isoutputview(
             TensorAlgebra.matricizeconj, isconj, a, perm_codomain, perm_domain
         )
         copy(a)

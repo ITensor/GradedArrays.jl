@@ -10,7 +10,7 @@ using GradedArrays: FusedGradedDiagonal, FusedGradedMatrix, FusedGradedVector,
 using LinearAlgebra: I, tr
 using MatrixAlgebraKit: MatrixAlgebraKit as MAK
 using Random: randn!
-using TensorAlgebra: TensorAlgebra, contract, contractalign, has_bipartition,
+using TensorAlgebra: TensorAlgebra, contract, contractalign, hasbipartition,
     linearbroadcasted, matricize, unmatricize
 using Test: @test, @test_throws, @testset
 
@@ -574,8 +574,8 @@ end
 
 # The identity bipermutation for a split after `k` dimensions, plus the hook spellings it feeds.
 splitperms(a, k) = (ntuple(identity, k), ntuple(i -> k + i, ndims(a) - k))
-function is_split_view(a, k)
-    return TensorAlgebra.is_output_view(
+function issplitview(a, k)
+    return TensorAlgebra.isoutputview(
         TensorAlgebra.matricizeconj, false, a, splitperms(a, k)...
     )
 end
@@ -592,12 +592,12 @@ end
 
     # The stored split is declared shared and its view is the stored matrix itself; the copy
     # leaf is detached even there.
-    @test is_split_view(a, 2)
+    @test issplitview(a, 2)
     @test split_view(a, 2) === matricize(a)
     @test split_copy(a, 2).buffer !== matricize(a).buffer
 
     # A bend is not declared shared; `matricize` routes it to the copy leaf.
-    @test !is_split_view(a, 1)
+    @test !issplitview(a, 1)
     @test matricize(a, Val(1)).buffer !== matricize(a).buffer
 
     # A matrix-level fused array is already matricized at the `{1,1}` split: the view is the
@@ -605,31 +605,31 @@ end
     # goes through the same leaves and materializes its copy.
     ma = matricize(a)
     for m in (ma, ma')
-        @test is_split_view(m, 1)
+        @test issplitview(m, 1)
         @test split_view(m, 1) === m
         mcopy = split_copy(m, 1)
         @test mcopy == m
         @test mcopy.buffer !== ma.buffer
-        @test !is_split_view(m, 2)
+        @test !issplitview(m, 2)
         @test_throws ArgumentError matricize(m, Val(2))
     end
 
     # A diagonal is already a matrix: the `{1,1}` split is the shared view, and its copy leaf
     # stays diagonal but detached.
     d = fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)])
-    @test is_split_view(d, 1)
+    @test issplitview(d, 1)
     @test split_view(d, 1) === d
     dcopy = split_copy(d, 1)
     @test dcopy isa typeof(d)
     @test Array(dcopy) == Array(d)
     @test MAK.diagview(dcopy).buffer !== MAK.diagview(d).buffer
-    @test !is_split_view(d, 2)
+    @test !issplitview(d, 2)
     @test_throws ArgumentError matricize(d, Val(2))
 
     # A `UniqueSectorArray` shares its reduced data at every in-order split, so the trait holds
     # there and only the copy leaf detaches.
     sa = UniqueSectorArray(randn(2, 3, 4), (U1(0), U1(1), dual(U1(1))))
-    @test is_split_view(sa, 2)
+    @test issplitview(sa, 2)
     sa_view = split_view(sa, 2)
     sa_copy = split_copy(sa, 2)
     @test Base.mightalias(data(sa_view), data(sa))
@@ -702,17 +702,17 @@ end
     @test Array(dadj) ≈ Array(d')
 end
 
-@testset "has_bipartition" begin
+@testset "hasbipartition" begin
     g = gradedrange([U1(0) => 2, U1(1) => 3])
     a = randn(Float64, (g,), (g,))
     @test a isa GradedArray
-    @test has_bipartition(a)
+    @test hasbipartition(a)
     @test matricize(a) isa FusedGradedMatrix
-    @test has_bipartition(matricize(a))
-    @test has_bipartition(fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)]))
-    @test has_bipartition(fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)]))
-    @test has_bipartition(SectorIdentity{Float64}(U1(1)))
-    @test has_bipartition(SectorOnesVector{Float64}(U1(1)))
-    @test has_bipartition(UniqueSectorDelta{Float64}((U1(0), dual(U1(0)))))
-    @test !has_bipartition(randn(2, 3))
+    @test hasbipartition(matricize(a))
+    @test hasbipartition(fusedgradedvector([U1(0) => randn(2), U1(1) => randn(3)]))
+    @test hasbipartition(fusedgradeddiagonal([U1(0) => randn(2), U1(1) => randn(3)]))
+    @test hasbipartition(SectorIdentity{Float64}(U1(1)))
+    @test hasbipartition(SectorOnesVector{Float64}(U1(1)))
+    @test hasbipartition(UniqueSectorDelta{Float64}((U1(0), dual(U1(0)))))
+    @test !hasbipartition(randn(2, 3))
 end
