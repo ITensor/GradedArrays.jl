@@ -18,7 +18,7 @@ module AlgorithmsTestUtils
         )
         alg.count[] += 1
         return TA.bipermutedimsconjadd!(
-            TA.DefaultPermute(), dest, isconj, src, perm_codomain, perm_domain, α, β
+            TA.DefaultPermuteAlgorithm(), dest, isconj, src, perm_codomain, perm_domain, α, β
         )
     end
 
