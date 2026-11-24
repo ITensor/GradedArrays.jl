@@ -246,20 +246,14 @@ function Base.similar(v::FusedGradedVector, ::Type{T}) where {T}
     return FusedGradedVector(similar(v.buffer, T), axis(v), v.datalayout)
 end
 function Base.similar(v::FusedGradedVector, axis::FusedGradedOneTo{S}) where {S}
-    return FusedGradedVector{eltype(v)}(undef, axis)
+    return similar(v, eltype(v), axis)
 end
 function Base.similar(
         v::FusedGradedVector,
         ::Type{T},
         axis::FusedGradedOneTo{S}
     ) where {T, S}
-    if T <: Number
-        return FusedGradedVector{T}(undef, axis)
-    elseif T <: AbstractVector
-        return FusedGradedVector{eltype(T)}(undef, axis)
-    else
-        throw(ArgumentError("invalid type $T"))
-    end
+    return FusedGradedVector(similar(v.buffer, T, sum(datalengths(axis); init = 0)), axis)
 end
 
 # A permute of a vector stays a vector; the generic fallback routes through `similar_map` to a

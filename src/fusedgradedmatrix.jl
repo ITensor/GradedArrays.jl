@@ -233,7 +233,7 @@ function Base.similar(
         codomain::FusedGradedOneTo{S},
         domain::FusedGradedOneTo{S}
     ) where {S}
-    return FusedGradedMatrix{eltype(m)}(undef, codomain, domain)
+    return similar(m, eltype(m), codomain, domain)
 end
 function Base.similar(
         m::FusedGradedMatrix,
@@ -241,18 +241,15 @@ function Base.similar(
         codomain::FusedGradedOneTo{S},
         domain::FusedGradedOneTo{S}
     ) where {T, S}
-    if T <: Number
-        return FusedGradedMatrix{T}(undef, codomain, domain)
-    elseif T <: AbstractMatrix
-        return FusedGradedMatrix{eltype(T)}(undef, codomain, domain)
-    else
-        throw(ArgumentError("invalid type $T"))
-    end
+    datalayout = sectordatalayout(codomain, domain)
+    buffer = similar(m.buffer, T, bufferlength(datalayout))
+    return FusedGradedMatrix(buffer, codomain, domain, datalayout)
 end
+# A single axis gives a `FusedGradedVector`, as `similar(::Matrix, T, (n,))` gives a `Vector`.
 function Base.similar(
         m::FusedGradedMatrix,
         ::Type{T},
         axis::FusedGradedOneTo{S}
-    ) where {T <: AbstractVector, S}
-    return FusedGradedVector{eltype(T)}(undef, axis)
+    ) where {T, S}
+    return FusedGradedVector(similar(m.buffer, T, sum(datalengths(axis); init = 0)), axis)
 end

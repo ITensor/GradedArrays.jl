@@ -700,6 +700,12 @@ end
     dadj = TensorAlgebra.permutedimsop(conj, d, (2,), (1,))
     @test dadj isa typeof(d)
     @test Array(dadj) ≈ Array(d')
+
+    # With explicit axes, `similar` of a diagonal or of its adjoint is dense over those axes.
+    ax, hx = axis_codomain(d), GradedArrays.FusedGradedOneTo(h)
+    @test similar(d, ComplexF64, ax, hx) isa FusedGradedMatrix{ComplexF64}
+    @test axes(similar(d, elt, ax, hx)) == (ax, dual(hx))
+    @test similar(d', ComplexF64, ax, ax) isa FusedGradedMatrix{ComplexF64}
 end
 
 @testset "has_bipartition" begin
