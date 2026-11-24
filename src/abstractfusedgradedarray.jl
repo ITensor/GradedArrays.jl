@@ -447,7 +447,7 @@ function LinearAlgebra.norm(a::AbstractFusedGradedArray, p::Real = 2)
     s = sum(eachblockstoredindex(a); init) do I
         return LinearAlgebra.norm(view(a, I), p)^p
     end
-    return s^inv(p)
+    return s^inv(oftype(s, p))
 end
 
 # `LinearAlgebra.normalize` infers its result eltype via `typeof(first(a)/nrm)`, which scalar-indexes
