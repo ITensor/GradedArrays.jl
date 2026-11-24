@@ -57,6 +57,16 @@ end
         end
     end
 
+    @testset "norm preserves the element type ($G, $T, p=$p)" for (G, g) in (
+                ("U1", gradedrange([U1(0) => 2, U1(1) => 3])),
+                ("SU2", gradedrange([SU2(0) => 2, SU2(1 // 2) => 1, SU2(1) => 1])),
+            ),
+            T in (Float32, Float64),
+            p in (1, 2, 3, Inf)
+
+        @test norm(randn(T, g, dual(g)), p) isa T
+    end
+
     @testset "construction and TensorMap round-trip ($G)" for (G, i, j) in (
             (
                 "U1",
