@@ -602,10 +602,14 @@ function TA.twist!(a::GradedArray, dims)
     return a
 end
 
-# `TK.twist!` without its argument checks, and with the subblocks read by position: `TK.twist!`
-# indexes `t[f₁, f₂]` once per fusion tree pair, which rebuilds the subblock structure of the whole
-# space each time.
+function _has_trivial_twist(t::TK.TensorMap, dims)
+    return all(k -> all(isone ∘ TKS.twist, TK.sectors(TK.space(t, k))), dims)
+end
+
+# `TK.twist!` without its argument checks, and scaling only the subblocks whose phase isn't one:
+# `TK.twist!` copies every subblock through `tensoradd!`, which takes about twice as long.
 function _twist!(t::TK.TensorMap, dims)
+    _has_trivial_twist(t, dims) && return t
     N₁ = TK.numout(t)
     # By position: `StridedSubblocks` is in the order of `fusiontrees`. Iterating `TK.subblocks`
     # instead returns each element boxed, since its `iterate` is not inlined.
