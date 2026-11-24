@@ -606,7 +606,6 @@ end
 # indexes `t[f₁, f₂]` once per fusion tree pair, which rebuilds the subblock structure of the whole
 # space each time.
 function _twist!(t::TK.TensorMap, dims)
-    TK.has_shared_twist(t, dims) && return t
     N₁ = TK.numout(t)
     # By position: `StridedSubblocks` is in the order of `fusiontrees`. Iterating `TK.subblocks`
     # instead returns each element boxed, since its `iterate` is not inlined.
